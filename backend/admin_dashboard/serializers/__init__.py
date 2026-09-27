@@ -1,0 +1,29 @@
+# admin_dashboard/serializers/__init__.py
+
+#from .users_serializer import *  # noqa: F401,F403
+#from .customers_serializer import *  # noqa: F401,F403
+#from .categories_serializer import *  # noqa: F401,F403
+#from .brands_serializer import *  # noqa: F401,F403
+#from .products_serializer import *  # noqa: F401,F403
+#from .inventory_serializer import *  # noqa: F401,F403
+#from .orders_serializer import *  # noqa: F401,F403
+#from .payments_serializer import *  # noqa: F401,F403
+#from .transactions_serializer import *  # noqa: F401,F403
+#from .shipping_serializer import *  # noqa: F401,F403
+#from .discounts_serializer import *  # noqa: F401,F403
+#from .reviews_serializer import *  # noqa: F401,F403
+#from .newsletter_serializer import *  # noqa: F401,F403
+#from .support_serializer import *  # noqa: F401,F403
+#from .banners_serializer import *  # noqa: F401,F403
+#from .pages_serializer import *  # noqa: F401,F403
+#from .blog_serializer import *  # noqa: F401,F403
+#from .localization_serializer import *  # noqa: F401,F403
+#from .settings_serializer import *  # noqa: F401,F403
+#from .appearance_serializer import *  # noqa: F401,F403
+#from .analytics_serializer import *  # noqa: F401,F403
+#from .reports_serializer import *  # noqa: F401,F403
+#from .social_serializer import *  # noqa: F401,F403
+#from .tiktok_serializer import *  # noqa: F401,F403
+#from .whatsapp_serializer import *  # noqa: F401,F403
+#from .campaigns_serializer import *  # noqa: F401,F403
+#from .overview_serializer import *  # noqa: F401,F403

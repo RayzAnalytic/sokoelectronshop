@@ -1,0 +1,14 @@
+# Python / Django
+venv/
+*.pyc
+__pycache__/
+.env
+
+# Node / Frontend
+node_modules/
+.pnpm-store/
+dist/
+.env.local
+
+# System files
+.DS_Store
