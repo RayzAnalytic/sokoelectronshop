@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
     Star,
@@ -12,6 +12,8 @@ import {
     CreditCard,
     CheckCircle2,
     X,
+    MessageSquare,
+    Send,
 } from 'lucide-react';
 import { products as allProducts } from '@/data/products';
 import { useCart } from '@/lib/store/cart';
@@ -33,6 +35,16 @@ interface Product {
     images: string[];
     category: string;
 }
+
+type Review = {
+    id: string;
+    author: string;
+    rating: number;
+    title: string;
+    body: string;
+    date: string;
+    verified: boolean;
+};
 
 // Best sellers = top 8 by review count from the shared catalog
 const bestSellersData: Product[] = [...allProducts]
@@ -56,6 +68,37 @@ const bestSellersData: Product[] = [...allProducts]
 const categories = ['All', ...Array.from(new Set(bestSellersData.map((p) => p.category)))];
 const brands = ['All', ...Array.from(new Set(bestSellersData.map((p) => p.brand)))];
 
+// Mock reviews — replace with a real API later
+const MOCK_REVIEWS: Review[] = [
+    {
+        id: 'r1',
+        author: 'Brian K.',
+        rating: 5,
+        title: 'Excellent quality',
+        body: 'Exactly as described. Fast shipping and well packaged. Would buy again.',
+        date: '2026-09-12',
+        verified: true,
+    },
+    {
+        id: 'r2',
+        author: 'Amina M.',
+        rating: 4,
+        title: 'Great value',
+        body: 'Works well, solid build. Only minor gripe is the manual could be clearer.',
+        date: '2026-09-05',
+        verified: true,
+    },
+    {
+        id: 'r3',
+        author: 'Kevin O.',
+        rating: 5,
+        title: 'Highly recommend',
+        body: 'Second purchase from this store. Consistent quality and fair pricing.',
+        date: '2026-08-28',
+        verified: true,
+    },
+];
+
 export default function BestSellingPage() {
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedBrand, setSelectedBrand] = useState('All');
@@ -71,41 +114,80 @@ export default function BestSellingPage() {
     const [selectedModalProduct, setSelectedModalProduct] = useState<Product | null>(null);
     const [modalImageIndex, setModalImageIndex] = useState(0);
 
+    // Reviews modal state
+    const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
+    const [reviewsByProduct, setReviewsByProduct] = useState<Record<string, Review[]>>({});
+    const [reviewForm, setReviewForm] = useState({
+        author: '',
+        rating: 5,
+        title: '',
+        body: '',
+    });
+    const [reviewSubmitted, setReviewSubmitted] = useState(false);
+
     // Cart store
     const addItem = useCart((s) => s.addItem);
 
     // Filtering
-    const filteredProducts = bestSellersData.filter((product) => {
-        if (selectedCategory !== 'All' && product.category !== selectedCategory) return false;
-        if (selectedBrand !== 'All' && product.brand !== selectedBrand) return false;
+    const filteredProducts = bestSellersData
+        .filter((product) => {
+            if (selectedCategory !== 'All' && product.category !== selectedCategory) return false;
+            if (selectedBrand !== 'All' && product.brand !== selectedBrand) return false;
 
-        if (selectedPriceRange === 'under-5000' && product.price >= 5000) return false;
-        if (selectedPriceRange === '5000-20000' && (product.price < 5000 || product.price > 20000)) return false;
-        if (selectedPriceRange === '20000-50000' && (product.price < 20000 || product.price > 50000)) return false;
-        if (selectedPriceRange === 'over-50000' && product.price <= 50000) return false;
+            if (selectedPriceRange === 'under-5000' && product.price >= 5000) return false;
+            if (selectedPriceRange === '5000-20000' && (product.price < 5000 || product.price > 20000)) return false;
+            if (selectedPriceRange === '20000-50000' && (product.price < 20000 || product.price > 50000)) return false;
+            if (selectedPriceRange === 'over-50000' && product.price <= 50000) return false;
 
-        if (selectedStock !== 'All' && product.stockStatus !== selectedStock) return false;
+            if (selectedStock !== 'All' && product.stockStatus !== selectedStock) return false;
 
-        if (searchQuery.trim() !== '') {
-            const query = searchQuery.toLowerCase();
-            const matchesName = product.name.toLowerCase().includes(query);
-            const matchesBrand = product.brand.toLowerCase().includes(query);
-            const matchesCategory = product.category.toLowerCase().includes(query);
-            if (!matchesName && !matchesBrand && !matchesCategory) return false;
-        }
+            if (searchQuery.trim() !== '') {
+                const query = searchQuery.toLowerCase();
+                const matchesName = product.name.toLowerCase().includes(query);
+                const matchesBrand = product.brand.toLowerCase().includes(query);
+                const matchesCategory = product.category.toLowerCase().includes(query);
+                if (!matchesName && !matchesBrand && !matchesCategory) return false;
+            }
 
-        return true;
-    }).sort((a, b) => {
-        if (sortBy === 'price-low-high') return a.price - b.price;
-        if (sortBy === 'price-high-low') return b.price - a.price;
-        if (sortBy === 'rating') return b.rating - a.rating;
-        return 0;
-    });
+            return true;
+        })
+        .sort((a, b) => {
+            if (sortBy === 'price-low-high') return a.price - b.price;
+            if (sortBy === 'price-high-low') return b.price - a.price;
+            if (sortBy === 'rating') return b.rating - a.rating;
+            return 0;
+        });
+
+    // Related products for the active modal
+    const relatedProducts = useMemo(() => {
+        if (!selectedModalProduct) return [];
+        return bestSellersData
+            .filter(
+                (p) =>
+                    p.id !== selectedModalProduct.id &&
+                    (p.category === selectedModalProduct.category ||
+                        p.brand === selectedModalProduct.brand)
+            )
+            .slice(0, 6);
+    }, [selectedModalProduct]);
+
+    // Reviews for active product
+    const reviewsForActiveProduct = useMemo(() => {
+        if (!selectedModalProduct) return [];
+        const stored = reviewsByProduct[selectedModalProduct.id];
+        return stored && stored.length > 0 ? stored : MOCK_REVIEWS;
+    }, [selectedModalProduct, reviewsByProduct]);
+
+    const averageReviewRating = useMemo(() => {
+        if (reviewsForActiveProduct.length === 0) return 0;
+        const sum = reviewsForActiveProduct.reduce((acc, r) => acc + r.rating, 0);
+        return Math.round((sum / reviewsForActiveProduct.length) * 10) / 10;
+    }, [reviewsForActiveProduct]);
 
     const handleThumbnailClick = (productId: string, imgIdx: number, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setActiveImageIndices(prev => ({ ...prev, [productId]: imgIdx }));
+        setActiveImageIndices((prev) => ({ ...prev, [productId]: imgIdx }));
     };
 
     const handleAddToCart = async (product: Product, e: React.MouseEvent): Promise<void> => {
@@ -143,6 +225,37 @@ export default function BestSellingPage() {
     const openModal = (product: Product) => {
         setSelectedModalProduct(product);
         setModalImageIndex(0);
+    };
+
+    const closeModal = () => {
+        setSelectedModalProduct(null);
+        setReviewsModalOpen(false);
+        setReviewSubmitted(false);
+        setReviewForm({ author: '', rating: 5, title: '', body: '' });
+    };
+
+    const handleSubmitReview = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedModalProduct) return;
+        if (!reviewForm.author.trim() || !reviewForm.body.trim()) return;
+
+        const newReview: Review = {
+            id: `r-${Date.now()}`,
+            author: reviewForm.author.trim(),
+            rating: reviewForm.rating,
+            title: reviewForm.title.trim() || 'Review',
+            body: reviewForm.body.trim(),
+            date: new Date().toISOString().slice(0, 10),
+            verified: false,
+        };
+
+        setReviewsByProduct((prev) => {
+            const current = prev[selectedModalProduct.id] ?? MOCK_REVIEWS;
+            return { ...prev, [selectedModalProduct.id]: [newReview, ...current] };
+        });
+
+        setReviewSubmitted(true);
+        setReviewForm({ author: '', rating: 5, title: '', body: '' });
     };
 
     return (
@@ -189,8 +302,8 @@ export default function BestSellingPage() {
                                     key={cat}
                                     onClick={() => setSelectedCategory(cat)}
                                     className={`px-4 py-2 rounded-sm text-xs font-medium transition-colors ${isActive
-                                        ? 'bg-blue-950 text-white shadow-xs'
-                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                            ? 'bg-blue-950 text-white shadow-xs'
+                                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
                                         }`}
                                 >
                                     {cat}
@@ -320,12 +433,10 @@ export default function BestSellingPage() {
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                             />
 
-                                            {/* Best Seller badge — top left */}
                                             <span className="absolute top-2.5 left-2.5 z-10 bg-blue-950 text-white font-medium text-[10px] px-2 py-0.5 rounded shadow-xs">
                                                 Best Seller
                                             </span>
 
-                                            {/* Wishlist heart — top right */}
                                             <WishlistButton
                                                 variantId={product.id}
                                                 productId={product.id}
@@ -341,13 +452,12 @@ export default function BestSellingPage() {
                                                 className="absolute top-2.5 right-2.5 z-10"
                                             />
 
-                                            {/* Stock status — bottom left */}
                                             <span
                                                 className={`absolute bottom-2.5 left-2.5 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
-                                                    ? 'bg-emerald-100 text-emerald-800'
-                                                    : product.stockStatus === 'Low Stock'
-                                                        ? 'bg-amber-100 text-amber-800'
-                                                        : 'bg-red-100 text-red-800'
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : product.stockStatus === 'Low Stock'
+                                                            ? 'bg-amber-100 text-amber-800'
+                                                            : 'bg-red-100 text-red-800'
                                                     }`}
                                             >
                                                 {product.stockStatus}
@@ -441,118 +551,397 @@ export default function BestSellingPage() {
                 )}
             </main>
 
-            {/* Modal */}
+            {/* ════════════════════════════════════════════════════
+                PRODUCT MODAL — larger + related products + reviews
+                ════════════════════════════════════════════════════ */}
             {selectedModalProduct && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2">
-                    <div className="bg-white rounded-sm max-w-2xl w-full overflow-hidden shadow-2xl relative">
-                        <button
-                            onClick={() => setSelectedModalProduct(null)}
-                            className="absolute top-3 right-3 bg-slate-100 hover:bg-slate-200 text-slate-700 w-8 h-8 rounded-full flex items-center justify-center z-20 transition-colors"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+                    <div className="bg-white rounded-sm max-w-4xl w-full overflow-hidden shadow-2xl relative max-h-[92vh] flex flex-col">
 
-                        <div className="grid grid-cols-1 md:grid-cols-2">
-                            <div className="bg-slate-50 p-2 flex flex-col items-center space-y-2">
-                                <div className="relative w-full aspect-square bg-white rounded-sm overflow-hidden border border-slate-200 shadow-xs">
-                                    <img
-                                        src={selectedModalProduct.images[modalImageIndex]}
-                                        alt={selectedModalProduct.name}
-                                        className="w-full h-full object-cover"
-                                    />
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+                            <div>
+                                <span className="text-[11px] font-semibold text-blue-950 uppercase tracking-wide">
+                                    {selectedModalProduct.brand} • {selectedModalProduct.category}
+                                </span>
+                                <h2 className="text-base font-bold text-slate-900">Product Details</h2>
+                            </div>
+                            <button
+                                onClick={closeModal}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
 
-                                    {/* Wishlist heart — top-left of the modal image */}
-                                    <WishlistButton
-                                        variantId={selectedModalProduct.id}
-                                        productId={selectedModalProduct.id}
-                                        name={selectedModalProduct.name}
-                                        brand={selectedModalProduct.brand}
-                                        image={selectedModalProduct.images[0]}
-                                        unitPrice={selectedModalProduct.price}
-                                        compareAtPrice={selectedModalProduct.previousPrice}
-                                        slug={selectedModalProduct.id}
-                                        stockCount={10}
-                                        stock={selectedModalProduct.stockStatus}
-                                        size="md"
-                                        className="absolute top-3 left-3 z-10"
-                                    />
+                        {/* Body — scrollable */}
+                        <div className="overflow-y-auto flex-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
+
+                                {/* LEFT — Gallery */}
+                                <div className="bg-slate-50 p-2 flex flex-col items-center space-y-2 rounded-sm">
+                                    <div className="relative w-full aspect-square bg-white rounded-sm overflow-hidden border border-slate-200 shadow-xs">
+                                        <img
+                                            src={selectedModalProduct.images[modalImageIndex]}
+                                            alt={selectedModalProduct.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <WishlistButton
+                                            variantId={selectedModalProduct.id}
+                                            productId={selectedModalProduct.id}
+                                            name={selectedModalProduct.name}
+                                            brand={selectedModalProduct.brand}
+                                            image={selectedModalProduct.images[0]}
+                                            unitPrice={selectedModalProduct.price}
+                                            compareAtPrice={selectedModalProduct.previousPrice}
+                                            slug={selectedModalProduct.id}
+                                            stockCount={10}
+                                            stock={selectedModalProduct.stockStatus}
+                                            size="md"
+                                            className="absolute top-3 left-3 z-10"
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-center space-x-2">
+                                        {selectedModalProduct.images.map((img, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setModalImageIndex(idx)}
+                                                className={`w-12 h-12 rounded-sm overflow-hidden border transition-all ${modalImageIndex === idx
+                                                        ? 'border-blue-200 scale-105 shadow-sm'
+                                                        : 'border-slate-200 opacity-70 hover:opacity-100 hover:border-slate-400'
+                                                    }`}
+                                            >
+                                                <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="flex items-center justify-center space-x-2">
-                                    {selectedModalProduct.images.map((img, idx) => (
+
+                                {/* RIGHT — Info & Actions */}
+                                <div className="flex flex-col justify-between space-y-3">
+                                    <div className="space-y-2">
+                                        <div>
+                                            <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">
+                                                {selectedModalProduct.brand} • {selectedModalProduct.category}
+                                            </span>
+                                            <h2 className="text-lg font-bold text-slate-900 mt-1 leading-snug">
+                                                {selectedModalProduct.name}
+                                            </h2>
+                                        </div>
+
+                                        {/* Clickable rating → opens reviews modal */}
                                         <button
-                                            key={idx}
-                                            onClick={() => setModalImageIndex(idx)}
-                                            className={`w-12 h-12 rounded-sm overflow-hidden border transition-all ${modalImageIndex === idx
-                                                ? 'border-blue-200 scale-105 shadow-sm'
-                                                : 'border-slate-200 opacity-70 hover:opacity-100 hover:border-slate-400'
-                                                }`}
+                                            type="button"
+                                            onClick={() => setReviewsModalOpen(true)}
+                                            className="flex items-center space-x-1.5 group/rating hover:opacity-80 transition"
+                                            aria-label="View all reviews"
                                         >
-                                            <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
+                                            <Star className="w-3.5 h-3.5 fill-current text-amber-500" />
+                                            <span className="text-xs font-bold text-slate-800 underline-offset-2 group-hover/rating:underline">
+                                                {selectedModalProduct.rating}
+                                            </span>
+                                            <span className="text-[12px] text-slate-500">
+                                                ({selectedModalProduct.reviewCount} reviews)
+                                            </span>
+                                            <MessageSquare className="w-3.5 h-3.5 text-slate-400 ml-1" />
+                                            <span
+                                                className={`ml-2 text-[11px] font-medium px-2 py-0.5 rounded-full ${selectedModalProduct.stockStatus === 'In Stock'
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : selectedModalProduct.stockStatus === 'Low Stock'
+                                                            ? 'bg-amber-100 text-amber-800'
+                                                            : 'bg-red-100 text-red-800'
+                                                    }`}
+                                            >
+                                                {selectedModalProduct.stockStatus}
+                                            </span>
                                         </button>
-                                    ))}
+
+                                        {/* Description — paragraph-aware */}
+                                        <div className="text-[12px] text-slate-600 leading-relaxed space-y-2">
+                                            {selectedModalProduct.description.split('\n\n').map((para, i) => (
+                                                <p key={i}>{para}</p>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex items-baseline space-x-2 pt-1">
+                                            <span className="text-lg font-extrabold text-slate-900">
+                                                KES {selectedModalProduct.price.toLocaleString()}
+                                            </span>
+                                            {selectedModalProduct.previousPrice && (
+                                                <span className="text-[12px] text-slate-400 line-through">
+                                                    KES {selectedModalProduct.previousPrice.toLocaleString()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 pt-2">
+                                        <Link
+                                            href={`/pages/products/${selectedModalProduct.id}`}
+                                            className="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2 px-4 rounded-sm text-[13px] transition-colors"
+                                        >
+                                            Open Full Product Page →
+                                        </Link>
+                                        <button
+                                            onClick={async (e) => {
+                                                await handleAddToCart(selectedModalProduct, e);
+                                                closeModal();
+                                            }}
+                                            disabled={selectedModalProduct.stockStatus === 'Out of Stock'}
+                                            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                                        >
+                                            <ShoppingCart className="w-4 h-4" />
+                                            <span>Add to Cart — KES {selectedModalProduct.price.toLocaleString()}</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="p-3 flex flex-col justify-between space-y-2">
-                                <div className="space-y-2">
-                                    <div>
-                                        <span className="text-[12px] font-semibold text-blue-600 uppercase">
-                                            {selectedModalProduct.brand} • {selectedModalProduct.category}
-                                        </span>
-                                        <h2 className="text-base font-bold text-slate-900 mt-1 leading-snug">
-                                            {selectedModalProduct.name}
-                                        </h2>
-                                    </div>
-
-                                    <div className="flex items-center space-x-1.5">
-                                        <Star className="w-3.5 h-3.5 fill-current text-amber-500" />
-                                        <span className="text-xs font-bold text-slate-800">{selectedModalProduct.rating}</span>
-                                        <span className="text-[12px] text-slate-500">({selectedModalProduct.reviewCount} reviews)</span>
-                                        <span className={`ml-2 text-[12px] font-medium px-2 py-0.5 rounded-full ${selectedModalProduct.stockStatus === 'In Stock'
-                                            ? 'bg-emerald-100 text-emerald-800'
-                                            : selectedModalProduct.stockStatus === 'Low Stock'
-                                                ? 'bg-amber-100 text-amber-800'
-                                                : 'bg-red-100 text-red-800'
-                                            }`}>
-                                            {selectedModalProduct.stockStatus}
+                            {/* RELATED PRODUCTS */}
+                            {relatedProducts.length > 0 && (
+                                <div className="px-5 pb-5 border-t border-slate-100 pt-5">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h4 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">
+                                            You may also like
+                                        </h4>
+                                        <span className="text-[11px] text-slate-400">
+                                            {relatedProducts.length} related items
                                         </span>
                                     </div>
 
-                                    <p className="text-[12px] text-slate-600 leading-relaxed">
-                                        {selectedModalProduct.description}
+                                    <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                                        {relatedProducts.map((rp) => (
+                                            <button
+                                                key={rp.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedModalProduct(rp);
+                                                    setModalImageIndex(0);
+                                                    setReviewsModalOpen(false);
+                                                }}
+                                                className="shrink-0 w-40 text-left group/rel"
+                                            >
+                                                <div className="aspect-square rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
+                                                    <img
+                                                        src={rp.images[0]}
+                                                        alt={rp.name}
+                                                        className="w-full h-full object-cover group-hover/rel:scale-105 transition-transform duration-300"
+                                                    />
+                                                </div>
+                                                <p className="text-[11px] font-medium text-slate-500 uppercase mt-2 truncate">
+                                                    {rp.brand}
+                                                </p>
+                                                <p className="text-[12px] font-semibold text-slate-900 truncate group-hover/rel:text-blue-950">
+                                                    {rp.name}
+                                                </p>
+                                                <p className="text-[12px] font-bold text-slate-900 mt-0.5">
+                                                    KES {rp.price.toLocaleString()}
+                                                </p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ════════════════════════════════════════════════════
+                REVIEWS SUB-MODAL — on top of product modal
+                ════════════════════════════════════════════════════ */}
+            {selectedModalProduct && reviewsModalOpen && (
+                <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+                    <div className="bg-white rounded-sm max-w-3xl w-full overflow-hidden shadow-2xl relative max-h-[88vh] flex flex-col">
+
+                        {/* Header */}
+                        <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+                            <div className="min-w-0">
+                                <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+                                    Reviews for
+                                </p>
+                                <h2 className="text-base font-bold text-slate-900 truncate">
+                                    {selectedModalProduct.name}
+                                </h2>
+                            </div>
+                            <button
+                                onClick={() => setReviewsModalOpen(false)}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Body — scrollable */}
+                        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+
+                            {/* Summary */}
+                            <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-sm p-4">
+                                <div className="text-center">
+                                    <p className="text-3xl font-bold text-slate-900">
+                                        {averageReviewRating.toFixed(1)}
                                     </p>
+                                    <div className="flex justify-center text-amber-500 mt-1">
+                                        {Array.from({ length: 5 }).map((_, i) => (
+                                            <Star
+                                                key={i}
+                                                className={`w-3.5 h-3.5 ${i < Math.round(averageReviewRating)
+                                                        ? 'fill-current'
+                                                        : 'text-slate-300'
+                                                    }`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-1">
+                                        {reviewsForActiveProduct.length} reviews
+                                    </p>
+                                </div>
+                                <div className="flex-1 border-l border-slate-200 pl-4">
+                                    <p className="text-[12px] text-slate-600">
+                                        Based on verified purchases and community submissions.
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 mt-1">
+                                        Add your own review below ↓
+                                    </p>
+                                </div>
+                            </div>
 
-                                    <div className="flex items-baseline space-x-2 pt-1">
-                                        <span className="text-lg font-extrabold text-slate-900">
-                                            KES {selectedModalProduct.price.toLocaleString()}
+                            {/* Add review form */}
+                            <form onSubmit={handleSubmitReview} className="bg-white border border-slate-200 rounded-sm p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-bold text-slate-900">Write a review</h3>
+                                    {reviewSubmitted && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                            <CheckCircle2 className="w-3 h-3" />
+                                            Submitted
                                         </span>
-                                        {selectedModalProduct.previousPrice && (
-                                            <span className="text-[12px] text-slate-400 line-through">
-                                                KES {selectedModalProduct.previousPrice.toLocaleString()}
-                                            </span>
-                                        )}
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                            Your name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={reviewForm.author}
+                                            onChange={(e) =>
+                                                setReviewForm({ ...reviewForm, author: e.target.value })
+                                            }
+                                            placeholder="e.g. Jane W."
+                                            required
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                            Rating
+                                        </label>
+                                        <div className="flex items-center gap-1">
+                                            {[1, 2, 3, 4, 5].map((n) => (
+                                                <button
+                                                    key={n}
+                                                    type="button"
+                                                    onClick={() => setReviewForm({ ...reviewForm, rating: n })}
+                                                    className="p-1"
+                                                    aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
+                                                >
+                                                    <Star
+                                                        className={`w-5 h-5 transition ${n <= reviewForm.rating
+                                                                ? 'text-amber-500 fill-current'
+                                                                : 'text-slate-300'
+                                                            }`}
+                                                    />
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-2.5 pt-2">
-                                    <Link
-                                        href={`/pages/products/${selectedModalProduct.id}`}
-                                        className="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2 px-4 rounded-sm text-[13px] transition-colors"
-                                    >
-                                        Open Full Product Page →
-                                    </Link>
+                                <div>
+                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        Title (optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={reviewForm.title}
+                                        onChange={(e) =>
+                                            setReviewForm({ ...reviewForm, title: e.target.value })
+                                        }
+                                        placeholder="Summarize your experience"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        Your review
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={reviewForm.body}
+                                        onChange={(e) =>
+                                            setReviewForm({ ...reviewForm, body: e.target.value })
+                                        }
+                                        placeholder="Tell others what you think…"
+                                        required
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end">
                                     <button
-                                        onClick={async (e) => {
-                                            await handleAddToCart(selectedModalProduct, e);
-                                            setSelectedModalProduct(null);
-                                        }}
-                                        disabled={selectedModalProduct.stockStatus === 'Out of Stock'}
-                                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                                        type="submit"
+                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
                                     >
-                                        <ShoppingCart className="w-4 h-4" />
-                                        <span>Add to Cart — KES {selectedModalProduct.price.toLocaleString()}</span>
+                                        <Send className="w-3.5 h-3.5" />
+                                        Post review
                                     </button>
                                 </div>
+                            </form>
+
+                            {/* Reviews list */}
+                            <div className="space-y-3">
+                                <h3 className="text-sm font-bold text-slate-900">
+                                    All reviews ({reviewsForActiveProduct.length})
+                                </h3>
+
+                                {reviewsForActiveProduct.map((review) => (
+                                    <div key={review.id} className="border border-slate-200 rounded-sm p-3 space-y-1.5">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-semibold text-slate-900 truncate">
+                                                    {review.author}
+                                                    {review.verified && (
+                                                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
+                                                            <CheckCircle2 className="w-2.5 h-2.5" />
+                                                            Verified
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                <div className="flex items-center gap-1 mt-0.5">
+                                                    {Array.from({ length: 5 }).map((_, i) => (
+                                                        <Star
+                                                            key={i}
+                                                            className={`w-3 h-3 ${i < review.rating
+                                                                    ? 'text-amber-500 fill-current'
+                                                                    : 'text-slate-300'
+                                                                }`}
+                                                        />
+                                                    ))}
+                                                    <span className="text-[10px] text-slate-400 ml-1 font-mono">
+                                                        {review.date}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs font-semibold text-slate-800">{review.title}</p>
+                                        <p className="text-[12px] text-slate-600 leading-relaxed">
+                                            {review.body}
+                                        </p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>

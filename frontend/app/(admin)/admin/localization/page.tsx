@@ -13,9 +13,16 @@ import {
   MapPin,
   Calendar,
   Search,
+  Globe,
+  Clock,
+  Hash,
+  Receipt,
+  Flag,
 } from 'lucide-react';
 
-// --- TYPES ---
+// ============================================================
+// TYPES
+// ============================================================
 interface CurrencyItem {
   code: string;
   name: string;
@@ -45,6 +52,9 @@ interface TranslationRow {
   sw: string;
 }
 
+// ============================================================
+// CONSTANTS
+// ============================================================
 const ZONES = [
   'Zone A - Express (CBD & Suburbs)',
   'Zone B - Greater Nairobi',
@@ -53,10 +63,52 @@ const ZONES = [
   'Zone E - Western Kenya',
 ];
 
+const COUNTRIES = [
+  { v: 'KE', l: 'Kenya (default)' },
+  { v: 'TZ', l: 'Tanzania' },
+  { v: 'UG', l: 'Uganda' },
+  { v: 'RW', l: 'Rwanda' },
+  { v: 'NG', l: 'Nigeria' },
+  { v: 'ZA', l: 'South Africa' },
+  { v: 'GB', l: 'United Kingdom' },
+  { v: 'US', l: 'United States' },
+];
+
+const TIMEZONES = [
+  { v: 'Africa/Nairobi', l: 'Africa/Nairobi (EAT · GMT+3)' },
+  { v: 'Africa/Kampala', l: 'Africa/Kampala (EAT · GMT+3)' },
+  { v: 'Africa/Dar_es_Salaam', l: 'Africa/Dar_es_Salaam (EAT · GMT+3)' },
+  { v: 'Africa/Kigali', l: 'Africa/Kigali (CAT · GMT+2)' },
+  { v: 'Africa/Lagos', l: 'Africa/Lagos (WAT · GMT+1)' },
+  { v: 'Africa/Johannesburg', l: 'Africa/Johannesburg (SAST · GMT+2)' },
+  { v: 'Europe/London', l: 'Europe/London (GMT/BST)' },
+  { v: 'America/New_York', l: 'America/New_York (EST/EDT)' },
+  { v: 'UTC', l: 'UTC (GMT+0)' },
+];
+
+const REGIONS_BY_COUNTRY: Record<string, string[]> = {
+  KE: ['Nairobi', 'Coast', 'Central', 'Eastern', 'North Eastern', 'Nyanza', 'Rift Valley', 'Western'],
+  TZ: ['Dar es Salaam', 'Arusha', 'Mwanza', 'Dodoma', 'Zanzibar'],
+  UG: ['Central', 'Eastern', 'Northern', 'Western'],
+  RW: ['Kigali', 'Northern', 'Southern', 'Eastern', 'Western'],
+  NG: ['Lagos', 'Abuja', 'Kano', 'Rivers', 'Oyo'],
+  ZA: ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape'],
+  GB: ['England', 'Scotland', 'Wales', 'Northern Ireland'],
+  US: ['California', 'New York', 'Texas', 'Florida', 'Illinois'],
+};
+
+// ============================================================
+// MAIN PAGE COMPONENT
+// ============================================================
 export default function LocalizationSettingsPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Currency
+  // ── REGION ──
+  const [country, setCountry] = useState('KE');
+  const [region, setRegion] = useState('Nairobi');
+  const [timezone, setTimezone] = useState('Africa/Nairobi');
+
+  // ── CURRENCY ──
   const [defaultCurrency, setDefaultCurrency] = useState('KES');
   const [currencySymbol, setCurrencySymbol] = useState('KSh');
   const [symbolPosition, setSymbolPosition] = useState<'before' | 'after'>('before');
@@ -69,10 +121,13 @@ export default function LocalizationSettingsPage() {
     { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh', rate: 1.0, enabled: true },
     { code: 'USD', name: 'US Dollar', symbol: '$', rate: 0.0077, enabled: true },
     { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.0071, enabled: true },
+    { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.0061, enabled: true },
     { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh', rate: 20.15, enabled: false },
+    { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh', rate: 28.9, enabled: false },
+    { code: 'ZAR', name: 'South African Rand', symbol: 'R', rate: 0.14, enabled: false },
   ]);
 
-  // Languages
+  // ── LANGUAGE ──
   const [languages, setLanguages] = useState<LanguageItem[]>([
     { code: 'en', name: 'English', completeness: 100, isDefault: true },
     { code: 'sw', name: 'Swahili (Kiswahili)', completeness: 88, isDefault: false },
@@ -91,13 +146,13 @@ export default function LocalizationSettingsPage() {
   const [newLangName, setNewLangName] = useState('');
   const [newLangCode, setNewLangCode] = useState('');
 
-  // Counties
+  // ── COUNTIES ──
   const [counties, setCounties] = useState<CountyItem[]>([
-    { id: '1', name: 'Nairobi', code: '047', zone: 'Zone A - Express (CBD & Suburbs)' },
-    { id: '2', name: 'Kiambu', code: '022', zone: 'Zone B - Greater Nairobi' },
-    { id: '3', name: 'Mombasa', code: '001', zone: 'Zone C - Coastal Region' },
-    { id: '4', name: 'Nakuru', code: '32', zone: 'Zone D - Rift Valley' },
-    { id: '5', name: 'Kisumu', code: '042', zone: 'Zone E - Western Kenya' },
+    { id: '1', name: 'Nairobi', code: '047', zone: ZONES[0] },
+    { id: '2', name: 'Kiambu', code: '022', zone: ZONES[1] },
+    { id: '3', name: 'Mombasa', code: '001', zone: ZONES[2] },
+    { id: '4', name: 'Nakuru', code: '32', zone: ZONES[3] },
+    { id: '5', name: 'Kisumu', code: '042', zone: ZONES[4] },
   ]);
   const [showCountyModal, setShowCountyModal] = useState(false);
   const [editingCounty, setEditingCounty] = useState<CountyItem | null>(null);
@@ -105,14 +160,23 @@ export default function LocalizationSettingsPage() {
   const [countyCodeInput, setCountyCodeInput] = useState('');
   const [countyZoneInput, setCountyZoneInput] = useState(ZONES[0]);
 
-  // Formats
+  // ── FORMATS ──
   const [dateFormat, setDateFormat] = useState('DD/MM/YYYY');
   const [timeFormat, setTimeFormat] = useState('24h');
   const [numberFormat, setNumberFormat] = useState('1,234.56');
 
-  const anyModalOpen =
-    showTranslationModal || showAddLangModal || showCountyModal;
+  // ── TAX ──
+  const [taxEnabled, setTaxEnabled] = useState(true);
+  const [taxName, setTaxName] = useState('VAT');
+  const [taxRate, setTaxRate] = useState('16');
+  const [taxInclusive, setTaxInclusive] = useState(true);
+  const [taxRegion, setTaxRegion] = useState('Kenya Revenue Authority');
+  const [taxPin, setTaxPin] = useState('P051234567Z');
+  const [etimsEnabled, setEtimsEnabled] = useState(true);
 
+  const anyModalOpen = showTranslationModal || showAddLangModal || showCountyModal;
+
+  // ── EFFECTS ──
   useEffect(() => {
     if (toastMessage) {
       const t = setTimeout(() => setToastMessage(null), 3000);
@@ -137,14 +201,19 @@ export default function LocalizationSettingsPage() {
     };
   }, [anyModalOpen, showCountyModal, showAddLangModal, showTranslationModal]);
 
+  // ── HANDLERS ──
   const toast = (msg: string) => setToastMessage(msg);
-
   const saveAll = () => toast('Localization settings saved');
 
+  const handleCountryChange = (c: string) => {
+    setCountry(c);
+    const regions = REGIONS_BY_COUNTRY[c] || [];
+    if (regions.length > 0) setRegion(regions[0]);
+    toast(`Country switched to ${c}`);
+  };
+
   const toggleCurrencyEnabled = (code: string) => {
-    setCurrencies((prev) =>
-      prev.map((c) => (c.code === code ? { ...c, enabled: !c.enabled } : c))
-    );
+    setCurrencies((prev) => prev.map((c) => (c.code === code ? { ...c, enabled: !c.enabled } : c)));
   };
 
   const handleRateChange = (code: string, newRate: string) => {
@@ -235,9 +304,10 @@ export default function LocalizationSettingsPage() {
       t.sw.toLowerCase().includes(translationSearch.toLowerCase())
   );
 
+  const regionOptions = (REGIONS_BY_COUNTRY[country] || []).map((r) => ({ v: r, l: r }));
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-
       {toastMessage && (
         <div className="fixed bottom-3 right-3 z-[120] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -252,9 +322,15 @@ export default function LocalizationSettingsPage() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-[15px] font-semibold text-slate-900">Localization</h1>
+            <h1 className="text-[15px] font-semibold text-slate-900 flex items-center gap-2">
+              Localization
+              <span className="inline-flex items-center gap-1 text-[13px] font-medium bg-blue-50 text-blue-950 border border-blue-100 px-2 py-0.5 rounded-sm">
+                <Globe className="w-3 h-3" />
+                Kenya · East Africa ready
+              </span>
+            </h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Currencies, translations, counties, and regional formats
+              Country, region, currency, language, timezone, formats, and tax configuration
             </p>
           </div>
           <button
@@ -269,7 +345,44 @@ export default function LocalizationSettingsPage() {
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
 
-        {/* 1. CURRENCY */}
+        {/* ═══════════ 1. COUNTRY & REGION ═══════════ */}
+        <Section
+          icon={<Flag className="w-4 h-4" />}
+          tint="bg-emerald-50 text-emerald-700"
+          title="Country & region"
+          subtitle="Where your store operates — drives tax rules, defaults, and regional formatting"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[13px]">
+            <SelectField
+              label="Country"
+              value={country}
+              onChange={handleCountryChange}
+              options={COUNTRIES}
+            />
+            <SelectField
+              label="Region / State"
+              value={region}
+              onChange={setRegion}
+              options={regionOptions.length > 0 ? regionOptions : [{ v: region, l: region }]}
+            />
+            <SelectField
+              label="Timezone"
+              value={timezone}
+              onChange={setTimezone}
+              options={TIMEZONES}
+            />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 flex items-start gap-2">
+            <MapPin className="w-3.5 h-3.5 text-blue-950 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-blue-950">
+              Default store is set to <span className="font-medium">Kenya · Nairobi · Africa/Nairobi</span>.
+              Changing the country updates regional formatting and tax defaults.
+            </p>
+          </div>
+        </Section>
+
+        {/* ═══════════ 2. CURRENCY ═══════════ */}
         <Section
           icon={<DollarSign className="w-4 h-4" />}
           tint="bg-blue-50 text-blue-950"
@@ -282,9 +395,13 @@ export default function LocalizationSettingsPage() {
               value={defaultCurrency}
               onChange={setDefaultCurrency}
               options={[
-                { v: 'KES', l: 'KES - Kenyan Shilling' },
-                { v: 'USD', l: 'USD - US Dollar' },
-                { v: 'EUR', l: 'EUR - Euro' },
+                { v: 'KES', l: 'KES — Kenyan Shilling' },
+                { v: 'USD', l: 'USD — US Dollar' },
+                { v: 'EUR', l: 'EUR — Euro' },
+                { v: 'GBP', l: 'GBP — British Pound' },
+                { v: 'TZS', l: 'TZS — Tanzanian Shilling' },
+                { v: 'UGX', l: 'UGX — Ugandan Shilling' },
+                { v: 'ZAR', l: 'ZAR — South African Rand' },
               ]}
             />
             <Field label="Currency symbol" value={currencySymbol} onChange={setCurrencySymbol} />
@@ -377,11 +494,10 @@ export default function LocalizationSettingsPage() {
                             <button
                               onClick={() => toggleCurrencyEnabled(c.code)}
                               disabled={c.code === 'KES'}
-                              className={`px-2 py-0.5 rounded-sm text-[13px] font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                                c.enabled
+                              className={`px-2 py-0.5 rounded-sm text-[13px] font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed ${c.enabled
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                   : 'bg-slate-100 text-slate-500 border-slate-200'
-                              }`}
+                                }`}
                             >
                               {c.enabled ? 'Active' : 'Inactive'}
                             </button>
@@ -396,7 +512,7 @@ export default function LocalizationSettingsPage() {
           </div>
         </Section>
 
-        {/* 2. LANGUAGES */}
+        {/* ═══════════ 3. LANGUAGE ═══════════ */}
         <Section
           icon={<Languages className="w-4 h-4" />}
           tint="bg-purple-50 text-purple-700"
@@ -450,9 +566,8 @@ export default function LocalizationSettingsPage() {
                         <div className="flex items-center gap-2 max-w-xs">
                           <div className="flex-1 h-2 rounded-sm bg-slate-100 overflow-hidden">
                             <div
-                              className={`h-full ${
-                                lang.completeness === 100 ? 'bg-emerald-500' : 'bg-blue-950'
-                              }`}
+                              className={`h-full ${lang.completeness === 100 ? 'bg-emerald-500' : 'bg-blue-950'
+                                }`}
                               style={{ width: `${lang.completeness}%` }}
                             />
                           </div>
@@ -495,68 +610,7 @@ export default function LocalizationSettingsPage() {
           </div>
         </Section>
 
-        {/* 3. COUNTIES */}
-        <Section
-          icon={<MapPin className="w-4 h-4" />}
-          tint="bg-emerald-50 text-emerald-700"
-          title="Counties & shipping zones"
-          subtitle="Map Kenyan counties to shipping rate tiers"
-          action={
-            <button
-              onClick={openAddCounty}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add county</span>
-            </button>
-          }
-        >
-          <div className="border border-slate-200 rounded-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">County</th>
-                    <th className="py-2 px-3 font-medium">Code</th>
-                    <th className="py-2 px-3 font-medium">Shipping zone</th>
-                    <th className="py-2 px-3 w-40"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {counties.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2 px-3 font-medium text-slate-900">{c.name}</td>
-                      <td className="py-2 px-3 font-mono text-slate-600">{c.code}</td>
-                      <td className="py-2 px-3">
-                        <span className="inline-block bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-sm text-[13px] font-medium">
-                          {c.zone}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEditCounty(c)}
-                            className="px-2.5 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px]"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteCounty(c.id)}
-                            className="px-2.5 py-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 font-medium text-[13px]"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </Section>
-
-        {/* 4. FORMATS */}
+        {/* ═══════════ 4. DATE, TIME & NUMBER FORMATS ═══════════ */}
         <Section
           icon={<Calendar className="w-4 h-4" />}
           tint="bg-amber-50 text-amber-700"
@@ -590,11 +644,12 @@ export default function LocalizationSettingsPage() {
               options={[
                 { v: '1,234.56', l: '1,234.56 (comma thousands)' },
                 { v: '1.234,56', l: '1.234,56 (dot thousands)' },
+                { v: '1 234,56', l: '1 234,56 (space thousands)' },
               ]}
             />
           </div>
 
-          <div className="pt-3 border-t border-slate-100">
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
               <p className="text-[13px] font-medium text-slate-700 uppercase tracking-wide">
                 Address format preview
@@ -606,11 +661,202 @@ export default function LocalizationSettingsPage() {
                 <p>Nairobi, Kenya</p>
               </div>
             </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+              <p className="text-[13px] font-medium text-slate-700 uppercase tracking-wide">
+                Currency & date preview
+              </p>
+              <div className="bg-white border border-slate-200 rounded-sm p-2 text-[13px] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Price display</span>
+                  <span className="font-mono font-medium text-slate-900">
+                    {symbolPosition === 'before'
+                      ? `${currencySymbol} ${numberFormat}`
+                      : `${numberFormat} ${currencySymbol}`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Today</span>
+                  <span className="font-mono text-slate-900">
+                    {dateFormat === 'DD/MM/YYYY' && '24/09/2026'}
+                    {dateFormat === 'MM/DD/YYYY' && '09/24/2026'}
+                    {dateFormat === 'YYYY-MM-DD' && '2026-09-24'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Time now</span>
+                  <span className="font-mono text-slate-900">
+                    {timeFormat === '24h' ? '22:27' : '10:27 PM'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </Section>
+
+        {/* ═══════════ 5. TAX CONFIGURATION ═══════════ */}
+        <Section
+          icon={<Receipt className="w-4 h-4" />}
+          tint="bg-red-50 text-red-700"
+          title="Tax configuration"
+          subtitle="Regional tax rules — Kenya VAT by default, expandable to other jurisdictions"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 border border-slate-200 p-2 rounded-sm">
+            <div>
+              <p className="text-[13px] font-medium text-slate-900">Enable tax calculation</p>
+              <p className="text-[13px] text-slate-500 mt-0.5">
+                Automatically calculate tax on checkout orders
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={taxEnabled}
+              onChange={(e) => setTaxEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950 shrink-0"
+            />
+          </div>
+
+          {taxEnabled && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[13px]">
+                <Field label="Tax name" value={taxName} onChange={setTaxName} />
+                <Field
+                  label="Tax rate (%)"
+                  value={taxRate}
+                  onChange={setTaxRate}
+                  type="number"
+                />
+                <SelectField
+                  label="Tax authority"
+                  value={taxRegion}
+                  onChange={setTaxRegion}
+                  options={[
+                    { v: 'Kenya Revenue Authority', l: 'Kenya Revenue Authority (KRA)' },
+                    { v: 'Tanzania Revenue Authority', l: 'Tanzania Revenue Authority (TRA)' },
+                    { v: 'Uganda Revenue Authority', l: 'Uganda Revenue Authority (URA)' },
+                    { v: 'Rwanda Revenue Authority', l: 'Rwanda Revenue Authority (RRA)' },
+                  ]}
+                />
+              </div>
+
+              <div className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-sm text-[13px]">
+                <input
+                  type="checkbox"
+                  id="tax-inclusive"
+                  checked={taxInclusive}
+                  onChange={(e) => setTaxInclusive(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
+                />
+                <label htmlFor="tax-inclusive" className="cursor-pointer text-slate-700">
+                  Catalog prices include tax
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 border border-slate-200 p-2 rounded-sm">
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-900">
+                      KRA eTIMS fiscal gateway
+                    </p>
+                    <p className="text-[13px] text-slate-500 mt-0.5">
+                      Auto-transmit invoices to the Kenya Revenue Authority
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={etimsEnabled}
+                    onChange={(e) => setEtimsEnabled(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950 shrink-0"
+                  />
+                </div>
+
+                {etimsEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[13px]">
+                    <Field label="KRA PIN" value={taxPin} onChange={setTaxPin} mono />
+                    <Field
+                      label="eTIMS device ID"
+                      value="ETIMS-NBI-0042"
+                      onChange={() => { }}
+                      mono
+                    />
+                    <Field
+                      label="Environment"
+                      value="Sandbox"
+                      onChange={() => { }}
+                      mono
+                    />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </Section>
+
+        {/* ═══════════ 6. COUNTIES (Kenya-specific) ═══════════ */}
+        {country === 'KE' && (
+          <Section
+            icon={<MapPin className="w-4 h-4" />}
+            tint="bg-emerald-50 text-emerald-700"
+            title="Counties & shipping zones"
+            subtitle="Map Kenyan counties to shipping rate tiers"
+            action={
+              <button
+                onClick={openAddCounty}
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add county</span>
+              </button>
+            }
+          >
+            <div className="border border-slate-200 rounded-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-[13px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                      <th className="py-2 px-3 font-medium">County</th>
+                      <th className="py-2 px-3 font-medium">Code</th>
+                      <th className="py-2 px-3 font-medium">Shipping zone</th>
+                      <th className="py-2 px-3 w-40"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {counties.map((c) => (
+                      <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-2 px-3 font-medium text-slate-900">{c.name}</td>
+                        <td className="py-2 px-3 font-mono text-slate-600">{c.code}</td>
+                        <td className="py-2 px-3">
+                          <span className="inline-block bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-sm text-[13px] font-medium">
+                            {c.zone}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => openEditCounty(c)}
+                              className="px-2.5 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px]"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => deleteCounty(c.id)}
+                              className="px-2.5 py-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 font-medium text-[13px]"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Section>
+        )}
       </main>
 
-      {/* ─────── TRANSLATION EDITOR MODAL ─────── */}
+      {/* ─────────── TRANSLATION EDITOR MODAL ─────────── */}
       {showTranslationModal && (
         <div
           className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
@@ -709,7 +955,7 @@ export default function LocalizationSettingsPage() {
         </div>
       )}
 
-      {/* ─────── ADD LANGUAGE MODAL ─────── */}
+      {/* ─────────── ADD LANGUAGE MODAL ─────────── */}
       {showAddLangModal && (
         <div
           className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
@@ -762,7 +1008,7 @@ export default function LocalizationSettingsPage() {
         </div>
       )}
 
-      {/* ─────── COUNTY MODAL ─────── */}
+      {/* ─────────── COUNTY MODAL ─────────── */}
       {showCountyModal && (
         <div
           className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
@@ -826,7 +1072,9 @@ export default function LocalizationSettingsPage() {
   );
 }
 
-/* ───────── Reusable: Section ───────── */
+// ============================================================
+// HELPER COMPONENTS (top-level)
+// ============================================================
 function Section({
   icon,
   tint,
@@ -861,7 +1109,6 @@ function Section({
   );
 }
 
-/* ───────── Reusable: Field ───────── */
 function Field({
   label,
   value,
@@ -885,15 +1132,13 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 ${
-          mono ? 'font-mono' : ''
-        }`}
+        className={`w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 ${mono ? 'font-mono' : ''
+          }`}
       />
     </label>
   );
 }
 
-/* ───────── Reusable: SelectField ───────── */
 function SelectField({
   label,
   value,

@@ -90,8 +90,8 @@ export default function Step12Finish() {
             <div className="text-center">
                 <div
                     className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${isSubmitted
-                            ? 'bg-emerald-50 border border-emerald-100'
-                            : 'bg-blue-50 border border-blue-100'
+                        ? 'bg-emerald-50 border border-emerald-100'
+                        : 'bg-blue-50 border border-blue-100'
                         }`}
                 >
                     <Rocket
@@ -146,8 +146,8 @@ export default function Step12Finish() {
                                 <div className="flex items-center gap-3 min-w-0">
                                     <span
                                         className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isDone
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-amber-100 text-amber-700'
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : 'bg-amber-100 text-amber-700'
                                             }`}
                                     >
                                         {isDone ? (

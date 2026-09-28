@@ -1,140 +1,46 @@
-# onboarding/urls.py
+# apps/onboarding/urls.py
 
 from django.urls import path
 
-from onboarding.views import (
-    # ── Meta ──
-    OnboardingProgressView,
-    OnboardingStepsMetaView,
-
-    # ── Step 1: Account ──
-    Step1AccountView,
-
-    # ── Step 2: Store Profile ──
-    Step2StoreView,
-
-    # ── Step 3: Business & Tax ──
-    Step3BusinessView,
-    Step3ETimsTestView,
-
-    # ── Step 4: Payments ──
-    Step4PaymentsView,
-    Step4TestConnectionView,
-
-    # ── Step 5: WhatsApp ──
-    Step5WhatsAppView,
-    Step5VerifyWhatsAppView,
-    Step5SendTestView,
-
-    # ── Step 6: Shipping ──
-    Step6ShippingView,
-
-    # ── Step 7: First Categories ──
-    Step7CategoriesView,
-
-    # ── Step 8: First Products ──
-    Step8ProductsView,
-
-    # ── Step 9: Social Channels ──
-    Step9SocialView,
-
-    # ── Step 10: Theme ──
-    Step10ThemeView,
-
-    # ── Step 11: Team ──
-    Step11TeamView,
-
-    # ── Step 12: Finish ──
-    Step12FinishView,
-)
+from . import views
 
 app_name = "onboarding"
 
-
 urlpatterns = [
-    # ─────────────────────────────────────────────────────
-    # GLOBAL — progress + step metadata
-    # ─────────────────────────────────────────────────────
-    path("progress/", OnboardingProgressView.as_view(), name="progress"),
-    path("steps/", OnboardingStepsMetaView.as_view(), name="steps-meta"),
+    # ── Session-level ──
+    path("progress/", views.current_session, name="progress"),
+    path("session/", views.current_session, name="current-session"),
+    path("session/reset/", views.reset, name="reset-session"),
 
-    # ─────────────────────────────────────────────────────
-    # STEP 1 — Account
-    # ─────────────────────────────────────────────────────
-    path("steps/1/", Step1AccountView.as_view(), name="step-1"),
+    # ── Step listing ──
+    path("steps/", views.list_steps, name="list-steps"),
 
-    # ─────────────────────────────────────────────────────
-    # STEP 2 — Store Profile
-    # ─────────────────────────────────────────────────────
-    path("steps/2/", Step2StoreView.as_view(), name="step-2"),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 3 — Business & Tax
-    # ─────────────────────────────────────────────────────
-    path("steps/3/", Step3BusinessView.as_view(), name="step-3"),
+    # ── Step-specific actions (MUST come before the generic step route) ──
     path(
-        "steps/3/etims-test/",
-        Step3ETimsTestView.as_view(),
-        name="step-3-etims-test",
-    ),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 4 — Payments
-    # ─────────────────────────────────────────────────────
-    path("steps/4/", Step4PaymentsView.as_view(), name="step-4"),
-    path(
-        "steps/4/test/",
-        Step4TestConnectionView.as_view(),
-        name="step-4-test",
-    ),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 5 — WhatsApp
-    # ─────────────────────────────────────────────────────
-    path("steps/5/", Step5WhatsAppView.as_view(), name="step-5"),
-    path(
-        "steps/5/verify/",
-        Step5VerifyWhatsAppView.as_view(),
-        name="step-5-verify",
+        "steps/<str:step_key>/etims-test/",
+        views.test_etims,
+        name="test-etims",
     ),
     path(
-        "steps/5/send-test/",
-        Step5SendTestView.as_view(),
-        name="step-5-send-test",
+        "steps/<str:step_key>/test/",
+        views.test_step4,
+        name="test-step4",
+    ),
+    path(
+        "steps/<str:step_key>/verify/",
+        views.verify_whatsapp,
+        name="verify-whatsapp",
+    ),
+    path(
+        "steps/<str:step_key>/send-test/",
+        views.send_whatsapp_test,
+        name="send-whatsapp-test",
     ),
 
-    # ─────────────────────────────────────────────────────
-    # STEP 6 — Shipping
-    # ─────────────────────────────────────────────────────
-    path("steps/6/", Step6ShippingView.as_view(), name="step-6"),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 7 — First Categories
-    # ─────────────────────────────────────────────────────
-    path("steps/7/", Step7CategoriesView.as_view(), name="step-7"),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 8 — First Products
-    # ─────────────────────────────────────────────────────
-    path("steps/8/", Step8ProductsView.as_view(), name="step-8"),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 9 — Social Channels
-    # ─────────────────────────────────────────────────────
-    path("steps/9/", Step9SocialView.as_view(), name="step-9"),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 10 — Theme
-    # ─────────────────────────────────────────────────────
-    path("steps/10/", Step10ThemeView.as_view(), name="step-10"),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 11 — Team
-    # ─────────────────────────────────────────────────────
-    path("steps/11/", Step11TeamView.as_view(), name="step-11"),
-
-    # ─────────────────────────────────────────────────────
-    # STEP 12 — Finish
-    # ─────────────────────────────────────────────────────
-    path("steps/12/", Step12FinishView.as_view(), name="step-12"),
+    # ── Generic step view (GET = detail, POST = submit) ──
+    path(
+        "steps/<str:step_key>/",
+        views.step_view,
+        name="step-view",
+    ),
 ]

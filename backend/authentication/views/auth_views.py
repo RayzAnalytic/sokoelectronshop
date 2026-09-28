@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from authentication.serializers.auth_serializer import (
@@ -19,6 +20,7 @@ from authentication.serializers.auth_serializer import (
     UserDetailSerializer,
     UserUpdateSerializer,
 )
+from authentication.serializers.social_serializer import GoogleLoginSerializer
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -94,6 +96,32 @@ class LoginAPIView(APIView):
 
 
 # ============================================================
+# GOOGLE LOGIN
+# ============================================================
+class GoogleLoginAPIView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [LoginThrottle]
+
+    def post(self, request):
+        serializer = GoogleLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.save()
+        created = getattr(user, '_created_via_google', False)
+
+        logger.info(
+            "Google login: %s (%s)",
+            user.email,
+            "new" if created else "existing",
+        )
+
+        return Response(
+            _issue_tokens(user),
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+# ============================================================
 # LOGOUT
 # ============================================================
 class LogoutAPIView(APIView):
@@ -111,13 +139,14 @@ class LogoutAPIView(APIView):
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
-        except Exception as exc:
-            # Log without leaking details to the client
-            logger.warning("Logout failed to blacklist token: %s", exc)
-            return Response(
-                {'detail': 'Invalid or already expired refresh token.'},
-                status=status.HTTP_400_BAD_REQUEST,
+        except TokenError:
+            # Already blacklisted or invalid — logout is idempotent
+            logger.info(
+                "Logout: token already invalid for %s",
+                request.user.email,
             )
+        except Exception as exc:
+            logger.warning("Logout failed to blacklist token: %s", exc)
 
         logger.info("User logged out: %s", request.user.email)
 

@@ -20,7 +20,11 @@ class GoogleLoginSerializer(serializers.Serializer):
     """
     Payload the Next.js frontend sends after Google returns a credential.
     Send either access_token (older popup flow) or id_token (GSI, preferred).
+
+    The frontend currently sends `access_token` (from `useGoogleLogin`
+    with `flow: 'implicit'`), so that path is fully supported.
     """
+
     access_token = serializers.CharField(required=False, allow_blank=True)
     id_token = serializers.CharField(required=False, allow_blank=True)
 
@@ -135,3 +139,61 @@ class GoogleLoginSerializer(serializers.Serializer):
             )
 
         return idinfo
+
+    # ── User creation / lookup ──
+    def create(self, validated_data):
+        """
+        Called by the view via serializer.save() after validation succeeds.
+        Upserts the local user from the verified Google profile.
+        """
+        profile = validated_data['google_user']
+        email = profile['email'].strip().lower()
+
+        # Split name into first/last
+        given_name = (profile.get('given_name') or '').strip()
+        family_name = (profile.get('family_name') or '').strip()
+        full_name = (profile.get('name') or '').strip()
+
+        # Fallbacks: if given_name/family_name missing, split `name`
+        if not given_name and full_name:
+            parts = full_name.split(' ', 1)
+            given_name = parts[0]
+            family_name = family_name or (parts[1] if len(parts) > 1 else '')
+
+        # Default role
+        default_role = (
+            User.Roles.CUSTOMER
+            if hasattr(User, 'Roles')
+            else 'CUSTOMER'
+        )
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'username': email.split('@')[0],
+                'first_name': given_name,
+                'last_name': family_name,
+                'role': default_role,
+            },
+        )
+
+        # Refresh name fields if they were empty on an existing account
+        changed = []
+        if not user.first_name and given_name:
+            user.first_name = given_name
+            changed.append('first_name')
+        if not user.last_name and family_name:
+            user.last_name = family_name
+            changed.append('last_name')
+        if changed:
+            user.save(update_fields=changed)
+
+        # Mark email as verified (Google has already verified it)
+        if hasattr(user, 'email_verified') and not user.email_verified:
+            user.email_verified = True
+            user.save(update_fields=['email_verified'])
+
+        # Attach a flag the view can read if it wants to log "new signup"
+        user._created_via_google = created
+
+        return user

@@ -86,10 +86,10 @@ export default function LoginPage() {
       ) {
         window.location.href = '/auth/onboarding';
       } else {
-        window.location.href = '/account';
+        window.location.href = '/pages/account';
       }
     } catch {
-      window.location.href = '/account';
+      window.location.href = '/pages/account';
     }
   };
 

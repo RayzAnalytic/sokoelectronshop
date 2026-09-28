@@ -1,7 +1,7 @@
 // components/admin/AddDiscountModal.tsx
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   X,
   Percent,
@@ -25,7 +25,17 @@ import {
   Layers,
   PackagePlus,
   Plus,
+  Upload,
+  FileSpreadsheet,
+  FileText,
+  Download,
+  Loader2,
+  Info,
+  ClipboardPaste,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import AddProductForDiscountModal from './AddProductForDiscountModal';
 import { useProducts } from '@/lib/store/products';
 import type {
@@ -93,11 +103,268 @@ const EMPTY: DiscountPayload = {
   linkedCategories: [],
 };
 
+// ═══════════════════════════════════════════════════════════════
+// IMPORT: Types & parsing
+// ═══════════════════════════════════════════════════════════════
+type ImportFormat = 'CSV' | 'JSON' | 'Template';
+
+interface ImportRow {
+  code: string;
+  description?: string;
+  type?: DiscountType;
+  value?: string;
+  minOrder?: number;
+  usageLimit?: number;
+  perCustomer?: number;
+  startDate?: string;
+  endDate?: string;
+  error?: string;
+  valid: boolean;
+}
+
+// CSV template header — shown to the user and used for parsing
+const CSV_HEADER = [
+  'code',
+  'description',
+  'type',
+  'value',
+  'minOrder',
+  'usageLimit',
+  'perCustomer',
+  'startDate',
+  'endDate',
+];
+
+const TEMPLATE_ROWS: ImportRow[] = [
+  {
+    code: 'WELCOME10',
+    description: '10% off for new customers',
+    type: 'Percentage',
+    value: '10%',
+    minOrder: 2000,
+    usageLimit: 500,
+    perCustomer: 1,
+    startDate: '2026-10-01 00:00',
+    endDate: '2026-12-31 23:59',
+    valid: true,
+  },
+  {
+    code: 'MPESA200',
+    description: 'Flat KES 200 off M-Pesa payments',
+    type: 'Fixed Amount',
+    value: 'KES 200',
+    minOrder: 1500,
+    usageLimit: 1000,
+    perCustomer: 2,
+    startDate: '2026-10-01 00:00',
+    endDate: '2026-11-30 23:59',
+    valid: true,
+  },
+  {
+    code: 'FREESHIP',
+    description: 'Free delivery on all orders',
+    type: 'Free Shipping',
+    value: 'Free',
+    minOrder: 0,
+    usageLimit: 10000,
+    perCustomer: 5,
+    startDate: '2026-10-01 00:00',
+    endDate: '2026-12-31 23:59',
+    valid: true,
+  },
+];
+
+// Very small CSV parser (handles quoted values with commas)
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') {
+        cell += '"';
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
+      } else {
+        cell += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        row.push(cell.trim());
+        cell = '';
+      } else if (c === '\n' || c === '\r') {
+        if (c === '\r' && next === '\n') i++;
+        if (cell !== '' || row.length > 0) {
+          row.push(cell.trim());
+          rows.push(row);
+          row = [];
+          cell = '';
+        }
+      } else {
+        cell += c;
+      }
+    }
+  }
+  if (cell !== '' || row.length > 0) {
+    row.push(cell.trim());
+    rows.push(row);
+  }
+  return rows;
+}
+
+function normaliseType(raw: string): DiscountType {
+  const t = raw.trim().toLowerCase();
+  if (t === 'percentage' || t === 'percent' || t === '%') return 'Percentage';
+  if (t === 'fixed amount' || t === 'fixed' || t === 'amount') return 'Fixed Amount';
+  if (t === 'free shipping' || t === 'shipping' || t === 'free') return 'Free Shipping';
+  if (t === 'buy x get y' || t === 'bxgy' || t === 'bogo') return 'Buy X Get Y';
+  return 'Percentage';
+}
+
+function validateRow(row: Partial<ImportRow>, index: number): ImportRow {
+  const errors: string[] = [];
+  if (!row.code || !row.code.trim()) errors.push('Code required');
+  else if (!/^[A-Z0-9_-]+$/i.test(row.code.trim()))
+    errors.push('Code A–Z, 0–9, _ or - only');
+
+  if (!row.value || !row.value.trim()) errors.push('Value required');
+  if (!row.startDate) errors.push('Start date required');
+  if (!row.endDate) errors.push('End date required');
+  if (
+    row.startDate &&
+    row.endDate &&
+    new Date(row.endDate) <= new Date(row.startDate)
+  )
+    errors.push('End must be after start');
+
+  const code = (row.code || '').trim().toUpperCase();
+
+  return {
+    code,
+    description: row.description || '',
+    type: row.type || 'Percentage',
+    value: row.value || '',
+    minOrder: Number(row.minOrder) || 0,
+    usageLimit: Number(row.usageLimit) || 100,
+    perCustomer: Number(row.perCustomer) || 1,
+    startDate: row.startDate || '',
+    endDate: row.endDate || '',
+    valid: errors.length === 0,
+    error: errors.join(' · ') || undefined,
+  };
+}
+
+function rowsFromCSV(text: string): ImportRow[] {
+  const rows = parseCSV(text);
+  if (rows.length === 0) return [];
+  let data = rows;
+  const first = rows[0].map((c) => c.toLowerCase());
+  if (first.includes('code') || first.includes('discount code')) {
+    data = rows.slice(1);
+  }
+
+  const headerMap = rows[0].map((c) => c.toLowerCase().trim());
+  const findIndex = (...keys: string[]) =>
+    headerMap.findIndex((h) => keys.some((k) => h === k));
+
+  const iCode = findIndex('code', 'discount code', 'coupon');
+  const iDesc = findIndex('description', 'desc');
+  const iType = findIndex('type', 'discount type');
+  const iValue = findIndex('value', 'amount', 'discount value');
+  const iMin = findIndex('minorder', 'min order', 'minimum');
+  const iUsage = findIndex('usagelimit', 'usage limit', 'max uses', 'max uses');
+  const iPer = findIndex('percustomer', 'per customer', 'per customer limit');
+  const iStart = findIndex('startdate', 'start date', 'starts');
+  const iEnd = findIndex('enddate', 'end date', 'expires');
+
+  const hasHeader = iCode >= 0;
+
+  if (!hasHeader) {
+    return data
+      .filter((r) => r.some((c) => c))
+      .map((r, i) =>
+        validateRow(
+          {
+            code: r[0],
+            description: r[1],
+            type: normaliseType(r[2] || ''),
+            value: r[3],
+            minOrder: Number(r[4]) || 0,
+            usageLimit: Number(r[5]) || 100,
+            perCustomer: Number(r[6]) || 1,
+            startDate: r[7],
+            endDate: r[8],
+          },
+          i
+        )
+      );
+  }
+
+  return data
+    .filter((r) => r.some((c) => c))
+    .map((r, i) =>
+      validateRow(
+        {
+          code: iCode >= 0 ? r[iCode] : '',
+          description: iDesc >= 0 ? r[iDesc] : '',
+          type: iType >= 0 ? normaliseType(r[iType]) : 'Percentage',
+          value: iValue >= 0 ? r[iValue] : '',
+          minOrder: iMin >= 0 ? Number(r[iMin]) || 0 : 0,
+          usageLimit: iUsage >= 0 ? Number(r[iUsage]) || 100 : 100,
+          perCustomer: iPer >= 0 ? Number(r[iPer]) || 1 : 1,
+          startDate: iStart >= 0 ? r[iStart] : '',
+          endDate: iEnd >= 0 ? r[iEnd] : '',
+        },
+        i
+      )
+    );
+}
+
+function rowsFromJSON(text: string): ImportRow[] {
+  try {
+    const parsed = JSON.parse(text);
+    const list: any[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed.discounts)
+        ? parsed.discounts
+        : [];
+    return list.map((d, i) =>
+      validateRow(
+        {
+          code: d.code,
+          description: d.description,
+          type: normaliseType(d.type || 'Percentage'),
+          value: String(d.value || ''),
+          minOrder: Number(d.minOrder) || 0,
+          usageLimit: Number(d.usageLimit) || 100,
+          perCustomer: Number(d.perCustomer) || 1,
+          startDate: d.startDate,
+          endDate: d.endDate,
+        },
+        i
+      )
+    );
+  } catch {
+    return [];
+  }
+}
+
 interface Props {
   open: boolean;
   initial: Discount | null;
   onClose: () => void;
   onSave: (payload: DiscountPayload) => void;
+  /**
+   * Optional bulk-import callback.
+   * If provided, the modal will call this with multiple payloads.
+   */
+  onImportBulk?: (payloads: DiscountPayload[]) => void;
 }
 
 export default function AddDiscountModal({
@@ -105,12 +372,19 @@ export default function AddDiscountModal({
   initial,
   onClose,
   onSave,
+  onImportBulk,
 }: Props) {
-  const allCatalogueProducts = useProducts((s) => s.getAll());
+  // ✅ useShallow gives a stable snapshot for the freshly-derived array
+  //    returned by getAll(). This kills both the getServerSnapshot warning
+  //    AND the "Cannot read properties of undefined (reading 'slice')" crash.
+  const allCatalogueProducts = useProducts(
+    useShallow((s) => s.getAll())
+  );
 
   const [form, setForm] = useState<DiscountPayload>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Product picker
   const [productSearch, setProductSearch] = useState('');
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productPickerTab, setProductPickerTab] = useState<
@@ -118,23 +392,40 @@ export default function AddDiscountModal({
   >('catalogue');
   const [addProductOpen, setAddProductOpen] = useState(false);
 
+  // Import state
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<ImportFormat>('CSV');
+  const [importText, setImportText] = useState('');
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Load incoming values into the form when the modal opens
   useEffect(() => {
     if (open) {
       setForm(
         initial
           ? {
-              ...EMPTY,
-              ...initial,
-              startDate: toLocalInput(initial.startDate),
-              endDate: toLocalInput(initial.endDate),
-            }
+            ...EMPTY,
+            ...initial,
+            startDate: toLocalInput(initial.startDate),
+            endDate: toLocalInput(initial.endDate),
+          }
           : { ...EMPTY }
       );
       setErrors({});
       setProductSearch('');
       setShowProductPicker(false);
       setProductPickerTab('catalogue');
+      // Reset import
+      setIsImportOpen(false);
+      setImportTab('CSV');
+      setImportText('');
+      setImportRows([]);
+      setImportError(null);
+      setImportSuccess(null);
     }
   }, [open, initial]);
 
@@ -142,7 +433,7 @@ export default function AddDiscountModal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !addProductOpen) onClose();
+      if (e.key === 'Escape' && !addProductOpen && !isImportOpen) onClose();
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
@@ -150,7 +441,7 @@ export default function AddDiscountModal({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, onClose, addProductOpen]);
+  }, [open, onClose, addProductOpen, isImportOpen]);
 
   const setField = <K extends keyof DiscountPayload>(
     key: K,
@@ -258,6 +549,168 @@ export default function AddDiscountModal({
     onClose();
   };
 
+  // ──────────────── Import helpers ────────────────
+  const resetImport = () => {
+    setImportText('');
+    setImportRows([]);
+    setImportError(null);
+    setImportSuccess(null);
+  };
+
+  const handleLoadTemplate = () => {
+    setImportTab('Template');
+    setImportRows(TEMPLATE_ROWS);
+    setImportText('');
+    setImportError(null);
+    setImportSuccess(null);
+  };
+
+  const handleParseText = () => {
+    setImportError(null);
+    setImportSuccess(null);
+    if (!importText.trim()) {
+      setImportError('Paste some content or upload a file first.');
+      return;
+    }
+    setIsProcessing(true);
+    setTimeout(() => {
+      let rows: ImportRow[] = [];
+      if (importTab === 'CSV') {
+        rows = rowsFromCSV(importText);
+      } else if (importTab === 'JSON') {
+        rows = rowsFromJSON(importText);
+      } else {
+        rows = [];
+      }
+      if (rows.length === 0) {
+        setImportError(
+          `No ${importTab} rows detected. Check the format and try again.`
+        );
+        setImportRows([]);
+      } else {
+        setImportRows(rows);
+        const invalid = rows.filter((r) => !r.valid).length;
+        setImportSuccess(
+          `Parsed ${rows.length} row${rows.length === 1 ? '' : 's'}` +
+          (invalid > 0 ? ` · ${invalid} need fixing` : ' · all valid')
+        );
+      }
+      setIsProcessing(false);
+    }, 350);
+  };
+
+  const handleFileUpload = (file: File) => {
+    setImportError(null);
+    setImportSuccess(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = String(e.target?.result || '');
+      setImportText(text);
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'json') setImportTab('JSON');
+      else setImportTab('CSV');
+      setIsProcessing(true);
+      setTimeout(() => {
+        const rows =
+          ext === 'json' ? rowsFromJSON(text) : rowsFromCSV(text);
+        if (rows.length === 0) {
+          setImportError('No valid rows found in the file.');
+          setImportRows([]);
+        } else {
+          setImportRows(rows);
+          const invalid = rows.filter((r) => !r.valid).length;
+          setImportSuccess(
+            `Imported ${rows.length} row${rows.length === 1 ? '' : 's'} from ${file.name}` +
+            (invalid > 0 ? ` · ${invalid} need fixing` : ' · all valid')
+          );
+        }
+        setIsProcessing(false);
+      }, 400);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const handleDownloadTemplate = () => {
+    const csv = [
+      CSV_HEADER.join(','),
+      ...TEMPLATE_ROWS.map((r) =>
+        [
+          r.code,
+          `"${r.description}"`,
+          r.type,
+          r.value,
+          r.minOrder,
+          r.usageLimit,
+          r.perCustomer,
+          r.startDate,
+          r.endDate,
+        ].join(',')
+      ),
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'discounts-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleApplyImport = () => {
+    const valid = importRows.filter((r) => r.valid);
+    if (valid.length === 0) {
+      setImportError('No valid rows to import. Fix errors and try again.');
+      return;
+    }
+
+    const payloads: DiscountPayload[] = valid.map((r) => ({
+      ...EMPTY,
+      code: r.code.trim().toUpperCase(),
+      description: r.description || `Imported discount ${r.code}`,
+      type: r.type || 'Percentage',
+      value: r.value || '',
+      minOrder: r.minOrder ?? 0,
+      usageLimit: r.usageLimit ?? 100,
+      perCustomer: r.perCustomer ?? 1,
+      startDate: r.startDate || '',
+      endDate: r.endDate || '',
+      status: 'Scheduled',
+      isMostDeal: false,
+      displayOnDealsPage: true,
+      promotionType: 'Percentage Discount',
+      appliesTo: 'All Products',
+      eligibility: 'All Customers',
+      targetAudience: 'All People & Customers',
+      linkedProductIds: [],
+      linkedCategories: [],
+    }));
+
+    if (payloads.length === 1) {
+      setForm(payloads[0]);
+      setIsImportOpen(false);
+      setImportSuccess(null);
+      setImportError(null);
+      setImportRows([]);
+      return;
+    }
+
+    if (onImportBulk) {
+      onImportBulk(payloads);
+      setIsImportOpen(false);
+      onClose();
+    } else {
+      setForm(payloads[0]);
+      setIsImportOpen(false);
+      setImportSuccess(`Imported first row. ${payloads.length - 1} more were skipped.`);
+    }
+  };
+
   if (!open) return null;
 
   const TypeIcon = TYPE_ICONS[form.type] ?? Percent;
@@ -265,13 +718,18 @@ export default function AddDiscountModal({
   const previewProducts =
     form.appliesTo === 'Specific Products'
       ? allCatalogueProducts
-          .filter((p: { id: string; }) => form.linkedProductIds.includes(p.id))
-          .slice(0, 3)
+        .filter((p: { id: string }) => form.linkedProductIds.includes(p.id))
+        .slice(0, 3)
       : form.appliesTo === 'Specific Categories'
-      ? allCatalogueProducts
-          .filter((p: { category: string; }) => form.linkedCategories.includes(p.category))
+        ? allCatalogueProducts
+          .filter((p: { category: string }) =>
+            form.linkedCategories.includes(p.category)
+          )
           .slice(0, 3)
-      : allCatalogueProducts.slice(0, 3);
+        : allCatalogueProducts.slice(0, 3);
+
+  const validImportCount = importRows.filter((r) => r.valid).length;
+  const invalidImportCount = importRows.length - validImportCount;
 
   return (
     <div
@@ -292,12 +750,28 @@ export default function AddDiscountModal({
               Configure the coupon and how it appears on the storefront
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="h-7 w-7 flex items-center justify-center rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {!initial && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportOpen(true);
+                  setImportError(null);
+                  setImportSuccess(null);
+                }}
+                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded-sm text-[13px] transition"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Import</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="h-7 w-7 flex items-center justify-center rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </header>
 
         {/* BODY */}
@@ -451,11 +925,10 @@ export default function AddDiscountModal({
                         key={cat}
                         type="button"
                         onClick={() => toggleCategory(cat)}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-sm text-[13px] font-medium border transition ${
-                          on
-                            ? 'bg-blue-950 text-white border-blue-950'
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-sm text-[13px] font-medium border transition ${on
+                          ? 'bg-blue-950 text-white border-blue-950'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         {on ? (
                           <CheckSquare className="w-3 h-3" />
@@ -525,11 +998,10 @@ export default function AddDiscountModal({
                       <button
                         type="button"
                         onClick={() => setProductPickerTab('catalogue')}
-                        className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-[13px] font-medium transition ${
-                          productPickerTab === 'catalogue'
-                            ? 'bg-white text-blue-950 shadow-sm'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-[13px] font-medium transition ${productPickerTab === 'catalogue'
+                          ? 'bg-white text-blue-950 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                          }`}
                       >
                         <Layers className="w-3.5 h-3.5" />
                         Browse catalogue
@@ -540,11 +1012,10 @@ export default function AddDiscountModal({
                       <button
                         type="button"
                         onClick={() => setProductPickerTab('new')}
-                        className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-[13px] font-medium transition ${
-                          productPickerTab === 'new'
-                            ? 'bg-white text-blue-950 shadow-sm'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-[13px] font-medium transition ${productPickerTab === 'new'
+                          ? 'bg-white text-blue-950 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                          }`}
                       >
                         <PackagePlus className="w-3.5 h-3.5" />
                         Add new product
@@ -586,11 +1057,10 @@ export default function AddDiscountModal({
                                   <button
                                     type="button"
                                     onClick={() => toggleProduct(id)}
-                                    className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition ${
-                                      on
-                                        ? 'bg-blue-50'
-                                        : 'hover:bg-slate-50'
-                                    }`}
+                                    className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition ${on
+                                      ? 'bg-blue-50'
+                                      : 'hover:bg-slate-50'
+                                      }`}
                                   >
                                     {on ? (
                                       <CheckSquare className="w-4 h-4 text-blue-950 shrink-0" />
@@ -757,7 +1227,7 @@ export default function AddDiscountModal({
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {previewProducts.map((p: { id: React.Key | null | undefined; images: (string | Blob | undefined)[]; brand: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; name: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; }) => (
+                {previewProducts.map((p: any) => (
                   <div
                     key={p.id}
                     className="bg-white border border-slate-200 rounded-sm overflow-hidden"
@@ -812,6 +1282,354 @@ export default function AddDiscountModal({
           </button>
         </footer>
       </div>
+
+      {/* IMPORT MODAL (nested) */}
+      {isImportOpen && (
+        <div
+          className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
+          onClick={() => setIsImportOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
+          >
+            {/* Header */}
+            <header className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
+              <div>
+                <h2 className="text-[15px] font-semibold text-slate-900 inline-flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-blue-950" />
+                  Import discounts
+                </h2>
+                <p className="text-[13px] text-slate-500 mt-0.5">
+                  Bulk-create discount codes from CSV, JSON, or a ready template
+                </p>
+              </div>
+              <button
+                onClick={() => setIsImportOpen(false)}
+                className="h-7 w-7 flex items-center justify-center rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </header>
+
+            {/* Body */}
+            <div className="overflow-y-auto p-3 space-y-3">
+              {/* Tabs */}
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-sm">
+                {(
+                  [
+                    { id: 'CSV' as ImportFormat, label: 'CSV', icon: FileSpreadsheet },
+                    { id: 'JSON' as ImportFormat, label: 'JSON', icon: FileText },
+                    { id: 'Template' as ImportFormat, label: 'Template', icon: Download },
+                  ]
+                ).map((t) => {
+                  const Icon = t.icon;
+                  const active = importTab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        setImportTab(t.id);
+                        resetImport();
+                      }}
+                      className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition ${active
+                        ? 'bg-white text-blue-950 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tab content */}
+              {importTab === 'CSV' && (
+                <div className="space-y-3">
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="border-2 border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/20 rounded-sm p-6 text-center transition"
+                  >
+                    <FileSpreadsheet className="w-7 h-7 mx-auto text-slate-400" />
+                    <p className="text-[13px] font-medium text-slate-900 mt-2">
+                      Drop a CSV file here
+                    </p>
+                    <p className="text-[13px] text-slate-500 mt-0.5">
+                      or paste rows below
+                    </p>
+                    <div className="flex items-center justify-center gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        Choose file
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadTemplate}
+                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download template
+                      </button>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,text/csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleFileUpload(f);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Paste CSV content</Label>
+                    <textarea
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      rows={5}
+                      placeholder={`${CSV_HEADER.join(',')}\nWELCOME10,"10% off",Percentage,10%,2000,500,1,2026-10-01 00:00,2026-12-31 23:59`}
+                      className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950 resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleParseText}
+                      disabled={isProcessing}
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ClipboardPaste className="w-3.5 h-3.5" />
+                      )}
+                      {isProcessing ? 'Parsing…' : 'Parse CSV'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLoadTemplate}
+                      className="text-[13px] font-medium text-blue-950 hover:underline"
+                    >
+                      Load example rows
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {importTab === 'JSON' && (
+                <div className="space-y-3">
+                  <div>
+                    <Label>Paste JSON</Label>
+                    <textarea
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      rows={7}
+                      placeholder={`[
+  {
+    "code": "WELCOME10",
+    "description": "10% off for new customers",
+    "type": "Percentage",
+    "value": "10%",
+    "minOrder": 2000,
+    "usageLimit": 500,
+    "perCustomer": 1,
+    "startDate": "2026-10-01 00:00",
+    "endDate": "2026-12-31 23:59"
+  }
+]`}
+                      className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950 resize-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleParseText}
+                    disabled={isProcessing}
+                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ClipboardPaste className="w-3.5 h-3.5" />
+                    )}
+                    {isProcessing ? 'Parsing…' : 'Parse JSON'}
+                  </button>
+                </div>
+              )}
+
+              {importTab === 'Template' && (
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 flex items-start gap-2">
+                    <Info className="w-3.5 h-3.5 text-blue-950 shrink-0 mt-0.5" />
+                    <p className="text-[13px] text-blue-900">
+                      The template includes 3 example discount codes you can use
+                      as-is or edit before applying.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleLoadTemplate}
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Load template rows
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadTemplate}
+                      className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download CSV
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Status banners */}
+              {importError && (
+                <div className="bg-red-50 border border-red-100 rounded-sm p-2 flex items-start gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
+                  <p className="text-[13px] text-red-700">{importError}</p>
+                </div>
+              )}
+              {importSuccess && (
+                <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2 flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <p className="text-[13px] text-emerald-800">{importSuccess}</p>
+                </div>
+              )}
+
+              {/* Preview parsed rows */}
+              {importRows.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Preview ({importRows.length})</Label>
+                    <div className="flex items-center gap-2 text-[13px]">
+                      <span className="text-emerald-700 inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {validImportCount} valid
+                      </span>
+                      {invalidImportCount > 0 && (
+                        <span className="text-red-600 inline-flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          {invalidImportCount} invalid
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-sm overflow-hidden max-h-64 overflow-y-auto">
+                    <table className="w-full text-left text-[13px]">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                          <th className="py-2 px-3 font-medium">Code</th>
+                          <th className="py-2 px-3 font-medium">Type</th>
+                          <th className="py-2 px-3 font-medium">Value</th>
+                          <th className="py-2 px-3 font-medium text-right">
+                            Min order
+                          </th>
+                          <th className="py-2 px-3 font-medium text-right">
+                            Max uses
+                          </th>
+                          <th className="py-2 px-3 font-medium">Expires</th>
+                          <th className="py-2 px-3 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {importRows.map((r, i) => (
+                          <tr
+                            key={i}
+                            className={
+                              r.valid ? '' : 'bg-red-50/40'
+                            }
+                          >
+                            <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                              {r.code || '—'}
+                            </td>
+                            <td className="py-2 px-3 text-slate-600">
+                              {r.type || '—'}
+                            </td>
+                            <td className="py-2 px-3 text-slate-900 font-medium">
+                              {r.value || '—'}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-700">
+                              {r.minOrder ? `KES ${r.minOrder.toLocaleString()}` : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-700">
+                              {r.usageLimit ?? '—'}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-slate-500">
+                              {r.endDate || '—'}
+                            </td>
+                            <td className="py-2 px-3">
+                              {r.valid ? (
+                                <span className="inline-flex items-center gap-1 text-[13px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-sm">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Ready
+                                </span>
+                              ) : (
+                                <span
+                                  title={r.error}
+                                  className="inline-flex items-center gap-1 text-[13px] font-medium text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-sm"
+                                >
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Fix
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <footer className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-200 bg-slate-50 shrink-0">
+              <button
+                type="button"
+                onClick={resetImport}
+                className="text-[13px] font-medium text-slate-600 hover:text-slate-900"
+              >
+                Reset
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsImportOpen(false)}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyImport}
+                  disabled={validImportCount === 0}
+                  className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  {validImportCount === 1
+                    ? 'Apply 1 row'
+                    : `Apply ${validImportCount} rows`}
+                </button>
+              </div>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {/* Nested product builder */}
       <AddProductForDiscountModal
@@ -896,13 +1714,11 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full bg-white border rounded-sm py-2 text-[13px] focus:outline-none focus:ring-1 ${
-            icon ? 'pl-8 pr-3' : 'px-3'
-          } ${
-            error
+          className={`w-full bg-white border rounded-sm py-2 text-[13px] focus:outline-none focus:ring-1 ${icon ? 'pl-8 pr-3' : 'px-3'
+            } ${error
               ? 'border-red-400 focus:ring-red-500'
               : 'border-slate-200 focus:ring-blue-950'
-          } ${mono ? 'font-mono' : ''}`}
+            } ${mono ? 'font-mono' : ''}`}
         />
       </div>
       {error && <p className="text-[13px] text-red-600 mt-1">{error}</p>}
@@ -966,14 +1782,12 @@ function ToggleRow({
         role="switch"
         aria-checked={value}
         onClick={() => onChange(!value)}
-        className={`relative h-5 w-9 rounded-full transition-colors shrink-0 ${
-          value ? 'bg-blue-950' : 'bg-slate-300'
-        }`}
+        className={`relative h-5 w-9 rounded-full transition-colors shrink-0 ${value ? 'bg-blue-950' : 'bg-slate-300'
+          }`}
       >
         <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-            value ? 'translate-x-4' : 'translate-x-0.5'
-          }`}
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0.5'
+            }`}
         />
       </button>
     </div>

@@ -32,8 +32,12 @@ import {
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
-     Languages, // Visual anchor icon for localization features
-  ShoppingBag as TikTokIcon 
+    Languages,
+    ShieldCheck,
+    Lock,
+    ScrollText,
+    X,
+    Menu,
 } from "lucide-react";
 import { useAdminShell } from "./AdminShellContext";
 
@@ -76,15 +80,37 @@ export const navItems: NavItem[] = [
     { label: "Pages", href: "/admin/pages", icon: FileText, section: "Content" },
     { label: "Blog", href: "/admin/blog", icon: FileText, section: "Content" },
 
+    { label: "Security", href: "/admin/security", icon: ShieldCheck, section: "Security" },
+    { label: "Roles & Permissions", href: "/admin/roles", icon: Lock, section: "Security" },
+    { label: "Activity Logs", href: "/admin/activity-logs", icon: ScrollText, section: "Security" },
+
     { label: "Appearance", href: "/admin/appearance", icon: Palette, section: "System" },
     { label: "Settings", href: "/admin/settings", icon: Settings, section: "System" },
-     { label: "Localization", href: "/admin/localization", icon: Languages, section: "System" },
+    { label: "Localization", href: "/admin/localization", icon: Languages, section: "System" },
 ];
 
 export default function AdminSidebar() {
     const pathname = usePathname();
     const activePath = pathname || "/admin";
     const { collapsed, toggle } = useAdminShell();
+    const [mobileOpen, setMobileOpen] = React.useState(false);
+
+    // Close mobile sidebar when route changes
+    React.useEffect(() => {
+        setMobileOpen(false);
+    }, [pathname]);
+
+    // Lock body scroll when mobile sidebar is open
+    React.useEffect(() => {
+        if (mobileOpen) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "";
+        }
+        return () => {
+            document.body.style.overflow = "";
+        };
+    }, [mobileOpen]);
 
     const grouped = navItems.reduce((acc, item) => {
         if (!acc[item.section]) acc[item.section] = [];
@@ -92,56 +118,73 @@ export default function AdminSidebar() {
         return acc;
     }, {} as Record<string, NavItem[]>);
 
-    const sectionOrder = ["Main", "Catalog", "Sales", "Customers", "Marketing", "Content", "System"];
+    const sectionOrder = [
+        "Main",
+        "Catalog",
+        "Sales",
+        "Customers",
+        "Marketing",
+        "Content",
+        "Security",
+        "System",
+    ];
 
     const isItemActive = (href: string) => {
         if (href === "/dashboard") return activePath === "/dashboard";
         return activePath === href || activePath.startsWith(href + "/");
     };
 
-    return (
-        <aside
-            className={`h-screen sticky top-0 bg-blue-950 flex flex-col justify-between text-blue-100 select-none transition-[width] duration-200 ease-in-out ${
-                collapsed ? "w-16" : "w-60"
-            }`}
-        >
+    const sidebarContent = (
+        <>
             <div className="flex flex-col flex-1 min-h-0">
                 {/* Branding + collapse toggle */}
-                <div className="h-14 px-3 border-b border-blue-700 flex items-center justify-between shrink-0">
+                <div className="h-14 px-3 border-b border-slate-200 flex items-center justify-between shrink-0">
                     <Link
                         href="/dashboard"
-                        className="flex items-center gap-2.5 font-semibold text-white text-[13px] hover:opacity-90 transition-opacity min-w-0"
+                        className="flex items-center gap-2.5 font-semibold text-slate-900 text-[13px] hover:opacity-90 transition-opacity min-w-0"
                     >
-                        <div className="h-7 w-7 rounded bg-white text-blue-800 flex items-center justify-center shadow-sm shrink-0">
+                        <div className="h-7 w-7 rounded bg-blue-950 text-white flex items-center justify-center shadow-sm shrink-0">
                             <Store className="h-4 w-4" />
                         </div>
                         {!collapsed && (
                             <div className="flex flex-col min-w-0">
-                                <span className="leading-none text-[13px] font-semibold truncate">StoreAdmin</span>
-                                <span className="text-[13px] text-blue-200 font-normal mt-0.5">v1.0.0</span>
+                                <span className="leading-none text-[13px] font-semibold truncate">
+                                    StoreAdmin
+                                </span>
                             </div>
                         )}
                     </Link>
 
+                    {/* Desktop collapse toggle */}
                     {!collapsed && (
                         <button
                             type="button"
                             onClick={toggle}
                             aria-label="Collapse sidebar"
-                            className="h-7 w-7 rounded-md hover:bg-blue-700 flex items-center justify-center text-blue-200 hover:text-white transition-colors shrink-0"
+                            className="hidden lg:flex h-7 w-7 rounded-md hover:bg-slate-100 items-center justify-center text-slate-500 hover:text-slate-800 transition-colors shrink-0"
                         >
                             <ChevronsLeft className="h-4 w-4" />
                         </button>
                     )}
+
+                    {/* Mobile close button */}
+                    <button
+                        type="button"
+                        onClick={() => setMobileOpen(false)}
+                        aria-label="Close sidebar"
+                        className="lg:hidden h-7 w-7 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors shrink-0"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
                 </div>
 
                 {collapsed && (
-                    <div className="px-2 pt-2 shrink-0">
+                    <div className="hidden lg:block px-2 pt-2 shrink-0">
                         <button
                             type="button"
                             onClick={toggle}
                             aria-label="Expand sidebar"
-                            className="w-full h-8 rounded-md hover:bg-blue-700 flex items-center justify-center text-blue-200 hover:text-white transition-colors"
+                            className="w-full h-8 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
                         >
                             <ChevronsRight className="h-4 w-4" />
                         </button>
@@ -153,13 +196,13 @@ export default function AdminSidebar() {
                     {sectionOrder.map((sectionName) => (
                         <div key={sectionName}>
                             {!collapsed && (
-                                <div className="px-2 mb-1 text-[13px] font-semibold text-blue-300 uppercase tracking-wider">
+                                <div className="px-2 mb-1 text-[13px] font-semibold text-slate-400 uppercase tracking-wider">
                                     {sectionName}
                                 </div>
                             )}
 
                             {collapsed && sectionName !== "Main" && (
-                                <div className="mx-2 mb-2 border-t border-blue-700" />
+                                <div className="mx-2 mb-2 border-t border-slate-200" />
                             )}
 
                             <div className="space-y-1">
@@ -170,32 +213,33 @@ export default function AdminSidebar() {
                                     const linkContent = (
                                         <Link
                                             href={item.href}
-                                            className={`group relative flex items-center ${
-                                                collapsed ? "justify-center" : "justify-between"
-                                            } px-2 py-2 rounded-md text-[13px] font-medium transition-colors ${
-                                                isActive
-                                                    ? "bg-white text-blue-800"
-                                                    : "text-blue-100 hover:bg-blue-700 hover:text-white"
-                                            }`}
+                                            className={`group relative flex items-center ${collapsed ? "justify-center" : "justify-between"
+                                                } px-2 py-2 rounded-md text-[13px] font-medium transition-colors ${isActive
+                                                    ? "bg-blue-950 text-white"
+                                                    : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                                                }`}
                                         >
-                                            <div className={`flex items-center gap-2 min-w-0 ${collapsed ? "justify-center" : ""}`}>
-                                                <Icon
-                                                    className={`h-4 w-4 shrink-0 ${
-                                                        isActive
-                                                            ? "text-blue-800"
-                                                            : "text-blue-200 group-hover:text-white"
+                                            <div
+                                                className={`flex items-center gap-2 min-w-0 ${collapsed ? "justify-center" : ""
                                                     }`}
+                                            >
+                                                <Icon
+                                                    className={`h-4 w-4 shrink-0 ${isActive
+                                                        ? "text-white"
+                                                        : "text-slate-400 group-hover:text-slate-700"
+                                                        }`}
                                                 />
-                                                {!collapsed && <span className="truncate">{item.label}</span>}
+                                                {!collapsed && (
+                                                    <span className="truncate">{item.label}</span>
+                                                )}
                                             </div>
 
                                             {!collapsed && item.badge !== undefined && (
                                                 <span
-                                                    className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-semibold leading-none ${
-                                                        isActive
-                                                            ? "bg-blue-100 text-blue-800"
-                                                            : "bg-blue-700 text-blue-100 group-hover:bg-blue-600 group-hover:text-white"
-                                                    }`}
+                                                    className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-semibold leading-none ${isActive
+                                                        ? "bg-white/20 text-white"
+                                                        : "bg-slate-100 text-slate-600 group-hover:bg-slate-200 group-hover:text-slate-800"
+                                                        }`}
                                                 >
                                                     {item.badge}
                                                 </span>
@@ -203,9 +247,8 @@ export default function AdminSidebar() {
 
                                             {collapsed && item.badge !== undefined && (
                                                 <span
-                                                    className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ${
-                                                        isActive ? "bg-blue-800" : "bg-white"
-                                                    }`}
+                                                    className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ${isActive ? "bg-white" : "bg-blue-950"
+                                                        }`}
                                                 />
                                             )}
                                         </Link>
@@ -220,12 +263,16 @@ export default function AdminSidebar() {
                                             >
                                                 {item.label}
                                                 {item.badge !== undefined && (
-                                                    <span className="ml-2 text-slate-400">{item.badge}</span>
+                                                    <span className="ml-2 text-slate-400">
+                                                        {item.badge}
+                                                    </span>
                                                 )}
                                             </span>
                                         </div>
                                     ) : (
-                                        <React.Fragment key={item.href}>{linkContent}</React.Fragment>
+                                        <React.Fragment key={item.href}>
+                                            {linkContent}
+                                        </React.Fragment>
                                     );
                                 })}
                             </div>
@@ -235,22 +282,22 @@ export default function AdminSidebar() {
             </div>
 
             {/* Bottom: account + logout */}
-            <div className="p-2 border-t border-blue-700 shrink-0 space-y-1">
+            <div className="p-2 border-t border-slate-200 shrink-0 space-y-1">
                 {collapsed ? (
                     <>
                         <button
                             type="button"
-                            className="w-full flex items-center justify-center p-2 rounded-md hover:bg-blue-700 transition-colors"
+                            className="w-full flex items-center justify-center p-2 rounded-md hover:bg-slate-100 transition-colors"
                             aria-label="Account"
                         >
-                            <div className="h-7 w-7 rounded-full bg-white text-blue-800 flex items-center justify-center text-[13px] font-semibold">
+                            <div className="h-7 w-7 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold">
                                 AD
                             </div>
                         </button>
                         <button
                             type="button"
                             onClick={() => console.log("Logging out...")}
-                            className="w-full flex items-center justify-center p-2 rounded-md text-blue-200 hover:bg-blue-700 hover:text-white transition-colors"
+                            className="w-full flex items-center justify-center p-2 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
                             aria-label="Logout"
                         >
                             <LogOut className="h-4 w-4" />
@@ -258,23 +305,27 @@ export default function AdminSidebar() {
                     </>
                 ) : (
                     <>
-                        <div className="flex items-center justify-between px-2 py-2 rounded-md hover:bg-blue-700 transition-colors cursor-pointer group">
+                        <div className="flex items-center justify-between px-2 py-2 rounded-md hover:bg-slate-100 transition-colors cursor-pointer group">
                             <div className="flex items-center gap-2 min-w-0">
-                                <div className="h-7 w-7 rounded-full bg-white text-blue-800 flex items-center justify-center text-[13px] font-semibold shrink-0">
+                                <div className="h-7 w-7 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
                                     AD
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                    <span className="text-[13px] font-medium text-white truncate">Alex Doe</span>
-                                    <span className="text-[13px] text-blue-200 truncate">alex@admin.com</span>
+                                    <span className="text-[13px] font-medium text-slate-900 truncate">
+                                        Alex Doe
+                                    </span>
+                                    <span className="text-[13px] text-slate-500 truncate">
+                                        alex@admin.com
+                                    </span>
                                 </div>
                             </div>
-                            <ChevronRight className="h-3.5 w-3.5 text-blue-200 group-hover:text-white shrink-0" />
+                            <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-700 shrink-0" />
                         </div>
 
                         <button
                             type="button"
                             onClick={() => console.log("Logging out...")}
-                            className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-[13px] font-medium text-blue-200 hover:bg-blue-700 hover:text-white transition-colors"
+                            className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-[13px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                         >
                             <LogOut className="h-4 w-4 shrink-0" />
                             <span>Logout</span>
@@ -282,6 +333,45 @@ export default function AdminSidebar() {
                     </>
                 )}
             </div>
-        </aside>
+        </>
+    );
+
+    return (
+        <>
+            {/* Mobile menu button */}
+            <button
+                type="button"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open sidebar"
+                className="lg:hidden fixed top-3 left-3 z-40 h-10 w-10 rounded-md bg-white border border-slate-200 text-slate-700 flex items-center justify-center shadow-sm hover:bg-slate-50 transition-colors"
+            >
+                <Menu className="h-5 w-5" />
+            </button>
+
+            {/* Mobile backdrop */}
+            {mobileOpen && (
+                <div
+                    className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+                    onClick={() => setMobileOpen(false)}
+                    aria-hidden="true"
+                />
+            )}
+
+            {/* Mobile sidebar (off-canvas) */}
+            <aside
+                className={`lg:hidden fixed top-0 left-0 z-50 h-screen w-60 bg-white border-r border-slate-200 flex flex-col justify-between text-slate-700 select-none transform transition-transform duration-200 ease-in-out ${mobileOpen ? "translate-x-0" : "-translate-x-full"
+                    }`}
+            >
+                {sidebarContent}
+            </aside>
+
+            {/* Desktop sidebar (sticky) */}
+            <aside
+                className={`hidden lg:flex h-screen sticky top-0 bg-white border-r border-slate-200 flex-col justify-between text-slate-700 select-none transition-[width] duration-200 ease-in-out ${collapsed ? "w-16" : "w-60"
+                    }`}
+            >
+                {sidebarContent}
+            </aside>
+        </>
     );
 }

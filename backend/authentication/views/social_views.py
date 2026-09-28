@@ -3,7 +3,9 @@
 import logging
 
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 
+from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -27,11 +29,12 @@ class GoogleLoginView(APIView):
     The serializer verifies the credential with Google before we
     create or retrieve the user.
     """
+
     permission_classes = [AllowAny]
 
     def post(self, request):
         # ─────────────────────────────────────────────────────
-        # TEMPORARY DEBUG — remove once Google login works
+        # TEMPORARY DEBUG — remove before production
         # ─────────────────────────────────────────────────────
         logger.warning("=== Google Login Debug ===")
         logger.warning("Content-Type: %s", request.content_type)
@@ -42,44 +45,72 @@ class GoogleLoginView(APIView):
         # ─────────────────────────────────────────────────────
 
         serializer = GoogleLoginSerializer(data=request.data)
-
         if not serializer.is_valid():
             logger.warning("Serializer errors: %s", serializer.errors)
-            return Response(serializer.errors, status=400)
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         google_user = serializer.validated_data['google_user']
         email = google_user['email'].strip().lower()
 
-        # Case-insensitive lookup to avoid duplicates like
-        # Test@example.com vs test@example.com
-        user = User.objects.filter(email__iexact=email).first()
+        given_name = google_user.get('given_name', '') or ''
+        family_name = google_user.get('family_name', '') or ''
+
+        # ── Resolve default role safely ──
+        # FIX 1: getattr fallback so we don't crash if User.Roles is missing
+        RolesClass = getattr(User, 'Roles', None)
+        default_role = (
+            getattr(RolesClass, 'CUSTOMER', 'CUSTOMER')
+            if RolesClass else 'CUSTOMER'
+        )
+
         created = False
 
-        if user is None:
-            # New user — create with an unusable password so they
-            # can only ever sign in via Google.
-            user = User.objects.create_user(
-                email=email,
-                password=None,
-                first_name=google_user.get('given_name', ''),
-                last_name=google_user.get('family_name', ''),
-                role=User.Roles.CUSTOMER,
-            )
-            user.email_verified = True
-            user.save(update_fields=['email_verified'])
-            created = True
-            logger.info("New user created via Google: %s", email)
-        else:
-            if not user.email_verified:
-                user.email_verified = True
-                user.save(update_fields=['email_verified'])
-            logger.info("User logged in via Google: %s", email)
+        # FIX 3: wrap in a transaction + handle IntegrityError for the race
+        with transaction.atomic():
+            user = User.objects.filter(email__iexact=email).first()
+
+            if user is None:
+                try:
+                    # FIX 2: use set_unusable_password explicitly so it's
+                    # clear this account can't log in with a password.
+                    user = User(
+                        email=email,
+                        first_name=given_name,
+                        last_name=family_name,
+                        role=default_role,
+                    )
+                    user.set_unusable_password()
+                    user.email_verified = True
+                    user.save()
+                    created = True
+                    logger.info("New user created via Google: %s", email)
+                except IntegrityError:
+                    # Another request created the same email concurrently
+                    user = User.objects.get(email__iexact=email)
+                    created = False
+                    logger.info(
+                        "Concurrent Google signup resolved for %s", email
+                    )
+            else:
+                if not user.email_verified:
+                    user.email_verified = True
+                    user.save(update_fields=['email_verified'])
+                logger.info("User logged in via Google: %s", email)
 
         refresh = RefreshToken.for_user(user)
 
-        return Response({
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-            'user': UserDetailSerializer(user).data,
-            'created': created,
-        })
+        return Response(
+            {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': UserDetailSerializer(user).data,
+                'created': created,
+            },
+            status=(
+                status.HTTP_201_CREATED if created
+                else status.HTTP_200_OK
+            ),
+        )

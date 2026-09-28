@@ -7,7 +7,7 @@ export type OnboardingStep = {
     optional: boolean;
 };
 
-export const STEPS: OnboardingStep[] = [
+export const STEPS = [
     { slug: 'step1', title: 'Account', description: 'Confirm your details', optional: false },
     { slug: 'step2', title: 'Store Profile', description: 'Name, logo, contact', optional: false },
     { slug: 'step3', title: 'Business', description: 'KRA PIN & eTIMS', optional: true },
@@ -20,9 +20,12 @@ export const STEPS: OnboardingStep[] = [
     { slug: 'step10', title: 'Theme', description: 'Colors, fonts, layout', optional: true },
     { slug: 'step11', title: 'Invite Team', description: 'Staff & roles', optional: true },
     { slug: 'step12', title: 'Finish', description: 'Review & go live', optional: false },
-];
+] as const satisfies readonly OnboardingStep[];
+
+export type StepSlug = (typeof STEPS)[number]['slug'];
 
 export const TOTAL_STEPS = STEPS.length;
+export const STEP_SLUGS: StepSlug[] = STEPS.map((s) => s.slug);
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -52,11 +55,6 @@ export function getPreviousStep(currentSlug: string): OnboardingStep | undefined
     return STEPS[idx - 1];
 }
 
-/**
- * Compute the "next route" for a given step slug.
- * Returns `/auth/onboarding/steps/stepN` or `/auth/onboarding/complete`
- * when the current step is the last one.
- */
 export function getNextRoute(currentSlug: string): string {
     const next = getNextStep(currentSlug);
     if (!next) return '/auth/onboarding/complete';
@@ -70,6 +68,16 @@ export function getPreviousRoute(currentSlug: string): string {
 }
 
 /**
- * Ordered slugs — useful for progress bars, "step X of 12" labels, etc.
+ * Extract the step slug from a pathname — returns null if the route
+ * doesn't contain a known step.
  */
-export const STEP_SLUGS = STEPS.map((s) => s.slug);
+export function getSlugFromPathname(pathname: string): StepSlug | null {
+    for (const slug of STEP_SLUGS) {
+        if (pathname.includes(slug)) return slug;
+    }
+    return null;
+}
+
+export function isStepSlug(value: string): value is StepSlug {
+    return (STEP_SLUGS as string[]).includes(value);
+}

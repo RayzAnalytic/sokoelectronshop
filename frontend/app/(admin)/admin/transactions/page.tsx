@@ -16,31 +16,43 @@ import {
   ArrowDownRight,
   ShieldCheck,
   Smartphone,
-  CreditCard,
   DollarSign,
   Copy,
   CheckSquare,
   Square,
+  Link2,
+  FileText,
+  Hash,
+  Phone,
+  User,
+  Calendar,
+  AlertTriangle,
 } from 'lucide-react';
 
 // --- TYPES ---
-type PaymentMethod = 'M-Pesa' | 'Airtel Money' | 'Stripe' | 'Cash on Delivery';
+// Transactions are SEPARATE from orders.
+// An Order = commercial purchase (what was bought).
+// A Transaction = financial event (how it was paid).
+// M-Pesa is the ONLY payment method.
+
 type TxStatus = 'Success' | 'Pending' | 'Failed' | 'Reversed';
 
 interface Transaction {
   id: string;
-  ref: string;
-  orderNumber: string;
-  method: PaymentMethod;
+  ref: string;                    // M-Pesa receipt / transaction reference
+  orderNumber: string;            // Links to the commercial order
   amount: number;
-  fee: number;
-  identifier: string;
+  fee: number;                    // M-Pesa transaction fee
+  phoneNumber: string;            // Payer M-Pesa number
   status: TxStatus;
-  responseCode: string;
+  responseCode: string;           // M-Pesa result code
+  responseDesc: string;           // M-Pesa result description
   date: string;
   customerName: string;
   customerEmail: string;
-  payload: Record<string, any>;
+  merchantRequestId: string;
+  checkoutRequestId: string;
+  payload: Record<string, any>;   // Raw M-Pesa callback payload
   timeline: { title: string; time: string; status: 'completed' | 'active' | 'failed' }[];
 }
 
@@ -49,15 +61,17 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
     id: 'tx-1',
     ref: 'MPX9842K21',
     orderNumber: '#SKO-9842',
-    method: 'M-Pesa',
     amount: 157500,
     fee: 3150,
-    identifier: '+254 712 *** 890',
+    phoneNumber: '+254 712 *** 890',
     status: 'Success',
     responseCode: '0',
+    responseDesc: 'The service request is processed successfully.',
     date: '2026-09-23 21:14',
     customerName: 'Brian Kiprop',
     customerEmail: 'brian.kiprop@gmail.com',
+    merchantRequestId: '29115-3465611-1',
+    checkoutRequestId: 'ws_CO_23092026211412345',
     payload: {
       MerchantRequestID: '29115-3465611-1',
       CheckoutRequestID: 'ws_CO_23092026211412345',
@@ -77,50 +91,62 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-2',
-    ref: 'STR_pi_3Oxyz99',
+    ref: 'MPX9843B77',
     orderNumber: '#SKO-9843',
-    method: 'Stripe',
     amount: 68000,
-    fee: 2040,
-    identifier: '•••• 4242',
+    fee: 1360,
+    phoneNumber: '+254 733 *** 654',
     status: 'Success',
-    responseCode: 'succeeded',
+    responseCode: '0',
+    responseDesc: 'The service request is processed successfully.',
     date: '2026-09-23 20:42',
     customerName: 'Amina Ouma',
     customerEmail: 'amina.ouma@outlook.com',
+    merchantRequestId: '29115-3465612-1',
+    checkoutRequestId: 'ws_CO_23092026204212345',
     payload: {
-      id: 'pi_3Oxyz99827364501',
-      object: 'payment_intent',
-      amount: 68000,
-      currency: 'kes',
-      status: 'succeeded',
-      payment_method_types: ['card'],
+      MerchantRequestID: '29115-3465612-1',
+      CheckoutRequestID: 'ws_CO_23092026204212345',
+      ResultCode: 0,
+      ResultDesc: 'The service request is processed successfully.',
+      Amount: 68000,
+      MpesaReceiptNumber: 'MPX9843B77',
+      TransactionDate: '20260923204211',
+      PhoneNumber: '254733987654',
     },
     timeline: [
-      { title: 'Payment Intent Created', time: '20:40:10', status: 'completed' },
-      { title: '3D Secure Authentication Passed', time: '20:41:45', status: 'completed' },
-      { title: 'Stripe Webhook charge.succeeded', time: '20:42:01', status: 'completed' },
+      { title: 'STK Push Triggered', time: '20:42:01', status: 'completed' },
+      { title: 'Customer PIN Entered', time: '20:42:10', status: 'completed' },
+      { title: 'M-Pesa Callback Received (Code 0)', time: '20:42:11', status: 'completed' },
     ],
   },
   {
     id: 'tx-3',
-    ref: 'AMX771092',
+    ref: 'MPX9840C12',
     orderNumber: '#SKO-9840',
-    method: 'Airtel Money',
     amount: 14500,
     fee: 290,
-    identifier: '+254 733 *** 112',
+    phoneNumber: '+254 733 *** 112',
     status: 'Failed',
     responseCode: '1032',
+    responseDesc: 'Request cancelled by user',
     date: '2026-09-23 19:10',
     customerName: 'Kevin Juma',
     customerEmail: 'kjuma@yahoo.com',
+    merchantRequestId: '29115-3465613-1',
+    checkoutRequestId: 'ws_CO_23092026191012345',
     payload: {
-      status: { code: '1032', message: 'Request cancelled by user', success: false },
-      transaction: { id: 'AMX771092', amount: 14500, currency: 'KES', msisdn: '254733111112' },
+      MerchantRequestID: '29115-3465613-1',
+      CheckoutRequestID: 'ws_CO_23092026191012345',
+      ResultCode: 1032,
+      ResultDesc: 'Request cancelled by user',
+      Amount: 14500,
+      MpesaReceiptNumber: '',
+      TransactionDate: '20260923191005',
+      PhoneNumber: '254733111112',
     },
     timeline: [
-      { title: 'Airtel Prompt Sent', time: '19:09:40', status: 'completed' },
+      { title: 'STK Push Triggered', time: '19:09:40', status: 'completed' },
       { title: 'Waiting for PIN Prompt', time: '19:09:55', status: 'active' },
       { title: 'User Cancelled Request (1032)', time: '19:10:05', status: 'failed' },
     ],
@@ -129,21 +155,26 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
     id: 'tx-4',
     ref: 'MPX9839A10',
     orderNumber: '#SKO-9839',
-    method: 'M-Pesa',
     amount: 32000,
     fee: 640,
-    identifier: '+254 722 *** 445',
+    phoneNumber: '+254 722 *** 445',
     status: 'Success',
     responseCode: '0',
+    responseDesc: 'The service request is processed successfully.',
     date: '2026-09-23 18:05',
     customerName: 'Sarah Wanjiru',
     customerEmail: 'sarah.w@sokoflow.co.ke',
+    merchantRequestId: '12844-882910-1',
+    checkoutRequestId: 'ws_CO_23092026180512345',
     payload: {
       MerchantRequestID: '12844-882910-1',
+      CheckoutRequestID: 'ws_CO_23092026180512345',
       ResultCode: 0,
       ResultDesc: 'Success',
       Amount: 32000,
       MpesaReceiptNumber: 'MPX9839A10',
+      TransactionDate: '20260923180512',
+      PhoneNumber: '254722111445',
     },
     timeline: [
       { title: 'STK Push Triggered', time: '18:04:40', status: 'completed' },
@@ -152,44 +183,58 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-5',
-    ref: 'COD_ORD_9835',
+    ref: 'MPX9835D55',
     orderNumber: '#SKO-9835',
-    method: 'Cash on Delivery',
     amount: 8900,
-    fee: 0,
-    identifier: 'Doorstep Cash',
+    fee: 178,
+    phoneNumber: '+254 701 *** 223',
     status: 'Success',
-    responseCode: 'COD_PAID',
+    responseCode: '0',
+    responseDesc: 'The service request is processed successfully.',
     date: '2026-09-23 16:30',
     customerName: 'David Mutua',
     customerEmail: 'dmutua@gmail.com',
+    merchantRequestId: '12844-882911-1',
+    checkoutRequestId: 'ws_CO_23092026163012345',
     payload: {
-      collectedBy: 'Rider #12 (James)',
-      verificationNote: 'Exact cash received and inspected.',
-      location: 'Westlands, Nairobi',
+      MerchantRequestID: '12844-882911-1',
+      CheckoutRequestID: 'ws_CO_23092026163012345',
+      ResultCode: 0,
+      ResultDesc: 'Success',
+      Amount: 8900,
+      MpesaReceiptNumber: 'MPX9835D55',
+      TransactionDate: '20260923163022',
+      PhoneNumber: '254701222223',
     },
     timeline: [
-      { title: 'Order Dispatched with Rider', time: '14:00:00', status: 'completed' },
-      { title: 'Delivered & Cash Collected', time: '16:30:22', status: 'completed' },
+      { title: 'STK Push Triggered', time: '16:29:50', status: 'completed' },
+      { title: 'Callback Received (Code 0)', time: '16:30:22', status: 'completed' },
     ],
   },
   {
     id: 'tx-6',
     ref: 'MPX9831B99',
     orderNumber: '#SKO-9831',
-    method: 'M-Pesa',
     amount: 45000,
     fee: 900,
-    identifier: '+254 700 *** 991',
+    phoneNumber: '+254 700 *** 991',
     status: 'Failed',
     responseCode: '1001',
+    responseDesc: 'The balance is insufficient for the transaction.',
     date: '2026-09-23 14:22',
     customerName: 'Mercy Chebet',
     customerEmail: 'mercy.chebet@gmail.com',
+    merchantRequestId: '12844-882912-1',
+    checkoutRequestId: 'ws_CO_23092026142212345',
     payload: {
+      MerchantRequestID: '12844-882912-1',
+      CheckoutRequestID: 'ws_CO_23092026142212345',
       ResultCode: 1001,
       ResultDesc: 'The balance is insufficient for the transaction.',
       Amount: 45000,
+      MpesaReceiptNumber: '',
+      TransactionDate: '20260923142215',
+      PhoneNumber: '254700999991',
     },
     timeline: [
       { title: 'STK Push Sent', time: '14:21:50', status: 'completed' },
@@ -198,43 +243,58 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-7',
-    ref: 'STR_pi_2Oxyz11',
+    ref: 'MPX9828E33',
     orderNumber: '#SKO-9828',
-    method: 'Stripe',
     amount: 24000,
-    fee: 720,
-    identifier: '•••• 8831',
+    fee: 480,
+    phoneNumber: '+254 711 *** 007',
     status: 'Success',
-    responseCode: 'succeeded',
+    responseCode: '0',
+    responseDesc: 'The service request is processed successfully.',
     date: '2026-09-23 13:12',
     customerName: 'John Omondi',
     customerEmail: 'john.omondi@tech.co.ke',
+    merchantRequestId: '12844-882913-1',
+    checkoutRequestId: 'ws_CO_23092026131212345',
     payload: {
-      id: 'pi_2Oxyz118273645',
-      object: 'payment_intent',
-      amount: 24000,
-      currency: 'kes',
-      status: 'succeeded',
+      MerchantRequestID: '12844-882913-1',
+      CheckoutRequestID: 'ws_CO_23092026131212345',
+      ResultCode: 0,
+      ResultDesc: 'Success',
+      Amount: 24000,
+      MpesaReceiptNumber: 'MPX9828E33',
+      TransactionDate: '20260923131205',
+      PhoneNumber: '254711000007',
     },
     timeline: [
-      { title: 'Intent Created', time: '13:10:00', status: 'completed' },
-      { title: 'Webhook Succeeded', time: '13:12:05', status: 'completed' },
+      { title: 'STK Push Triggered', time: '13:10:00', status: 'completed' },
+      { title: 'Callback Received (Code 0)', time: '13:12:05', status: 'completed' },
     ],
   },
   {
     id: 'tx-8',
     ref: 'MPX9820REV',
     orderNumber: '#SKO-9815',
-    method: 'M-Pesa',
     amount: 120000,
     fee: 2400,
-    identifier: '+254 722 *** 102',
+    phoneNumber: '+254 722 *** 102',
     status: 'Reversed',
     responseCode: 'REV_C2B',
+    responseDesc: 'Duplicate payment reversed by merchant.',
     date: '2026-09-22 10:15',
     customerName: 'Grace Njeri',
     customerEmail: 'grace.njeri@gmail.com',
+    merchantRequestId: '12844-882914-1',
+    checkoutRequestId: 'ws_CO_22092026101512345',
     payload: {
+      MerchantRequestID: '12844-882914-1',
+      CheckoutRequestID: 'ws_CO_22092026101512345',
+      ResultCode: 0,
+      ResultDesc: 'Success',
+      Amount: 120000,
+      MpesaReceiptNumber: 'MPX9820REV',
+      TransactionDate: '20260922093000',
+      PhoneNumber: '254722111102',
       ReversalReason: 'Duplicate payment initiated by customer',
       OriginalReceipt: 'MPX9820OLD',
       ReversalTransactionID: 'MPX9820REV',
@@ -247,7 +307,6 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
   },
 ];
 
-const METHODS: PaymentMethod[] = ['M-Pesa', 'Airtel Money', 'Stripe', 'Cash on Delivery'];
 const STATUSES: TxStatus[] = ['Success', 'Pending', 'Failed', 'Reversed'];
 const DATE_RANGES = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days'];
 
@@ -255,7 +314,6 @@ export default function TransactionsLedgerPage() {
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<TxStatus | null>(null);
   const [dateRange, setDateRange] = useState('Today');
   const [minAmount, setMinAmount] = useState('');
@@ -285,15 +343,15 @@ export default function TransactionsLedgerPage() {
         tx.ref.toLowerCase().includes(q) ||
         tx.orderNumber.toLowerCase().includes(q) ||
         tx.customerName.toLowerCase().includes(q) ||
-        tx.customerEmail.toLowerCase().includes(q);
-      const matchesMethod = !selectedMethod || tx.method === selectedMethod;
+        tx.customerEmail.toLowerCase().includes(q) ||
+        tx.phoneNumber.toLowerCase().includes(q);
       const matchesStatus = !selectedStatus || tx.status === selectedStatus;
       const amt = tx.amount;
       const matchesMin = minAmount === '' || amt >= Number(minAmount);
       const matchesMax = maxAmount === '' || amt <= Number(maxAmount);
-      return matchesSearch && matchesMethod && matchesStatus && matchesMin && matchesMax;
+      return matchesSearch && matchesStatus && matchesMin && matchesMax;
     });
-  }, [transactions, searchQuery, selectedMethod, selectedStatus, minAmount, maxAmount]);
+  }, [transactions, searchQuery, selectedStatus, minAmount, maxAmount]);
 
   const totalSuccessful = filtered.filter((t) => t.status === 'Success').reduce((a, t) => a + t.amount, 0);
   const totalFailed = filtered.filter((t) => t.status === 'Failed').reduce((a, t) => a + t.amount, 0);
@@ -308,12 +366,31 @@ export default function TransactionsLedgerPage() {
 
   const handleRetry = (tx: Transaction) => {
     setTransactions((prev) =>
-      prev.map((t) => (t.id === tx.id ? { ...t, status: 'Success', responseCode: '0' } : t))
+      prev.map((t) =>
+        t.id === tx.id
+          ? {
+            ...t,
+            status: 'Success',
+            responseCode: '0',
+            responseDesc: 'The service request is processed successfully.',
+            ref: t.ref.startsWith('MPX') ? t.ref : `MPX${Date.now().toString().slice(-6)}`,
+          }
+          : t
+      )
     );
     if (activeTx?.id === tx.id) {
-      setActiveTx((prev) => (prev ? { ...prev, status: 'Success', responseCode: '0' } : null));
+      setActiveTx((prev) =>
+        prev
+          ? {
+            ...prev,
+            status: 'Success',
+            responseCode: '0',
+            responseDesc: 'The service request is processed successfully.',
+          }
+          : null
+      );
     }
-    setToastMessage(`Transaction ${tx.ref} retried successfully`);
+    setToastMessage(`M-Pesa transaction ${tx.ref} retried successfully`);
   };
 
   const saveReconciliation = () => {
@@ -322,14 +399,14 @@ export default function TransactionsLedgerPage() {
       prev.map((t) =>
         t.id === reconcileTx.id
           ? {
-              ...t,
-              orderNumber: reconcileOrder || t.orderNumber,
-              payload: {
-                ...t.payload,
-                reconciliationNote: reconcileNote,
-                reconciliationStatus: reconcileStatus,
-              },
-            }
+            ...t,
+            orderNumber: reconcileOrder || t.orderNumber,
+            payload: {
+              ...t.payload,
+              reconciliationNote: reconcileNote,
+              reconciliationStatus: reconcileStatus,
+            },
+          }
           : t
       )
     );
@@ -339,32 +416,20 @@ export default function TransactionsLedgerPage() {
     setReconcileOrder('');
   };
 
-  const methodBadge = (m: PaymentMethod) =>
-    m === 'M-Pesa'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      : m === 'Airtel Money'
-      ? 'bg-red-50 text-red-700 border-red-100'
-      : m === 'Stripe'
-      ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-      : 'bg-amber-50 text-amber-700 border-amber-100';
-
   const statusBadge = (s: TxStatus) =>
     s === 'Success'
       ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
       : s === 'Failed'
-      ? 'bg-red-50 text-red-600 border-red-100'
-      : s === 'Reversed'
-      ? 'bg-purple-50 text-purple-700 border-purple-100'
-      : 'bg-amber-50 text-amber-700 border-amber-100';
+        ? 'bg-red-50 text-red-600 border-red-100'
+        : s === 'Reversed'
+          ? 'bg-purple-50 text-purple-700 border-purple-100'
+          : 'bg-amber-50 text-amber-700 border-amber-100';
 
   const activeFilterCount =
-    (selectedMethod ? 1 : 0) +
-    (selectedStatus ? 1 : 0) +
-    (minAmount || maxAmount ? 1 : 0);
+    (selectedStatus ? 1 : 0) + (minAmount || maxAmount ? 1 : 0);
 
   const clearFilters = () => {
     setSearchQuery('');
-    setSelectedMethod(null);
     setSelectedStatus(null);
     setMinAmount('');
     setMaxAmount('');
@@ -389,7 +454,7 @@ export default function TransactionsLedgerPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Transactions</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Raw payment ledger & gateway event stream
+              M-Pesa financial ledger & gateway event stream
             </p>
           </div>
           <button
@@ -403,6 +468,19 @@ export default function TransactionsLedgerPage() {
       </header>
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+
+        {/* SEPARATION NOTE: Order vs Transaction */}
+        <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+          <Link2 className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+          <div className="text-[13px]">
+            <p className="font-medium text-blue-950">Orders vs Transactions</p>
+            <p className="text-blue-800 mt-0.5">
+              An <span className="font-medium">Order</span> represents the commercial purchase (what was bought).
+              A <span className="font-medium">Transaction</span> represents the financial event (how it was paid).
+              Multiple M-Pesa transactions can settle a single order.
+            </p>
+          </div>
+        </div>
 
         {/* SUMMARY CARDS */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
@@ -451,7 +529,7 @@ export default function TransactionsLedgerPage() {
 
           <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-slate-500">Fees</p>
+              <p className="text-[13px] font-medium text-slate-500">M-Pesa Fees</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
                 KES {totalFees.toLocaleString()}
               </p>
@@ -482,7 +560,7 @@ export default function TransactionsLedgerPage() {
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search ref, order #, customer…"
+              placeholder="Search M-Pesa ref, order #, phone, customer…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
@@ -490,12 +568,6 @@ export default function TransactionsLedgerPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <FilterDropdown
-              label="Method"
-              value={selectedMethod}
-              options={METHODS as unknown as string[]}
-              onChange={(v) => setSelectedMethod(v as PaymentMethod | null)}
-            />
             <FilterDropdown
               label="Status"
               value={selectedStatus}
@@ -558,7 +630,7 @@ export default function TransactionsLedgerPage() {
         <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <span className="text-[13px] font-medium text-slate-700">
-              Ledger entries · {filtered.length}
+              M-Pesa ledger entries · {filtered.length}
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -574,11 +646,11 @@ export default function TransactionsLedgerPage() {
                       )}
                     </button>
                   </th>
-                  <th className="py-2 px-3 font-medium">Ref</th>
+                  <th className="py-2 px-3 font-medium">M-Pesa Ref</th>
                   <th className="py-2 px-3 font-medium">Order #</th>
-                  <th className="py-2 px-3 font-medium">Method</th>
                   <th className="py-2 px-3 font-medium text-right">Amount</th>
-                  <th className="py-2 px-3 font-medium">Identifier</th>
+                  <th className="py-2 px-3 font-medium text-right">Fee</th>
+                  <th className="py-2 px-3 font-medium">Phone</th>
                   <th className="py-2 px-3 font-medium">Status</th>
                   <th className="py-2 px-3 font-medium">Code</th>
                   <th className="py-2 px-3 font-medium">Date</th>
@@ -589,7 +661,7 @@ export default function TransactionsLedgerPage() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-slate-400 text-[13px]">
-                      No transactions match your filters.
+                      No M-Pesa transactions match your filters.
                     </td>
                   </tr>
                 ) : (
@@ -599,9 +671,8 @@ export default function TransactionsLedgerPage() {
                       <tr
                         key={tx.id}
                         onClick={() => setActiveTx(tx)}
-                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
-                          isSelected ? 'bg-blue-50/50' : ''
-                        }`}
+                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/50' : ''
+                          }`}
                       >
                         <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                           <button
@@ -617,22 +688,13 @@ export default function TransactionsLedgerPage() {
                         </td>
                         <td className="py-2 px-3 font-mono font-medium text-blue-950">{tx.ref}</td>
                         <td className="py-2 px-3 font-mono text-slate-700">{tx.orderNumber}</td>
-                        <td className="py-2 px-3">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border ${methodBadge(
-                              tx.method
-                            )}`}
-                          >
-                            {tx.method === 'M-Pesa' && <Smartphone className="w-3 h-3" />}
-                            {tx.method === 'Stripe' && <CreditCard className="w-3 h-3" />}
-                            {tx.method === 'Cash on Delivery' && <DollarSign className="w-3 h-3" />}
-                            {tx.method}
-                          </span>
-                        </td>
                         <td className="py-2 px-3 text-right font-medium text-slate-900">
                           {tx.amount.toLocaleString()}
                         </td>
-                        <td className="py-2 px-3 font-mono text-slate-500">{tx.identifier}</td>
+                        <td className="py-2 px-3 text-right text-slate-500">
+                          {tx.fee.toLocaleString()}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-slate-500">{tx.phoneNumber}</td>
                         <td className="py-2 px-3">
                           <span
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border ${statusBadge(
@@ -642,6 +704,7 @@ export default function TransactionsLedgerPage() {
                             {tx.status === 'Success' && <Check className="w-3 h-3" />}
                             {tx.status === 'Failed' && <X className="w-3 h-3" />}
                             {tx.status === 'Pending' && <Clock className="w-3 h-3" />}
+                            {tx.status === 'Reversed' && <RefreshCw className="w-3 h-3" />}
                             {tx.status}
                           </span>
                         </td>
@@ -703,7 +766,7 @@ export default function TransactionsLedgerPage() {
           >
             <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
               <div className="min-w-0">
-                <p className="text-[13px] font-medium text-slate-500">Transaction inspector</p>
+                <p className="text-[13px] font-medium text-slate-500">M-Pesa transaction inspector</p>
                 <h2 className="text-[15px] font-semibold font-mono text-blue-950 mt-0.5 truncate">
                   {activeTx.ref}
                 </h2>
@@ -719,10 +782,27 @@ export default function TransactionsLedgerPage() {
             <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
               {/* Quick stats */}
               <div className="grid grid-cols-2 gap-2">
-                <Stat label="Order linked" value={activeTx.orderNumber} mono />
-                <Stat label="Amount" value={`KES ${activeTx.amount.toLocaleString()}`} />
-                <Stat label="Customer" value={activeTx.customerName} />
+                <Stat label="Order linked" value={activeTx.orderNumber} mono icon={<Link2 className="w-3 h-3" />} />
+                <Stat label="Amount" value={`KES ${activeTx.amount.toLocaleString()}`} icon={<DollarSign className="w-3 h-3" />} />
+                <Stat label="M-Pesa fee" value={`KES ${activeTx.fee.toLocaleString()}`} />
                 <Stat label="Response code" value={activeTx.responseCode} mono />
+                <Stat label="Customer" value={activeTx.customerName} icon={<User className="w-3 h-3" />} />
+                <Stat label="Phone" value={activeTx.phoneNumber} mono icon={<Phone className="w-3 h-3" />} />
+                <Stat label="Merchant Request ID" value={activeTx.merchantRequestId} mono />
+                <Stat label="Checkout Request ID" value={activeTx.checkoutRequestId} mono />
+              </div>
+
+              {/* Response description */}
+              <div
+                className={`rounded-sm p-2 border ${activeTx.status === 'Success'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : activeTx.status === 'Failed'
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-amber-50 border-amber-200'
+                  }`}
+              >
+                <p className="font-medium text-slate-700 mb-0.5">Result description</p>
+                <p className="text-slate-800">{activeTx.responseDesc}</p>
               </div>
 
               {/* Timeline */}
@@ -734,8 +814,8 @@ export default function TransactionsLedgerPage() {
                       item.status === 'completed'
                         ? 'bg-emerald-500'
                         : item.status === 'failed'
-                        ? 'bg-red-500'
-                        : 'bg-amber-500';
+                          ? 'bg-red-500'
+                          : 'bg-amber-500';
                     return (
                       <li
                         key={idx}
@@ -755,7 +835,7 @@ export default function TransactionsLedgerPage() {
               {/* Payload */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-slate-700">Raw gateway payload</p>
+                  <p className="font-medium text-slate-700">Raw M-Pesa callback payload</p>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(JSON.stringify(activeTx.payload, null, 2));
@@ -790,7 +870,7 @@ export default function TransactionsLedgerPage() {
                   className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  Retry payment
+                  Retry M-Pesa payment
                 </button>
               )}
             </div>
@@ -810,7 +890,7 @@ export default function TransactionsLedgerPage() {
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[13px] font-medium text-slate-500">Manual reconciliation</p>
+                <p className="text-[13px] font-medium text-slate-500">Manual M-Pesa reconciliation</p>
                 <h3 className="text-[15px] font-semibold font-mono text-slate-900 mt-0.5 truncate">
                   {reconcileTx.ref}
                 </h3>
@@ -823,28 +903,41 @@ export default function TransactionsLedgerPage() {
               </button>
             </div>
 
+            <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between">
+              <div>
+                <p className="text-slate-500">Amount</p>
+                <p className="font-medium text-slate-900">KES {reconcileTx.amount.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-slate-500">Phone</p>
+                <p className="font-mono font-medium text-slate-900">{reconcileTx.phoneNumber}</p>
+              </div>
+              <div>
+                <p className="text-slate-500">Date</p>
+                <p className="font-mono font-medium text-slate-900">{reconcileTx.date}</p>
+              </div>
+            </div>
+
             <div>
               <p className="font-medium text-slate-700 mb-1">Reconciliation status</p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setReconcileStatus('Matched')}
-                  className={`py-2 rounded-sm font-medium border transition ${
-                    reconcileStatus === 'Matched'
+                  className={`py-2 rounded-sm font-medium border transition ${reconcileStatus === 'Matched'
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   Mark matched
                 </button>
                 <button
                   type="button"
                   onClick={() => setReconcileStatus('Unmatched')}
-                  className={`py-2 rounded-sm font-medium border transition ${
-                    reconcileStatus === 'Unmatched'
+                  className={`py-2 rounded-sm font-medium border transition ${reconcileStatus === 'Unmatched'
                       ? 'bg-red-50 text-red-700 border-red-300'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   Mark unmatched
                 </button>
@@ -932,11 +1025,10 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${
-          isActive
+        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
             ? 'bg-blue-50 border-blue-950 text-blue-950'
             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-        }`}
+          }`}
       >
         {value ?? label}
         <ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
@@ -949,9 +1041,8 @@ function FilterDropdown({
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${
-              !isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-            }`}
+            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+              }`}
           >
             All {label.toLowerCase()}
           </button>
@@ -965,9 +1056,8 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${
-                  selected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-                }`}
+                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${selected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
               >
                 <span className="truncate">{opt}</span>
                 {selected && <Check className="w-3.5 h-3.5" />}
@@ -981,10 +1071,23 @@ function FilterDropdown({
 }
 
 /* ─────────── Stat ─────────── */
-function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Stat({
+  label,
+  value,
+  mono,
+  icon,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  icon?: React.ReactNode;
+}) {
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
-      <p className="text-[13px] font-medium text-slate-500">{label}</p>
+      <p className="text-[13px] font-medium text-slate-500 flex items-center gap-1">
+        {icon}
+        {label}
+      </p>
       <p className={`text-[13px] font-semibold text-slate-900 mt-0.5 truncate ${mono ? 'font-mono' : ''}`}>
         {value}
       </p>

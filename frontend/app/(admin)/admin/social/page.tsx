@@ -17,6 +17,10 @@ import {
   Clock,
   ShoppingBag,
   AlertCircle,
+  Sparkles,
+  MessageSquare,
+  ArrowRight,
+  BarChart3,
 } from 'lucide-react';
 import {
   FaFacebookF,
@@ -24,6 +28,7 @@ import {
   FaTiktok,
   FaYoutube,
   FaXTwitter,
+  FaWhatsapp,
 } from 'react-icons/fa6';
 import {
   ResponsiveContainer,
@@ -40,7 +45,7 @@ import {
 
 // --- TYPES ---
 type SocialTab = 'Composer' | 'Scheduled' | 'Published' | 'Analytics';
-type SocialPlatform = 'Facebook' | 'Instagram' | 'TikTok' | 'YouTube' | 'X';
+type SocialPlatform = 'Facebook' | 'Instagram' | 'TikTok' | 'YouTube' | 'X' | 'WhatsApp';
 type MediaType = 'image' | 'video';
 
 interface ConnectedAccount {
@@ -87,6 +92,7 @@ const INITIAL_ACCOUNTS: ConnectedAccount[] = [
   { id: 'TikTok', name: 'TikTok Creator', handle: '@sokoflow_store', connected: true, avatarBg: 'bg-black' },
   { id: 'YouTube', name: 'YouTube Channel', handle: '@SokoFlowKE', connected: false, avatarBg: 'bg-[#FF0000]' },
   { id: 'X', name: 'X (Twitter)', handle: '@SokoFlowHQ', connected: false, avatarBg: 'bg-black' },
+  { id: 'WhatsApp', name: 'WhatsApp Business', handle: '+254 712 345 678', connected: true, avatarBg: 'bg-[#25D366]' },
 ];
 
 const INITIAL_SCHEDULED: ScheduledPost[] = [
@@ -104,6 +110,13 @@ const INITIAL_SCHEDULED: ScheduledPost[] = [
     scheduledTime: 'Sep 26, 2:30 PM',
     mediaUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=60',
   },
+  {
+    id: 'sch-3',
+    platforms: ['WhatsApp'],
+    caption: 'Hi {{customer_name}}, your weekly VIP deals are here. Reply SHOP to browse 👇',
+    scheduledTime: 'Tomorrow, 9:00 AM',
+    productTag: 'VIP Weekly Deals',
+  },
 ];
 
 const INITIAL_PUBLISHED: PublishedPost[] = [
@@ -112,14 +125,15 @@ const INITIAL_PUBLISHED: PublishedPost[] = [
   { id: 'pub-3', platform: 'TikTok', caption: 'Unboxing the UltraWide 29" Gaming Monitor! 🖥️🔥', publishedAt: '5 days ago', likes: 1250, comments: 94, shares: 180, reach: 18900 },
   { id: 'pub-4', platform: 'YouTube', caption: 'Full walkthrough: Setting up SokoFlow with WhatsApp Business API and M-Pesa Daraja sandbox.', publishedAt: '6 days ago', likes: 412, comments: 67, shares: 41, reach: 8400 },
   { id: 'pub-5', platform: 'X', caption: 'We are live at Dedan Kimathi Tech Week! Come check out our conversational commerce dashboard.', publishedAt: '1 week ago', likes: 95, comments: 12, shares: 24, reach: 2300 },
+  { id: 'pub-6', platform: 'WhatsApp', caption: 'Broadcast: October VIP early access preview — reply yes to unlock.', publishedAt: '3 days ago', likes: 0, comments: 84, shares: 0, reach: 1240 },
 ];
 
 const ANALYTICS_FOLLOWER_DATA = [
-  { month: 'May', Facebook: 2100, Instagram: 3400, TikTok: 1200, YouTube: 600, X: 900 },
-  { month: 'Jun', Facebook: 2400, Instagram: 4100, TikTok: 2100, YouTube: 1100, X: 1100 },
-  { month: 'Jul', Facebook: 2800, Instagram: 5200, TikTok: 3800, YouTube: 1900, X: 1400 },
-  { month: 'Aug', Facebook: 3200, Instagram: 6700, TikTok: 5900, YouTube: 2900, X: 1700 },
-  { month: 'Sep', Facebook: 3900, Instagram: 8500, TikTok: 9400, YouTube: 4200, X: 2200 },
+  { month: 'May', Facebook: 2100, Instagram: 3400, TikTok: 1200, YouTube: 600, X: 900, WhatsApp: 800 },
+  { month: 'Jun', Facebook: 2400, Instagram: 4100, TikTok: 2100, YouTube: 1100, X: 1100, WhatsApp: 1200 },
+  { month: 'Jul', Facebook: 2800, Instagram: 5200, TikTok: 3800, YouTube: 1900, X: 1400, WhatsApp: 1700 },
+  { month: 'Aug', Facebook: 3200, Instagram: 6700, TikTok: 5900, YouTube: 2900, X: 1700, WhatsApp: 2200 },
+  { month: 'Sep', Facebook: 3900, Instagram: 8500, TikTok: 9400, YouTube: 4200, X: 2200, WhatsApp: 3100 },
 ];
 
 const PLATFORM_ENGAGEMENT_COMPARISON = [
@@ -127,6 +141,7 @@ const PLATFORM_ENGAGEMENT_COMPARISON = [
   { platform: 'TikTok', Reach: 14200, Engagement: 5100 },
   { platform: 'Facebook', Reach: 4800, Engagement: 1600 },
   { platform: 'YouTube', Reach: 9100, Engagement: 2800 },
+  { platform: 'WhatsApp', Reach: 3100, Engagement: 2050 },
   { platform: 'X', Reach: 2900, Engagement: 850 },
 ];
 
@@ -138,7 +153,7 @@ const AVAILABLE_PRODUCTS = [
   'USB-C Multiport Hub 7-in-1',
 ];
 
-const PLATFORMS: SocialPlatform[] = ['Facebook', 'Instagram', 'TikTok', 'YouTube', 'X'];
+const PLATFORMS: SocialPlatform[] = ['Facebook', 'Instagram', 'TikTok', 'YouTube', 'X', 'WhatsApp'];
 const TABS: SocialTab[] = ['Composer', 'Scheduled', 'Published', 'Analytics'];
 
 const MAX_MEDIA_FILES = 5;
@@ -165,6 +180,8 @@ const PlatformIcon = ({ platform, className = 'w-3.5 h-3.5' }: { platform: Socia
       return <FaYoutube className={className} />;
     case 'X':
       return <FaXTwitter className={className} />;
+    case 'WhatsApp':
+      return <FaWhatsapp className={className} />;
   }
 };
 
@@ -183,6 +200,27 @@ export default function SocialMediaPage() {
   const [composerScheduleTime, setComposerScheduleTime] = useState('');
   const [composerMedia, setComposerMedia] = useState<MediaItem[]>([]);
   const [isScheduling, setIsScheduling] = useState(false);
+
+  // Studio step indicator (1..6)
+  const studioSteps = [
+    { step: 1, label: 'Create', icon: Sparkles },
+    { step: 2, label: 'Media', icon: ImageIcon },
+    { step: 3, label: 'Caption', icon: MessageSquare },
+    { step: 4, label: 'Channels', icon: Share2 },
+    { step: 5, label: 'Publish', icon: Send },
+    { step: 6, label: 'Track', icon: BarChart3 },
+  ];
+
+  const currentStep =
+    composerMedia.length === 0 && !composerCaption
+      ? 1
+      : composerMedia.length === 0
+        ? 2
+        : !composerCaption
+          ? 3
+          : composerPlatforms.length === 0
+            ? 4
+            : 5;
 
   useEffect(() => {
     if (toastMessage) {
@@ -295,12 +333,14 @@ export default function SocialMediaPage() {
     p === 'Facebook'
       ? 'bg-blue-50 text-[#1877F2] border-blue-100'
       : p === 'Instagram'
-      ? 'bg-pink-50 text-pink-700 border-pink-100'
-      : p === 'TikTok'
-      ? 'bg-slate-100 text-slate-800 border-slate-200'
-      : p === 'YouTube'
-      ? 'bg-red-50 text-[#FF0000] border-red-100'
-      : 'bg-slate-100 text-slate-800 border-slate-200';
+        ? 'bg-pink-50 text-pink-700 border-pink-100'
+        : p === 'TikTok'
+          ? 'bg-slate-100 text-slate-800 border-slate-200'
+          : p === 'YouTube'
+            ? 'bg-red-50 text-[#FF0000] border-red-100'
+            : p === 'WhatsApp'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+              : 'bg-slate-100 text-slate-800 border-slate-200';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
@@ -321,7 +361,7 @@ export default function SocialMediaPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Social media</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Manage channels, schedule posts, and analyze engagement
+              Central social management hub — connect, create, publish, and analyze
             </p>
           </div>
           <button
@@ -336,56 +376,104 @@ export default function SocialMediaPage() {
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
 
-        {/* ACCOUNTS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
-          {accounts.map((acc) => (
-            <div
-              key={acc.id}
-              className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className={`w-9 h-9 rounded-sm ${acc.avatarBg} text-white font-semibold text-[13px] flex items-center justify-center shrink-0`}
-                >
-                  <PlatformIcon platform={acc.id} className="w-4 h-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-slate-900 truncate">{acc.name}</p>
-                  <p className="text-[13px] text-slate-500 font-mono truncate">{acc.handle}</p>
-                  <span
-                    className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-sm text-[13px] font-medium border ${
-                      acc.connected
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                        : 'bg-slate-100 text-slate-500 border-slate-200'
-                    }`}
-                  >
-                    {acc.connected ? 'Connected' : 'Disconnected'}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => togglePlatformConnect(acc)}
-                className={`px-2.5 py-2 rounded-sm font-medium text-[13px] transition shrink-0 border ${
-                  acc.connected
-                    ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    : 'bg-blue-950 border-blue-950 text-white hover:bg-blue-900'
-                }`}
-              >
-                {acc.connected ? 'Disconnect' : 'Connect'}
-              </button>
+        {/* CONTENT STUDIO FLOW */}
+        <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 space-y-2">
+          <div className="flex items-start gap-2">
+            <Sparkles className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+            <div className="text-[13px]">
+              <p className="font-medium text-blue-950">Content Studio</p>
+              <p className="text-blue-800 mt-0.5">
+                Create Content → Select Media → Write Caption → Select Channels → Publish / Schedule → Track Results
+              </p>
             </div>
-          ))}
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto pb-1">
+            {studioSteps.map((s, i) => {
+              const Icon = s.icon;
+              const isDone = s.step < currentStep;
+              const isActive = s.step === currentStep;
+              return (
+                <React.Fragment key={s.step}>
+                  <div
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-[13px] font-medium whitespace-nowrap border transition ${isDone
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : isActive
+                          ? 'bg-blue-950 text-white border-blue-950'
+                          : 'bg-white text-slate-500 border-slate-200'
+                      }`}
+                  >
+                    {isDone ? <CheckCircle2 className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                    {s.step}. {s.label}
+                  </div>
+                  {i < studioSteps.length - 1 && (
+                    <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CONNECTED ACCOUNTS */}
+        <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
+              <Share2 className="w-3.5 h-3.5 text-blue-950" />
+              Connected accounts
+            </p>
+            <span className="text-[13px] text-slate-500">
+              {accounts.filter((a) => a.connected).length} of {accounts.length} connected
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {accounts.map((acc) => (
+              <div
+                key={acc.id}
+                className={`bg-white border rounded-sm p-2 flex items-center justify-between gap-2 ${acc.connected ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-200'
+                  }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`w-9 h-9 rounded-sm ${acc.avatarBg} text-white font-semibold text-[13px] flex items-center justify-center shrink-0`}
+                  >
+                    <PlatformIcon platform={acc.id} className="w-4 h-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-slate-900 truncate">{acc.name}</p>
+                    <p className="text-[13px] text-slate-500 font-mono truncate">{acc.handle}</p>
+                    <span
+                      className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-sm text-[13px] font-medium border ${acc.connected
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                        }`}
+                    >
+                      {acc.connected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => togglePlatformConnect(acc)}
+                  className={`px-2.5 py-2 rounded-sm font-medium text-[13px] transition shrink-0 border ${acc.connected
+                      ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      : 'bg-blue-950 border-blue-950 text-white hover:bg-blue-900'
+                    }`}
+                >
+                  {acc.connected ? 'Disconnect' : 'Connect'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* TABS */}
-        <div className="bg-white border border-slate-200 rounded-sm p-0.5 inline-flex gap-0.5">
+        <div className="bg-white border border-slate-200 rounded-sm p-0.5 inline-flex gap-0.5 overflow-x-auto max-w-full">
           {TABS.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition ${
-                activeTab === tab ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               {tab}
             </button>
@@ -398,41 +486,26 @@ export default function SocialMediaPage() {
             {/* Form */}
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-3">
               <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
-                <Share2 className="w-3.5 h-3.5 text-blue-950" />
-                New social post
+                <Sparkles className="w-3.5 h-3.5 text-blue-950" />
+                Content Studio · New post
               </p>
 
               <form onSubmit={publishOrSchedule} className="space-y-3 text-[13px]">
+                {/* Step 2: Media first for clarity */}
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Platform targets</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PLATFORMS.map((plat) => {
-                      const isSelected = composerPlatforms.includes(plat);
-                      return (
-                        <button
-                          key={plat}
-                          type="button"
-                          onClick={() =>
-                            setComposerPlatforms((prev) =>
-                              isSelected ? prev.filter((p) => p !== plat) : [...prev, plat]
-                            )
-                          }
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-sm font-medium text-[13px] transition border ${
-                            isSelected
-                              ? 'bg-blue-950 text-white border-blue-950'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          <PlatformIcon platform={plat} className="w-3.5 h-3.5" />
-                          {plat}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <ImageIcon className="w-3 h-3" />
+                    Step 2 · Select media
+                  </label>
+                  <MediaUploader media={composerMedia} setMedia={setComposerMedia} onToast={toast} />
                 </div>
 
+                {/* Step 3: Caption */}
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Caption</label>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    Step 3 · Write caption
+                  </label>
                   <textarea
                     rows={4}
                     required
@@ -443,8 +516,51 @@ export default function SocialMediaPage() {
                   />
                 </div>
 
+                {/* Step 4: Channels */}
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Product tag</label>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <Share2 className="w-3 h-3" />
+                    Step 4 · Select channels
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PLATFORMS.map((plat) => {
+                      const isSelected = composerPlatforms.includes(plat);
+                      const account = accounts.find((a) => a.id === plat);
+                      const isConnected = account?.connected;
+                      return (
+                        <button
+                          key={plat}
+                          type="button"
+                          disabled={!isConnected}
+                          onClick={() =>
+                            setComposerPlatforms((prev) =>
+                              isSelected ? prev.filter((p) => p !== plat) : [...prev, plat]
+                            )
+                          }
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-sm font-medium text-[13px] transition border ${isSelected
+                              ? 'bg-blue-950 text-white border-blue-950'
+                              : !isConnected
+                                ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          title={!isConnected ? `${plat} not connected` : undefined}
+                        >
+                          <PlatformIcon platform={plat} className="w-3.5 h-3.5" />
+                          {plat}
+                          {!isConnected && (
+                            <span className="text-[13px]">· off</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <ShoppingBag className="w-3 h-3" />
+                    Product tag (optional)
+                  </label>
                   <select
                     value={composerProductTag}
                     onChange={(e) => setComposerProductTag(e.target.value)}
@@ -459,12 +575,12 @@ export default function SocialMediaPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">Media</label>
-                  <MediaUploader media={composerMedia} setMedia={setComposerMedia} onToast={toast} />
-                </div>
-
+                {/* Step 5: Publish / Schedule */}
                 <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <p className="text-[13px] font-medium text-slate-700 inline-flex items-center gap-1">
+                    <Send className="w-3 h-3" />
+                    Step 5 · Publish or schedule
+                  </p>
                   <label className="flex items-center justify-between cursor-pointer">
                     <span className="font-medium text-slate-700">Schedule for later</span>
                     <input
@@ -505,16 +621,16 @@ export default function SocialMediaPage() {
                   Live preview
                 </p>
                 <span className="text-[13px] bg-blue-50 text-blue-950 border border-blue-100 font-medium px-2 py-0.5 rounded-sm">
-                  {composerPlatforms.length} selected
+                  {composerPlatforms.length} channel{composerPlatforms.length !== 1 ? 's' : ''}
                 </span>
               </div>
 
               {composerPlatforms.length === 0 ? (
                 <div className="py-16 text-center text-[13px] text-slate-400">
-                  Select at least one platform to view preview.
+                  Select at least one connected platform to view preview.
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
                   {composerPlatforms.map((plat) => (
                     <div
                       key={plat}
@@ -525,7 +641,13 @@ export default function SocialMediaPage() {
                           <PlatformIcon platform={plat} className="w-3.5 h-3.5 text-blue-950" />
                           {plat} preview
                         </span>
-                        <span className="text-slate-400">{plat === 'YouTube' ? 'Video' : 'Feed'}</span>
+                        <span className="text-slate-400">
+                          {plat === 'YouTube'
+                            ? 'Video'
+                            : plat === 'WhatsApp'
+                              ? 'Broadcast'
+                              : 'Feed'}
+                        </span>
                       </div>
 
                       <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
@@ -545,7 +667,6 @@ export default function SocialMediaPage() {
                           {composerCaption || 'Your caption will appear here as you type…'}
                         </p>
 
-                        {/* Media preview */}
                         {composerMedia.length > 0 && (
                           <div className="grid grid-cols-2 gap-1 rounded-sm overflow-hidden border border-slate-200">
                             {composerMedia.slice(0, 4).map((m) =>
@@ -673,8 +794,9 @@ export default function SocialMediaPage() {
         {activeTab === 'Published' && (
           <div className="space-y-3">
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-              <p className="text-[13px] font-semibold text-slate-900">
-                Platform engagement comparison
+              <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
+                <BarChart3 className="w-3.5 h-3.5 text-blue-950" />
+                Step 6 · Track results · platform engagement comparison
               </p>
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -780,6 +902,7 @@ export default function SocialMediaPage() {
                     <Line type="monotone" dataKey="TikTok" stroke="#0f172a" strokeWidth={2} />
                     <Line type="monotone" dataKey="Facebook" stroke="#1877F2" strokeWidth={2} />
                     <Line type="monotone" dataKey="YouTube" stroke="#dc2626" strokeWidth={2} />
+                    <Line type="monotone" dataKey="WhatsApp" stroke="#25D366" strokeWidth={2} />
                     <Line type="monotone" dataKey="X" stroke="#0ea5e9" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -917,8 +1040,7 @@ function MediaUploader({
     if (accepted.length > 0) {
       setMedia((prev) => [...prev, ...accepted]);
       onToast(
-        `${accepted.length} file${accepted.length > 1 ? 's' : ''} added${
-          rejected ? ` · ${rejected} rejected` : ''
+        `${accepted.length} file${accepted.length > 1 ? 's' : ''} added${rejected ? ` · ${rejected} rejected` : ''
         }`
       );
 
@@ -969,11 +1091,10 @@ function MediaUploader({
         onDragLeave={() => setIsDragging(false)}
         onDrop={onDrop}
         onClick={() => fileRef.current?.click()}
-        className={`w-full border-2 border-dashed rounded-sm px-3 py-4 text-center cursor-pointer transition ${
-          isDragging
+        className={`w-full border-2 border-dashed rounded-sm px-3 py-4 text-center cursor-pointer transition ${isDragging
             ? 'border-blue-950 bg-blue-50/40'
             : 'border-slate-300 hover:border-blue-950 hover:bg-blue-50/20'
-        }`}
+          }`}
       >
         <input
           ref={fileRef}

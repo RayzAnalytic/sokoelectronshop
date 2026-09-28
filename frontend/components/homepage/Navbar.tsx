@@ -43,10 +43,11 @@ export default function Navbar() {
     }, []);
 
     const categories = [
-        { name: 'Shop All', href: '/shop' },
-        { name: 'New Arrivals', href: '/shop/new' },
-        { name: 'Best Sellers', href: '/shop/best-sellers' },
-        { name: 'Sale', href: '/shop/sale' },
+        { name: 'Shop All', href: '/pages/products' },
+        { name: 'New Arrivals', href: '/pages/products/newarrivals' },
+        { name: 'Best Sellers', href: '/pages/products/bestsellingproducts' },
+        { name: 'Special Deals', href: '/pages/products/specialdeals' },
+        { name: 'Categories', href: '/pages/categories' },
     ];
 
     // Search → navigate to /pages/products?q=<query>
@@ -62,172 +63,47 @@ export default function Navbar() {
     return (
         <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
             {/* ========================================= */}
-            {/* SECTION 1: TOP BAR                        */}
+            {/* SECTION 1: TOP BAR (minimal)              */}
             {/* ========================================= */}
             <div className="bg-slate-900 text-slate-300 text-[12px] py-1.5 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
 
-                    {/* LEFT: Trust & Promo messaging */}
-                    <div className="flex items-center gap-x-4 sm:gap-x-6 overflow-hidden">
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span className="hidden sm:inline">Free express shipping over $99</span>
-                            <span className="sm:hidden">Free shipping $99+</span>
-                        </div>
+                    {/* LEFT: Location */}
+                    <Link
+                        href="/stores"
+                        className="flex items-center gap-1.5 hover:text-white transition-colors shrink-0"
+                    >
+                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>Nairobi, Kenya</span>
+                    </Link>
 
-                        <div className="hidden md:flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                            <span>2-year warranty</span>
-                        </div>
-
-                        <div className="hidden lg:flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                            <span>24/7 support</span>
-                        </div>
-
-                        <div className="hidden xl:flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            <span>30-day free returns</span>
-                        </div>
-                    </div>
-
-                    {/* RIGHT: Contact, Utility links, Language/Currency */}
+                    {/* RIGHT: Phone + Track Order */}
                     <div className="flex items-center gap-x-4 sm:gap-x-5 shrink-0">
 
-                        {/* Phone Contact */}
+                        {/* Phone */}
                         <a
-                            href="tel:+18005550199"
-                            className="hidden lg:flex items-center gap-1.5 hover:text-white transition-colors"
+                            href="tel:+254700000000"
+                            className="flex items-center gap-1.5 hover:text-white transition-colors"
                         >
                             <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                             </svg>
-                            <span>+1 (800) 555-0199</span>
+                            <span className="hidden sm:inline">+254 700 000 000</span>
+                            <span className="sm:hidden">Call</span>
                         </a>
 
-                        <span className="hidden lg:inline-block w-px h-3 bg-slate-700" />
-
-                        {/* Store Locator */}
-                        <Link
-                            href="/stores"
-                            className="hidden xl:inline-flex items-center gap-1.5 hover:text-white transition-colors"
-                        >
-                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span>Stores</span>
-                        </Link>
+                        <span className="w-px h-3 bg-slate-700" />
 
                         {/* Track Order */}
                         <Link
-                            href="/track-order"
-                            className="hidden md:inline-block hover:text-white transition-colors"
+                            href="/pages/account/orders"
+                            className="hover:text-white transition-colors"
                         >
                             Track Order
                         </Link>
-
-                        {/* Gift Cards */}
-                        <Link
-                            href="/gift-cards"
-                            className="hidden xl:inline-block hover:text-white transition-colors"
-                        >
-                            Gift Cards
-                        </Link>
-
-                        {/* Help Center */}
-                        <Link
-                            href="/support"
-                            className="hidden lg:inline-flex items-center gap-1 hover:text-white transition-colors"
-                        >
-                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>Help</span>
-                        </Link>
-
-                        <span className="hidden md:inline-block w-px h-3 bg-slate-700" />
-
-                        {/* Language Selector */}
-                        <div className="relative" ref={languageRef}>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setLanguageDropdownOpen(!languageDropdownOpen);
-                                    setCurrencyDropdownOpen(false);
-                                }}
-                                className="flex items-center gap-1 hover:text-white transition-colors focus:outline-none"
-                            >
-                                <span>{language}</span>
-                                <svg className={`w-3 h-3 transition-transform ${languageDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </button>
-
-                            {languageDropdownOpen && (
-                                <div className="absolute right-0 mt-2 w-32 bg-white text-slate-800 rounded-sm shadow-lg border border-slate-200 py-1 z-50">
-                                    {languages.map((lang) => (
-                                        <button
-                                            key={lang}
-                                            onClick={() => {
-                                                setLanguage(lang);
-                                                setLanguageDropdownOpen(false);
-                                            }}
-                                            className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 text-[12px] transition-colors ${
-                                                language === lang ? 'text-blue-950 font-semibold bg-slate-50' : ''
-                                            }`}
-                                        >
-                                            {lang}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Currency Selector */}
-                        <div className="relative" ref={currencyRef}>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setCurrencyDropdownOpen(!currencyDropdownOpen);
-                                    setLanguageDropdownOpen(false);
-                                }}
-                                className="flex items-center gap-1 hover:text-white transition-colors focus:outline-none"
-                            >
-                                <span>{currency}</span>
-                                <svg className={`w-3 h-3 transition-transform ${currencyDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </button>
-
-                            {currencyDropdownOpen && (
-                                <div className="absolute right-0 mt-2 w-32 bg-white text-slate-800 rounded-sm shadow-lg border border-slate-200 py-1 z-50">
-                                    {currencies.map((curr) => (
-                                        <button
-                                            key={curr}
-                                            onClick={() => {
-                                                setCurrency(curr);
-                                                setCurrencyDropdownOpen(false);
-                                            }}
-                                            className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 text-[12px] transition-colors ${
-                                                currency === curr ? 'text-blue-950 font-semibold bg-slate-50' : ''
-                                            }`}
-                                        >
-                                            {curr}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -446,7 +322,7 @@ export default function Navbar() {
                                 <span>Find a Store</span>
                             </Link>
                             <Link
-                                href="/track-order"
+                                href="/pages/account/orders"
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
                             >
@@ -481,20 +357,14 @@ export default function Navbar() {
                         {/* Mobile Contact Info */}
                         <div className="pt-2 border-t border-slate-100 px-3 py-1 space-y-1.5">
                             <a
-                                href="tel:+18005550199"
+                                href="tel:+254700000000"
                                 className="flex items-center gap-2 text-[12px] text-slate-600 hover:text-blue-950 transition-colors"
                             >
                                 <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                 </svg>
-                                <span>+1 (800) 555-0199</span>
+                                <span>+254 700 000 000</span>
                             </a>
-                            <p className="flex items-center gap-2 text-[11px] text-slate-500">
-                                <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Free express shipping over $99</span>
-                            </p>
                         </div>
 
                         {/* Mobile Preference Selectors */}
@@ -528,7 +398,7 @@ export default function Navbar() {
                         {/* Mobile Account Sign In Link */}
                         <div className="pt-2 border-t border-slate-100">
                             <Link
-                                href="/login"
+                                href="/auth/login"
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="flex items-center space-x-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
                             >

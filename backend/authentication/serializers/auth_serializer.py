@@ -1,5 +1,7 @@
 # authentication/serializers/auth_serializer.py
 
+import requests
+from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -185,3 +187,104 @@ class LoginSerializer(serializers.Serializer):
 
         attrs['user'] = user
         return attrs
+
+
+# ============================================================
+# GOOGLE LOGIN SERIALIZER — access-token flow
+# ============================================================
+class GoogleLoginSerializer(serializers.Serializer):
+    """
+    Accepts a Google OAuth *access token* (starts with 'ya29.'),
+    calls Google's userinfo endpoint to fetch the profile, then
+    creates/returns the local user. The view responds with JWT tokens.
+
+    Payload:
+        { "access_token": "ya29...." }
+    """
+    access_token = serializers.CharField(write_only=True)
+
+    GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+    def validate_access_token(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Access token is required.")
+        if not value.startswith("ya29."):
+            raise serializers.ValidationError(
+                "This doesn't look like a Google access token."
+            )
+        return value
+
+    def validate(self, attrs):
+        token = attrs["access_token"]
+
+        try:
+            resp = requests.get(
+                self.GOOGLE_USERINFO_URL,
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+        except requests.RequestException as exc:
+            raise serializers.ValidationError({
+                "access_token": f"Could not reach Google: {exc}"
+            })
+
+        if resp.status_code == 401:
+            raise serializers.ValidationError({
+                "access_token": "Invalid or expired Google access token."
+            })
+        if resp.status_code != 200:
+            raise serializers.ValidationError({
+                "access_token": f"Google returned {resp.status_code}."
+            })
+
+        profile = resp.json()
+
+        email = (profile.get("email") or "").strip().lower()
+        if not email:
+            raise serializers.ValidationError({
+                "access_token": "Google account has no email address."
+            })
+
+        # Google returns email_verified as either a bool or the string "true"
+        email_verified = profile.get("email_verified")
+        if email_verified in (False, "false", "False"):
+            raise serializers.ValidationError({
+                "access_token": "Google email is not verified."
+            })
+
+        attrs["profile"] = profile
+        attrs["email"] = email
+        return attrs
+
+    def create(self, validated_data):
+        profile = validated_data["profile"]
+        email = validated_data["email"]
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                "username": email.split("@")[0],
+                "first_name": profile.get("given_name", "") or "",
+                "last_name": profile.get("family_name", "") or "",
+                "role": User.Roles.CUSTOMER if hasattr(User, "Roles") else "CUSTOMER",
+            },
+        )
+
+        # Refresh first/last name if they were empty
+        changed_fields = []
+        if not user.first_name and profile.get("given_name"):
+            user.first_name = profile["given_name"]
+            changed_fields.append("first_name")
+        if not user.last_name and profile.get("family_name"):
+            user.last_name = profile["family_name"]
+            changed_fields.append("last_name")
+        if changed_fields:
+            user.save(update_fields=changed_fields)
+
+        # Mark email as verified since it came from Google
+        if hasattr(user, "email_verified") and not user.email_verified:
+            user.email_verified = True
+            user.save(update_fields=["email_verified"])
+
+        return user

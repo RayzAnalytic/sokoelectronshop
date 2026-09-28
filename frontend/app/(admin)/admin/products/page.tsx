@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import {
   Plus,
   Search,
@@ -10,45 +10,294 @@ import {
   ExternalLink,
   Trash2,
   ChevronDown,
+  ChevronRight,
   X,
   AlertTriangle,
   Check,
   LayoutGrid,
   List as ListIcon,
   ArrowUpDown,
+  Package,
+  Tag,
+  Layers,
+  Palette,
+  Ruler,
+  DollarSign,
+  Warehouse,
+  Percent,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Star,
+  Box,
 } from 'lucide-react';
 import AddProductModal from '@/components/admin/AddProductModal';
 
 // --- TYPES ---
 type ProductStatus = 'Published' | 'Draft' | 'Archived';
 type ViewMode = 'table' | 'cards';
+type InventoryStatus = 'In Stock' | 'Low Stock' | 'Out of Stock' | 'Backorder';
+
+interface ProductVariant {
+  id: string;
+  options: { name: string; value: string }[];
+  sku: string;
+  price: number;
+  stock: number;
+  image?: string;
+}
 
 interface Product {
   id: string;
   name: string;
   sku: string;
+  description: string;
+  shortDescription: string;
   category: string;
   brand: string;
+  tags: string[];
   price: number;
+  salePrice?: number;
+  costPrice?: number;
+  tax: number;
+  discount: number;
   stock: number;
+  lowStockThreshold: number;
+  inventoryStatus: InventoryStatus;
   status: ProductStatus;
   image: string;
+  video?: string;
+  featured: boolean;
+  variants: ProductVariant[];
+  variantOptions: { name: string; values: string[] }[];
 }
 
 const INITIAL_PRODUCTS: Product[] = [
-  { id: 'p1', name: 'Apex Ultra X1 Pro Smartphone 5G', sku: 'APX-X1-5G', category: 'Smartphones', brand: 'Apex', price: 89999, stock: 14, status: 'Published', image: '/phone.jpeg' },
-  { id: 'p2', name: 'Zenith StudioBook Pro 16 Laptop', sku: 'ZNT-SB16-L', category: 'Laptops', brand: 'Zenith', price: 149999, stock: 3, status: 'Published', image: '/Lenovo.jpeg' },
-  { id: 'p3', name: 'Dell UltraSharp 27" 4K Hub Monitor', sku: 'DLL-U27-4K', category: 'Displays', brand: 'Dell', price: 45000, stock: 5, status: 'Published', image: '/dellmonitor.jpeg' },
-  { id: 'p4', name: 'Wireless Mechanical Keyboard K2', sku: 'MCH-K2-WL', category: 'Accessories', brand: 'Keychron', price: 12999, stock: 24, status: 'Published', image: '/phone.jpeg' },
-  { id: 'p5', name: 'Ergonomic Office Chair Executive', sku: 'ERG-CHR-01', category: 'Furniture', brand: 'ErgoFlex', price: 34999, stock: 0, status: 'Draft', image: '/Lenovo.jpeg' },
-  { id: 'p6', name: 'Logitech MX Master 3S Wireless Mouse', sku: 'LOG-MX3S-M', category: 'Accessories', brand: 'Logitech', price: 14500, stock: 8, status: 'Published', image: '/phone.jpeg' },
-  { id: 'p7', name: 'Sony WH-1000XM5 Noise Cancelling', sku: 'SNY-WH5-BLK', category: 'Audio', brand: 'Sony', price: 42000, stock: 1, status: 'Published', image: '/phone.jpeg' },
-  { id: 'p8', name: 'Anker Prime 24,000mAh Power Bank', sku: 'ANK-P24K-PB', category: 'Accessories', brand: 'Anker', price: 18500, stock: 35, status: 'Archived', image: '/phone.jpeg' },
+  {
+    id: 'p1',
+    name: 'Apex Ultra X1 Pro Smartphone 5G',
+    sku: 'APX-X1-5G',
+    description: 'Flagship 5G smartphone with 6.7" AMOLED display, 108MP camera, and 5,000mAh battery.',
+    shortDescription: 'Flagship 5G smartphone',
+    category: 'Smartphones',
+    brand: 'Apex',
+    tags: ['5G', 'Flagship', 'AMOLED'],
+    price: 89999,
+    salePrice: 84999,
+    costPrice: 68000,
+    tax: 16,
+    discount: 5,
+    stock: 14,
+    lowStockThreshold: 10,
+    inventoryStatus: 'In Stock',
+    status: 'Published',
+    image: '/phone.jpeg',
+    featured: true,
+    variantOptions: [
+      { name: 'Color', values: ['Black', 'White', 'Blue'] },
+      { name: 'Storage', values: ['128GB', '256GB', '512GB'] },
+    ],
+    variants: [
+      { id: 'v1', options: [{ name: 'Color', value: 'Black' }, { name: 'Storage', value: '128GB' }], sku: 'APX-X1-5G-BLK-128', price: 89999, stock: 4 },
+      { id: 'v2', options: [{ name: 'Color', value: 'Black' }, { name: 'Storage', value: '256GB' }], sku: 'APX-X1-5G-BLK-256', price: 99999, stock: 3 },
+      { id: 'v3', options: [{ name: 'Color', value: 'Black' }, { name: 'Storage', value: '512GB' }], sku: 'APX-X1-5G-BLK-512', price: 119999, stock: 2 },
+      { id: 'v4', options: [{ name: 'Color', value: 'White' }, { name: 'Storage', value: '128GB' }], sku: 'APX-X1-5G-WHT-128', price: 89999, stock: 2 },
+      { id: 'v5', options: [{ name: 'Color', value: 'White' }, { name: 'Storage', value: '256GB' }], sku: 'APX-X1-5G-WHT-256', price: 99999, stock: 1 },
+      { id: 'v6', options: [{ name: 'Color', value: 'White' }, { name: 'Storage', value: '512GB' }], sku: 'APX-X1-5G-WHT-512', price: 119999, stock: 1 },
+      { id: 'v7', options: [{ name: 'Color', value: 'Blue' }, { name: 'Storage', value: '128GB' }], sku: 'APX-X1-5G-BLU-128', price: 89999, stock: 1 },
+      { id: 'v8', options: [{ name: 'Color', value: 'Blue' }, { name: 'Storage', value: '256GB' }], sku: 'APX-X1-5G-BLU-256', price: 99999, stock: 0 },
+    ],
+  },
+  {
+    id: 'p2',
+    name: 'Zenith StudioBook Pro 16 Laptop',
+    sku: 'ZNT-SB16-L',
+    description: '16-inch creator laptop with M3 Max chip, 32GB RAM, 1TB SSD.',
+    shortDescription: 'Creator-grade 16" laptop',
+    category: 'Laptops',
+    brand: 'Zenith',
+    tags: ['Creator', 'M3 Max', '16-inch'],
+    price: 149999,
+    costPrice: 118000,
+    tax: 16,
+    discount: 0,
+    stock: 3,
+    lowStockThreshold: 5,
+    inventoryStatus: 'Low Stock',
+    status: 'Published',
+    image: '/Lenovo.jpeg',
+    featured: true,
+    variantOptions: [
+      { name: 'RAM', values: ['16GB', '32GB', '64GB'] },
+      { name: 'Storage', values: ['512GB', '1TB', '2TB'] },
+    ],
+    variants: [
+      { id: 'v1', options: [{ name: 'RAM', value: '16GB' }, { name: 'Storage', value: '512GB' }], sku: 'ZNT-SB16-16-512', price: 129999, stock: 1 },
+      { id: 'v2', options: [{ name: 'RAM', value: '16GB' }, { name: 'Storage', value: '1TB' }], sku: 'ZNT-SB16-16-1T', price: 139999, stock: 1 },
+      { id: 'v3', options: [{ name: 'RAM', value: '32GB' }, { name: 'Storage', value: '1TB' }], sku: 'ZNT-SB16-32-1T', price: 149999, stock: 1 },
+      { id: 'v4', options: [{ name: 'RAM', value: '32GB' }, { name: 'Storage', value: '2TB' }], sku: 'ZNT-SB16-32-2T', price: 169999, stock: 0 },
+      { id: 'v5', options: [{ name: 'RAM', value: '64GB' }, { name: 'Storage', value: '2TB' }], sku: 'ZNT-SB16-64-2T', price: 199999, stock: 0 },
+    ],
+  },
+  {
+    id: 'p3',
+    name: 'Dell UltraSharp 27" 4K Hub Monitor',
+    sku: 'DLL-U27-4K',
+    description: '27-inch 4K IPS monitor with USB-C hub, 99% sRGB.',
+    shortDescription: '27" 4K USB-C monitor',
+    category: 'Displays',
+    brand: 'Dell',
+    tags: ['4K', 'USB-C', 'IPS'],
+    price: 45000,
+    salePrice: 42000,
+    costPrice: 34000,
+    tax: 16,
+    discount: 7,
+    stock: 5,
+    lowStockThreshold: 5,
+    inventoryStatus: 'Low Stock',
+    status: 'Published',
+    image: '/dellmonitor.jpeg',
+    featured: false,
+    variantOptions: [],
+    variants: [],
+  },
+  {
+    id: 'p4',
+    name: 'Wireless Mechanical Keyboard K2',
+    sku: 'MCH-K2-WL',
+    description: '75% wireless mechanical keyboard with hot-swappable switches.',
+    shortDescription: '75% wireless mechanical keyboard',
+    category: 'Accessories',
+    brand: 'Keychron',
+    tags: ['Mechanical', 'Wireless', '75%'],
+    price: 12999,
+    costPrice: 8500,
+    tax: 16,
+    discount: 0,
+    stock: 24,
+    lowStockThreshold: 10,
+    inventoryStatus: 'In Stock',
+    status: 'Published',
+    image: '/phone.jpeg',
+    featured: false,
+    variantOptions: [
+      { name: 'Switch', values: ['Brown', 'Red', 'Blue'] },
+      { name: 'Layout', values: ['US', 'UK', 'DE'] },
+    ],
+    variants: [
+      { id: 'v1', options: [{ name: 'Switch', value: 'Brown' }, { name: 'Layout', value: 'US' }], sku: 'MCH-K2-WL-BR-US', price: 12999, stock: 8 },
+      { id: 'v2', options: [{ name: 'Switch', value: 'Brown' }, { name: 'Layout', value: 'UK' }], sku: 'MCH-K2-WL-BR-UK', price: 12999, stock: 3 },
+      { id: 'v3', options: [{ name: 'Switch', value: 'Red' }, { name: 'Layout', value: 'US' }], sku: 'MCH-K2-WL-RD-US', price: 12999, stock: 6 },
+      { id: 'v4', options: [{ name: 'Switch', value: 'Blue' }, { name: 'Layout', value: 'US' }], sku: 'MCH-K2-WL-BL-US', price: 13999, stock: 4 },
+      { id: 'v5', options: [{ name: 'Switch', value: 'Red' }, { name: 'Layout', value: 'DE' }], sku: 'MCH-K2-WL-RD-DE', price: 12999, stock: 3 },
+    ],
+  },
+  {
+    id: 'p5',
+    name: 'Ergonomic Office Chair Executive',
+    sku: 'ERG-CHR-01',
+    description: 'Premium ergonomic office chair with lumbar support and headrest.',
+    shortDescription: 'Premium ergonomic office chair',
+    category: 'Furniture',
+    brand: 'ErgoFlex',
+    tags: ['Ergonomic', 'Executive', 'Lumbar'],
+    price: 34999,
+    costPrice: 26000,
+    tax: 16,
+    discount: 0,
+    stock: 0,
+    lowStockThreshold: 3,
+    inventoryStatus: 'Out of Stock',
+    status: 'Draft',
+    image: '/Lenovo.jpeg',
+    featured: false,
+    variantOptions: [
+      { name: 'Color', values: ['Black', 'Grey'] },
+    ],
+    variants: [
+      { id: 'v1', options: [{ name: 'Color', value: 'Black' }], sku: 'ERG-CHR-01-BLK', price: 34999, stock: 0 },
+      { id: 'v2', options: [{ name: 'Color', value: 'Grey' }], sku: 'ERG-CHR-01-GRY', price: 34999, stock: 0 },
+    ],
+  },
+  {
+    id: 'p6',
+    name: 'Logitech MX Master 3S Wireless Mouse',
+    sku: 'LOG-MX3S-M',
+    description: 'Advanced wireless mouse with 8K DPI and quiet clicks.',
+    shortDescription: 'Advanced wireless mouse',
+    category: 'Accessories',
+    brand: 'Logitech',
+    tags: ['Wireless', '8K DPI', 'Quiet'],
+    price: 14500,
+    costPrice: 10500,
+    tax: 16,
+    discount: 0,
+    stock: 8,
+    lowStockThreshold: 5,
+    inventoryStatus: 'Low Stock',
+    status: 'Published',
+    image: '/phone.jpeg',
+    featured: false,
+    variantOptions: [],
+    variants: [],
+  },
+  {
+    id: 'p7',
+    name: 'Sony WH-1000XM5 Noise Cancelling',
+    sku: 'SNY-WH5-BLK',
+    description: 'Industry-leading noise cancelling headphones with 30-hour battery.',
+    shortDescription: 'Premium noise cancelling headphones',
+    category: 'Audio',
+    brand: 'Sony',
+    tags: ['Noise Cancelling', '30h Battery', 'Premium'],
+    price: 42000,
+    salePrice: 38999,
+    costPrice: 31000,
+    tax: 16,
+    discount: 7,
+    stock: 1,
+    lowStockThreshold: 5,
+    inventoryStatus: 'Low Stock',
+    status: 'Published',
+    image: '/phone.jpeg',
+    featured: true,
+    variantOptions: [
+      { name: 'Color', values: ['Black', 'Silver'] },
+    ],
+    variants: [
+      { id: 'v1', options: [{ name: 'Color', value: 'Black' }], sku: 'SNY-WH5-BLK', price: 42000, stock: 1 },
+      { id: 'v2', options: [{ name: 'Color', value: 'Silver' }], sku: 'SNY-WH5-SLV', price: 42000, stock: 0 },
+    ],
+  },
+  {
+    id: 'p8',
+    name: 'Anker Prime 24,000mAh Power Bank',
+    sku: 'ANK-P24K-PB',
+    description: '24,000mAh power bank with 140W output and smart display.',
+    shortDescription: 'High-capacity power bank',
+    category: 'Accessories',
+    brand: 'Anker',
+    tags: ['Power Bank', '140W', 'Smart Display'],
+    price: 18500,
+    costPrice: 13500,
+    tax: 16,
+    discount: 0,
+    stock: 35,
+    lowStockThreshold: 10,
+    inventoryStatus: 'In Stock',
+    status: 'Archived',
+    image: '/phone.jpeg',
+    featured: false,
+    variantOptions: [],
+    variants: [],
+  },
 ];
 
 const CATEGORIES = ['Smartphones', 'Laptops', 'Displays', 'Accessories', 'Furniture', 'Audio'];
 const BRANDS = ['Apex', 'Zenith', 'Dell', 'Keychron', 'ErgoFlex', 'Logitech', 'Sony', 'Anker'];
 const STATUSES: ProductStatus[] = ['Published', 'Draft', 'Archived'];
+const INVENTORY_STATUSES: InventoryStatus[] = ['In Stock', 'Low Stock', 'Out of Stock', 'Backorder'];
 
 const formatKES = (n: number) =>
   new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(n);
@@ -72,9 +321,11 @@ export default function ProductsPage() {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null);
+  const [variantsProduct, setVariantsProduct] = useState<Product | null>(null);
 
   const anyModalOpen =
-    addOpen || deleteProductId !== null || editProduct !== null || viewProduct !== null || duplicateProduct !== null;
+    addOpen || deleteProductId !== null || editProduct !== null || viewProduct !== null ||
+    duplicateProduct !== null || variantsProduct !== null;
 
   // Close kebab when clicking elsewhere
   useEffect(() => {
@@ -129,6 +380,11 @@ export default function ProductsPage() {
       name: `${duplicateProduct.name} (Copy)`,
       sku: `${duplicateProduct.sku}-DUP`,
       status: 'Draft',
+      variants: duplicateProduct.variants.map((v, i) => ({
+        ...v,
+        id: `v-${Date.now()}-${i}`,
+        sku: `${v.sku}-DUP`,
+      })),
     };
     setProducts((prev) => [dup, ...prev]);
     setDuplicateProduct(null);
@@ -156,7 +412,7 @@ export default function ProductsPage() {
         <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Products</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">Manage your product catalog</p>
+            <p className="text-[13px] text-slate-500 mt-0.5">Manage your product catalog · {products.length} products</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -311,6 +567,7 @@ export default function ProductsPage() {
                     <th className="py-2 px-3 font-medium">Category</th>
                     <th className="py-2 px-3 font-medium text-right">Price</th>
                     <th className="py-2 px-3 font-medium text-center">Stock</th>
+                    <th className="py-2 px-3 font-medium text-center">Variants</th>
                     <th className="py-2 px-3 font-medium">Status</th>
                     <th className="py-2 px-3 w-12"></th>
                   </tr>
@@ -318,7 +575,7 @@ export default function ProductsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400 text-[13px]">
+                      <td colSpan={10} className="py-12 text-center text-slate-400 text-[13px]">
                         No products match your filters.
                       </td>
                     </tr>
@@ -327,15 +584,15 @@ export default function ProductsPage() {
                       const stockBadge =
                         p.stock === 0
                           ? 'bg-red-50 text-red-600 border-red-200'
-                          : p.stock <= 10
-                          ? 'bg-amber-50 text-amber-700 border-amber-200'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                          : p.stock <= p.lowStockThreshold
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200';
                       const statusBadge =
                         p.status === 'Published'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                           : p.status === 'Draft'
-                          ? 'bg-slate-100 text-slate-700 border-slate-200'
-                          : 'bg-amber-50 text-amber-700 border-amber-100';
+                            ? 'bg-slate-100 text-slate-700 border-slate-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-100';
                       const isKebabOpen = openKebabId === p.id;
 
                       return (
@@ -355,14 +612,46 @@ export default function ProductsPage() {
                               className="w-9 h-9 rounded-sm object-cover border border-slate-200"
                             />
                           </td>
-                          <td className="py-2 px-3 font-medium text-slate-900 max-w-[280px] truncate">{p.name}</td>
+                          <td className="py-2 px-3 max-w-[280px]">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium text-slate-900 truncate">{p.name}</span>
+                              {p.featured && <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />}
+                            </div>
+                            {p.tags.length > 0 && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                {p.tags.slice(0, 2).map((t) => (
+                                  <span key={t} className="text-[11px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-sm">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-slate-500 font-mono">{p.sku}</td>
                           <td className="py-2 px-3 text-slate-600">{p.category}</td>
-                          <td className="py-2 px-3 text-right font-semibold text-slate-900">{formatKES(p.price)}</td>
+                          <td className="py-2 px-3 text-right">
+                            <div className="font-semibold text-slate-900">{formatKES(p.salePrice ?? p.price)}</div>
+                            {p.salePrice && (
+                              <div className="text-[13px] text-slate-400 line-through">{formatKES(p.price)}</div>
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-center">
                             <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${stockBadge}`}>
                               {p.stock}
                             </span>
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            {p.variants.length > 0 ? (
+                              <button
+                                onClick={() => setVariantsProduct(p)}
+                                className="inline-flex items-center gap-1 text-[13px] font-medium text-blue-950 hover:underline"
+                              >
+                                <Layers className="w-3 h-3" />
+                                {p.variants.length}
+                              </button>
+                            ) : (
+                              <span className="text-[13px] text-slate-400">—</span>
+                            )}
                           </td>
                           <td className="py-2 px-3">
                             <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge}`}>
@@ -415,9 +704,9 @@ export default function ProductsPage() {
               const stockBadge =
                 p.stock === 0
                   ? 'bg-red-50 text-red-600 border-red-200'
-                  : p.stock <= 10
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                  : p.stock <= p.lowStockThreshold
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
               const isKebabOpen = openKebabId === p.id;
 
               return (
@@ -430,6 +719,12 @@ export default function ProductsPage() {
                     <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm">
                       {p.status}
                     </span>
+                    {p.featured && (
+                      <span className="absolute top-2 left-2 bg-amber-500 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-white" />
+                        Featured
+                      </span>
+                    )}
                   </div>
 
                   <div className="space-y-1">
@@ -473,10 +768,24 @@ export default function ProductsPage() {
 
                     <h3 className="text-[13px] font-medium text-slate-900 line-clamp-2">{p.name}</h3>
                     <p className="text-[13px] text-slate-400 font-mono">SKU: {p.sku}</p>
+                    {p.variants.length > 0 && (
+                      <button
+                        onClick={() => setVariantsProduct(p)}
+                        className="text-[13px] text-blue-950 hover:underline inline-flex items-center gap-1"
+                      >
+                        <Layers className="w-3 h-3" />
+                        {p.variants.length} variants
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <span className="text-[13px] font-bold text-slate-900">{formatKES(p.price)}</span>
+                    <div>
+                      <span className="text-[13px] font-bold text-slate-900">{formatKES(p.salePrice ?? p.price)}</span>
+                      {p.salePrice && (
+                        <span className="text-[13px] text-slate-400 line-through ml-1">{formatKES(p.price)}</span>
+                      )}
+                    </div>
                     <span className={`px-2 py-0.5 rounded-sm font-medium text-[13px] border ${stockBadge}`}>
                       {p.stock} left
                     </span>
@@ -488,7 +797,7 @@ export default function ProductsPage() {
         )}
       </main>
 
-      {/* ---- ADD PRODUCT MODAL (shared component) ---- */}
+      {/* ---- ADD PRODUCT MODAL ---- */}
       <AddProductModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -497,12 +806,25 @@ export default function ProductsPage() {
             id: `p-${Date.now()}`,
             name: data.name || 'Untitled',
             sku: data.sku || `SKU-${Math.floor(Math.random() * 90000)}`,
+            description: data.description || '',
+            shortDescription: data.shortDescription || '',
             category: data.category || 'Accessories',
             brand: data.brand || 'Generic',
+            tags: data.tags || [],
             price: Number(data.price) || 0,
+            salePrice: data.salePrice ? Number(data.salePrice) : undefined,
+            costPrice: data.costPrice ? Number(data.costPrice) : undefined,
+            tax: Number(data.tax) || 16,
+            discount: Number(data.discount) || 0,
             stock: Number(data.stock) || 0,
+            lowStockThreshold: Number(data.lowStockThreshold) || 10,
+            inventoryStatus: data.stock === 0 ? 'Out of Stock' : 'In Stock',
             status: data.status === 'draft' ? 'Draft' : 'Published',
             image: data.images?.[0] || '/phone.jpeg',
+            video: data.video || undefined,
+            featured: !!data.featured,
+            variantOptions: data.variantOptions || [],
+            variants: data.variants || [],
           };
           setProducts((prev) => [newProduct, ...prev]);
         }}
@@ -518,7 +840,7 @@ export default function ProductsPage() {
             <h3 className="text-[15px] font-semibold text-slate-900">Delete product?</h3>
           </div>
           <p className="text-[13px] text-slate-500 mt-2">
-            This cannot be undone. The product will be permanently removed from your catalog.
+            This cannot be undone. The product and all its variants will be permanently removed.
           </p>
           <div className="flex justify-end gap-2 mt-3">
             <button
@@ -568,6 +890,18 @@ export default function ProductsPage() {
                 />
               </label>
               <label className="block">
+                <span className="block font-medium text-slate-700 mb-1">Sale Price (KES)</span>
+                <input
+                  type="number"
+                  value={editProduct.salePrice ?? ''}
+                  onChange={(e) => setEditProduct({ ...editProduct, salePrice: e.target.value ? Number(e.target.value) : undefined })}
+                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
                 <span className="block font-medium text-slate-700 mb-1">Stock</span>
                 <input
                   type="number"
@@ -576,7 +910,39 @@ export default function ProductsPage() {
                   className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
+              <label className="block">
+                <span className="block font-medium text-slate-700 mb-1">Low-stock threshold</span>
+                <input
+                  type="number"
+                  value={editProduct.lowStockThreshold}
+                  onChange={(e) => setEditProduct({ ...editProduct, lowStockThreshold: Number(e.target.value) })}
+                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                />
+              </label>
             </div>
+
+            <label className="block">
+              <span className="block font-medium text-slate-700 mb-1">Status</span>
+              <select
+                value={editProduct.status}
+                onChange={(e) => setEditProduct({ ...editProduct, status: e.target.value as ProductStatus })}
+                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              >
+                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+
+            {editProduct.variants.length > 0 && (
+              <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 text-[13px]">
+                <div className="flex items-center gap-1.5 text-blue-950 font-medium">
+                  <Layers className="w-3.5 h-3.5" />
+                  {editProduct.variants.length} variants
+                </div>
+                <p className="text-slate-600 mt-0.5">
+                  Edit variants separately from the variants drawer.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 mt-3">
@@ -599,39 +965,28 @@ export default function ProductsPage() {
         </Popup>
       )}
 
-      {/* ---- VIEW ON STORE ---- */}
+      {/* ---- VIEW PRODUCT DRAWER ---- */}
       {viewProduct && (
-        <Popup onClose={() => setViewProduct(null)}>
-          <div className="text-center space-y-2">
-            <img
-              src={viewProduct.image}
-              alt={viewProduct.name}
-              className="w-24 h-24 object-cover mx-auto rounded-sm border border-slate-200"
-            />
-            <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{viewProduct.category}</p>
-            <h3 className="text-[15px] font-semibold text-slate-900">{viewProduct.name}</h3>
-            <p className="text-[13px] text-slate-500 font-mono">SKU: {viewProduct.sku}</p>
-            <p className="text-[15px] font-bold text-slate-900">{formatKES(viewProduct.price)}</p>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => setViewProduct(null)}
-              className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
-            >
-              Close
-            </button>
-            <button
-              onClick={() => {
-                alert(`Opening storefront for ${viewProduct.name}`);
-                setViewProduct(null);
-              }}
-              className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] inline-flex items-center justify-center gap-1.5"
-            >
-              View store
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </Popup>
+        <ProductDrawer
+          product={viewProduct}
+          onClose={() => setViewProduct(null)}
+          onOpenVariants={() => {
+            setVariantsProduct(viewProduct);
+            setViewProduct(null);
+          }}
+        />
+      )}
+
+      {/* ---- VARIANTS DRAWER ---- */}
+      {variantsProduct && (
+        <VariantsDrawer
+          product={variantsProduct}
+          onClose={() => setVariantsProduct(null)}
+          onUpdate={(updated) => {
+            setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            setVariantsProduct(updated);
+          }}
+        />
       )}
 
       {/* ---- DUPLICATE ---- */}
@@ -661,6 +1016,392 @@ export default function ProductsPage() {
 
       {/* Backdrop when any modal is open */}
       {anyModalOpen && <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm" />}
+    </div>
+  );
+}
+
+/* ─────────────────────────── Product Drawer ─────────────────────────── */
+function ProductDrawer({
+  product,
+  onClose,
+  onOpenVariants,
+}: {
+  product: Product;
+  onClose: () => void;
+  onOpenVariants: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex justify-end"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow-xl flex flex-col"
+      >
+        {/* Header */}
+        <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+              <Package className="w-4 h-4" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-[13px] font-semibold text-slate-900 truncate">Product Details</h3>
+              <p className="text-[13px] text-slate-500 truncate">SKU: {product.sku}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-3 space-y-3">
+          {/* Hero image */}
+          <div className="aspect-[16/9] rounded-sm overflow-hidden bg-slate-100 border border-slate-200">
+            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+          </div>
+
+          {/* Title + tags */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{product.category}</span>
+              <span className="text-slate-300">·</span>
+              <span className="text-[13px] text-slate-500">{product.brand}</span>
+              {product.featured && (
+                <span className="text-[13px] font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-amber-700" /> Featured
+                </span>
+              )}
+            </div>
+            <h2 className="text-[15px] font-bold text-slate-900">{product.name}</h2>
+            {product.shortDescription && (
+              <p className="text-[13px] text-slate-500">{product.shortDescription}</p>
+            )}
+          </div>
+
+          {/* Tags */}
+          {product.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {product.tags.map((t) => (
+                <span key={t} className="text-[13px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                  <Tag className="w-3 h-3" />
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Pricing */}
+          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+              <DollarSign className="w-3.5 h-3.5" />
+              Pricing
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[13px]">
+              <Stat label="Regular" value={formatKES(product.price)} />
+              <Stat label="Sale" value={product.salePrice ? formatKES(product.salePrice) : '—'} />
+              <Stat label="Cost" value={product.costPrice ? formatKES(product.costPrice) : '—'} />
+              <Stat label="Tax" value={`${product.tax}%`} />
+              <Stat label="Discount" value={`${product.discount}%`} />
+              {product.salePrice && (
+                <Stat
+                  label="Margin"
+                  value={`${Math.round(((product.salePrice - (product.costPrice || 0)) / product.salePrice) * 100)}%`}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Inventory */}
+          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+              <Warehouse className="w-3.5 h-3.5" />
+              Inventory
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[13px]">
+              <Stat label="Stock" value={`${product.stock} units`} />
+              <Stat label="Low-stock threshold" value={`${product.lowStockThreshold} units`} />
+              <Stat label="Inventory status" value={product.inventoryStatus} />
+            </div>
+          </div>
+
+          {/* Description */}
+          {product.description && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+                <FileText className="w-3.5 h-3.5" />
+                Description
+              </div>
+              <p className="text-[13px] text-slate-600 leading-relaxed">{product.description}</p>
+            </div>
+          )}
+
+          {/* Media */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+              <ImageIcon className="w-3.5 h-3.5" />
+              Media
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="aspect-square rounded-sm overflow-hidden border border-slate-200 bg-slate-100">
+                <img src={product.image} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="aspect-square rounded-sm border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-slate-400 text-[13px]">
+                <ImageIcon className="w-4 h-4" />
+                <span className="mt-1">Image 2</span>
+              </div>
+              <div className="aspect-square rounded-sm border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-slate-400 text-[13px]">
+                <Video className="w-4 h-4" />
+                <span className="mt-1">Video</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Variants section */}
+          <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+                <Layers className="w-3.5 h-3.5" />
+                Variants
+              </div>
+              {product.variants.length > 0 && (
+                <button
+                  onClick={onOpenVariants}
+                  className="text-[13px] text-blue-950 hover:underline font-medium"
+                >
+                  Manage
+                </button>
+              )}
+            </div>
+
+            {product.variantOptions.length === 0 ? (
+              <p className="text-[13px] text-slate-400">This product has no variants.</p>
+            ) : (
+              <div className="space-y-2">
+                {product.variantOptions.map((opt) => (
+                  <div key={opt.name} className="text-[13px]">
+                    <div className="flex items-center gap-1.5 text-slate-600 mb-1">
+                      {opt.name === 'Color' ? <Palette className="w-3 h-3" /> :
+                        opt.name === 'Size' ? <Ruler className="w-3 h-3" /> :
+                          <Box className="w-3 h-3" />}
+                      <span className="font-medium">{opt.name}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {opt.values.map((v) => (
+                        <span key={v} className="text-[13px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-sm">
+                          {v}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-1 border-t border-slate-100">
+                  <button
+                    onClick={onOpenVariants}
+                    className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium py-2 rounded-sm text-[13px] inline-flex items-center justify-center gap-1.5"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    View all {product.variants.length} variants
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────── Variants Drawer ─────────────────────────── */
+function VariantsDrawer({
+  product,
+  onClose,
+  onUpdate,
+}: {
+  product: Product;
+  onClose: () => void;
+  onUpdate: (p: Product) => void;
+}) {
+  // Group variants by option name for the "T-Shirt" style matrix view
+  const groupedByFirstOption = useMemo(() => {
+    if (product.variantOptions.length === 0) return [];
+    const first = product.variantOptions[0].name;
+    const map = new Map<string, ProductVariant[]>();
+    product.variants.forEach((v) => {
+      const key = v.options.find((o) => o.name === first)?.value || '—';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(v);
+    });
+    return Array.from(map.entries());
+  }, [product]);
+
+  const updateVariant = (id: string, patch: Partial<ProductVariant>) => {
+    const next: Product = {
+      ...product,
+      variants: product.variants.map((v) => (v.id === id ? { ...v, ...patch } : v)),
+    };
+    onUpdate(next);
+  };
+
+  const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex justify-end"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white border-l border-slate-200 w-full max-w-3xl h-full overflow-y-auto shadow-xl flex flex-col"
+      >
+        {/* Header */}
+        <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+              <Layers className="w-4 h-4" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-[13px] font-semibold text-slate-900 truncate">Variants — {product.name}</h3>
+              <p className="text-[13px] text-slate-500">
+                {product.variants.length} variants · {totalStock} total stock
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-3 space-y-3">
+          {/* Option summary */}
+          {product.variantOptions.length > 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+              <div className="text-[13px] font-medium text-slate-700">Option groups</div>
+              {product.variantOptions.map((opt) => (
+                <div key={opt.name} className="text-[13px]">
+                  <div className="flex items-center gap-1.5 text-slate-600 mb-1">
+                    {opt.name === 'Color' ? <Palette className="w-3 h-3" /> :
+                      opt.name === 'Size' ? <Ruler className="w-3 h-3" /> :
+                        <Box className="w-3 h-3" />}
+                    <span className="font-medium">{opt.name}</span>
+                    <span className="text-slate-400">({opt.values.length})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {opt.values.map((v) => (
+                      <span key={v} className="text-[13px] bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-sm">
+                        {v}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Grouped matrix */}
+          <div className="space-y-3">
+            {groupedByFirstOption.map(([groupName, variants]) => (
+              <div key={groupName} className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                  {product.variantOptions[0]?.name === 'Color' ? <Palette className="w-3.5 h-3.5 text-slate-500" /> :
+                    product.variantOptions[0]?.name === 'Size' ? <Ruler className="w-3.5 h-3.5 text-slate-500" /> :
+                      <Box className="w-3.5 h-3.5 text-slate-500" />}
+                  <span className="text-[13px] font-medium text-slate-700">
+                    {product.variantOptions[0]?.name}: {groupName}
+                  </span>
+                  <span className="text-[13px] text-slate-400">({variants.length})</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[13px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500">
+                        <th className="py-2 px-3 font-medium">Variant</th>
+                        <th className="py-2 px-3 font-medium">SKU</th>
+                        <th className="py-2 px-3 font-medium text-right">Price</th>
+                        <th className="py-2 px-3 font-medium text-right">Stock</th>
+                        <th className="py-2 px-3 font-medium text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {variants.map((v) => {
+                        const remaining = v.options.slice(1);
+                        const label = remaining.length > 0 ? remaining.map((o) => o.value).join(' / ') : 'Default';
+                        const stockBadge =
+                          v.stock === 0
+                            ? 'bg-red-50 text-red-600 border-red-200'
+                            : v.stock <= 3
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+                        return (
+                          <tr key={v.id} className="hover:bg-slate-50 transition">
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
+                                  <Box className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="font-medium text-slate-900">{label}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                value={v.sku}
+                                onChange={(e) => updateVariant(v.id, { sku: e.target.value })}
+                                className="w-full max-w-[180px] bg-white border border-slate-200 rounded-sm px-2 py-1 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <input
+                                type="number"
+                                value={v.price}
+                                onChange={(e) => updateVariant(v.id, { price: Number(e.target.value) })}
+                                className="w-24 bg-white border border-slate-200 rounded-sm px-2 py-1 text-[13px] text-right focus:outline-none focus:ring-1 focus:ring-blue-950"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <input
+                                type="number"
+                                value={v.stock}
+                                onChange={(e) => updateVariant(v.id, { stock: Number(e.target.value) })}
+                                className="w-20 bg-white border border-slate-200 rounded-sm px-2 py-1 text-[13px] text-right focus:outline-none focus:ring-1 focus:ring-blue-950"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${stockBadge}`}>
+                                {v.stock === 0 ? 'Out' : v.stock <= 3 ? 'Low' : 'In Stock'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* T-Shirt example footnote */}
+          <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 text-[13px] text-blue-900">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Layers className="w-3.5 h-3.5" />
+              Example matrix
+            </div>
+            <p className="mt-1 text-slate-600">
+              T-Shirt → Black / S, Black / M, Black / L, White / S, White / M, White / L.
+              Each combination is tracked with its own SKU, price, and stock.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -710,11 +1451,10 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${
-          isActive
+        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
             ? 'bg-blue-50 border-blue-950 text-blue-950'
             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-        }`}
+          }`}
       >
         {icon}
         {display}
@@ -723,18 +1463,16 @@ function FilterDropdown({
 
       {open && (
         <div
-          className={`absolute top-full mt-1 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1 ${
-            align === 'end' ? 'right-0' : 'left-0'
-          }`}
+          className={`absolute top-full mt-1 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1 ${align === 'end' ? 'right-0' : 'left-0'
+            }`}
         >
           <button
             onClick={() => {
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${
-              !isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-            }`}
+            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+              }`}
           >
             All {label.toLowerCase()}
           </button>
@@ -748,9 +1486,8 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${
-                  isSelected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-                }`}
+                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${isSelected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
               >
                 <span>{labels?.[opt] ?? opt}</span>
                 {isSelected && <Check className="w-3.5 h-3.5" />}
@@ -780,9 +1517,8 @@ function KebabMenu({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`absolute top-full mt-1 w-44 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1 ${
-        align === 'right' ? 'right-0' : 'left-0'
-      }`}
+      className={`absolute top-full mt-1 w-44 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1 ${align === 'right' ? 'right-0' : 'left-0'
+        }`}
     >
       <MenuItem icon={<Edit className="w-3.5 h-3.5" />} label="Edit" onClick={onEdit} />
       <MenuItem icon={<Copy className="w-3.5 h-3.5" />} label="Duplicate" onClick={onDuplicate} />
@@ -807,9 +1543,8 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${
-        danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'
-      }`}
+      className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'
+        }`}
     >
       <span className={danger ? 'text-red-500' : 'text-slate-400'}>{icon}</span>
       {label}
@@ -830,6 +1565,16 @@ function Popup({ children, onClose }: { children: React.ReactNode; onClose: () =
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────── Stat ─────────────────────────── */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <p className="text-[13px] font-medium text-slate-500">{label}</p>
+      <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{value}</p>
     </div>
   );
 }

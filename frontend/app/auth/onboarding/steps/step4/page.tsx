@@ -4,79 +4,59 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-    CreditCard,
-    Check,
-    X,
-    ChevronDown,
-    Loader2,
-    Smartphone,
-    Building2,
-} from 'lucide-react';
+import { CreditCard, Check, X, Loader2, Smartphone } from 'lucide-react';
 
-import {
-    onboarding,
-    ApiError,
-    type Aggregator,
-    type PaymentEnv,
-} from '@/lib/api';
+import { onboarding, ApiError, type PaymentEnv } from '@/lib/api';
 import { getNextRoute } from '@/lib/onboardingSteps';
 import Field from '@/components/onboarding/Field';
 import StepFooter from '@/components/onboarding/StepFooter';
 
-type SectionKey = 'mpesa' | 'aggregator';
+type MpesaState = {
+    consumer_key: string;
+    consumer_secret: string;
+    passkey: string;
+    shortcode: string;
+    env: PaymentEnv;
+};
 
 export default function Step4Payments() {
     const router = useRouter();
 
-    const [open, setOpen] = useState<SectionKey | null>('mpesa');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // M-Pesa state
     const [mpesaEnabled, setMpesaEnabled] = useState(true);
-    const [mpesa, setMpesa] = useState({
+    const [mpesa, setMpesa] = useState<MpesaState>({
         consumer_key: '',
         consumer_secret: '',
         passkey: '',
         shortcode: '',
-        env: 'sandbox' as PaymentEnv,
+        env: 'sandbox',
     });
+
     const [mpesaStatus, setMpesaStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
     const [mpesaMsg, setMpesaMsg] = useState('');
-
-    // Aggregator state
-    const [aggregator, setAggregator] = useState<Aggregator>('none');
-    const [aggCreds, setAggCreds] = useState({
-        public_key: '',
-        secret_key: '',
-        env: 'sandbox' as PaymentEnv,
-    });
-    const [aggStatus, setAggStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
-    const [aggMsg, setAggMsg] = useState('');
 
     // ── Prefill ──
     useEffect(() => {
         setLoading(true);
-        onboarding.getStep4()
+        onboarding
+            .getStep4()
             .then((data) => {
-                setMpesaEnabled(data.mpesa_enabled);
+                setMpesaEnabled(data.mpesa_enabled ?? true);
                 setMpesa((m) => ({ ...m, ...data.mpesa }));
-                setAggregator(data.aggregator);
-                setAggCreds((c) => ({ ...c, ...data.aggregator_credentials }));
             })
             .catch(() => { })
             .finally(() => setLoading(false));
     }, []);
 
-    // ── Test M-Pesa ──
+    // ── Test M-Pesa connection ──
     const testMpesa = async () => {
         setMpesaStatus('testing');
         setMpesaMsg('');
         try {
             const res = await onboarding.testStep4({
-                target: 'mpesa',
                 credentials: mpesa as unknown as Record<string, unknown>,
             });
             setMpesaStatus(res.ok ? 'ok' : 'fail');
@@ -87,44 +67,21 @@ export default function Step4Payments() {
         }
     };
 
-    // ── Test Aggregator ──
-    const testAggregator = async () => {
-        setAggStatus('testing');
-        setAggMsg('');
-        try {
-            const res = await onboarding.testStep4({
-                target: 'aggregator',
-                credentials: {
-                    aggregator,
-                    ...aggCreds,
-                },
-            });
-            setAggStatus(res.ok ? 'ok' : 'fail');
-            setAggMsg(res.detail);
-        } catch (err) {
-            setAggStatus('fail');
-            setAggMsg(err instanceof ApiError ? err.message : 'Test failed.');
-        }
-    };
-
     // ── Submit ──
     const handleContinue = async () => {
         setSaving(true);
         setError(null);
 
-        if (!mpesaEnabled && aggregator === 'none') {
-            setError('Enable M-Pesa or choose Pesapal/Dusupay.');
+        if (!mpesaEnabled) {
+            setError('Enable M-Pesa to accept payments.');
             setSaving(false);
             return;
         }
 
         try {
             await onboarding.submitStep4({
-                mpesa_enabled: mpesaEnabled,
-                mpesa: mpesaEnabled ? mpesa : undefined,
-                aggregator,
-                aggregator_credentials:
-                    aggregator !== 'none' ? aggCreds : undefined,
+                mpesa_enabled: true,
+                mpesa,
             });
             router.push(getNextRoute('step4'));
         } catch (err) {
@@ -132,7 +89,7 @@ export default function Step4Payments() {
                 setError(
                     err.nonFieldError() ||
                     Object.values(err.fieldErrors())[0] ||
-                    'Please check the highlighted fields.',
+                    'Please check the highlighted fields.'
                 );
             } else {
                 setError('Something went wrong. Please try again.');
@@ -161,243 +118,107 @@ export default function Step4Payments() {
                     How do you want to get paid?
                 </h1>
                 <p className="text-xs text-slate-500 mt-1">
-                    Connect M-Pesa directly and pick an aggregator for Airtel, bank, and card payments.
+                    Connect M-Pesa to accept payments from your customers.
                 </p>
             </div>
 
-            <div className="space-y-3">
-                {/* ─── M-Pesa ─── */}
-                <div className="border border-slate-200 rounded-sm bg-white">
-                    <div
-                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50"
-                        onClick={() => setOpen(open === 'mpesa' ? null : 'mpesa')}
-                    >
-                        <div className="flex items-center gap-3">
-                            <span className="w-9 h-9 rounded-sm bg-green-50 text-green-700 flex items-center justify-center">
-                                <Smartphone className="h-4 w-4" />
-                            </span>
-                            <div>
-                                <p className="text-sm font-semibold text-slate-900">M-Pesa</p>
-                                <p className="text-[11px] text-slate-500">
-                                    Safaricom STK Push · most popular in Kenya
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {mpesaStatus === 'ok' && <Check className="h-4 w-4 text-emerald-600" />}
-                            {mpesaStatus === 'fail' && <X className="h-4 w-4 text-red-600" />}
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setMpesaEnabled(!mpesaEnabled);
-                                }}
-                                className={`relative h-5 w-9 rounded-full transition-colors ${mpesaEnabled ? 'bg-blue-950' : 'bg-slate-300'
-                                    }`}
-                                aria-label="Toggle M-Pesa"
-                            >
-                                <span
-                                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${mpesaEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                                        }`}
-                                />
-                            </button>
-                            <ChevronDown
-                                className={`h-4 w-4 text-slate-400 transition-transform ${open === 'mpesa' ? 'rotate-180' : ''
-                                    }`}
-                            />
+            <div className="border border-slate-200 rounded-sm bg-white">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3">
+                        <span className="w-9 h-9 rounded-sm bg-green-50 text-green-700 flex items-center justify-center">
+                            <Smartphone className="h-4 w-4" />
+                        </span>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-900">M-Pesa</p>
+                            <p className="text-[11px] text-slate-500">
+                                Safaricom STK Push · most popular in Kenya
+                            </p>
                         </div>
                     </div>
+                    <div className="flex items-center gap-3">
+                        {mpesaStatus === 'ok' && <Check className="h-4 w-4 text-emerald-600" />}
+                        {mpesaStatus === 'fail' && <X className="h-4 w-4 text-red-600" />}
+                        <button
+                            type="button"
+                            onClick={() => setMpesaEnabled(!mpesaEnabled)}
+                            className={`relative h-5 w-9 rounded-full transition-colors ${mpesaEnabled ? 'bg-blue-950' : 'bg-slate-300'
+                                }`}
+                            aria-label="Toggle M-Pesa"
+                        >
+                            <span
+                                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${mpesaEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                                    }`}
+                            />
+                        </button>
+                    </div>
+                </div>
 
-                    {open === 'mpesa' && mpesaEnabled && (
-                        <div className="p-4 pt-0 space-y-3 border-t border-slate-100">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <Field
-                                    label="Consumer key"
-                                    value={mpesa.consumer_key}
-                                    onChange={(v) => setMpesa({ ...mpesa, consumer_key: v })}
-                                />
-                                <Field
-                                    label="Consumer secret"
-                                    type="password"
-                                    value={mpesa.consumer_secret}
-                                    onChange={(v) => setMpesa({ ...mpesa, consumer_secret: v })}
-                                />
-                                <Field
-                                    label="Passkey"
-                                    type="password"
-                                    value={mpesa.passkey}
-                                    onChange={(v) => setMpesa({ ...mpesa, passkey: v })}
-                                />
-                                <Field
-                                    label="Shortcode"
-                                    value={mpesa.shortcode}
-                                    onChange={(v) => setMpesa({ ...mpesa, shortcode: v })}
-                                    placeholder="174379"
-                                />
-                            </div>
+                {/* Form */}
+                {mpesaEnabled && (
+                    <div className="p-4 pt-0 space-y-3 border-t border-slate-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                            <Field
+                                label="Consumer key"
+                                value={mpesa.consumer_key}
+                                onChange={(v) => setMpesa({ ...mpesa, consumer_key: v })}
+                            />
+                            <Field
+                                label="Consumer secret"
+                                type="password"
+                                value={mpesa.consumer_secret}
+                                onChange={(v) => setMpesa({ ...mpesa, consumer_secret: v })}
+                            />
+                            <Field
+                                label="Passkey"
+                                type="password"
+                                value={mpesa.passkey}
+                                onChange={(v) => setMpesa({ ...mpesa, passkey: v })}
+                            />
+                            <Field
+                                label="Shortcode"
+                                value={mpesa.shortcode}
+                                onChange={(v) => setMpesa({ ...mpesa, shortcode: v })}
+                                placeholder="174379"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                Environment
+                            </label>
                             <select
                                 value={mpesa.env}
                                 onChange={(e) =>
                                     setMpesa({ ...mpesa, env: e.target.value as PaymentEnv })
                                 }
-                                className="bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs"
+                                className="bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                             >
                                 <option value="sandbox">Sandbox</option>
                                 <option value="production">Production</option>
                             </select>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={testMpesa}
-                                    disabled={mpesaStatus === 'testing'}
-                                    className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs disabled:opacity-50"
-                                >
-                                    {mpesaStatus === 'testing' ? 'Testing…' : 'Test connection'}
-                                </button>
-                                {mpesaMsg && (
-                                    <span
-                                        className={`text-[11px] ${mpesaStatus === 'ok'
-                                                ? 'text-emerald-700'
-                                                : 'text-red-600'
-                                            }`}
-                                    >
-                                        {mpesaMsg}
-                                    </span>
-                                )}
-                            </div>
                         </div>
-                    )}
-                </div>
 
-                {/* ─── Aggregator ─── */}
-                <div className="border border-slate-200 rounded-sm bg-white">
-                    <div
-                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50"
-                        onClick={() =>
-                            setOpen(open === 'aggregator' ? null : 'aggregator')
-                        }
-                    >
                         <div className="flex items-center gap-3">
-                            <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
-                                <Building2 className="h-4 w-4" />
-                            </span>
-                            <div>
-                                <p className="text-sm font-semibold text-slate-900">
-                                    Aggregator
-                                </p>
-                                <p className="text-[11px] text-slate-500">
-                                    Covers Airtel, Bank Transfer, and Card payments
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {aggStatus === 'ok' && <Check className="h-4 w-4 text-emerald-600" />}
-                            {aggStatus === 'fail' && <X className="h-4 w-4 text-red-600" />}
-                            <span className="text-[10px] uppercase tracking-wider text-slate-500">
-                                {aggregator === 'none' ? 'Off' : aggregator}
-                            </span>
-                            <ChevronDown
-                                className={`h-4 w-4 text-slate-400 transition-transform ${open === 'aggregator' ? 'rotate-180' : ''
-                                    }`}
-                            />
-                        </div>
-                    </div>
-
-                    {open === 'aggregator' && (
-                        <div className="p-4 pt-0 space-y-3 border-t border-slate-100">
-                            <div>
-                                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                                    Choose provider
-                                </label>
-                                <select
-                                    value={aggregator}
-                                    onChange={(e) =>
-                                        setAggregator(e.target.value as Aggregator)
-                                    }
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs"
+                            <button
+                                type="button"
+                                onClick={testMpesa}
+                                disabled={mpesaStatus === 'testing'}
+                                className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs disabled:opacity-50"
+                            >
+                                {mpesaStatus === 'testing' ? 'Testing…' : 'Test connection'}
+                            </button>
+                            {mpesaMsg && (
+                                <span
+                                    className={`text-[11px] ${mpesaStatus === 'ok' ? 'text-emerald-700' : 'text-red-600'
+                                        }`}
                                 >
-                                    <option value="none">None — don't accept these</option>
-                                    <option value="pesapal">Pesapal</option>
-                                    <option value="dusupay">Dusupay</option>
-                                </select>
-                            </div>
-
-                            {aggregator !== 'none' && (
-                                <>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <Field
-                                            label="Public key"
-                                            value={aggCreds.public_key}
-                                            onChange={(v) =>
-                                                setAggCreds({ ...aggCreds, public_key: v })
-                                            }
-                                        />
-                                        <Field
-                                            label="Secret key"
-                                            type="password"
-                                            value={aggCreds.secret_key}
-                                            onChange={(v) =>
-                                                setAggCreds({ ...aggCreds, secret_key: v })
-                                            }
-                                        />
-                                    </div>
-                                    <select
-                                        value={aggCreds.env}
-                                        onChange={(e) =>
-                                            setAggCreds({
-                                                ...aggCreds,
-                                                env: e.target.value as PaymentEnv,
-                                            })
-                                        }
-                                        className="bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs"
-                                    >
-                                        <option value="sandbox">Sandbox</option>
-                                        <option value="production">Production</option>
-                                    </select>
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={testAggregator}
-                                            disabled={aggStatus === 'testing'}
-                                            className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs disabled:opacity-50"
-                                        >
-                                            {aggStatus === 'testing'
-                                                ? 'Testing…'
-                                                : 'Test connection'}
-                                        </button>
-                                        {aggMsg && (
-                                            <span
-                                                className={`text-[11px] ${aggStatus === 'ok'
-                                                        ? 'text-emerald-700'
-                                                        : 'text-red-600'
-                                                    }`}
-                                            >
-                                                {aggMsg}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <div className="bg-blue-50 border border-blue-100 rounded-sm p-3 text-[11px] text-blue-950">
-                                        {aggregator === 'pesapal' && (
-                                            <>
-                                                Pesapal will process <strong>Airtel Money</strong>,{' '}
-                                                <strong>Bank Transfers</strong>, and{' '}
-                                                <strong>Card payments</strong> for your store.
-                                            </>
-                                        )}
-                                        {aggregator === 'dusupay' && (
-                                            <>
-                                                Dusupay will process <strong>Airtel Money</strong>,{' '}
-                                                <strong>Bank Transfers</strong>, and{' '}
-                                                <strong>Card payments</strong> for your store.
-                                            </>
-                                        )}
-                                    </div>
-                                </>
+                                    {mpesaMsg}
+                                </span>
                             )}
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             {error && (
@@ -405,6 +226,12 @@ export default function Step4Payments() {
                     {error}
                 </div>
             )}
+
+            <div className="bg-blue-50 border border-blue-100 rounded-sm p-3 text-[11px] text-blue-950">
+                You can find your M-Pesa Daraja credentials in your{' '}
+                <span className="font-medium">Safaricom developer account</span>. We never store
+                your secrets in plain text.
+            </div>
 
             <StepFooter
                 onContinue={handleContinue}

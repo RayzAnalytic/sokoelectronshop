@@ -61,18 +61,14 @@ INSTALLED_APPS = [
     "dj_rest_auth.registration",
 
     # ── Local apps ──
-    "admin_dashboard",
     "authentication",
-    "payments",
-    "social_media",
-    "whatsapp",
     "onboarding",
-    "catalog",
-    "team",
+    
 ]
 
 # ── Custom User Model ──
-AUTH_USER_MODEL = "admin_dashboard.User"
+# config/settings.py
+AUTH_USER_MODEL = "authentication.User"
 
 # ── Authentication Backends ──
 AUTHENTICATION_BACKENDS = [
@@ -99,8 +95,6 @@ ROOT_URLCONF = "config.urls"
 # ============================================================
 # GOOGLE — SHARED CREDENTIALS
 # ============================================================
-# Both Google OAuth (login) and YouTube (Google Cloud) can share the same
-# Google Cloud project credentials. Read once here, fall back across vars.
 GOOGLE_CLIENT_ID = env(
     "GOOGLE_CLIENT_ID",
     default=env("YOUTUBE_OAUTH2_CLIENT_ID", default=""),
@@ -128,10 +122,8 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 LOGIN_URL = "/accounts/login/"
 
-# Redirect to provider on GET request (simpler for testing)
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
-# ── Social Account Providers Configuration ──
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "APP": {
@@ -144,16 +136,12 @@ SOCIALACCOUNT_PROVIDERS = {
             "email",
         ],
         "AUTH_PARAMS": {
-            "access_type": "online",  # use "offline" for refresh tokens
+            "access_type": "online",
             "prompt": "select_account",
         },
         "OAUTH_PKCE_ENABLED": True,
         "FETCH_USERINFO": True,
     },
-    # Uncomment if you want users to log in with these providers.
-    # NOTE: For social media *management* (posting), you use API keys
-    # directly, not allauth. These configs are for user authentication only.
-    #
     # "facebook": {
     #     "METHOD": "oauth2",
     #     "SCOPE": ["email", "public_profile"],
@@ -191,7 +179,7 @@ REST_AUTH = {
     "JWT_AUTH_SECURE": not DEBUG,
     "JWT_AUTH_SAMESITE": "Lax",
     "SESSION_LOGIN": False,
-    "TOKEN_MODEL": None,  # JWT-only, don't require rest_framework.authtoken
+    "TOKEN_MODEL": None,
     "USER_DETAILS_SERIALIZER": "authentication.serializers.auth_serializer.UserDetailSerializer",
 }
 
@@ -200,7 +188,7 @@ REST_AUTH = {
 # ============================================================
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
-ACCOUNT_USER_MODEL_USERNAME_FIELD = "email"   # must match model's USERNAME_FIELD
+ACCOUNT_USER_MODEL_USERNAME_FIELD = "email"
 ACCOUNT_EMAIL_VERIFICATION = "optional"
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_LOGOUT_ON_GET = True
@@ -232,16 +220,23 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 # ============================================================
-# DATABASE — POSTGRESQL
+# DATABASE — SQLite (dev)
 # ============================================================
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": env("DB_NAME", default=""),
+#         "USER": env("DB_USER", default=""),
+#         "PASSWORD": env("DB_PASSWORD", default=""),
+#         "HOST": env("DB_HOST", default="localhost"),
+#         "PORT": env("DB_PORT", default="5432"),
+#     }
+# }
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("DB_NAME", default=""),
-        "USER": env("DB_USER", default=""),
-        "PASSWORD": env("DB_PASSWORD", default=""),
-        "HOST": env("DB_HOST", default="localhost"),
-        "PORT": env("DB_PORT", default="5432"),
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -317,7 +312,7 @@ REST_FRAMEWORK = {
         # Onboarding throttles
         "onboarding": "200/hour",
         # Team throttles
-        "team_invite": "30/hour",         # 👈 ADDED
+        "team_invite": "30/hour",
     },
 }
 
@@ -425,18 +420,16 @@ PHONENUMBER_DB_FORMAT = "E164"
 # ============================================================
 # PASSWORD RESET
 # ============================================================
-# Django's default is 3 days (259200s). Set to 24 hours to match
-# the messaging in the reset email.
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hours
 
 # ============================================================
-# PAYMENTS — M-PESA, DUSUPAY, PESAPAL ONLY
+# PAYMENTS — M-PESA ONLY
 # ============================================================
 PAYMENT_CURRENCY = env("PAYMENT_CURRENCY", default="KES")
 PAYMENT_COUNTRY = env("PAYMENT_COUNTRY", default="KE")
 PAYMENT_METHODS = env.list(
     "PAYMENT_METHODS",
-    default=["mpesa", "dusupay", "pesapal"],
+    default=["mpesa"],
 )
 
 # --- M-Pesa (Safaricom Daraja) ---
@@ -455,29 +448,6 @@ MPESA_TRANSACTION_TYPE = env(
     default="CustomerPayBillOnline",
 )
 
-# --- Dusupay ---
-DUSUPAY_PUBLIC_KEY = env("DUSUPAY_PUBLIC_KEY", default="")
-DUSUPAY_SECRET_KEY = env("DUSUPAY_SECRET_KEY", default="")
-DUSUPAY_ENVIRONMENT = env("DUSUPAY_ENVIRONMENT", default="sandbox")  # sandbox | live
-DUSUPAY_BASE_URL = env(
-    "DUSUPAY_BASE_URL",
-    default="https://sandbox.dusupay.com",
-)
-DUSUPAY_CALLBACK_URL = env("DUSUPAY_CALLBACK_URL", default="")
-DUSUPAY_WEBHOOK_SECRET = env("DUSUPAY_WEBHOOK_SECRET", default="")
-
-# --- Pesapal ---
-PESAPAL_CONSUMER_KEY = env("PESAPAL_CONSUMER_KEY", default="")
-PESAPAL_CONSUMER_SECRET = env("PESAPAL_CONSUMER_SECRET", default="")
-PESAPAL_ENVIRONMENT = env("PESAPAL_ENVIRONMENT", default="sandbox")  # sandbox | live
-PESAPAL_BASE_URL = env(
-    "PESAPAL_BASE_URL",
-    default="https://cybqa.pesapal.com/pesapalv3",
-)
-PESAPAL_CALLBACK_URL = env("PESAPAL_CALLBACK_URL", default="")
-PESAPAL_IPN_URL = env("PESAPAL_IPN_URL", default="")
-PESAPAL_IPN_ID = env("PESAPAL_IPN_ID", default="")
-
 # ============================================================
 # WHATSAPP BUSINESS CLOUD API
 # ============================================================
@@ -488,17 +458,13 @@ WHATSAPP_APP_SECRET = env("WHATSAPP_APP_SECRET", default="")
 WHATSAPP_VERIFY_TOKEN = env("WHATSAPP_VERIFY_TOKEN", default="")
 WHATSAPP_API_VERSION = env("WHATSAPP_API_VERSION", default="v22.0")
 WHATSAPP_BASE_URL = env("WHATSAPP_BASE_URL", default="https://graph.facebook.com")
-WHATSAPP_BUSINESS_NUMBER = env("WHATSAPP_BUSINESS_NUMBER", default="")  # 👈 ADDED
+WHATSAPP_BUSINESS_NUMBER = env("WHATSAPP_BUSINESS_NUMBER", default="")
 
 # ============================================================
 # SOCIAL MEDIA MANAGEMENT — API CREDENTIALS
 # ============================================================
-# Server-to-server API calls (posting, fetching data, etc.)
-# Separate from allauth social login settings.
 
 # --- Google / YouTube (Google Cloud Console) ---
-# GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are already defined above.
-# YouTube-specific vars fall back to the shared Google ones if not set.
 YOUTUBE_API_KEY = env(
     "YOUTUBE_API_KEY",
     default=GOOGLE_API_KEY,
@@ -633,17 +599,17 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
-        "onboarding": {                    # 👈 ADDED
+        "onboarding": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
-        "catalog": {                       # 👈 ADDED
+        "catalog": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
-        "team": {                          # 👈 ADDED
+        "team": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,

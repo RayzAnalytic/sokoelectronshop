@@ -334,14 +334,13 @@ export const auth = {
         tokenStore.set(data.access, data.refresh, data.user, persistent);
         return data;
     },
-
     loginWithGoogle: async (
-        accessToken: string, 
+        accessToken: string,
         persistent = true
     ): Promise<AuthResponse> => {
         const data = await api.post<AuthResponse>(
             '/api/auth/google/',
-            { access_token: accessToken }, 
+            { access_token: accessToken },      // ← was { id_token: accessToken }
             { skipAuth: true, skipRefresh: true }
         );
         tokenStore.set(data.access, data.refresh, data.user, persistent);
@@ -493,7 +492,7 @@ export const payments = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// SOCIAL MEDIA — YouTube, Facebook, Instagram, X, TikTok Shop
+// SOCIAL MEDIA
 // ─────────────────────────────────────────────────────────────
 
 export type SocialPlatform =
@@ -520,9 +519,7 @@ export type YouTubeVideo = {
     publishedAt: string;
 };
 
-export type FacebookPostResponse = {
-    id: string;
-};
+export type FacebookPostResponse = { id: string };
 
 export type InstagramMedia = {
     id: string;
@@ -534,15 +531,10 @@ export type InstagramMedia = {
 };
 
 export type TweetResponse = {
-    data: {
-        id: string;
-        text: string;
-    };
+    data: { id: string; text: string };
 };
 
-export type TikTokAuthorizeResponse = {
-    authorization_url: string;
-};
+export type TikTokAuthorizeResponse = { authorization_url: string };
 
 export type TikTokCallbackResponse = {
     detail: string;
@@ -612,7 +604,7 @@ export const social = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// WHATSAPP — Business Cloud API
+// WHATSAPP
 // ─────────────────────────────────────────────────────────────
 
 export type WhatsAppDirection = 'INBOUND' | 'OUTBOUND';
@@ -807,9 +799,8 @@ export type Step3ETimsTestResponse = {
     detail: string;
 };
 
-// ── Step 4 — Payments ──
+// ── Step 4 — Payments (M-Pesa only) ──
 export type PaymentEnv = 'sandbox' | 'production';
-export type Aggregator = 'none' | 'pesapal' | 'dusupay';
 
 export type Step4Mpesa = {
     consumer_key: string;
@@ -819,28 +810,17 @@ export type Step4Mpesa = {
     env: PaymentEnv;
 };
 
-export type Step4AggregatorCreds = {
-    public_key: string;
-    secret_key: string;
-    env: PaymentEnv;
-};
-
 export type Step4PaymentsResponse = {
     mpesa_enabled: boolean;
     mpesa: Step4Mpesa;
-    aggregator: Aggregator;
-    aggregator_credentials: Step4AggregatorCreds;
 };
 
 export type Step4PaymentsPayload = {
     mpesa_enabled: boolean;
     mpesa?: Partial<Step4Mpesa>;
-    aggregator: Aggregator;
-    aggregator_credentials?: Partial<Step4AggregatorCreds>;
 };
 
 export type Step4TestPayload = {
-    target: 'mpesa' | 'aggregator';
     credentials: Record<string, unknown>;
 };
 
@@ -1166,7 +1146,7 @@ export const onboarding = {
             payload,
         ),
 
-    // ── Step 4: Payments ──
+    // ── Step 4: Payments (M-Pesa only) ──
     getStep4: (): Promise<Step4PaymentsResponse> =>
         api.get<Step4PaymentsResponse>('/api/onboarding/steps/4/'),
 

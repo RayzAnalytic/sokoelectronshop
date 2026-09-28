@@ -13,96 +13,121 @@ import {
   Eye,
   Sparkles,
   Upload,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Type,
+  AlignLeft,
+  MousePointerClick,
+  Tag,
+  Clock,
+  Power,
 } from 'lucide-react';
 
 // --- TYPES ---
 type BannerTab = 'Homepage Hero' | 'Promo Strips' | 'Category Banners' | 'Popups';
 type BannerPosition = 'Homepage Hero' | 'Promo Strip' | 'Category Banner' | 'Popup';
 
-interface HeroSlide {
+interface BannerSlide {
   id: string;
+  // Full banner structure
   imageUrl: string;
-  headline: string;
-  subheadline: string;
+  title: string;
+  description: string;
   ctaText: string;
   ctaLink: string;
 }
 
 interface Banner {
   id: string;
-  title: string;
+  name: string;              // internal name for admin
   position: BannerPosition;
-  slides: HeroSlide[]; // 6 for Homepage Hero, 1 for others
+  slides: BannerSlide[];
   startDate: string;
   endDate: string;
-  active: boolean;
+  noEndDate: boolean;
+  status: 'Active' | 'Scheduled' | 'Paused' | 'Expired';
 }
 
 // --- HELPERS ---
-const newSlide = (i: number): HeroSlide => ({
+const newSlide = (i: number): BannerSlide => ({
   id: `slide-${Date.now()}-${i}`,
-  imageUrl: `https://images.unsplash.com/photo-${
-    ['1557804506-669a67965ba0', '1526738549149-8e07eca6c147', '1542838132-92c53300491e', '1587829741301-dc798b83add3', '1563986768609-322da13575f3', '1607083206869-4c7672e72a8a'][i % 6]
-  }?auto=format&fit=crop&w=800&q=80`,
-  headline: '',
-  subheadline: '',
+  imageUrl: `https://images.unsplash.com/photo-${['1557804506-669a67965ba0', '1526738549149-8e07eca6c147', '1542838132-92c53300491e', '1587829741301-dc798b83add3', '1563986768609-322da13575f3', '1607083206869-4c7672e72a8a'][i % 6]
+    }?auto=format&fit=crop&w=800&q=80`,
+  title: '',
+  description: '',
   ctaText: 'Shop now',
   ctaLink: '/shop',
 });
 
-const makeSlides = (count: number): HeroSlide[] =>
+const makeSlides = (count: number): BannerSlide[] =>
   Array.from({ length: count }, (_, i) => newSlide(i));
 
 // --- INITIAL DATA ---
 const INITIAL_BANNERS: Banner[] = [
   {
     id: 'ban-1',
-    title: 'M-Pesa STK Push Cashback Hero Slider',
+    name: 'M-Pesa STK Push Cashback Hero Slider',
     position: 'Homepage Hero',
     slides: [
-      { id: 's-1', imageUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=800&q=80', headline: 'Save 15% when you pay with M-Pesa', subheadline: 'Limited-time cashback on every STK push checkout', ctaText: 'Shop showcase', ctaLink: '/shop' },
-      { id: 's-2', imageUrl: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=800&q=80', headline: 'Latest 5G smartphones are here', subheadline: 'Trade-in and save up to KES 10,000', ctaText: 'Browse phones', ctaLink: '/categories/smartphones' },
-      { id: 's-3', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80', headline: 'Free delivery nationwide', subheadline: 'On all orders above KES 5,000', ctaText: 'Start shopping', ctaLink: '/shop' },
-      { id: 's-4', imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80', headline: 'Ergonomic keyboards', subheadline: 'Boost your productivity today', ctaText: 'Browse keyboards', ctaLink: '/categories/accessories' },
-      { id: 's-5', imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=800&q=80', headline: 'Join 7,800+ shoppers', subheadline: 'Get exclusive weekly deals', ctaText: 'Subscribe now', ctaLink: '/newsletter' },
-      { id: 's-6', imageUrl: 'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=800&q=80', headline: 'End-of-month clearance', subheadline: 'Up to 40% off on selected items', ctaText: 'Grab deals', ctaLink: '/deals' },
+      { id: 's-1', imageUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=800&q=80', title: 'Save 15% when you pay with M-Pesa', description: 'Limited-time cashback on every STK push checkout', ctaText: 'Shop showcase', ctaLink: '/shop' },
+      { id: 's-2', imageUrl: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=800&q=80', title: 'Latest 5G smartphones are here', description: 'Trade-in and save up to KES 10,000', ctaText: 'Browse phones', ctaLink: '/categories/smartphones' },
+      { id: 's-3', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80', title: 'Free delivery nationwide', description: 'On all orders above KES 5,000', ctaText: 'Start shopping', ctaLink: '/shop' },
+      { id: 's-4', imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80', title: 'Ergonomic keyboards', description: 'Boost your productivity today', ctaText: 'Browse keyboards', ctaLink: '/categories/accessories' },
+      { id: 's-5', imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=800&q=80', title: 'Join 7,800+ shoppers', description: 'Get exclusive weekly deals', ctaText: 'Subscribe now', ctaLink: '/newsletter' },
+      { id: 's-6', imageUrl: 'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=800&q=80', title: 'End-of-month clearance', description: 'Up to 40% off on selected items', ctaText: 'Grab deals', ctaLink: '/deals' },
     ],
-    startDate: 'Sep 01, 2026',
-    endDate: 'Sep 30, 2026',
-    active: true,
+    startDate: '2026-09-01',
+    endDate: '2026-09-30',
+    noEndDate: false,
+    status: 'Active',
   },
   {
     id: 'ban-2',
-    title: 'Free Shipping Across Kenya Strip',
+    name: 'Free Shipping Across Kenya Strip',
     position: 'Promo Strip',
     slides: [
-      { id: 's-7', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80', headline: 'Free delivery on orders over KES 5,000', subheadline: 'Nairobi & Mombasa only', ctaText: 'Learn more', ctaLink: '/shipping' },
+      { id: 's-7', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80', title: 'Free delivery on orders over KES 5,000', description: 'Nairobi & Mombasa only', ctaText: 'Learn more', ctaLink: '/shipping' },
     ],
-    startDate: 'Sep 10, 2026',
-    endDate: 'Oct 10, 2026',
-    active: true,
+    startDate: '2026-09-10',
+    endDate: '2026-10-10',
+    noEndDate: false,
+    status: 'Active',
   },
   {
     id: 'ban-3',
-    title: 'Mechanical Keyboards Category Banner',
+    name: 'Mechanical Keyboards Category Banner',
     position: 'Category Banner',
     slides: [
-      { id: 's-8', imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80', headline: 'Ergonomic & wireless keyboards', subheadline: '', ctaText: 'Browse keyboards', ctaLink: '/categories/accessories' },
+      { id: 's-8', imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80', title: 'Ergonomic & wireless keyboards', description: 'Built for productivity and comfort', ctaText: 'Browse keyboards', ctaLink: '/categories/accessories' },
     ],
-    startDate: 'Aug 15, 2026',
-    endDate: 'No end date',
-    active: true,
+    startDate: '2026-08-15',
+    endDate: '',
+    noEndDate: true,
+    status: 'Active',
   },
   {
     id: 'ban-4',
-    title: 'First-Time Visitor Newsletter Popup',
+    name: 'First-Time Visitor Newsletter Popup',
     position: 'Popup',
     slides: [
-      { id: 's-9', imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=800&q=80', headline: 'Join 7,800+ subscribed shoppers', subheadline: 'Get 10% off your first order', ctaText: 'Claim 10% off', ctaLink: '/newsletter' },
+      { id: 's-9', imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=800&q=80', title: 'Join 7,800+ subscribed shoppers', description: 'Get 10% off your first order', ctaText: 'Claim 10% off', ctaLink: '/newsletter' },
     ],
-    startDate: 'Sep 01, 2026',
-    endDate: 'Dec 31, 2026',
-    active: false,
+    startDate: '2026-09-01',
+    endDate: '2026-12-31',
+    noEndDate: false,
+    status: 'Paused',
+  },
+  {
+    id: 'ban-5',
+    name: 'Black Friday Teaser Hero',
+    position: 'Homepage Hero',
+    slides: [
+      { id: 's-10', imageUrl: 'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=800&q=80', title: 'Something big is coming', description: 'Black Friday deals land on Nov 24', ctaText: 'Get notified', ctaLink: '/newsletter' },
+    ],
+    startDate: '2026-11-20',
+    endDate: '2026-11-30',
+    noEndDate: false,
+    status: 'Scheduled',
   },
 ];
 
@@ -114,10 +139,10 @@ const tabToPosition = (tab: BannerTab): BannerPosition =>
   tab === 'Homepage Hero'
     ? 'Homepage Hero'
     : tab === 'Promo Strips'
-    ? 'Promo Strip'
-    : tab === 'Category Banners'
-    ? 'Category Banner'
-    : 'Popup';
+      ? 'Promo Strip'
+      : tab === 'Category Banners'
+        ? 'Category Banner'
+        : 'Popup';
 
 export default function BannersPage() {
   const [banners, setBanners] = useState<Banner[]>(INITIAL_BANNERS);
@@ -129,9 +154,9 @@ export default function BannersPage() {
   const [currentBannerId, setCurrentBannerId] = useState<string | null>(null);
 
   // Form state
-  const [formTitle, setFormTitle] = useState('');
+  const [formName, setFormName] = useState('');
   const [formPosition, setFormPosition] = useState<BannerPosition>('Homepage Hero');
-  const [formSlides, setFormSlides] = useState<HeroSlide[]>(makeSlides(HERO_SLIDE_COUNT));
+  const [formSlides, setFormSlides] = useState<BannerSlide[]>(makeSlides(HERO_SLIDE_COUNT));
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   const [formStartDate, setFormStartDate] = useState('2026-09-23');
@@ -170,7 +195,6 @@ export default function BannersPage() {
 
   const toast = (msg: string) => setToastMessage(msg);
 
-  // When position changes, reset slide count
   useEffect(() => {
     if (!modalOpen) return;
     setFormSlides((prev) => {
@@ -184,7 +208,7 @@ export default function BannersPage() {
     setActiveSlideIndex(0);
   }, [formPosition, modalOpen]);
 
-  const updateSlide = (index: number, patch: Partial<HeroSlide>) => {
+  const updateSlide = (index: number, patch: Partial<BannerSlide>) => {
     setFormSlides((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   };
 
@@ -199,7 +223,7 @@ export default function BannersPage() {
   const openAdd = () => {
     setModalMode('add');
     setCurrentBannerId(null);
-    setFormTitle('');
+    setFormName('');
     setFormPosition('Homepage Hero');
     setFormSlides(makeSlides(HERO_SLIDE_COUNT));
     setActiveSlideIndex(0);
@@ -213,7 +237,7 @@ export default function BannersPage() {
   const openEdit = (banner: Banner) => {
     setModalMode('edit');
     setCurrentBannerId(banner.id);
-    setFormTitle(banner.title);
+    setFormName(banner.name);
     setFormPosition(banner.position);
 
     const target = banner.position === 'Homepage Hero' ? HERO_SLIDE_COUNT : 1;
@@ -221,27 +245,37 @@ export default function BannersPage() {
     while (padded.length < target) padded.push(newSlide(padded.length));
     setFormSlides(padded.slice(0, target));
     setActiveSlideIndex(0);
-    setFormActive(banner.active);
+    setFormStartDate(banner.startDate);
+    setFormEndDate(banner.endDate);
+    setFormNoEndDate(banner.noEndDate);
+    setFormActive(banner.status === 'Active');
     setModalOpen(true);
   };
 
   const saveBanner = () => {
-    if (!formTitle.trim()) {
-      toast('Banner title is required');
+    if (!formName.trim()) {
+      toast('Banner name is required');
       return;
     }
     const cleanedSlides =
       formPosition === 'Homepage Hero' ? formSlides : [formSlides[0]];
 
+    const today = new Date();
+    const start = new Date(formStartDate);
+    let derivedStatus: Banner['status'] = 'Active';
+    if (!formActive) derivedStatus = 'Paused';
+    else if (start > today) derivedStatus = 'Scheduled';
+
     if (modalMode === 'add') {
       const newBanner: Banner = {
         id: `ban-${Date.now()}`,
-        title: formTitle,
+        name: formName,
         position: formPosition,
         slides: cleanedSlides,
-        startDate: 'Today',
-        endDate: formNoEndDate ? 'No end date' : 'Oct 23, 2026',
-        active: formActive,
+        startDate: formStartDate,
+        endDate: formNoEndDate ? '' : formEndDate,
+        noEndDate: formNoEndDate,
+        status: derivedStatus,
       };
       setBanners([newBanner, ...banners]);
       toast('Banner added');
@@ -249,7 +283,16 @@ export default function BannersPage() {
       setBanners((prev) =>
         prev.map((b) =>
           b.id === currentBannerId
-            ? { ...b, title: formTitle, position: formPosition, slides: cleanedSlides, active: formActive }
+            ? {
+              ...b,
+              name: formName,
+              position: formPosition,
+              slides: cleanedSlides,
+              startDate: formStartDate,
+              endDate: formNoEndDate ? '' : formEndDate,
+              noEndDate: formNoEndDate,
+              status: derivedStatus,
+            }
             : b
         )
       );
@@ -262,17 +305,23 @@ export default function BannersPage() {
     const dup: Banner = {
       ...banner,
       id: `ban-${Date.now()}`,
-      title: `${banner.title} (copy)`,
-      active: false,
+      name: `${banner.name} (copy)`,
+      status: 'Paused',
       slides: banner.slides.map((s, i) => ({ ...s, id: `slide-${Date.now()}-${i}` })),
     };
     setBanners([dup, ...banners]);
-    toast('Duplicated as draft');
+    toast('Duplicated as paused draft');
   };
 
-  const toggleActive = (id: string) => {
-    setBanners((prev) => prev.map((b) => (b.id === id ? { ...b, active: !b.active } : b)));
-    toast('Banner status updated');
+  const toggleStatus = (banner: Banner) => {
+    setBanners((prev) =>
+      prev.map((b) => {
+        if (b.id !== banner.id) return b;
+        const next = b.status === 'Active' ? 'Paused' : 'Active';
+        toast(`Banner ${next.toLowerCase()}`);
+        return { ...b, status: next };
+      })
+    );
   };
 
   const confirmDelete = () => {
@@ -286,6 +335,15 @@ export default function BannersPage() {
 
   const activeSlide = formSlides[activeSlideIndex] ?? formSlides[0];
   const slideCount = formSlides.length;
+
+  const statusBadge = (s: Banner['status']) =>
+    s === 'Active'
+      ? 'bg-emerald-500 text-white'
+      : s === 'Scheduled'
+        ? 'bg-blue-500 text-white'
+        : s === 'Paused'
+          ? 'bg-slate-800/80 text-white'
+          : 'bg-red-500 text-white';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
@@ -306,7 +364,7 @@ export default function BannersPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Banners</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Manage hero sliders, promo strips, category visuals, and popups
+              Manage homepage promotions without touching code
             </p>
           </div>
           <button
@@ -321,19 +379,42 @@ export default function BannersPage() {
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
 
+        {/* STRUCTURE BANNER */}
+        <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+          <Sparkles className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+          <div className="text-[13px]">
+            <p className="font-medium text-blue-950">Banner structure</p>
+            <p className="text-blue-800 mt-0.5">
+              Every banner contains: <span className="font-medium">Image</span> ·{' '}
+              <span className="font-medium">Title</span> · <span className="font-medium">Description</span> ·{' '}
+              <span className="font-medium">CTA</span> · <span className="font-medium">Link</span> ·{' '}
+              <span className="font-medium">Start date</span> · <span className="font-medium">End date</span> ·{' '}
+              <span className="font-medium">Position</span> · <span className="font-medium">Status</span>
+            </p>
+          </div>
+        </div>
+
         {/* TABS */}
-        <div className="bg-white border border-slate-200 rounded-sm p-0.5 inline-flex gap-0.5">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition ${
-                activeTab === tab ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="bg-white border border-slate-200 rounded-sm p-0.5 inline-flex gap-0.5 overflow-x-auto max-w-full">
+          {TABS.map((tab) => {
+            const count = banners.filter((b) => b.position === tabToPosition(tab)).length;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+              >
+                {tab}
+                <span
+                  className={`px-1.5 py-0.5 rounded-sm text-[13px] ${activeTab === tab ? 'bg-blue-900 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* GRID */}
@@ -354,7 +435,7 @@ export default function BannersPage() {
                     <div className="relative h-40 w-full bg-slate-100 overflow-hidden">
                       <img
                         src={first.imageUrl}
-                        alt={banner.title}
+                        alt={first.title}
                         className="w-full h-full object-cover"
                       />
                       {banner.slides.length > 1 && (
@@ -363,11 +444,11 @@ export default function BannersPage() {
                         </span>
                       )}
                       <span
-                        className={`absolute top-2 left-2 inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium ${
-                          banner.active ? 'bg-emerald-500 text-white' : 'bg-slate-800/80 text-white'
-                        }`}
+                        className={`absolute top-2 left-2 inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium backdrop-blur-sm ${statusBadge(
+                          banner.status
+                        )}`}
                       >
-                        {banner.active ? 'Active' : 'Paused'}
+                        {banner.status}
                       </span>
                       <span className="absolute top-2 right-2 bg-slate-900/80 text-white px-2 py-0.5 rounded-sm text-[13px] font-medium backdrop-blur-sm">
                         {banner.position}
@@ -376,28 +457,37 @@ export default function BannersPage() {
 
                     <div className="p-2 space-y-1">
                       <p className="text-[13px] font-medium text-slate-900 truncate">
-                        {banner.title}
+                        {banner.name}
                       </p>
-                      {first.headline && (
-                        <p className="text-[13px] text-blue-950 truncate">{first.headline}</p>
+                      {first.title && (
+                        <p className="text-[13px] text-blue-950 truncate">{first.title}</p>
+                      )}
+                      {first.description && (
+                        <p className="text-[13px] text-slate-500 truncate">{first.description}</p>
                       )}
                       <p className="text-[13px] text-slate-400 inline-flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {banner.startDate} — {banner.endDate}
+                        {banner.startDate} — {banner.noEndDate ? 'No end date' : banner.endDate}
                       </p>
+                      {first.ctaText && (
+                        <p className="text-[13px] text-emerald-700 inline-flex items-center gap-1">
+                          <MousePointerClick className="w-3 h-3" />
+                          {first.ctaText} → {first.ctaLink}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="px-2 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
                     <button
-                      onClick={() => toggleActive(banner.id)}
-                      className={`px-2.5 py-2 rounded-sm text-[13px] font-medium transition ${
-                        banner.active
+                      onClick={() => toggleStatus(banner)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-2 rounded-sm text-[13px] font-medium transition ${banner.status === 'Active'
                           ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
                           : 'bg-blue-950 text-white hover:bg-blue-900'
-                      }`}
+                        }`}
                     >
-                      {banner.active ? 'Pause' : 'Activate'}
+                      <Power className="w-3 h-3" />
+                      {banner.status === 'Active' ? 'Pause' : 'Activate'}
                     </button>
                     <div className="flex items-center gap-1">
                       <button
@@ -448,7 +538,7 @@ export default function BannersPage() {
                   {modalMode === 'add' ? 'Add banner' : 'Edit banner'}
                 </h3>
                 <p className="text-[13px] text-slate-500 mt-0.5">
-                  Configure content, image uploads, and schedule
+                  Image · Title · Description · CTA · Link · Schedule · Position · Status
                 </p>
               </div>
               <button
@@ -464,18 +554,27 @@ export default function BannersPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Banner title *</label>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <Tag className="w-3 h-3" />
+                    Internal banner name *
+                  </label>
                   <input
                     type="text"
-                    placeholder="e.g. Summer sale promo"
-                    value={formTitle}
-                    onChange={(e) => setFormTitle(e.target.value)}
+                    placeholder="e.g. Summer sale hero slider"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                   />
+                  <p className="text-[13px] text-slate-400 mt-1">
+                    Used in admin only. Not shown to customers.
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Position</label>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <ImageIcon className="w-3 h-3" />
+                    Position
+                  </label>
                   <select
                     value={formPosition}
                     onChange={(e) => setFormPosition(e.target.value as BannerPosition)}
@@ -510,16 +609,14 @@ export default function BannersPage() {
                       key={s.id}
                       type="button"
                       onClick={() => setActiveSlideIndex(i)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition ${
-                        activeSlideIndex === i
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition ${activeSlideIndex === i
                           ? 'bg-blue-950 text-white'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          s.imageUrl ? 'bg-emerald-400' : 'bg-slate-400'
-                        }`}
+                        className={`w-1.5 h-1.5 rounded-full ${s.imageUrl ? 'bg-emerald-400' : 'bg-slate-400'
+                          }`}
                       />
                       Slide {i + 1}
                     </button>
@@ -531,7 +628,10 @@ export default function BannersPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-3">
                     {/* Image preview + upload */}
                     <div>
-                      <p className="text-[13px] font-medium text-slate-700 mb-1">Background</p>
+                      <p className="text-[13px] font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3" />
+                        Image
+                      </p>
                       <div className="relative group h-24 rounded-sm bg-slate-100 border border-slate-200 overflow-hidden">
                         <img
                           src={activeSlide.imageUrl}
@@ -555,26 +655,40 @@ export default function BannersPage() {
                         accept="image/*"
                         className="hidden"
                       />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="mt-1 w-full inline-flex items-center justify-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-1.5 rounded-sm text-[13px]"
+                      >
+                        <Upload className="w-3 h-3" />
+                        Upload
+                      </button>
                     </div>
 
                     {/* Content fields */}
                     <div className="space-y-2">
                       <div>
-                        <label className="block font-medium text-slate-700 mb-1">Headline</label>
+                        <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                          <Type className="w-3 h-3" />
+                          Title
+                        </label>
                         <input
                           type="text"
-                          value={activeSlide.headline}
-                          onChange={(e) => updateSlide(activeSlideIndex, { headline: e.target.value })}
+                          value={activeSlide.title}
+                          onChange={(e) => updateSlide(activeSlideIndex, { title: e.target.value })}
                           placeholder="e.g. Save 15% on every M-Pesa checkout"
                           className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
                       </div>
                       <div>
-                        <label className="block font-medium text-slate-700 mb-1">Subheadline</label>
+                        <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                          <AlignLeft className="w-3 h-3" />
+                          Description
+                        </label>
                         <input
                           type="text"
-                          value={activeSlide.subheadline}
-                          onChange={(e) => updateSlide(activeSlideIndex, { subheadline: e.target.value })}
+                          value={activeSlide.description}
+                          onChange={(e) => updateSlide(activeSlideIndex, { description: e.target.value })}
                           placeholder="Optional supporting line"
                           className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
@@ -584,7 +698,10 @@ export default function BannersPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-medium text-slate-700 mb-1">CTA text</label>
+                      <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                        <MousePointerClick className="w-3 h-3" />
+                        CTA text
+                      </label>
                       <input
                         type="text"
                         value={activeSlide.ctaText}
@@ -594,7 +711,10 @@ export default function BannersPage() {
                       />
                     </div>
                     <div>
-                      <label className="block font-medium text-slate-700 mb-1">CTA link</label>
+                      <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                        <LinkIcon className="w-3 h-3" />
+                        CTA link
+                      </label>
                       <input
                         type="text"
                         value={activeSlide.ctaLink}
@@ -609,7 +729,7 @@ export default function BannersPage() {
                   <div>
                     <p className="text-[13px] font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
                       <Eye className="w-3.5 h-3.5 text-blue-950" />
-                      Preview · Slide {activeSlideIndex + 1} of {slideCount}
+                      Live preview · Slide {activeSlideIndex + 1} of {slideCount}
                     </p>
                     <div className="relative rounded-sm overflow-hidden border border-slate-200 h-36 bg-slate-900 text-white flex items-center p-3">
                       <img
@@ -622,10 +742,10 @@ export default function BannersPage() {
                           {formPosition}
                         </span>
                         <p className="font-semibold text-[15px]">
-                          {activeSlide.headline || 'Slide headline'}
+                          {activeSlide.title || 'Banner title'}
                         </p>
-                        {activeSlide.subheadline && (
-                          <p className="text-[13px] text-white/80">{activeSlide.subheadline}</p>
+                        {activeSlide.description && (
+                          <p className="text-[13px] text-white/80">{activeSlide.description}</p>
                         )}
                         <button className="bg-white text-slate-900 font-medium px-3 py-1 rounded-sm text-[13px]">
                           {activeSlide.ctaText || 'Shop now'}
@@ -639,7 +759,10 @@ export default function BannersPage() {
               {/* SCHEDULE */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Start date</label>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    Start date
+                  </label>
                   <input
                     type="date"
                     value={formStartDate}
@@ -648,7 +771,10 @@ export default function BannersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">End date</label>
+                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    End date
+                  </label>
                   <input
                     type="date"
                     disabled={formNoEndDate}
@@ -670,14 +796,24 @@ export default function BannersPage() {
                 </div>
               </div>
 
-              <label className="inline-flex items-center gap-2 cursor-pointer pt-1">
+              {/* STATUS */}
+              <label className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-sm cursor-pointer">
+                <div>
+                  <p className="font-medium text-slate-900 inline-flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Status
+                  </p>
+                  <p className="text-[13px] text-slate-500">
+                    Enable to activate immediately. If start date is in the future, status will be
+                    "Scheduled".
+                  </p>
+                </div>
                 <input
                   type="checkbox"
                   checked={formActive}
                   onChange={(e) => setFormActive(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
                 />
-                <span className="font-medium text-slate-700">Enable immediately</span>
               </label>
             </div>
 
@@ -716,7 +852,7 @@ export default function BannersPage() {
             <div>
               <h3 className="text-[15px] font-semibold text-slate-900">Delete banner?</h3>
               <p className="text-slate-500 mt-1">
-                Remove <span className="font-medium text-slate-800">"{bannerToDelete.title}"</span>?
+                Remove <span className="font-medium text-slate-800">"{bannerToDelete.name}"</span>?
                 All {bannerToDelete.slides.length} slide(s) will be deleted.
               </p>
             </div>

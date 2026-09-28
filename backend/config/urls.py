@@ -17,25 +17,8 @@ urlpatterns = [
     path("api/auth/", include("authentication.urls")),
 
     # ── Onboarding (12-step setup) ──
-    path("api/onboarding/", include("onboarding.urls")),
+    path("api/onboarding/", include("onboarding.urls")),          # 👈 ADDED
 
-    # ── Payments (Dusupay, Pesapal, M-Pesa) ──
-    path("api/payments/", include("payments.urls")),
-
-    # ── Catalog (categories + products) ──
-    path("api/catalog/", include("catalog.urls")),           # 👈 ADDED
-
-    # ── Social media ──
-    path("api/social/", include("social_media.urls")),
-
-    # ── WhatsApp ──
-    path("api/whatsapp/", include("whatsapp.urls")),
-
-    # ── Team invites ──
-    path("api/team/", include("team.urls")),                 # 👈 ADDED
-
-    # ── Business + admin dashboard endpoints (catch-all-ish, keep LAST) ──
-    path("api/", include("admin_dashboard.urls")),
 ]
 
 
