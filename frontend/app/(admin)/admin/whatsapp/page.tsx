@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   MessageSquare,
-  Settings,
   Send,
   Search,
   Clock,
@@ -21,7 +20,6 @@ import {
   Package,
   Bell,
   Zap,
-  UserCircle,
   ChevronRight,
   CheckCheck,
   Repeat,
@@ -31,7 +29,6 @@ import {
   Activity,
   CreditCard,
   Shield,
-  UserPlus,
 } from 'lucide-react';
 
 // ============================================================
@@ -61,7 +58,6 @@ interface WhatsAppOrder {
 
 type WhatsAppModule =
   | 'orders'
-  | 'account'
   | 'conversations'
   | 'contacts'
   | 'templates'
@@ -72,22 +68,6 @@ type WhatsAppModule =
 type ConversationStatus = 'Open' | 'Pending' | 'Resolved' | 'Archived';
 type ContactTag = 'VIP' | 'Lead' | 'Customer' | 'Blocked' | 'New';
 type NotificationType = 'Order' | 'Payment' | 'Stock' | 'System' | 'Message';
-
-interface WhatsAppAccount {
-  id: string;
-  businessName: string;
-  phoneNumber: string;
-  phoneNumberId: string;
-  wabaId: string;
-  accessToken: string;
-  verifyToken: string;
-  status: 'Connected' | 'Disconnected' | 'Pending';
-  qualityRating: 'High' | 'Medium' | 'Low';
-  messagingLimit: string;
-  verifiedName: string;
-  connectedAt: string;
-  webhookUrl: string;
-}
 
 interface ChatMessage {
   id: string;
@@ -238,22 +218,6 @@ const INITIAL_WHATSAPP_ORDERS: WhatsAppOrder[] = [
     internalNotes: 'Item was out of stock in gray. Customer decided not to proceed.',
   },
 ];
-
-const INITIAL_ACCOUNT: WhatsAppAccount = {
-  id: 'acc-1',
-  businessName: 'SokoFlow Electronics',
-  phoneNumber: '+254 700 000 000',
-  phoneNumberId: '102938475610293',
-  wabaId: 'WABA-8472910384',
-  accessToken: 'EAAG...xK9z',
-  verifyToken: 'sokoflow_verify_2024',
-  status: 'Connected',
-  qualityRating: 'High',
-  messagingLimit: 'Unlimited',
-  verifiedName: 'SokoFlow Electronics Ltd',
-  connectedAt: 'Jan 12, 2024',
-  webhookUrl: 'https://api.sokoflow.com/webhooks/whatsapp',
-};
 
 const INITIAL_CONVERSATIONS: Conversation[] = [
   {
@@ -450,14 +414,11 @@ export default function WhatsAppOrdersPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeOrder, setActiveOrder] = useState<WhatsAppOrder | null>(null);
 
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // module state
   const [activeModule, setActiveModule] = useState<WhatsAppModule>('orders');
-  const [account, setAccount] = useState<WhatsAppAccount>(INITIAL_ACCOUNT);
   const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
@@ -466,19 +427,13 @@ export default function WhatsAppOrdersPage() {
   const [notifications, setNotifications] = useState<WhatsAppNotification[]>(INITIAL_NOTIFICATIONS);
   const [automations, setAutomations] = useState<AutomationRule[]>(INITIAL_AUTOMATIONS);
 
-  const [waNumber, setWaNumber] = useState('+254 700 000 000');
-  const [cartTemplate, setCartTemplate] = useState(
-    'Hello! I would like to place an order for the following cart items:\n{items}\nTotal: KES {total}\nCustomer Name: {customer_name}'
-  );
-  const [inquiryTemplate, setInquiryTemplate] = useState('Hello, I have a product inquiry regarding:');
-
   const [broadcastAudience, setBroadcastAudience] = useState('All Customers');
   const [broadcastMessage, setBroadcastMessage] = useState(
     '🔥 Weekend Flash Sale! Enjoy up to 20% off on all electronics. Tap to shop now: https://example.com'
   );
   const [broadcastSchedule, setBroadcastSchedule] = useState('Now');
 
-  const anyModalOpen = isSettingsOpen || isBroadcastOpen || isCreateOrderOpen || activeOrder !== null;
+  const anyModalOpen = isBroadcastOpen || isCreateOrderOpen || activeOrder !== null;
 
   useEffect(() => {
     if (toastMessage) {
@@ -492,7 +447,6 @@ export default function WhatsAppOrdersPage() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isCreateOrderOpen) setIsCreateOrderOpen(false);
-        else if (isSettingsOpen) setIsSettingsOpen(false);
         else if (isBroadcastOpen) setIsBroadcastOpen(false);
         else if (activeOrder) setActiveOrder(null);
       }
@@ -503,7 +457,7 @@ export default function WhatsAppOrdersPage() {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKey);
     };
-  }, [anyModalOpen, isCreateOrderOpen, isSettingsOpen, isBroadcastOpen, activeOrder]);
+  }, [anyModalOpen, isCreateOrderOpen, isBroadcastOpen, activeOrder]);
 
   const toast = (msg: string) => setToastMessage(msg);
 
@@ -570,12 +524,6 @@ export default function WhatsAppOrdersPage() {
     toast('Broadcast dispatched');
   };
 
-  const saveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSettingsOpen(false);
-    toast('WhatsApp settings saved');
-  };
-
   const statusBadge = (s: WhatsAppOrderStatus) =>
     s === 'Converted'
       ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
@@ -595,7 +543,6 @@ export default function WhatsAppOrdersPage() {
     { key: 'products', label: 'Products', icon: <Package className="w-3.5 h-3.5" /> },
     { key: 'notifications', label: 'Notifications', icon: <Bell className="w-3.5 h-3.5" />, badge: unreadNotifications },
     { key: 'automation', label: 'Automation', icon: <Zap className="w-3.5 h-3.5" /> },
-    { key: 'account', label: 'Account', icon: <UserCircle className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -628,13 +575,6 @@ export default function WhatsAppOrdersPage() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-            >
-              <Settings className="w-3.5 h-3.5" />
-              Settings
-            </button>
-            <button
               onClick={() => setIsBroadcastOpen(true)}
               className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
             >
@@ -652,15 +592,17 @@ export default function WhatsAppOrdersPage() {
             <button
               key={tab.key}
               onClick={() => setActiveModule(tab.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeModule === tab.key ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'
-                }`}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                activeModule === tab.key ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'
+              }`}
             >
               {tab.icon}
               {tab.label}
               {tab.badge !== undefined && tab.badge > 0 && (
                 <span
-                  className={`px-1.5 rounded-sm text-[13px] ${activeModule === tab.key ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                    }`}
+                  className={`px-1.5 rounded-sm text-[13px] ${
+                    activeModule === tab.key ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                  }`}
                 >
                   {tab.badge}
                 </span>
@@ -688,8 +630,9 @@ export default function WhatsAppOrdersPage() {
                     <button
                       key={status}
                       onClick={() => setStatusFilter(status)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${isActive ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                        }`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                        isActive ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+                      }`}
                     >
                       {status}
                       <span className={`px-1.5 rounded-sm text-[13px] ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
@@ -902,7 +845,6 @@ export default function WhatsAppOrdersPage() {
               setTemplates((prev) => prev.filter((t) => t.id !== id));
               toast('Template deleted');
             }}
-            onOpenSettings={() => setIsSettingsOpen(true)}
           />
         )}
 
@@ -945,25 +887,6 @@ export default function WhatsAppOrdersPage() {
                 prev.map((a) => (a.id === id ? { ...a, executions: a.executions + 1, lastRun: 'Just now' } : a))
               );
               toast('Automation executed manually');
-            }}
-          />
-        )}
-
-        {activeModule === 'account' && (
-          <AccountModule
-            account={account}
-            onSave={(updated) => {
-              setAccount(updated);
-              setWaNumber(updated.phoneNumber);
-              toast('Account settings saved');
-            }}
-            onDisconnect={() => {
-              setAccount((prev) => ({ ...prev, status: 'Disconnected' }));
-              toast('WhatsApp account disconnected');
-            }}
-            onReconnect={() => {
-              setAccount((prev) => ({ ...prev, status: 'Connected' }));
-              toast('WhatsApp account reconnected');
             }}
           />
         )}
@@ -1028,10 +951,11 @@ export default function WhatsAppOrdersPage() {
                     <button
                       key={st}
                       onClick={() => updateStatus(activeOrder.id, st)}
-                      className={`py-2 rounded-sm text-[13px] font-medium transition ${activeOrder.status === st
+                      className={`py-2 rounded-sm text-[13px] font-medium transition ${
+                        activeOrder.status === st
                           ? 'bg-emerald-600 text-white'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
+                      }`}
                     >
                       {st}
                     </button>
@@ -1111,78 +1035,6 @@ export default function WhatsAppOrdersPage() {
                 Confirm & create
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* SETTINGS MODAL */}
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3" onClick={() => setIsSettingsOpen(false)}>
-          <div className="bg-white border border-slate-200 rounded-sm max-w-lg w-full max-h-[90vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
-              <div>
-                <h3 className="text-[15px] font-semibold text-slate-900">WhatsApp integration settings</h3>
-                <p className="text-[13px] text-slate-500 mt-0.5">Business number and message templates</p>
-              </div>
-              <button onClick={() => setIsSettingsOpen(false)} className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={saveSettings} className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">WhatsApp business number</label>
-                <input
-                  type="text"
-                  required
-                  value={waNumber}
-                  onChange={(e) => setWaNumber(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 font-mono text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Cart message template</label>
-                <textarea
-                  rows={4}
-                  value={cartTemplate}
-                  onChange={(e) => setCartTemplate(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 font-mono text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                />
-                <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                  <span className="text-[13px] text-slate-400">Variables:</span>
-                  {['{items}', '{total}', '{customer_name}'].map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => setCartTemplate((prev) => prev + ' ' + chip)}
-                      className="bg-emerald-50 text-emerald-700 border border-emerald-100 font-mono text-[13px] px-2 py-0.5 rounded-sm hover:bg-emerald-100 transition"
-                    >
-                      {chip}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Product inquiry template</label>
-                <input
-                  type="text"
-                  value={inquiryTemplate}
-                  onChange={(e) => setInquiryTemplate(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setIsSettingsOpen(false)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]">
-                  Cancel
-                </button>
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]">
-                  Save settings
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
@@ -1352,8 +1204,9 @@ function ConversationsModule({
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`flex-1 px-2 py-1.5 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${statusFilter === s ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                  }`}
+                className={`flex-1 px-2 py-1.5 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                  statusFilter === s ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+                }`}
               >
                 {s}
               </button>
@@ -1442,8 +1295,9 @@ function ConversationsModule({
             {activeConversation.messages.map((m) => (
               <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[75%] rounded-sm px-2.5 py-2 text-[13px] ${m.direction === 'outbound' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-800'
-                    }`}
+                  className={`max-w-[75%] rounded-sm px-2.5 py-2 text-[13px] ${
+                    m.direction === 'outbound' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-800'
+                  }`}
                 >
                   <p className="whitespace-pre-wrap">{m.body}</p>
                   <div className={`flex items-center gap-1 mt-1 justify-end ${m.direction === 'outbound' ? 'text-emerald-100' : 'text-slate-400'}`}>
@@ -1527,8 +1381,9 @@ function ContactsModule({
             <button
               key={t}
               onClick={() => setTagFilter(t)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${tagFilter === t ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                }`}
+              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                tagFilter === t ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+              }`}
             >
               {t}
             </button>
@@ -1594,8 +1449,9 @@ function ContactsModule({
                   <td className="py-2 px-3">
                     <button
                       onClick={() => onToggleOptIn(c.id)}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border ${c.optedIn ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'
-                        }`}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border ${
+                        c.optedIn ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }`}
                     >
                       {c.optedIn ? <ToggleRight className="w-3 h-3" /> : <ToggleLeft className="w-3 h-3" />}
                       {c.optedIn ? 'Subscribed' : 'Unsubscribed'}
@@ -1637,12 +1493,10 @@ function TemplatesModule({
   templates,
   onToggleStatus,
   onDelete,
-  onOpenSettings,
 }: {
   templates: MessageTemplate[];
   onToggleStatus: (id: string) => void;
   onDelete: (id: string) => void;
-  onOpenSettings: () => void;
 }) {
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const filtered = templates.filter((t) => categoryFilter === 'All' || t.category === categoryFilter);
@@ -1662,20 +1516,14 @@ function TemplatesModule({
             <button
               key={c}
               onClick={() => setCategoryFilter(c)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${categoryFilter === c ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                }`}
+              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                categoryFilter === c ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+              }`}
             >
               {c}
             </button>
           ))}
         </div>
-        <button
-          onClick={onOpenSettings}
-          className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-        >
-          <Settings className="w-3.5 h-3.5" />
-          Template settings
-        </button>
       </div>
 
       <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
@@ -1782,8 +1630,9 @@ function ProductsModule({
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${statusFilter === s ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                }`}
+              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                statusFilter === s ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+              }`}
             >
               {s}
             </button>
@@ -1922,8 +1771,9 @@ function NotificationsModule({
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${typeFilter === t ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                }`}
+              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                typeFilter === t ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+              }`}
             >
               {t}
             </button>
@@ -2059,192 +1909,6 @@ function AutomationModule({
             </div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// ACCOUNT MODULE
-// ============================================================
-function AccountModule({
-  account,
-  onSave,
-  onDisconnect,
-  onReconnect,
-}: {
-  account: WhatsAppAccount;
-  onSave: (a: WhatsAppAccount) => void;
-  onDisconnect: () => void;
-  onReconnect: () => void;
-}) {
-  const [draft, setDraft] = useState(account);
-
-  useEffect(() => {
-    setDraft(account);
-  }, [account]);
-
-  const statusTint =
-    account.status === 'Connected'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      : account.status === 'Pending'
-        ? 'bg-amber-50 text-amber-700 border-amber-100'
-        : 'bg-red-50 text-red-700 border-red-100';
-
-  const qualityTint =
-    account.qualityRating === 'High'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      : account.qualityRating === 'Medium'
-        ? 'bg-amber-50 text-amber-700 border-amber-100'
-        : 'bg-red-50 text-red-700 border-red-100';
-
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2 xl:col-span-1">
-        <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-            <MessageSquare className="w-4 h-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-slate-900 truncate">{account.businessName}</p>
-            <p className="text-[13px] text-slate-500 font-mono truncate">{account.phoneNumber}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-          <div>
-            <p className="text-[13px] text-slate-400">Status</p>
-            <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[13px] mt-0.5 ${statusTint}`}>
-              {account.status}
-            </span>
-          </div>
-          <div>
-            <p className="text-[13px] text-slate-400">Quality</p>
-            <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[13px] mt-0.5 ${qualityTint}`}>
-              {account.qualityRating}
-            </span>
-          </div>
-          <div>
-            <p className="text-[13px] text-slate-400">Messaging limit</p>
-            <p className="text-[13px] font-medium text-slate-900 mt-0.5">{account.messagingLimit}</p>
-          </div>
-          <div>
-            <p className="text-[13px] text-slate-400">Connected</p>
-            <p className="text-[13px] font-medium text-slate-900 mt-0.5">{account.connectedAt}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-          {account.status === 'Connected' ? (
-            <button
-              onClick={onDisconnect}
-              className="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-medium px-3 py-2 rounded-sm text-[13px]"
-            >
-              Disconnect account
-            </button>
-          ) : (
-            <button
-              onClick={onReconnect}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-            >
-              Reconnect account
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-sm p-3 xl:col-span-2">
-        <p className="text-[13px] font-semibold text-slate-900 mb-2">API credentials & webhooks</p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSave(draft);
-          }}
-          className="space-y-3 text-[13px]"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">Business name</label>
-              <input
-                type="text"
-                value={draft.businessName}
-                onChange={(e) => setDraft({ ...draft, businessName: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">WhatsApp number</label>
-              <input
-                type="text"
-                value={draft.phoneNumber}
-                onChange={(e) => setDraft({ ...draft, phoneNumber: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">Phone number ID</label>
-              <input
-                type="text"
-                value={draft.phoneNumberId}
-                onChange={(e) => setDraft({ ...draft, phoneNumberId: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">WABA ID</label>
-              <input
-                type="text"
-                value={draft.wabaId}
-                onChange={(e) => setDraft({ ...draft, wabaId: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-medium text-slate-700 mb-1">Access token</label>
-            <input
-              type="password"
-              value={draft.accessToken}
-              onChange={(e) => setDraft({ ...draft, accessToken: e.target.value })}
-              className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-emerald-600"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">Verify token</label>
-              <input
-                type="text"
-                value={draft.verifyToken}
-                onChange={(e) => setDraft({ ...draft, verifyToken: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">Webhook URL</label>
-              <input
-                type="url"
-                value={draft.webhookUrl}
-                onChange={(e) => setDraft({ ...draft, webhookUrl: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setDraft(account)}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-            >
-              Reset
-            </button>
-            <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]">
-              Save account
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );

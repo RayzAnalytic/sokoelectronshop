@@ -6,12 +6,8 @@ import {
   Save,
   Building,
   Receipt,
-  Mail,
   Globe,
-  ShieldAlert,
   Plug,
-  Eye,
-  EyeOff,
   Send,
   X,
   AlertTriangle,
@@ -22,7 +18,6 @@ import {
   ShieldCheck,
   Key,
   Smartphone,
-  MessageCircle,
   Plus,
   Trash2,
   Lock,
@@ -30,7 +25,6 @@ import {
   Users,
   UserX,
   LogIn,
-  Activity,
   Clock,
 } from 'lucide-react';
 
@@ -45,10 +39,9 @@ type SettingsTab =
   | 'notifications'
   | 'security'
   | 'integrations'
-  | 'tax'
-  | 'email';
+  | 'tax';
 
-interface IntegrationCard {
+interface IntegrationStatus {
   id: string;
   name: string;
   category: string;
@@ -83,7 +76,7 @@ interface ActiveSession {
 }
 
 // ============================================================
-// CONSTANTS
+// TABS
 // ============================================================
 const TABS: { id: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'general', label: 'General', icon: Building },
@@ -93,8 +86,7 @@ const TABS: { id: SettingsTab; label: string; icon: React.ComponentType<{ classN
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'security', label: 'Security', icon: ShieldCheck },
   { id: 'integrations', label: 'Integrations', icon: Plug },
-  { id: 'tax', label: 'Tax & eTIMS', icon: Receipt },
-  { id: 'email', label: 'Email SMTP', icon: Mail },
+  { id: 'tax', label: 'Tax', icon: Receipt },
 ];
 
 // ============================================================
@@ -134,32 +126,23 @@ export default function StoreSettingsPage() {
   const [reviewsAutoPublish, setReviewsAutoPublish] = useState(false);
   const [reviewsAllowPhotos, setReviewsAllowPhotos] = useState(true);
 
-  // ── PAYMENTS ──
+  // ── PAYMENTS (preferences only; credentials managed by developer) ──
   const [mpesaEnabled, setMpesaEnabled] = useState(true);
-  const [mpesaShortcode, setMpesaShortcode] = useState('174379');
-  const [mpesaConsumerKey, setMpesaConsumerKey] = useState('cV8kR5j2YxL9pQ');
-  const [mpesaConsumerSecret, setMpesaConsumerSecret] = useState('sK4nL2pR7mT9wQzB6vH3');
-  const [mpesaPasskey, setMpesaPasskey] = useState('bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919');
-  const [mpesaEnv, setMpesaEnv] = useState<'sandbox' | 'production'>('sandbox');
-
   const [airtelEnabled, setAirtelEnabled] = useState(false);
-  const [airtelClientId, setAirtelClientId] = useState('');
-  const [airtelClientSecret, setAirtelClientSecret] = useState('');
-
   const [stripeEnabled, setStripeEnabled] = useState(false);
-  const [stripePublishable, setStripePublishable] = useState('pk_live_...');
-  const [stripeSecret, setStripeSecret] = useState('sk_live_...');
-
   const [codEnabled, setCodEnabled] = useState(true);
   const [codFee, setCodFee] = useState('0');
-
   const [txnMinAmount, setTxnMinAmount] = useState('100');
   const [txnMaxAmount, setTxnMaxAmount] = useState('500000');
   const [txnFee, setTxnFee] = useState('0');
   const [txnAutoRefund, setTxnAutoRefund] = useState(true);
   const [txnAutoCapture, setTxnAutoCapture] = useState(true);
-
-  const [showSecrets, setShowSecrets] = useState(false);
+  const [paymentMethodsOrder, setPaymentMethodsOrder] = useState<string[]>([
+    'M-Pesa',
+    'Cash on Delivery',
+    'Airtel Money',
+    'Stripe',
+  ]);
 
   // ── SHIPPING ──
   const [shippingEnabled, setShippingEnabled] = useState(true);
@@ -198,20 +181,14 @@ export default function StoreSettingsPage() {
   const [notifOnLowStock, setNotifOnLowStock] = useState(true);
   const [notifOnReview, setNotifOnReview] = useState(false);
   const [notifAdminEmail, setNotifAdminEmail] = useState('alerts@sokoflow.co.ke');
-  const [notifSmsSenderId, setNotifSmsSenderId] = useState('SOKOFLOW');
-  const [notifSmsApiKey, setNotifSmsApiKey] = useState('sk_sms_4477aabbcc');
-  const [notifWhatsAppTemplate, setNotifWhatsAppTemplate] = useState(
-    'Hi {{customer_name}}, your order {{order_id}} is confirmed. Total: KES {{total}}. Track: {{tracking_url}}'
-  );
 
-  // ── SECURITY ──
+  // ── SECURITY (shop owner's personal account) ──
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [twoFaEnabled, setTwoFaEnabled] = useState(true);
   const [twoFaMethod, setTwoFaMethod] = useState<'authenticator' | 'sms'>('authenticator');
   const [sessionTimeout, setSessionTimeout] = useState('60');
-  const [sessionForceLogout, setSessionForceLogout] = useState(false);
   const [sessions, setSessions] = useState<ActiveSession[]>([
     { id: 's1', device: 'Chrome · macOS', ip: '197.232.14.20', started: '2 hours ago', current: true },
     { id: 's2', device: 'Safari · iPhone 14', ip: '105.162.8.44', started: 'Yesterday', current: false },
@@ -224,8 +201,8 @@ export default function StoreSettingsPage() {
     { id: 'l4', device: 'Chrome · Android', ip: '197.232.14.88', location: 'Nairobi, KE', time: '5 days ago', current: false },
   ]);
 
-  // ── INTEGRATIONS ──
-  const [integrations, setIntegrations] = useState<IntegrationCard[]>([
+  // ── INTEGRATIONS (status only; configuration handled by developer) ──
+  const [integrations] = useState<IntegrationStatus[]>([
     { id: 'whatsapp', name: 'WhatsApp Cloud API', category: 'Messaging', connected: true, description: 'Official Meta WhatsApp Business API for order notifications and cart reminders.' },
     { id: 'mpesa', name: 'Safaricom M-Pesa Daraja', category: 'Payments', connected: true, description: 'STK Push and C2B Paybill automated instant settlement.' },
     { id: 'airtel', name: 'Airtel Money API', category: 'Payments', connected: false, description: 'Airtel Money mobile wallet checkout integration.' },
@@ -235,25 +212,13 @@ export default function StoreSettingsPage() {
     { id: 'tiktok', name: 'TikTok Pixel', category: 'Analytics', connected: false, description: 'TikTok ad campaign conversion tracking.' },
     { id: 'facebook', name: 'Facebook Shop Sync', category: 'Social', connected: false, description: 'Sync catalog and inventory with Facebook & Instagram Shops.' },
     { id: 'instagram', name: 'Instagram Shop', category: 'Social', connected: false, description: 'Enable product tagging and checkout on Instagram.' },
-    { id: 'x', name: 'X (Twitter) Pixel', category: 'Social', connected: false, description: 'Conversion tracking for X ad campaigns.' },
   ]);
 
-  // ── TAX (kept from original) ──
+  // ── TAX (preferences only) ──
   const [vatEnabled, setVatEnabled] = useState(true);
   const [vatRate, setVatRate] = useState('16');
   const [pricesIncludeTax, setPricesIncludeTax] = useState(true);
-  const [etimsPin, setEtimsPin] = useState('P051234567Z');
-  const [etimsDeviceId, setEtimsDeviceId] = useState('ETIMS-NBI-0042');
-  const [etimsApiKey, setEtimsApiKey] = useState('sk_live_9988223344556677');
-
-  // ── EMAIL SMTP (kept from original) ──
-  const [smtpHost, setSmtpHost] = useState('smtp.mailgun.org');
-  const [smtpPort, setSmtpPort] = useState('587');
-  const [smtpUser, setSmtpUser] = useState('postmaster@sokoflow.co.ke');
-  const [smtpPass, setSmtpPass] = useState('secretpassword');
-  const [smtpEncryption, setSmtpEncryption] = useState('TLS');
-  const [fromName, setFromName] = useState('SokoFlow Notifications');
-  const [fromEmail, setFromEmail] = useState('orders@sokoflow.co.ke');
+  const [etimsEnabled, setEtimsEnabled] = useState(true);
 
   // ── EFFECTS ──
   useEffect(() => {
@@ -310,18 +275,6 @@ export default function StoreSettingsPage() {
   const saveAll = () => {
     setHasUnsavedChanges(false);
     toast('Settings saved');
-  };
-
-  const testEtims = () => toast('Connected to KRA eTIMS');
-  const testEmail = () => toast(`Test email sent to ${contactEmail}`);
-  const testMpesa = () => toast('M-Pesa STK push test initiated');
-
-  const toggleIntegration = (id: string) => {
-    setIntegrations((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, connected: !it.connected } : it))
-    );
-    setHasUnsavedChanges(true);
-    toast('Integration updated');
   };
 
   const openZoneModal = (z?: DeliveryZone) => {
@@ -389,6 +342,17 @@ export default function StoreSettingsPage() {
     toast('Session revoked');
   };
 
+  const movePaymentMethod = (from: number, to: number) => {
+    if (to < 0 || to >= paymentMethodsOrder.length) return;
+    setPaymentMethodsOrder((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+    setHasUnsavedChanges(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
       {toastMessage && (
@@ -407,7 +371,7 @@ export default function StoreSettingsPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Store settings</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Identity, storefront, payments, shipping, notifications, security, and APIs
+              Identity, storefront behavior, payments, shipping, notifications, and security
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -440,8 +404,9 @@ export default function StoreSettingsPage() {
                   <button
                     key={tab.id}
                     onClick={() => handleTabClick(tab.id)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-sm text-[13px] font-medium transition ${isActive ? 'bg-blue-950 text-white' : 'text-slate-700 hover:bg-slate-100'
-                      }`}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-sm text-[13px] font-medium transition ${
+                      isActive ? 'bg-blue-950 text-white' : 'text-slate-700 hover:bg-slate-100'
+                    }`}
                   >
                     <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                     <span className="truncate">{tab.label}</span>
@@ -530,8 +495,9 @@ export default function StoreSettingsPage() {
                         <button
                           key={st}
                           onClick={() => change(setStoreStatus, st)}
-                          className={`p-2 rounded-sm border text-left capitalize transition ${storeStatus === st ? 'border-blue-950 bg-blue-50/40 text-blue-950' : 'bg-white border-slate-200 hover:bg-slate-50'
-                            }`}
+                          className={`p-2 rounded-sm border text-left capitalize transition ${
+                            storeStatus === st ? 'border-blue-950 bg-blue-50/40 text-blue-950' : 'bg-white border-slate-200 hover:bg-slate-50'
+                          }`}
                         >
                           <span className="text-[13px] font-medium">{st}</span>
                         </button>
@@ -574,68 +540,19 @@ export default function StoreSettingsPage() {
             {/* ══════════════ PAYMENTS ══════════════ */}
             {activeTab === 'payments' && (
               <>
-                <Card title="Payment gateways" subtitle="Enable and configure checkout methods for your store">
-                  <div className="flex items-center justify-end">
-                    <button
-                      onClick={() => setShowSecrets((s) => !s)}
-                      className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-                    >
-                      {showSecrets ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      {showSecrets ? 'Hide secrets' : 'Show secrets'}
-                    </button>
+                <Card title="Payment gateways" subtitle="Enable or disable the checkout methods you offer">
+                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+                    <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+                    <p className="text-blue-800 text-[13px]">
+                      Gateway credentials (API keys, secrets, shortcodes) are managed by your platform
+                      administrator. Contact support to connect a new payment gateway.
+                    </p>
                   </div>
-                </Card>
 
-                <Card title="M-Pesa (Safaricom Daraja)" subtitle="Kenya's most popular mobile money gateway">
-                  <ToggleRow label="Enable M-Pesa STK Push" description="Instant payment prompt inside customer's phone" checked={mpesaEnabled} onChange={(v) => change(setMpesaEnabled, v)} />
-                  {mpesaEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
-                      <Field label="Business shortcode" value={mpesaShortcode} onChange={(v) => change(setMpesaShortcode, v)} mono />
-                      <SelectField
-                        label="Environment"
-                        value={mpesaEnv}
-                        onChange={(v) => change(setMpesaEnv, v as 'sandbox' | 'production')}
-                        options={[
-                          { v: 'sandbox', l: 'Sandbox (testing)' },
-                          { v: 'production', l: 'Production (live)' },
-                        ]}
-                      />
-                      <SecretField label="Consumer key" value={mpesaConsumerKey} onChange={(v) => change(setMpesaConsumerKey, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                      <SecretField label="Consumer secret" value={mpesaConsumerSecret} onChange={(v) => change(setMpesaConsumerSecret, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                      <div className="sm:col-span-2">
-                        <SecretField label="Passkey" value={mpesaPasskey} onChange={(v) => change(setMpesaPasskey, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                      </div>
-                      <div className="sm:col-span-2 flex justify-end">
-                        <button onClick={testMpesa} className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]">
-                          Test STK Push
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-
-                <Card title="Airtel Money" subtitle="Alternative mobile wallet for Kenyan customers">
-                  <ToggleRow label="Enable Airtel Money" description="Accept payments from Airtel subscribers" checked={airtelEnabled} onChange={(v) => change(setAirtelEnabled, v)} />
-                  {airtelEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
-                      <Field label="Client ID" value={airtelClientId} onChange={(v) => change(setAirtelClientId, v)} mono />
-                      <SecretField label="Client secret" value={airtelClientSecret} onChange={(v) => change(setAirtelClientSecret, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                    </div>
-                  )}
-                </Card>
-
-                <Card title="Stripe" subtitle="International card payments">
-                  <ToggleRow label="Enable Stripe" description="Accept Visa, Mastercard, and Apple Pay" checked={stripeEnabled} onChange={(v) => change(setStripeEnabled, v)} />
-                  {stripeEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
-                      <Field label="Publishable key" value={stripePublishable} onChange={(v) => change(setStripePublishable, v)} mono />
-                      <SecretField label="Secret key" value={stripeSecret} onChange={(v) => change(setStripeSecret, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                    </div>
-                  )}
-                </Card>
-
-                <Card title="Cash on delivery" subtitle="Payment collected by the courier">
-                  <ToggleRow label="Enable cash on delivery" description="Allow customers to pay on delivery" checked={codEnabled} onChange={(v) => change(setCodEnabled, v)} />
+                  <ToggleRow label="M-Pesa (Safaricom Daraja)" description="Instant STK Push payments to customer phones" checked={mpesaEnabled} onChange={(v) => change(setMpesaEnabled, v)} />
+                  <ToggleRow label="Airtel Money" description="Alternative mobile wallet for Airtel subscribers" checked={airtelEnabled} onChange={(v) => change(setAirtelEnabled, v)} />
+                  <ToggleRow label="Stripe" description="International card payments (Visa, Mastercard, Apple Pay)" checked={stripeEnabled} onChange={(v) => change(setStripeEnabled, v)} />
+                  <ToggleRow label="Cash on delivery" description="Payment collected by the courier" checked={codEnabled} onChange={(v) => change(setCodEnabled, v)} />
                   {codEnabled && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
                       <Field label="COD surcharge (KES)" value={codFee} onChange={(v) => change(setCodFee, v)} type="number" />
@@ -643,7 +560,42 @@ export default function StoreSettingsPage() {
                   )}
                 </Card>
 
-                <Card title="Transaction settings" subtitle="Limits, fees, and automatic actions">
+                <Card title="Checkout method order" subtitle="Drag the priority of payment options shown at checkout">
+                  <ul className="border border-slate-200 rounded-sm divide-y divide-slate-100">
+                    {paymentMethodsOrder.map((method, idx) => (
+                      <li key={method} className="p-2 flex items-center justify-between gap-2 text-[13px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-6 h-6 rounded-sm bg-slate-100 text-slate-600 flex items-center justify-center font-mono text-[13px] shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="font-medium text-slate-900 truncate">{method}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => movePaymentMethod(idx, idx - 1)}
+                            disabled={idx === 0}
+                            className="p-1.5 rounded-sm border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-30"
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => movePaymentMethod(idx, idx + 1)}
+                            disabled={idx === paymentMethodsOrder.length - 1}
+                            className="p-1.5 rounded-sm border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-30"
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+
+                <Card title="Transaction settings" subtitle="Order amount limits and automatic actions">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[13px]">
                     <Field label="Minimum order (KES)" value={txnMinAmount} onChange={(v) => change(setTxnMinAmount, v)} type="number" />
                     <Field label="Maximum order (KES)" value={txnMaxAmount} onChange={(v) => change(setTxnMaxAmount, v)} type="number" />
@@ -714,10 +666,11 @@ export default function StoreSettingsPage() {
                             <td className="py-2 px-3">
                               <button
                                 onClick={() => toggleZone(z.id)}
-                                className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${z.enabled
+                                className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${
+                                  z.enabled
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                     : 'bg-slate-100 text-slate-500 border-slate-200'
-                                  }`}
+                                }`}
                               >
                                 {z.enabled ? 'Active' : 'Disabled'}
                               </button>
@@ -761,24 +714,15 @@ export default function StoreSettingsPage() {
                   </div>
                 </Card>
 
-                <Card title="Channel configuration" subtitle="Admin recipients and provider credentials">
-                  <SubSection title="Email">
-                    <Field label="Admin alert email" value={notifAdminEmail} onChange={(v) => change(setNotifAdminEmail, v)} type="email" />
-                  </SubSection>
-
-                  <SubSection title="SMS">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
-                      <Field label="Sender ID" value={notifSmsSenderId} onChange={(v) => change(setNotifSmsSenderId, v)} mono />
-                      <SecretField label="SMS API key" value={notifSmsApiKey} onChange={(v) => change(setNotifSmsApiKey, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                    </div>
-                  </SubSection>
-
-                  <SubSection title="WhatsApp template">
-                    <TextareaField label="Order confirmation template" value={notifWhatsAppTemplate} onChange={(v) => change(setNotifWhatsAppTemplate, v)} rows={3} mono />
-                    <p className="text-[13px] text-slate-400">
-                      Variables: {'{{customer_name}}'}, {'{{order_id}}'}, {'{{total}}'}, {'{{tracking_url}}'}
+                <Card title="Admin recipient" subtitle="Where internal alerts are sent">
+                  <Field label="Admin alert email" value={notifAdminEmail} onChange={(v) => change(setNotifAdminEmail, v)} type="email" />
+                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2 mt-2">
+                    <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+                    <p className="text-blue-800 text-[13px]">
+                      SMS gateway credentials and WhatsApp templates are configured by your platform
+                      administrator. Contact support to update them.
                     </p>
-                  </SubSection>
+                  </div>
                 </Card>
               </>
             )}
@@ -788,9 +732,9 @@ export default function StoreSettingsPage() {
               <>
                 <Card title="Password" subtitle="Change your admin account password">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[13px]">
-                    <SecretField label="Current password" value={currentPassword} onChange={setCurrentPassword} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                    <SecretField label="New password" value={newPassword} onChange={setNewPassword} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                    <SecretField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
+                    <PasswordField label="Current password" value={currentPassword} onChange={setCurrentPassword} />
+                    <PasswordField label="New password" value={newPassword} onChange={setNewPassword} />
+                    <PasswordField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} />
                   </div>
                   <div className="flex justify-end">
                     <button
@@ -820,8 +764,9 @@ export default function StoreSettingsPage() {
                         <button
                           key={m}
                           onClick={() => change(setTwoFaMethod, m)}
-                          className={`p-2 rounded-sm border text-left capitalize transition ${twoFaMethod === m ? 'border-blue-950 bg-blue-50/40 text-blue-950' : 'bg-white border-slate-200 hover:bg-slate-50'
-                            }`}
+                          className={`p-2 rounded-sm border text-left capitalize transition ${
+                            twoFaMethod === m ? 'border-blue-950 bg-blue-50/40 text-blue-950' : 'bg-white border-slate-200 hover:bg-slate-50'
+                          }`}
                         >
                           <span className="text-[13px] font-medium inline-flex items-center gap-1.5">
                             <Smartphone className="w-3.5 h-3.5" />
@@ -837,7 +782,6 @@ export default function StoreSettingsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
                     <Field label="Session timeout (minutes)" value={sessionTimeout} onChange={(v) => change(setSessionTimeout, v)} type="number" />
                   </div>
-                  <ToggleRow label="Force logout on all devices after password change" checked={sessionForceLogout} onChange={(v) => change(setSessionForceLogout, v)} />
 
                   <SubSection title="Active sessions">
                     <ul className="divide-y divide-slate-100 border border-slate-200 rounded-sm">
@@ -895,99 +839,71 @@ export default function StoreSettingsPage() {
               </>
             )}
 
-            {/* ══════════════ INTEGRATIONS ══════════════ */}
+            {/* ══════════════ INTEGRATIONS (status only) ══════════════ */}
             {activeTab === 'integrations' && (
               <>
+                <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+                  <Globe className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+                  <div className="text-[13px] flex-1 min-w-0">
+                    <p className="font-medium text-blue-950">Read-only integration status</p>
+                    <p className="text-blue-800 mt-0.5">
+                      Connecting, disconnecting, and configuring integrations is handled by your
+                      platform administrator. This view shows what's currently active.
+                    </p>
+                  </div>
+                </div>
+
                 <Card title="Payment APIs" subtitle="Mobile money and card processors">
-                  <IntegrationGrid
-                    items={integrations.filter((i) => i.category === 'Payments')}
-                    onToggle={toggleIntegration}
-                  />
+                  <IntegrationGrid items={integrations.filter((i) => i.category === 'Payments')} />
                 </Card>
 
                 <Card title="Messaging" subtitle="Customer communication channels">
-                  <IntegrationGrid
-                    items={integrations.filter((i) => i.category === 'Messaging')}
-                    onToggle={toggleIntegration}
-                  />
+                  <IntegrationGrid items={integrations.filter((i) => i.category === 'Messaging')} />
                 </Card>
 
                 <Card title="Analytics" subtitle="Traffic and conversion tracking">
-                  <IntegrationGrid
-                    items={integrations.filter((i) => i.category === 'Analytics')}
-                    onToggle={toggleIntegration}
-                  />
+                  <IntegrationGrid items={integrations.filter((i) => i.category === 'Analytics')} />
                 </Card>
 
                 <Card title="Social APIs" subtitle="Shops, pixels, and catalog sync">
-                  <IntegrationGrid
-                    items={integrations.filter((i) => i.category === 'Social')}
-                    onToggle={toggleIntegration}
-                  />
+                  <IntegrationGrid items={integrations.filter((i) => i.category === 'Social')} />
                 </Card>
               </>
             )}
 
             {/* ══════════════ TAX ══════════════ */}
             {activeTab === 'tax' && (
-              <Card title="Tax & KRA eTIMS" subtitle="Kenyan VAT rules and electronic tax invoicing">
+              <Card title="Tax preferences" subtitle="VAT calculation and statutory invoicing">
                 <SubSection title="VAT">
                   <ToggleRow label="Enable VAT calculation" description="Automatically add value-added tax to checkout orders" checked={vatEnabled} onChange={(v) => change(setVatEnabled, v)} />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
-                    <Field label="Default VAT rate (%)" value={vatRate} onChange={(v) => change(setVatRate, v)} type="number" />
-                    <div className="flex items-end pb-2">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={pricesIncludeTax} onChange={(e) => change(setPricesIncludeTax, e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950" />
-                        <span className="font-medium text-slate-700">Catalog prices include VAT</span>
-                      </label>
+                  {vatEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+                      <Field label="Default VAT rate (%)" value={vatRate} onChange={(v) => change(setVatRate, v)} type="number" />
+                      <div className="flex items-end pb-2">
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={pricesIncludeTax}
+                            onChange={(e) => change(setPricesIncludeTax, e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
+                          />
+                          <span className="font-medium text-slate-700">Catalog prices include VAT</span>
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </SubSection>
 
-                <SubSection title="KRA eTIMS fiscal device gateway">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <Field label="KRA PIN" value={etimsPin} onChange={(v) => change(setEtimsPin, v)} mono />
-                    <Field label="Control unit device ID" value={etimsDeviceId} onChange={(v) => change(setEtimsDeviceId, v)} mono />
-                    <SecretField label="eTIMS API secret" value={etimsApiKey} onChange={(v) => change(setEtimsApiKey, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                  </div>
-                  <div className="flex justify-end">
-                    <button onClick={testEtims} className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]">
-                      Test eTIMS connection
-                    </button>
+                <SubSection title="KRA eTIMS fiscal invoices">
+                  <ToggleRow label="Enable eTIMS on paid orders" description="Auto-submit tax invoices to KRA eTIMS when payments succeed" checked={etimsEnabled} onChange={(v) => change(setEtimsEnabled, v)} />
+                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+                    <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+                    <p className="text-blue-800 text-[13px]">
+                      KRA PIN, control unit ID, and eTIMS API credentials are managed by your platform
+                      administrator. Contact support to update them.
+                    </p>
                   </div>
                 </SubSection>
-              </Card>
-            )}
-
-            {/* ══════════════ EMAIL SMTP ══════════════ */}
-            {activeTab === 'email' && (
-              <Card title="Email SMTP gateway" subtitle="Outgoing transactional receipts and notifications">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
-                  <Field label="SMTP host" value={smtpHost} onChange={(v) => change(setSmtpHost, v)} mono />
-                  <Field label="Port" value={smtpPort} onChange={(v) => change(setSmtpPort, v)} mono />
-                  <Field label="SMTP username" value={smtpUser} onChange={(v) => change(setSmtpUser, v)} mono />
-                  <SecretField label="SMTP password" value={smtpPass} onChange={(v) => change(setSmtpPass, v)} show={showSecrets} onToggle={() => setShowSecrets((s) => !s)} />
-                  <SelectField
-                    label="Encryption"
-                    value={smtpEncryption}
-                    onChange={(v) => change(setSmtpEncryption, v)}
-                    options={[
-                      { v: 'TLS', l: 'TLS' },
-                      { v: 'SSL', l: 'SSL' },
-                      { v: 'None', l: 'None' },
-                    ]}
-                  />
-                  <Field label="Sender name" value={fromName} onChange={(v) => change(setFromName, v)} />
-                  <div className="sm:col-span-2">
-                    <Field label="Sender email" value={fromEmail} onChange={(v) => change(setFromEmail, v)} mono />
-                  </div>
-                </div>
-                <div className="flex justify-end pt-1">
-                  <button onClick={testEmail} className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]">
-                    <Send className="w-3.5 h-3.5" />
-                    Send test email
-                  </button>
-                </div>
               </Card>
             )}
           </div>
@@ -1080,7 +996,7 @@ export default function StoreSettingsPage() {
 }
 
 // ============================================================
-// HELPER COMPONENTS (top-level)
+// HELPER COMPONENTS
 // ============================================================
 function Card({
   title,
@@ -1116,13 +1032,11 @@ function Field({
   value,
   onChange,
   type = 'text',
-  mono,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
-  mono?: boolean;
 }) {
   return (
     <label className="block">
@@ -1131,44 +1045,30 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 ${mono ? 'font-mono' : ''
-          }`}
+        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
       />
     </label>
   );
 }
 
-function SecretField({
+function PasswordField({
   label,
   value,
   onChange,
-  show,
-  onToggle,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  show: boolean;
-  onToggle: () => void;
 }) {
   return (
     <label className="block">
       <span className="block font-medium text-slate-700 mb-1">{label}</span>
-      <div className="relative">
-        <input
-          type={show ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 pr-9 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-400"
-        >
-          {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-        </button>
-      </div>
+      <input
+        type="password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+      />
     </label>
   );
 }
@@ -1202,51 +1102,19 @@ function SelectField({
   );
 }
 
-function TextareaField({
-  label,
-  value,
-  onChange,
-  rows = 3,
-  mono,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  rows?: number;
-  mono?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="block font-medium text-slate-700 mb-1">{label}</span>
-      <textarea
-        rows={rows}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950 ${mono ? 'font-mono' : ''
-          }`}
-      />
-    </label>
-  );
-}
-
 function ToggleRow({
   label,
   description,
   checked,
   onChange,
-  danger,
 }: {
   label: string;
   description?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-  danger?: boolean;
 }) {
   return (
-    <label
-      className={`flex items-center justify-between gap-3 border rounded-sm p-2 cursor-pointer ${danger ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-200'
-        }`}
-    >
+    <label className="flex items-center justify-between gap-3 border rounded-sm p-2 cursor-pointer bg-slate-50 border-slate-200">
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-slate-900">{label}</p>
         {description && <p className="text-[13px] text-slate-500 mt-0.5">{description}</p>}
@@ -1255,59 +1123,43 @@ function ToggleRow({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className={`h-4 w-4 rounded border-slate-300 focus:ring-blue-950 ${danger ? 'text-red-600' : 'text-blue-950'
-          }`}
+        className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
       />
     </label>
   );
 }
 
-function IntegrationGrid({
-  items,
-  onToggle,
-}: {
-  items: IntegrationCard[];
-  onToggle: (id: string) => void;
-}) {
+function IntegrationGrid({ items }: { items: IntegrationStatus[] }) {
   if (items.length === 0) {
     return <p className="text-[13px] text-slate-400 italic">No integrations in this category.</p>;
   }
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
       {items.map((item) => (
-        <div key={item.id} className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col justify-between gap-2">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center text-[13px] font-medium text-slate-700 shrink-0">
-                  {item.name.charAt(0)}
-                </span>
-                <p className="text-[13px] font-medium text-slate-900 truncate">{item.name}</p>
-              </div>
-              <span
-                className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border shrink-0 ${item.connected
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                    : 'bg-slate-100 text-slate-500 border-slate-200'
-                  }`}
-              >
-                {item.connected ? 'Connected' : 'Disconnected'}
+        <div key={item.id} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center text-[13px] font-medium text-slate-700 shrink-0">
+                {item.name.charAt(0)}
               </span>
+              <p className="text-[13px] font-medium text-slate-900 truncate">{item.name}</p>
             </div>
-            <p className="text-[13px] text-slate-500 mt-2 leading-relaxed">{item.description}</p>
+            <span
+              className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border shrink-0 ${
+                item.connected
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                  : 'bg-slate-100 text-slate-500 border-slate-200'
+              }`}
+            >
+              {item.connected ? 'Connected' : 'Not connected'}
+            </span>
           </div>
-          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <p className="text-[13px] text-slate-500 leading-relaxed">{item.description}</p>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
             <span className="text-[13px] font-mono text-slate-400 uppercase tracking-wide">
               {item.category}
             </span>
-            <button
-              onClick={() => onToggle(item.id)}
-              className={`px-2.5 py-2 rounded-sm font-medium text-[13px] transition border ${item.connected
-                  ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
-                  : 'bg-blue-950 border-blue-950 text-white hover:bg-blue-900'
-                }`}
-            >
-              {item.connected ? 'Disconnect' : 'Connect'}
-            </button>
+            <span className="text-[13px] text-slate-400">Managed by admin</span>
           </div>
         </div>
       ))}

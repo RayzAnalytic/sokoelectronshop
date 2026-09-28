@@ -1,219 +1,175 @@
-// app/auth/onboarding/steps/step1/page.tsx
-
+// app/onboarding/steps/step1/page.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserCheck, Loader2 } from 'lucide-react';
+import {
+  ShieldCheck,
+  User,
+  Mail,
+  Phone,
+  Lock,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 
-import { onboarding, ApiError, auth, type Step1AccountPayload } from '@/lib/api';
-import { getNextRoute } from '@/lib/onboardingSteps';
-import Field from '@/components/onboarding/Field';
-import StepFooter from '@/components/onboarding/StepFooter';
+export default function Step1AccountPage() {
+  const router = useRouter();
 
-export default function Step1Account() {
-    const router = useRouter();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    const [form, setForm] = useState<Step1AccountPayload>({
-        fullName: '',
-        email: '',
-        phone: '',
-        role: 'Owner',
-        password: '',
-        confirm: '',
-        agreed: false,
-    });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
 
-    const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [errors, setErrors] = useState<Record<string, string>>({});
+    if (!fullName.trim()) return setError('Full name is required');
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) return setError('Enter a valid email');
+    if (!phone.trim()) return setError('Phone number is required');
+    if (password.length < 8) return setError('Password must be at least 8 characters');
+    if (password !== confirmPassword) return setError('Passwords do not match');
 
-    // ── Prefill from backend ──
-    useEffect(() => {
-        setLoading(true);
-        onboarding.getStep1()
-            .then((data) => {
-                setForm((f) => ({
-                    ...f,
-                    fullName: data.fullName || '',
-                    email: data.email || '',
-                    phone: data.phone || '',
-                    role: (data.role as Step1AccountPayload['role']) || 'Owner',
-                }));
-            })
-            .catch(() => {
-                // If prefill fails, leave form empty
-            })
-            .finally(() => setLoading(false));
-    }, []);
+    // TODO: call your API to save account data
+    router.push('/auth/onboarding/steps/step2');
+  };
 
-    // ── Submit ──
-    const handleSubmit = async (): Promise<boolean> => {
-        setSaving(true);
-        setError(null);
-        setErrors({});
-        try {
-            await onboarding.submitStep1({
-                ...form,
-                password: form.password || undefined,
-                confirm: form.confirm || undefined,
-            });
-            // Refresh user cache in case name/email changed
-            try {
-                const me = await auth.me();
-                const refresh = (await import('@/lib/api')).tokenStore.getRefresh();
-                const access = (await import('@/lib/api')).tokenStore.getAccess();
-                if (access && refresh) {
-                    (await import('@/lib/api')).tokenStore.set(access, refresh, me);
-                }
-            } catch {
-                // Non-fatal
-            }
-            return true;
-        } catch (err) {
-            if (err instanceof ApiError) {
-                setErrors(err.fieldErrors());
-                setError(err.nonFieldError());
-            } else {
-                setError('Something went wrong. Please try again.');
-            }
-            return false;
-        } finally {
-            setSaving(false);
-        }
-    };
+  return (
+    <form onSubmit={handleSubmit} className="p-3 sm:p-4 space-y-3">
 
-    const handleContinue = async () => {
-        const ok = await handleSubmit();
-        if (ok) router.push(getNextRoute('step1'));
-    };
+      {/* Step heading */}
+      <header className="border-b border-slate-100 pb-3">
+        <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center mb-2">
+          <ShieldCheck className="h-4 w-4" />
+        </span>
+        <h2 className="text-[15px] font-semibold text-slate-900">
+          Create your owner account
+        </h2>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          This will be the main administrator login for your store.
+        </p>
+      </header>
 
-    const handleSkip = async () => {
-        // Step 1 is required — no skip
-    };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-20 text-slate-400">
-                <Loader2 className="h-5 w-5 animate-spin" />
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-6">
-            <div>
-                <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
-                    Step 1 of 12
-                </p>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-blue-950" />
-                    Confirm your account
-                </h1>
-                <p className="text-xs text-slate-500 mt-1">
-                    This is the owner account for your store. You can add staff later.
-                </p>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-sm p-5 sm:p-6 space-y-4">
-                <Field
-                    label="Full name"
-                    value={form.fullName}
-                    onChange={(v) => setForm({ ...form, fullName: v })}
-                    placeholder="e.g. Wanjiru Kamau"
-                    error={errors.fullName}
-                />
-                <Field
-                    label="Email"
-                    value={form.email}
-                    onChange={(v) => setForm({ ...form, email: v })}
-                    type="email"
-                    placeholder="you@example.com"
-                    error={errors.email}
-                />
-                <Field
-                    label="Phone number"
-                    value={form.phone}
-                    onChange={(v) => setForm({ ...form, phone: v })}
-                    placeholder="+254 7XX XXX XXX"
-                    error={errors.phone}
-                />
-
-                <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                        Role at shop
-                    </label>
-                    <select
-                        value={form.role}
-                        onChange={(e) =>
-                            setForm({ ...form, role: e.target.value as Step1AccountPayload['role'] })
-                        }
-                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-950"
-                    >
-                        <option>Owner</option>
-                        <option>Manager</option>
-                        <option>Staff</option>
-                    </select>
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 space-y-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Change password (optional)
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Field
-                            label="New password"
-                            type="password"
-                            value={form.password ?? ''}
-                            onChange={(v) => setForm({ ...form, password: v })}
-                            error={errors.password}
-                        />
-                        <Field
-                            label="Confirm password"
-                            type="password"
-                            value={form.confirm ?? ''}
-                            onChange={(v) => setForm({ ...form, confirm: v })}
-                            error={errors.confirm}
-                        />
-                    </div>
-                </div>
-
-                <div>
-                    <label className="flex items-center gap-2 cursor-pointer pt-2">
-                        <input
-                            type="checkbox"
-                            checked={form.agreed}
-                            onChange={(e) => setForm({ ...form, agreed: e.target.checked })}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
-                        />
-                        <span className="text-xs text-slate-700">
-                            I agree to the Terms &amp; Privacy Policy
-                        </span>
-                    </label>
-                    {errors.agreed && (
-                        <p className="text-[11px] text-red-600 mt-1">{errors.agreed}</p>
-                    )}
-                </div>
-            </div>
-
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-800 text-xs rounded-sm px-3 py-2">
-                    {error}
-                </div>
-            )}
-
-            <div className="bg-blue-50 border border-blue-100 rounded-sm p-3 text-[11px] text-blue-950">
-                Order notifications and invoices will be sent to this email.
-            </div>
-
-            <StepFooter
-                onContinue={handleContinue}
-                onSkip={handleSkip}
-                loading={saving}
-                currentSlug="step1"
-                optional={false}
-            />
+      {/* Error banner */}
+      {error && (
+        <div className="bg-red-50 border border-red-100 text-red-700 rounded-sm p-2 text-[13px]">
+          {error}
         </div>
-    );
+      )}
+
+      {/* Fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field
+          label="Full name"
+          icon={User}
+          value={fullName}
+          onChange={setFullName}
+          placeholder="e.g. Alex Doe"
+        />
+        <Field
+          label="Email"
+          icon={Mail}
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="alex@store.co.ke"
+        />
+        <Field
+          label="Phone"
+          icon={Phone}
+          value={phone}
+          onChange={setPhone}
+          placeholder="+254 712 345 678"
+        />
+        <div>
+          <label className="block">
+            <span className="block text-[13px] font-medium text-slate-700 mb-1">
+              Password
+            </span>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-9 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-400"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+          </label>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block">
+            <span className="block text-[13px] font-medium text-slate-700 mb-1">
+              Confirm password
+            </span>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your password"
+                className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              />
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <p className="text-[13px] text-slate-400">
+        By continuing you agree to our Terms of Service and Privacy Policy.
+      </p>
+    </form>
+  );
+}
+
+/* ──────── Reusable field ──────── */
+function Field({
+  label,
+  icon: Icon,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+}: {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-[13px] font-medium text-slate-700 mb-1">
+        {label}
+      </span>
+      <div className="relative">
+        <Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+        />
+      </div>
+    </label>
+  );
 }

@@ -11,19 +11,13 @@ import {
   Package,
   Eye,
   Percent,
-  ExternalLink,
   AlertCircle,
-  Settings as SettingsIcon,
   Globe,
   Layers,
-  Link2,
   Video,
   Megaphone,
   ClipboardList,
   BarChart3,
-  ShieldCheck,
-  Lock,
-  Unlock,
   Info,
 } from 'lucide-react';
 import {
@@ -49,25 +43,7 @@ type TikTokTab =
   | 'Content'
   | 'Promotions'
   | 'Orders'
-  | 'Analytics'
-  | 'Settings';
-
-// Capabilities that MAY or MAY NOT be granted to a given merchant account.
-// The UI must only enable the functions that the backend reports as available.
-type CapabilityKey =
-  | 'catalog_sync'
-  | 'content_publish'
-  | 'product_promotion'
-  | 'order_sync'
-  | 'performance_analytics';
-
-interface Capability {
-  key: CapabilityKey;
-  label: string;
-  description: string;
-  granted: boolean;
-  notes?: string;
-}
+  | 'Analytics';
 
 interface SyncedProduct {
   id: string;
@@ -113,40 +89,6 @@ interface TikTokOrder {
   date: string;
   shippingAddress: string;
 }
-
-const INITIAL_CAPABILITIES: Capability[] = [
-  {
-    key: 'catalog_sync',
-    label: 'Product / Catalog Sync',
-    description: 'Push your product catalog, prices, and stock to TikTok Shop.',
-    granted: true,
-  },
-  {
-    key: 'content_publish',
-    label: 'Content Publishing',
-    description: 'Publish live showcases, short videos, and product ads via TikTok API.',
-    granted: true,
-  },
-  {
-    key: 'product_promotion',
-    label: 'Product Promotion',
-    description: 'Create flash deals, coupons, and bundles on TikTok Shop.',
-    granted: true,
-  },
-  {
-    key: 'order_sync',
-    label: 'Order Synchronization',
-    description: 'Pull TikTok Shop orders and push fulfillment status.',
-    granted: true,
-  },
-  {
-    key: 'performance_analytics',
-    label: 'Performance Analytics',
-    description: 'Access views, clicks, GMV, and conversion metrics.',
-    granted: true,
-    notes: 'Only summary-level metrics available on your plan.',
-  },
-];
 
 const INITIAL_PRODUCTS: SyncedProduct[] = [
   { id: 'p1', name: 'Wireless Ergonomic Mechanical Keyboard', sku: 'KB-ERG-01', image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=200&auto=format&fit=crop&q=80', price: 6500, tiktokPrice: 6999, synced: true, lastSynced: '10 mins ago' },
@@ -209,48 +151,25 @@ const TOP_PRODUCTS = [
   { name: 'Smart Home Wi-Fi Router AX3000', sales: 96, revenue: 'KES 863,904', image: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=200&auto=format&fit=crop&q=80' },
 ];
 
-const CAPABILITY_TINTS: Record<CapabilityKey, string> = {
-  catalog_sync: 'bg-blue-50 text-blue-950 border-blue-100',
-  content_publish: 'bg-pink-50 text-pink-700 border-pink-100',
-  product_promotion: 'bg-amber-50 text-amber-700 border-amber-100',
-  order_sync: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  performance_analytics: 'bg-purple-50 text-purple-700 border-purple-100',
-};
-
-const CAPABILITY_ICONS: Record<CapabilityKey, React.ComponentType<{ className?: string }>> = {
-  catalog_sync: ShoppingBag,
-  content_publish: Video,
-  product_promotion: Megaphone,
-  order_sync: ClipboardList,
-  performance_analytics: BarChart3,
+const TOOLTIP_STYLE = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: '2px',
+  color: '#0f172a',
+  fontSize: '13px',
 };
 
 export default function TikTokShopPage() {
   const [isConnected, setIsConnected] = useState(true);
   const [activeTab, setActiveTab] = useState<TikTokTab>('Overview');
-  const [capabilities, setCapabilities] = useState<Capability[]>(INITIAL_CAPABILITIES);
   const [products, setProducts] = useState<SyncedProduct[]>(INITIAL_PRODUCTS);
   const [content, setContent] = useState<TikTokContent[]>(INITIAL_CONTENT);
   const [promotions] = useState<TikTokPromotion[]>(INITIAL_PROMOTIONS);
   const [orders, setOrders] = useState<TikTokOrder[]>(INITIAL_ORDERS);
 
-  const [autoSync, setAutoSync] = useState(true);
-  const [syncInterval, setSyncInterval] = useState('Hourly');
-  const [defaultMarkup, setDefaultMarkup] = useState('8');
-
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isBackdropActive, setIsBackdropActive] = useState(false);
-
   const [selectedOrder, setSelectedOrder] = useState<TikTokOrder | null>(null);
-  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
-  const [showCapabilityModal, setShowCapabilityModal] = useState(false);
-
-  const anyModalOpen =
-    isBackdropActive || showDisconnectModal || selectedOrder !== null || showCapabilityModal;
-
-  const capGranted = (key: CapabilityKey) =>
-    capabilities.find((c) => c.key === key)?.granted ?? false;
 
   useEffect(() => {
     if (toastMessage) {
@@ -260,13 +179,9 @@ export default function TikTokShopPage() {
   }, [toastMessage]);
 
   useEffect(() => {
-    if (!anyModalOpen) return;
+    if (!selectedOrder) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (showDisconnectModal) setShowDisconnectModal(false);
-        else if (selectedOrder) setSelectedOrder(null);
-        else if (showCapabilityModal) setShowCapabilityModal(false);
-      }
+      if (e.key === 'Escape') setSelectedOrder(null);
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
@@ -274,128 +189,62 @@ export default function TikTokShopPage() {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKey);
     };
-  }, [anyModalOpen, showDisconnectModal, selectedOrder, showCapabilityModal]);
+  }, [selectedOrder]);
 
   const toast = (msg: string) => setToastMessage(msg);
 
-  const handleOAuthConnect = () => {
-    setIsBackdropActive(true);
-    setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
-      setIsBackdropActive(false);
-      setIsConnected(true);
-      toast('Connected to TikTok Shop');
-    }, 1400);
-  };
-
   const handleSyncNow = () => {
-    if (!capGranted('catalog_sync')) {
-      toast('Catalog sync not authorized for this account');
-      return;
-    }
-    setIsBackdropActive(true);
     setIsSyncing(true);
     setTimeout(() => {
       setIsSyncing(false);
-      setIsBackdropActive(false);
       setProducts((prev) => prev.map((p) => (p.synced ? { ...p, lastSynced: 'Just now' } : p)));
       toast('Synced catalog & orders');
     }, 1100);
   };
 
   const handleToggleSyncProduct = (id: string) => {
-    if (!capGranted('catalog_sync')) {
-      toast('Catalog sync not authorized for this account');
-      return;
-    }
-    setIsBackdropActive(true);
-    setTimeout(() => {
-      setIsBackdropActive(false);
-      setProducts((prev) =>
-        prev.map((p) => {
-          if (p.id === id) {
-            const next = !p.synced;
-            toast(next ? `Synced "${p.name}"` : `Unsynced "${p.name}"`);
-            return { ...p, synced: next, lastSynced: next ? 'Just now' : p.lastSynced };
-          }
-          return p;
-        })
-      );
-    }, 500);
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          const next = !p.synced;
+          toast(next ? `Synced "${p.name}"` : `Unsynced "${p.name}"`);
+          return { ...p, synced: next, lastSynced: next ? 'Just now' : p.lastSynced };
+        }
+        return p;
+      })
+    );
   };
 
   const handleSyncAll = () => {
-    if (!capGranted('catalog_sync')) {
-      toast('Catalog sync not authorized for this account');
-      return;
-    }
-    setIsBackdropActive(true);
-    setTimeout(() => {
-      setIsBackdropActive(false);
-      setProducts((prev) => prev.map((p) => ({ ...p, synced: true, lastSynced: 'Just now' })));
-      toast('All products synced');
-    }, 900);
+    setProducts((prev) => prev.map((p) => ({ ...p, synced: true, lastSynced: 'Just now' })));
+    toast('All products synced');
   };
 
   const handleFulfillOrder = (orderId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (!capGranted('order_sync')) {
-      toast('Order sync not authorized for this account');
-      return;
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'Shipped' } : o)));
+    toast('Order fulfillment initiated');
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder((prev) => (prev ? { ...prev, status: 'Shipped' } : null));
     }
-    setIsBackdropActive(true);
-    setTimeout(() => {
-      setIsBackdropActive(false);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'Shipped' } : o)));
-      toast('Order fulfillment initiated');
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder((prev) => (prev ? { ...prev, status: 'Shipped' } : null));
-      }
-    }, 700);
   };
 
   const handlePublishContent = () => {
-    if (!capGranted('content_publish')) {
-      toast('Content publishing not authorized for this account');
-      return;
-    }
     toast('Publish dialog would open');
   };
 
   const handleCreatePromotion = () => {
-    if (!capGranted('product_promotion')) {
-      toast('Product promotion not authorized for this account');
-      return;
-    }
     toast('Create promotion dialog would open');
   };
 
-  const confirmDisconnect = () => {
-    setShowDisconnectModal(false);
-    setIsConnected(false);
-    toast('Disconnected from TikTok Shop');
-  };
-
-  const toggleCapability = (key: CapabilityKey) => {
-    setCapabilities((prev) =>
-      prev.map((c) => (c.key === key ? { ...c, granted: !c.granted } : c))
-    );
-    const cap = capabilities.find((c) => c.key === key);
-    if (cap) toast(`${cap.label} ${cap.granted ? 'revoked' : 'granted'} (simulated)`);
-  };
-
-  const TABS: { id: TikTokTab; label: string; icon: React.ComponentType<{ className?: string }>; capability?: CapabilityKey }[] = [
+  const TABS: { id: TikTokTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'Overview', label: 'Overview', icon: TrendingUp },
-    { id: 'Products', label: 'Products', icon: ShoppingBag, capability: 'catalog_sync' },
-    { id: 'Content', label: 'Content', icon: Video, capability: 'content_publish' },
-    { id: 'Promotions', label: 'Promotions', icon: Megaphone, capability: 'product_promotion' },
-    { id: 'Orders', label: 'Orders', icon: ClipboardList, capability: 'order_sync' },
-    { id: 'Analytics', label: 'Analytics', icon: BarChart3, capability: 'performance_analytics' },
-    { id: 'Settings', label: 'Settings', icon: SettingsIcon },
+    { id: 'Products', label: 'Products', icon: ShoppingBag },
+    { id: 'Content', label: 'Content', icon: Video },
+    { id: 'Promotions', label: 'Promotions', icon: Megaphone },
+    { id: 'Orders', label: 'Orders', icon: ClipboardList },
+    { id: 'Analytics', label: 'Analytics', icon: BarChart3 },
   ];
-
-  const visibleTabs = TABS.filter((t) => !t.capability || capGranted(t.capability));
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
@@ -421,22 +270,14 @@ export default function TikTokShopPage() {
               <h1 className="text-[15px] font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
                 TikTok Shop
                 <span
-                  className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${isConnected
+                  className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${
+                    isConnected
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                       : 'bg-slate-100 text-slate-500 border-slate-200'
-                    }`}
+                  }`}
                 >
                   {isConnected ? 'Connected' : 'Disconnected'}
                 </span>
-                {isConnected && (
-                  <button
-                    onClick={() => setShowCapabilityModal(true)}
-                    className="inline-flex items-center gap-1 text-[13px] font-medium text-blue-950 hover:underline"
-                  >
-                    <Info className="w-3 h-3" />
-                    {capabilities.filter((c) => c.granted).length}/{capabilities.length} capabilities
-                  </button>
-                )}
               </h1>
               <p className="text-[13px] text-slate-500 truncate">
                 Live storefront, synced inventory, promotions, and orders
@@ -447,17 +288,9 @@ export default function TikTokShopPage() {
           {isConnected && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowCapabilityModal(true)}
-                className="hidden sm:inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Capabilities
-              </button>
-              <button
                 onClick={handleSyncNow}
-                disabled={isSyncing || !capGranted('catalog_sync')}
+                disabled={isSyncing}
                 className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
-                title={!capGranted('catalog_sync') ? 'Catalog sync not authorized' : undefined}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-950' : ''}`} />
                 {isSyncing ? 'Syncing…' : 'Sync now'}
@@ -469,27 +302,6 @@ export default function TikTokShopPage() {
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
 
-        {/* CAPABILITY WARNING */}
-        {isConnected && (
-          <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
-            <ShieldCheck className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
-            <div className="text-[13px] flex-1 min-w-0">
-              <p className="font-medium text-blue-950">Adaptive TikTok Shop integration</p>
-              <p className="text-blue-800 mt-0.5">
-                TikTok Shop API access is granted per merchant and per region. Only the functions
-                your account has been authorised for are shown below. Unauthorised tabs and actions
-                are hidden or disabled automatically.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowCapabilityModal(true)}
-              className="text-[13px] font-medium text-blue-950 hover:underline shrink-0"
-            >
-              Review
-            </button>
-          </div>
-        )}
-
         {/* NOT CONNECTED */}
         {!isConnected ? (
           <div className="max-w-xl mx-auto my-8 bg-white border border-slate-200 rounded-sm p-6 text-center space-y-4">
@@ -498,72 +310,29 @@ export default function TikTokShopPage() {
             </span>
             <div>
               <h2 className="text-[15px] font-semibold text-slate-900">
-                Connect your TikTok Shop
+                TikTok Shop is not connected
               </h2>
               <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto">
-                Sync your catalog, publish content, run promotions, and pull orders. Only the
-                capabilities granted to your TikTok seller account will be activated.
+                Your TikTok Shop integration is managed by the platform administrator.
+                Contact support if you believe this is an error.
               </p>
             </div>
-            <button
-              onClick={handleOAuthConnect}
-              disabled={isSyncing}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition disabled:opacity-70 inline-flex items-center justify-center gap-1.5"
-            >
-              {isSyncing ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  Authenticating…
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Connect TikTok Shop (OAuth)
-                </>
-              )}
-            </button>
-            <p className="text-[13px] text-slate-400">
-              Secure API integration compliant with TikTok Shop Developer Terms.
-            </p>
           </div>
         ) : (
           <>
-            {/* CAPABILITY CHIPS */}
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[13px] font-medium text-slate-500 inline-flex items-center gap-1 pr-1">
-                <Link2 className="w-3 h-3" />
-                Active capabilities:
-              </span>
-              {capabilities.map((cap) => {
-                const Icon = CAPABILITY_ICONS[cap.key];
-                return (
-                  <span
-                    key={cap.key}
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-sm text-[13px] font-medium border ${cap.granted
-                        ? CAPABILITY_TINTS[cap.key]
-                        : 'bg-slate-100 text-slate-400 border-slate-200 line-through'
-                      }`}
-                    title={cap.granted ? cap.description : `${cap.label} — not granted`}
-                  >
-                    <Icon className="w-3 h-3" />
-                    {cap.label}
-                  </span>
-                );
-              })}
-            </div>
-
             {/* TABS */}
             <div className="bg-white border border-slate-200 rounded-sm p-0.5 inline-flex gap-0.5 overflow-x-auto max-w-full">
-              {visibleTabs.map((tab) => {
+              {TABS.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
+                      activeTab === tab.id
                         ? 'bg-slate-900 text-white'
                         : 'text-slate-600 hover:bg-slate-100'
-                      }`}
+                    }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
                     {tab.label}
@@ -659,7 +428,7 @@ export default function TikTokShopPage() {
             )}
 
             {/* PRODUCTS */}
-            {activeTab === 'Products' && capGranted('catalog_sync') && (
+            {activeTab === 'Products' && (
               <div className="space-y-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
                   <div>
@@ -717,10 +486,11 @@ export default function TikTokShopPage() {
                             </td>
                             <td className="py-2 px-3">
                               <span
-                                className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${prod.synced
+                                className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${
+                                  prod.synced
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                     : 'bg-slate-100 text-slate-500 border-slate-200'
-                                  }`}
+                                }`}
                               >
                                 {prod.synced ? 'Synced' : 'Unsynced'}
                               </span>
@@ -731,10 +501,11 @@ export default function TikTokShopPage() {
                             <td className="py-2 px-3 text-right">
                               <button
                                 onClick={() => handleToggleSyncProduct(prod.id)}
-                                className={`px-2.5 py-2 rounded-sm font-medium text-[13px] border transition ${prod.synced
+                                className={`px-2.5 py-2 rounded-sm font-medium text-[13px] border transition ${
+                                  prod.synced
                                     ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                                     : 'bg-slate-900 border-slate-900 text-white hover:bg-slate-800'
-                                  }`}
+                                }`}
                               >
                                 {prod.synced ? 'Unsync' : 'Add to TikTok'}
                               </button>
@@ -749,7 +520,7 @@ export default function TikTokShopPage() {
             )}
 
             {/* CONTENT */}
-            {activeTab === 'Content' && capGranted('content_publish') && (
+            {activeTab === 'Content' && (
               <div className="space-y-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
                   <div>
@@ -782,14 +553,15 @@ export default function TikTokShopPage() {
                           className="w-full h-full object-cover"
                         />
                         <span
-                          className={`absolute top-2 left-2 px-2 py-0.5 rounded-sm text-[13px] font-medium backdrop-blur-sm ${c.status === 'Published'
+                          className={`absolute top-2 left-2 px-2 py-0.5 rounded-sm text-[13px] font-medium backdrop-blur-sm ${
+                            c.status === 'Published'
                               ? 'bg-emerald-500 text-white'
                               : c.status === 'Scheduled'
                                 ? 'bg-blue-500 text-white'
                                 : c.status === 'Rejected'
                                   ? 'bg-red-500 text-white'
                                   : 'bg-slate-800/80 text-white'
-                            }`}
+                          }`}
                         >
                           {c.status}
                         </span>
@@ -818,7 +590,7 @@ export default function TikTokShopPage() {
             )}
 
             {/* PROMOTIONS */}
-            {activeTab === 'Promotions' && capGranted('product_promotion') && (
+            {activeTab === 'Promotions' && (
               <div className="space-y-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
                   <div>
@@ -863,12 +635,13 @@ export default function TikTokShopPage() {
                             </td>
                             <td className="py-2 px-3">
                               <span
-                                className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${p.status === 'Active'
+                                className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${
+                                  p.status === 'Active'
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                     : p.status === 'Scheduled'
                                       ? 'bg-blue-50 text-blue-950 border-blue-100'
                                       : 'bg-slate-100 text-slate-500 border-slate-200'
-                                  }`}
+                                }`}
                               >
                                 {p.status}
                               </span>
@@ -883,7 +656,7 @@ export default function TikTokShopPage() {
             )}
 
             {/* ORDERS */}
-            {activeTab === 'Orders' && capGranted('order_sync') && (
+            {activeTab === 'Orders' && (
               <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                 <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                   <p className="text-[13px] font-medium text-slate-700">
@@ -933,12 +706,13 @@ export default function TikTokShopPage() {
                           </td>
                           <td className="py-2 px-3">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${ord.status === 'Delivered'
+                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${
+                                ord.status === 'Delivered'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                   : ord.status === 'Shipped'
                                     ? 'bg-blue-50 text-blue-950 border-blue-100'
                                     : 'bg-amber-50 text-amber-700 border-amber-100'
-                                }`}
+                              }`}
                             >
                               {ord.status}
                             </span>
@@ -964,7 +738,7 @@ export default function TikTokShopPage() {
             )}
 
             {/* ANALYTICS */}
-            {activeTab === 'Analytics' && capGranted('performance_analytics') && (
+            {activeTab === 'Analytics' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                   <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
@@ -978,7 +752,7 @@ export default function TikTokShopPage() {
                         <XAxis dataKey="day" stroke="#94a3b8" fontSize={13} />
                         <YAxis stroke="#94a3b8" fontSize={13} />
                         <Tooltip contentStyle={TOOLTIP_STYLE} />
-                        <Bar dataKey="views" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="views" fill="#ec4899" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1034,104 +808,6 @@ export default function TikTokShopPage() {
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* SETTINGS */}
-            {activeTab === 'Settings' && (
-              <div className="max-w-2xl bg-white border border-slate-200 rounded-sm p-2 space-y-3">
-                <p className="text-[15px] font-semibold text-slate-900 border-b border-slate-100 pb-2 inline-flex items-center gap-2">
-                  <SettingsIcon className="w-4 h-4 text-slate-900" />
-                  TikTok Shop integration settings
-                </p>
-
-                <div className="space-y-3 text-[13px]">
-                  <div>
-                    <label className="block font-medium text-slate-700 mb-1">
-                      TikTok Shop ID (read-only)
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value="TT_SHOP_KE_88492019382"
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[13px] text-slate-600 font-mono"
-                      />
-                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium px-3 py-2 rounded-sm text-[13px]">
-                        Verified
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
-                    <Info className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
-                    <p className="text-blue-800 text-[13px]">
-                      Capabilities are determined by TikTok based on your seller tier, region, and
-                      approved API access. Revoked capabilities are automatically hidden from the
-                      navigation.
-                    </p>
-                  </div>
-
-                  <label className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-sm p-2 cursor-pointer">
-                    <div>
-                      <p className="font-medium text-slate-900">Auto-sync catalog & inventory</p>
-                      <p className="text-[13px] text-slate-500 mt-0.5">
-                        Sync stock quantities across both platforms
-                      </p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={autoSync}
-                      disabled={!capGranted('catalog_sync')}
-                      onChange={(e) => setAutoSync(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 disabled:opacity-50"
-                    />
-                  </label>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-medium text-slate-700 mb-1">
-                        Sync interval
-                      </label>
-                      <select
-                        value={syncInterval}
-                        onChange={(e) => setSyncInterval(e.target.value)}
-                        disabled={!capGranted('catalog_sync')}
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-slate-900 disabled:opacity-50"
-                      >
-                        <option value="Real-time">Real-time (webhook)</option>
-                        <option value="Hourly">Every hour</option>
-                        <option value="Daily">Once daily</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block font-medium text-slate-700 mb-1">
-                        Default markup %
-                      </label>
-                      <input
-                        type="number"
-                        value={defaultMarkup}
-                        onChange={(e) => setDefaultMarkup(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-slate-900"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-red-600">Disconnect TikTok Shop</p>
-                      <p className="text-[13px] text-slate-400">
-                        Halts automated inventory syncing and order ingestion.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setShowDisconnectModal(true)}
-                      className="bg-white border border-red-200 hover:bg-red-50 text-red-600 font-medium px-3 py-2 rounded-sm text-[13px]"
-                    >
-                      Disconnect
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1205,7 +881,7 @@ export default function TikTokShopPage() {
               >
                 Close
               </button>
-              {selectedOrder.status === 'To Ship' && capGranted('order_sync') && (
+              {selectedOrder.status === 'To Ship' && (
                 <button
                   onClick={(e) => handleFulfillOrder(selectedOrder.id, e)}
                   className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 rounded-sm text-[13px]"
@@ -1213,135 +889,6 @@ export default function TikTokShopPage() {
                   Fulfill order
                 </button>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CAPABILITY MODAL */}
-      {showCapabilityModal && (
-        <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
-          onClick={() => setShowCapabilityModal(false)}
-        >
-          <div
-            className="bg-white border border-slate-200 rounded-sm max-w-lg w-full max-h-[90vh] flex flex-col shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
-              <div className="min-w-0">
-                <h3 className="text-[15px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-950" />
-                  TikTok Shop capabilities
-                </h3>
-                <p className="text-[13px] text-slate-500 mt-0.5">
-                  Only authorised functions are enabled in this module
-                </p>
-              </div>
-              <button
-                onClick={() => setShowCapabilityModal(false)}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-2 text-[13px]">
-              {capabilities.map((cap) => {
-                const Icon = CAPABILITY_ICONS[cap.key];
-                return (
-                  <div
-                    key={cap.key}
-                    className={`border rounded-sm p-2 flex items-start gap-2 ${cap.granted
-                        ? 'border-slate-200 bg-white'
-                        : 'border-slate-200 bg-slate-50 opacity-75'
-                      }`}
-                  >
-                    <span
-                      className={`w-8 h-8 rounded-sm flex items-center justify-center border shrink-0 ${CAPABILITY_TINTS[cap.key]}`}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-slate-900">{cap.label}</p>
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border ${cap.granted
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                              : 'bg-slate-100 text-slate-500 border-slate-200'
-                            }`}
-                        >
-                          {cap.granted ? (
-                            <Unlock className="w-3 h-3" />
-                          ) : (
-                            <Lock className="w-3 h-3" />
-                          )}
-                          {cap.granted ? 'Granted' : 'Not granted'}
-                        </span>
-                      </div>
-                      <p className="text-[13px] text-slate-500 mt-1">{cap.description}</p>
-                      {cap.notes && (
-                        <p className="text-[13px] text-slate-400 italic mt-1">Note: {cap.notes}</p>
-                      )}
-
-                      <button
-                        onClick={() => toggleCapability(cap.key)}
-                        className="mt-2 text-[13px] font-medium text-blue-950 hover:underline"
-                      >
-                        {cap.granted ? 'Simulate revoke' : 'Simulate grant'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
-              <button
-                onClick={() => setShowCapabilityModal(false)}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DISCONNECT CONFIRM */}
-      {showDisconnectModal && (
-        <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
-          onClick={() => setShowDisconnectModal(false)}
-        >
-          <div
-            className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl text-center space-y-3 text-[13px]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-10 h-10 rounded-sm bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-              <AlertCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-[15px] font-semibold text-slate-900">
-                Disconnect TikTok Shop?
-              </h3>
-              <p className="text-slate-500 mt-1">
-                Product inventory sync and order tracking will be disabled until reconnected.
-              </p>
-            </div>
-            <div className="flex justify-center gap-2 pt-1">
-              <button
-                onClick={() => setShowDisconnectModal(false)}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDisconnect}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded-sm text-[13px]"
-              >
-                Disconnect
-              </button>
             </div>
           </div>
         </div>
@@ -1382,11 +929,3 @@ function KpiCard({
     </div>
   );
 }
-
-const TOOLTIP_STYLE = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #e2e8f0',
-  borderRadius: '6px',
-  color: '#0f172a',
-  fontSize: '13px',
-};

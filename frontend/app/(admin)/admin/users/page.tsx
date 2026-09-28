@@ -5,7 +5,6 @@ import {
   Users as UsersIcon,
   Shield,
   UserPlus,
-  Edit3,
   Trash2,
   CheckCircle2,
   X,
@@ -26,6 +25,8 @@ import {
 // --- TYPES ---
 // NOTE: System users are STAFF who operate the dashboard.
 // Customers (buyers) are managed separately in the Customers section.
+// Integrations, billing, and platform config are handled by the developer
+// outside this UI.
 
 type UsersTab = 'users' | 'roles' | 'permissions';
 type UserStatus = 'Active' | 'Invited' | 'Suspended';
@@ -92,11 +93,11 @@ const INITIAL_ROLES: RoleCard[] = [
   {
     id: 'rol-1',
     name: 'Administrator',
-    description: 'Full access to all storefront settings, billing, integrations, users, and financial data.',
+    description: 'Full access to storefront operations, staff, orders, products, and reports. Platform infrastructure is managed by the developer.',
     userCount: 1,
     color: 'bg-red-50 text-red-700 border-red-100',
     icon: Crown,
-    scope: 'Full platform control',
+    scope: 'Full store control',
   },
   {
     id: 'rol-2',
@@ -154,7 +155,9 @@ const INITIAL_ROLES: RoleCard[] = [
   },
 ];
 
-// --- PERMISSION MATRIX: modules × roles ---
+// --- PERMISSION MATRIX: store-operation modules only ---
+// Removed: Settings & Integrations, Billing & Subscription
+// Those are handled by the developer outside this UI.
 const INITIAL_PERMISSIONS: PermissionRow[] = [
   { module: 'Products & Catalog', group: 'Catalog', roles: { Administrator: true, Manager: true, 'Sales Staff': true, 'Inventory Staff': true, 'Marketing Staff': true, 'Support Staff': false, Customer: false } },
   { module: 'Inventory & Stock', group: 'Catalog', roles: { Administrator: true, Manager: true, 'Sales Staff': false, 'Inventory Staff': true, 'Marketing Staff': false, 'Support Staff': false, Customer: false } },
@@ -167,8 +170,6 @@ const INITIAL_PERMISSIONS: PermissionRow[] = [
   { module: 'Support Tickets', group: 'Support', roles: { Administrator: true, Manager: true, 'Sales Staff': false, 'Inventory Staff': false, 'Marketing Staff': false, 'Support Staff': true, Customer: false } },
   { module: 'Analytics & Reports', group: 'Insights', roles: { Administrator: true, Manager: true, 'Sales Staff': true, 'Inventory Staff': true, 'Marketing Staff': true, 'Support Staff': false, Customer: false } },
   { module: 'Users & Roles', group: 'Admin', roles: { Administrator: true, Manager: false, 'Sales Staff': false, 'Inventory Staff': false, 'Marketing Staff': false, 'Support Staff': false, Customer: false } },
-  { module: 'Settings & Integrations', group: 'Admin', roles: { Administrator: true, Manager: false, 'Sales Staff': false, 'Inventory Staff': false, 'Marketing Staff': false, 'Support Staff': false, Customer: false } },
-  { module: 'Billing & Subscription', group: 'Admin', roles: { Administrator: true, Manager: false, 'Sales Staff': false, 'Inventory Staff': false, 'Marketing Staff': false, 'Support Staff': false, Customer: false } },
   { module: 'My Orders', group: 'Customer', roles: { Administrator: false, Manager: false, 'Sales Staff': false, 'Inventory Staff': false, 'Marketing Staff': false, 'Support Staff': false, Customer: true } },
   { module: 'My Profile & Wishlist', group: 'Customer', roles: { Administrator: false, Manager: false, 'Sales Staff': false, 'Inventory Staff': false, 'Marketing Staff': false, 'Support Staff': false, Customer: true } },
 ];
@@ -343,7 +344,7 @@ export default function UsersAndRolesPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Users & Roles</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              System staff accounts and permission boundaries — separate from customers
+              Staff accounts and store-operation permissions — separate from customers
             </p>
           </div>
           <button

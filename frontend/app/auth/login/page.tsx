@@ -1,10 +1,10 @@
+// app/auth/login/page.tsx
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { auth, onboarding, ApiError } from '@/lib/api';
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+const POST_LOGIN_REDIRECT = '/auth/onboarding';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
@@ -13,51 +13,13 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [gsiReady, setGsiReady] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
     identifier?: string;
     password?: string;
   }>({});
 
-  const googleInitRef = useRef(false);
-  const tokenSubmittedRef = useRef(false); // 👈 guards against double-submit
-
   const isBusy = loading || googleLoading;
-
-  // ── Load Google Identity Services once ──
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (googleInitRef.current) return;
-
-    const existing = document.getElementById('google-gsi-script');
-    if (existing) {
-      googleInitRef.current = true;
-      // @ts-expect-error — window.google is added by the GSI script
-      if (window.google?.accounts?.oauth2) {
-        setGsiReady(true);
-      } else {
-        const interval = setInterval(() => {
-          // @ts-expect-error
-          if (window.google?.accounts?.oauth2) {
-            setGsiReady(true);
-            clearInterval(interval);
-          }
-        }, 100);
-        return () => clearInterval(interval);
-      }
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = 'google-gsi-script';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setGsiReady(true);
-    document.head.appendChild(script);
-    googleInitRef.current = true;
-  }, []);
 
   // ── Validation ──
   const validateForm = () => {
@@ -76,24 +38,7 @@ export default function LoginPage() {
     return Object.keys(errors).length === 0;
   };
 
-  // ── Post-login redirect ──
-  const redirectAfterLogin = async () => {
-    try {
-      const progress = await onboarding.getProgress();
-      if (
-        progress.status === 'NOT_STARTED' ||
-        progress.status === 'IN_PROGRESS'
-      ) {
-        window.location.href = '/auth/onboarding';
-      } else {
-        window.location.href = '/pages/account';
-      }
-    } catch {
-      window.location.href = '/pages/account';
-    }
-  };
-
-  // ── Email + password login ──
+  // ── Email + password login (frontend only) ──
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
@@ -103,144 +48,56 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    try {
-      await auth.login(
-        {
-          email: identifier.trim().toLowerCase(),
-          password,
-        },
-        rememberMe
-      );
-      await redirectAfterLogin();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        const fields = err.fieldErrors();
-        const nfe = err.nonFieldError();
-
-        if (fields.identifier || fields.email) {
-          setFieldErrors((prev) => ({
-            ...prev,
-            identifier: fields.identifier || fields.email,
-          }));
-        }
-        if (fields.password) {
-          setFieldErrors((prev) => ({ ...prev, password: fields.password }));
-        }
-
-        setError(nfe || err.message || 'Sign-in failed.');
-      } else {
-        setError('Could not reach the server. Please try again.');
-      }
-    } finally {
+    // Simulate a short request so the loading state is visible
+    setTimeout(() => {
       setLoading(false);
-    }
+      window.location.href = POST_LOGIN_REDIRECT;
+    }, 600);
   };
 
-  // ── Google Sign-In (OAuth 2.0 token flow — no FedCM, no One Tap) ──
+  // ── Google Sign-In (placeholder — not wired yet) ──
   const handleGoogleSignIn = () => {
     setError('');
     setFieldErrors({});
-    tokenSubmittedRef.current = false;   // 👈 reset guard for a new attempt
-
-    if (!GOOGLE_CLIENT_ID) {
-      setError('Google sign-in is not configured. Contact support.');
-      return;
-    }
-
-    // @ts-expect-error — window.google is added by the GSI script
-    const google = window.google;
-    if (!google?.accounts?.oauth2) {
-      setError('Google Sign-In is still loading. Please try again in a moment.');
-      return;
-    }
-
     setGoogleLoading(true);
-
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile',
-      callback: async (tokenResponse: {
-        access_token?: string;
-        error?: string;
-      }) => {
-        // 👇 Prevent the same token from being submitted twice.
-        // Google access tokens for the `userinfo` endpoint are single-use,
-        // so a second submit with the same token would fail.
-        if (tokenSubmittedRef.current) return;
-        tokenSubmittedRef.current = true;
-
-        if (!tokenResponse.access_token) {
-          setError('Google sign-in was cancelled or failed.');
-          setGoogleLoading(false);
-          return;
-        }
-
-        try {
-          await auth.loginWithGoogle(tokenResponse.access_token, true);
-          await redirectAfterLogin();
-        } catch (err) {
-          if (err instanceof ApiError) {
-            setError(err.nonFieldError() || err.message);
-          } else {
-            setError('Google sign-in failed. Please try again.');
-          }
-        } finally {
-          setGoogleLoading(false);
-        }
-      },
-    });
-
-    client.requestAccessToken();
+    setTimeout(() => {
+      setGoogleLoading(false);
+      setError('Google sign-in is not connected yet.');
+    }, 500);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-sm shadow-sm py-6 px-5 sm:px-8">
-
-        {/* Brand Logo & Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-950 text-white rounded-sm font-semibold text-[15px] mb-3">
-            S
-          </div>
-          <h1 className="text-[15px] font-semibold text-slate-900 tracking-tight">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
+      <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
+        {/* Brand */}
+        <header className="text-center space-y-2 pt-2">
+          
+          <h1 className="text-[18px] font-semibold text-slate-900">
             Welcome back
           </h1>
-          <p className="text-[13px] text-slate-600 mt-1">
+          <p className="text-[13px] text-slate-500">
             Sign in to access your account.
           </p>
-        </div>
+        </header>
 
-        {/* Authentication Error */}
+        {/* Global error */}
         {error && (
-          <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded-sm text-[13px] text-red-700 flex items-start gap-2">
-            <svg
-              className="w-4 h-4 text-red-500 mt-0.5 shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-            <span>{error}</span>
+          <div className="bg-rose-50 border border-rose-200 rounded-sm px-3 py-2 text-[12px] text-rose-700">
+            {error}
           </div>
         )}
 
-        {/* Google Sign In */}
+        {/* Google Sign In (placeholder) */}
         <button
           type="button"
           onClick={handleGoogleSignIn}
-          disabled={isBusy || !gsiReady}
-          className="w-full flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-medium py-2 px-4 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isBusy}
+          className="w-full inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium px-4 py-2.5 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {googleLoading ? (
             <>
               <svg
-                className="animate-spin h-4 w-4 text-slate-600"
+                className="animate-spin h-3.5 w-3.5 text-slate-500"
                 fill="none"
                 viewBox="0 0 24 24"
               >
@@ -269,49 +126,36 @@ export default function LoginPage() {
         </button>
 
         {/* Divider */}
-        <div className="my-5 flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <span className="flex-1 h-px bg-slate-200" />
-          <span className="text-[13px] text-slate-400 font-medium">
+          <span className="text-[12px] text-slate-400 font-medium">
             or sign in with email
           </span>
           <span className="flex-1 h-px bg-slate-200" />
         </div>
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          {/* Email */}
-          <div>
-            <label className="block text-[13px] font-medium text-slate-700 mb-1">
-              Email address
-            </label>
-            <input
-              type="email"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              disabled={isBusy}
-              autoComplete="email"
-              placeholder="name@example.com"
-              className={`w-full px-3 py-2 text-[13px] bg-white border rounded-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.identifier
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'border-slate-300 focus:border-blue-950 focus:ring-blue-950'
-                }`}
-            />
-            {fieldErrors.identifier && (
-              <p className="text-[13px] text-red-600 mt-1">
-                {fieldErrors.identifier}
-              </p>
-            )}
-          </div>
+        {/* Login form */}
+        <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+          <Field
+            label="Email address"
+            type="email"
+            value={identifier}
+            onChange={setIdentifier}
+            placeholder="name@example.com"
+            autoComplete="email"
+            disabled={isBusy}
+            error={fieldErrors.identifier}
+          />
 
           {/* Password */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[13px] font-medium text-slate-700">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-[12px] font-medium text-slate-700">
                 Password
               </label>
               <Link
                 href="/auth/forgot-password"
-                className="text-[13px] font-medium text-blue-950 hover:underline"
+                className="text-[12px] font-medium text-blue-950 hover:underline"
               >
                 Forgot password?
               </Link>
@@ -324,56 +168,51 @@ export default function LoginPage() {
                 disabled={isBusy}
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className={`w-full px-3 py-2 pr-14 text-[13px] bg-white border rounded-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.password
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-slate-300 focus:border-blue-950 focus:ring-blue-950'
-                  }`}
+                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
+                  fieldErrors.password
+                    ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
+                    : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
+                }`}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={isBusy}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-[13px] text-slate-500 hover:text-slate-700 disabled:opacity-50"
                 tabIndex={-1}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-[12px] font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
             {fieldErrors.password && (
-              <p className="text-[13px] text-red-600 mt-1">
+              <p className="text-[11px] text-rose-600">
                 {fieldErrors.password}
               </p>
             )}
           </div>
 
           {/* Remember me */}
-          <div className="flex items-center">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
-              id="remember-me"
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
               disabled={isBusy}
-              className="h-4 w-4 text-blue-950 focus:ring-blue-950 border-slate-300 rounded-sm cursor-pointer"
+              className="h-4 w-4 accent-blue-950 shrink-0 cursor-pointer"
             />
-            <label
-              htmlFor="remember-me"
-              className="ml-2 block text-[13px] text-slate-700 cursor-pointer"
-            >
-              Remember me
-            </label>
-          </div>
+            <span className="text-[13px] text-slate-700">Remember me</span>
+          </label>
 
           {/* Submit */}
           <button
             type="submit"
             disabled={isBusy}
-            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <>
                 <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  className="animate-spin h-3.5 w-3.5 text-white"
                   fill="none"
                   viewBox="0 0 24 24"
                 >
@@ -399,8 +238,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Register Link */}
-        <div className="mt-6 text-center text-[13px] text-slate-600">
+        {/* Register link */}
+        <div className="text-center text-[13px] text-slate-600 pt-1">
           Don&apos;t have an account?{' '}
           <Link
             href="/auth/register"
@@ -409,13 +248,55 @@ export default function LoginPage() {
             Register now
           </Link>
         </div>
-
       </div>
     </div>
   );
 }
 
-/* ───────── Google brand icon ───────── */
+/* ---------- Field ---------- */
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  autoComplete,
+  disabled,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  autoComplete?: string;
+  disabled?: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[12px] font-medium text-slate-700">
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        disabled={disabled}
+        className={`w-full bg-white border rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
+          error
+            ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
+            : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
+        }`}
+      />
+      {error && <p className="text-[11px] text-rose-600">{error}</p>}
+    </div>
+  );
+}
+
+/* ---------- Google brand icon ---------- */
 function GoogleIcon() {
   return (
     <svg

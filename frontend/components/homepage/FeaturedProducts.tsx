@@ -1,3 +1,4 @@
+// components/featuredproducts/FeaturedProducts.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -22,6 +23,16 @@ interface Product {
     href: string;
     slug: string;
     stockCount: number;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Currency helper — Kenyan Shilling
+// ─────────────────────────────────────────────────────────────
+function formatKES(amount: number): string {
+    return `KES ${amount.toLocaleString('en-KE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 }
 
 // Map the shared dataset → the shape this card expects.
@@ -54,7 +65,10 @@ export default function FeaturedProducts() {
     // Cart store
     const addItem = useCart((s) => s.addItem);
 
-    const handleAddToCart = async (product: Product, e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
+    const handleAddToCart = async (
+        product: Product,
+        e: React.MouseEvent<HTMLButtonElement>
+    ): Promise<void> => {
         e.preventDefault();
         e.stopPropagation();
         setCartAddingId(product.id);
@@ -78,7 +92,6 @@ export default function FeaturedProducts() {
     return (
         <section className="bg-white py-6 lg:py-8 border-b border-slate-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
                 {/* Section Header */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8">
                     <div>
@@ -86,7 +99,8 @@ export default function FeaturedProducts() {
                             Featured Electronics
                         </h2>
                         <p className="text-[13px] text-slate-600 mt-1">
-                            Top-rated hardware and audio essentials handpicked for performance and reliability.
+                            Top-rated hardware and audio essentials handpicked for
+                            performance and reliability.
                         </p>
                     </div>
                     <Link
@@ -102,7 +116,11 @@ export default function FeaturedProducts() {
                     {featuredProducts.map((product) => {
                         const isAdding = cartAddingId === product.id;
                         const discountPercentage = product.previousPrice
-                            ? Math.round(((product.previousPrice - product.price) / product.previousPrice) * 100)
+                            ? Math.round(
+                                  ((product.previousPrice - product.price) /
+                                      product.previousPrice) *
+                                      100
+                              )
                             : null;
 
                         return (
@@ -128,10 +146,11 @@ export default function FeaturedProducts() {
                                                 </span>
                                             )}
                                             <span
-                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
+                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${
+                                                    product.stockStatus === 'In Stock'
                                                         ? 'bg-emerald-100 text-emerald-800'
                                                         : 'bg-amber-100 text-amber-800'
-                                                    }`}
+                                                }`}
                                             >
                                                 {product.stockStatus}
                                             </span>
@@ -188,11 +207,11 @@ export default function FeaturedProducts() {
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-baseline space-x-2">
                                             <span className="text-sm font-bold text-slate-900">
-                                                ${product.price.toFixed(2)}
+                                                {formatKES(product.price)}
                                             </span>
                                             {product.previousPrice && (
                                                 <span className="text-[11px] text-slate-500 line-through">
-                                                    ${product.previousPrice.toFixed(2)}
+                                                    {formatKES(product.previousPrice)}
                                                 </span>
                                             )}
                                         </div>
@@ -207,9 +226,24 @@ export default function FeaturedProducts() {
                                     >
                                         {isAdding ? (
                                             <>
-                                                <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                <svg
+                                                    className="animate-spin h-3.5 w-3.5 text-white"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <circle
+                                                        className="opacity-25"
+                                                        cx="12"
+                                                        cy="12"
+                                                        r="10"
+                                                        stroke="currentColor"
+                                                        strokeWidth="4"
+                                                    ></circle>
+                                                    <path
+                                                        className="opacity-75"
+                                                        fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                    ></path>
                                                 </svg>
                                                 <span>Adding...</span>
                                             </>
@@ -221,12 +255,10 @@ export default function FeaturedProducts() {
                                         )}
                                     </button>
                                 </div>
-
                             </Link>
                         );
                     })}
                 </div>
-
             </div>
         </section>
     );

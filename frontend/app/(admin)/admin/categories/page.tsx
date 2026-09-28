@@ -12,13 +12,9 @@ import {
   AlertTriangle,
   GripVertical,
   FolderTree,
-  ArrowUpDown,
   Globe,
-  FileText,
-  Image as ImageIcon,
   Save,
   X,
-  Check,
   Eye,
   EyeOff,
   Layers,
@@ -55,178 +51,470 @@ const DEFAULT_SEO: SEOMetadata = {
   canonicalUrl: '',
 };
 
+/**
+ * Pure electronics storefront hierarchy.
+ * No furniture, no office supplies, no general merchandise.
+ */
 const INITIAL_CATEGORIES: Category[] = [
   {
     id: 'cat-1',
-    name: 'Electronics',
-    slug: 'electronics',
+    name: 'Smartphones',
+    slug: 'smartphones',
     parentId: null,
-    productsCount: 42,
+    productsCount: 48,
     status: 'Active',
-    image: '/Lenovo.jpeg',
+    image: '/phone.jpeg',
     displayOrder: 1,
-    description: 'All electronic gadgets, computers, and smart devices.',
+    description: '5G smartphones, flagship phones, and budget devices.',
     seo: {
-      metaTitle: 'Electronics — Shop the Latest Tech',
-      metaDescription: 'Browse the latest smartphones, laptops, TVs, and accessories at the best prices in Kenya.',
-      metaKeywords: 'electronics, smartphones, laptops, TVs, accessories, Kenya',
-      canonicalUrl: '/categories/electronics',
+      metaTitle: 'Smartphones — 5G Flagships & Budget Phones',
+      metaDescription:
+        'Shop the latest 5G smartphones from Samsung, Apple, Google, and more at the best prices in Kenya.',
+      metaKeywords: 'smartphones, 5G phones, iPhone, Samsung Galaxy, Google Pixel, Kenya',
+      canonicalUrl: '/categories/smartphones',
     },
     children: [
       {
         id: 'cat-1-1',
-        name: 'Phones',
-        slug: 'phones',
+        name: 'Android Phones',
+        slug: 'android-phones',
         parentId: 'cat-1',
-        productsCount: 15,
+        productsCount: 28,
         status: 'Active',
         image: '/phone.jpeg',
         displayOrder: 1,
-        description: 'Latest 5G mobile smartphones.',
+        description: 'Samsung, Google Pixel, Xiaomi, and other Android flagships.',
         seo: {
-          metaTitle: 'Phones — 5G Smartphones',
-          metaDescription: 'Shop the newest 5G smartphones from Apex, Samsung, and more.',
-          metaKeywords: 'phones, smartphones, 5G, mobile',
-          canonicalUrl: '/categories/electronics/phones',
+          metaTitle: 'Android Phones — Samsung, Pixel, Xiaomi',
+          metaDescription:
+            'Browse the latest Android smartphones from Samsung, Google Pixel, Xiaomi, and more.',
+          metaKeywords: 'android phones, samsung, google pixel, xiaomi, oppo, kenya',
+          canonicalUrl: '/categories/smartphones/android-phones',
         },
       },
       {
         id: 'cat-1-2',
-        name: 'Laptops',
-        slug: 'laptops',
+        name: 'iPhones',
+        slug: 'iphones',
         parentId: 'cat-1',
-        productsCount: 12,
+        productsCount: 14,
         status: 'Active',
-        image: '/Lenovo.jpeg',
+        image: '/phone.jpeg',
         displayOrder: 2,
-        description: 'High-performance laptops and workstations.',
+        description: 'iPhone 15 Pro, iPhone 15, iPhone SE, and older models.',
         seo: {
-          metaTitle: 'Laptops — Workstations & Ultrabooks',
-          metaDescription: 'Discover high-performance laptops for work, gaming, and creators.',
-          metaKeywords: 'laptops, notebooks, workstations',
-          canonicalUrl: '/categories/electronics/laptops',
+          metaTitle: 'iPhones — Latest Apple Smartphones',
+          metaDescription:
+            'Buy the newest iPhones — iPhone 15 Pro Max, iPhone 15, and iPhone SE with warranty in Kenya.',
+          metaKeywords: 'iphone, apple, iphone 15, iphone 15 pro, kenya',
+          canonicalUrl: '/categories/smartphones/iphones',
         },
       },
       {
         id: 'cat-1-3',
-        name: 'TVs',
-        slug: 'tvs',
+        name: 'Budget Phones',
+        slug: 'budget-phones',
         parentId: 'cat-1',
-        productsCount: 8,
-        status: 'Active',
-        image: '/dellmonitor.jpeg',
-        displayOrder: 3,
-        description: '4K and 8K smart TVs.',
-        seo: {
-          metaTitle: 'TVs — 4K & 8K Smart TVs',
-          metaDescription: 'Upgrade your home entertainment with 4K and 8K smart TVs.',
-          metaKeywords: 'TVs, smart TV, 4K, 8K',
-          canonicalUrl: '/categories/electronics/tvs',
-        },
-      },
-      {
-        id: 'cat-1-4',
-        name: 'Accessories',
-        slug: 'accessories-electronics',
-        parentId: 'cat-1',
-        productsCount: 7,
+        productsCount: 6,
         status: 'Active',
         image: '/phone.jpeg',
-        displayOrder: 4,
-        description: 'Cables, chargers, and electronic add-ons.',
+        displayOrder: 3,
+        description: 'Affordable entry-level smartphones under KES 30,000.',
         seo: {
-          metaTitle: 'Electronics Accessories',
-          metaDescription: 'Cables, chargers, adapters, and add-ons for your electronics.',
-          metaKeywords: 'accessories, cables, chargers, adapters',
-          canonicalUrl: '/categories/electronics/accessories',
+          metaTitle: 'Budget Phones — Affordable Smartphones',
+          metaDescription:
+            'Affordable entry-level smartphones under KES 30,000 with great value.',
+          metaKeywords: 'budget phones, affordable smartphones, cheap phones, kenya',
+          canonicalUrl: '/categories/smartphones/budget-phones',
         },
       },
     ],
   },
   {
     id: 'cat-2',
-    name: 'Accessories',
-    slug: 'accessories',
+    name: 'Laptops & Computers',
+    slug: 'laptops-computers',
     parentId: null,
-    productsCount: 38,
+    productsCount: 36,
     status: 'Active',
-    image: '/phone.jpeg',
+    image: '/Lenovo.jpeg',
     displayOrder: 2,
-    description: 'Peripherals, mice, keyboards, and audio gear.',
+    description: 'Laptops, desktops, and all-in-one computers.',
     seo: {
-      metaTitle: 'Accessories — Peripherals & Audio',
-      metaDescription: 'Shop keyboards, mice, headphones, and other accessories.',
-      metaKeywords: 'accessories, keyboards, mice, headphones, audio',
-      canonicalUrl: '/categories/accessories',
+      metaTitle: 'Laptops & Computers — Workstations & Ultrabooks',
+      metaDescription:
+        'Shop high-performance laptops, desktops, and all-in-ones for work, gaming, and creators.',
+      metaKeywords: 'laptops, computers, desktops, workstations, kenya',
+      canonicalUrl: '/categories/laptops-computers',
     },
     children: [
       {
         id: 'cat-2-1',
-        name: 'Keyboards & Mice',
-        slug: 'keyboards-mice',
+        name: 'Laptops',
+        slug: 'laptops',
         parentId: 'cat-2',
-        productsCount: 20,
+        productsCount: 24,
         status: 'Active',
-        image: '/phone.jpeg',
+        image: '/Lenovo.jpeg',
         displayOrder: 1,
-        description: 'Mechanical keyboards and wireless mice.',
+        description: 'Ultrabooks, gaming laptops, and business notebooks.',
         seo: {
-          metaTitle: 'Keyboards & Mice',
-          metaDescription: 'Mechanical keyboards and precision wireless mice.',
-          metaKeywords: 'keyboards, mice, mechanical, wireless',
-          canonicalUrl: '/categories/accessories/keyboards-mice',
+          metaTitle: 'Laptops — Ultrabooks & Gaming Notebooks',
+          metaDescription:
+            'Discover high-performance laptops for work, gaming, and creators — HP, Lenovo, Dell, Asus.',
+          metaKeywords: 'laptops, notebooks, ultrabooks, gaming laptops, kenya',
+          canonicalUrl: '/categories/laptops-computers/laptops',
         },
       },
       {
         id: 'cat-2-2',
-        name: 'Audio & Headphones',
-        slug: 'audio-headphones',
+        name: 'Desktops',
+        slug: 'desktops',
         parentId: 'cat-2',
-        productsCount: 18,
+        productsCount: 8,
         status: 'Active',
-        image: '/phone.jpeg',
+        image: '/Lenovo.jpeg',
         displayOrder: 2,
-        description: 'Noise-cancelling headphones and speakers.',
+        description: 'Desktop towers and all-in-one PCs.',
         seo: {
-          metaTitle: 'Audio & Headphones',
-          metaDescription: 'Noise-cancelling headphones, earbuds, and speakers.',
-          metaKeywords: 'audio, headphones, earbuds, speakers',
-          canonicalUrl: '/categories/accessories/audio-headphones',
+          metaTitle: 'Desktops — Towers & All-in-One PCs',
+          metaDescription:
+            'Reliable desktop towers and all-in-one PCs for home and office use.',
+          metaKeywords: 'desktops, towers, all-in-one, PCs, kenya',
+          canonicalUrl: '/categories/laptops-computers/desktops',
+        },
+      },
+      {
+        id: 'cat-2-3',
+        name: 'Computer Components',
+        slug: 'computer-components',
+        parentId: 'cat-2',
+        productsCount: 4,
+        status: 'Active',
+        image: '/Lenovo.jpeg',
+        displayOrder: 3,
+        description: 'RAM, SSDs, GPUs, and internal components.',
+        seo: {
+          metaTitle: 'Computer Components — RAM, SSD, GPU',
+          metaDescription:
+            'Upgrade your PC with RAM, SSDs, GPUs, and other internal components.',
+          metaKeywords: 'ram, ssd, gpu, components, pc parts, kenya',
+          canonicalUrl: '/categories/laptops-computers/computer-components',
         },
       },
     ],
   },
   {
     id: 'cat-3',
-    name: 'Furniture & Office',
-    slug: 'furniture-office',
+    name: 'TVs & Displays',
+    slug: 'tvs-displays',
     parentId: null,
-    productsCount: 8,
+    productsCount: 22,
     status: 'Active',
-    image: '/Lenovo.jpeg',
+    image: '/dellmonitor.jpeg',
     displayOrder: 3,
-    description: 'Ergonomic chairs and executive desks.',
+    description: 'Smart TVs, monitors, and projectors.',
     seo: {
-      metaTitle: 'Furniture & Office',
-      metaDescription: 'Ergonomic office chairs and executive desks.',
-      metaKeywords: 'furniture, office, chairs, desks',
-      canonicalUrl: '/categories/furniture-office',
+      metaTitle: 'TVs & Displays — Smart TVs & Monitors',
+      metaDescription:
+        'Upgrade your home entertainment with 4K smart TVs, monitors, and projectors.',
+      metaKeywords: 'tvs, smart tv, monitors, projectors, 4K, 8K, kenya',
+      canonicalUrl: '/categories/tvs-displays',
     },
+    children: [
+      {
+        id: 'cat-3-1',
+        name: 'Smart TVs',
+        slug: 'smart-tvs',
+        parentId: 'cat-3',
+        productsCount: 14,
+        status: 'Active',
+        image: '/dellmonitor.jpeg',
+        displayOrder: 1,
+        description: '4K and 8K smart TVs from Samsung, LG, Sony.',
+        seo: {
+          metaTitle: 'Smart TVs — 4K & 8K Samsung, LG, Sony',
+          metaDescription:
+            'Shop 4K and 8K smart TVs from Samsung, LG, and Sony with streaming built-in.',
+          metaKeywords: 'smart tv, 4k tv, 8k tv, samsung tv, lg tv, kenya',
+          canonicalUrl: '/categories/tvs-displays/smart-tvs',
+        },
+      },
+      {
+        id: 'cat-3-2',
+        name: 'Monitors',
+        slug: 'monitors',
+        parentId: 'cat-3',
+        productsCount: 6,
+        status: 'Active',
+        image: '/dellmonitor.jpeg',
+        displayOrder: 2,
+        description: '4K, ultrawide, and gaming monitors.',
+        seo: {
+          metaTitle: 'Monitors — 4K, Ultrawide & Gaming',
+          metaDescription:
+            'Dell, LG, and Samsung monitors for productivity, design, and gaming.',
+          metaKeywords: 'monitors, 4k monitor, ultrawide, gaming monitor, kenya',
+          canonicalUrl: '/categories/tvs-displays/monitors',
+        },
+      },
+      {
+        id: 'cat-3-3',
+        name: 'Projectors',
+        slug: 'projectors',
+        parentId: 'cat-3',
+        productsCount: 2,
+        status: 'Active',
+        image: '/dellmonitor.jpeg',
+        displayOrder: 3,
+        description: 'Home cinema and portable projectors.',
+        seo: {
+          metaTitle: 'Projectors — Home Cinema & Portable',
+          metaDescription:
+            'Home cinema and portable projectors for movies, presentations, and gaming.',
+          metaKeywords: 'projectors, home cinema, portable projector, kenya',
+          canonicalUrl: '/categories/tvs-displays/projectors',
+        },
+      },
+    ],
   },
   {
     id: 'cat-4',
+    name: 'Audio & Headphones',
+    slug: 'audio-headphones',
+    parentId: null,
+    productsCount: 34,
+    status: 'Active',
+    image: '/phone.jpeg',
+    displayOrder: 4,
+    description: 'Headphones, earbuds, and speakers.',
+    seo: {
+      metaTitle: 'Audio & Headphones — Earbuds, Speakers',
+      metaDescription:
+        'Noise-cancelling headphones, wireless earbuds, and Bluetooth speakers from top brands.',
+      metaKeywords: 'audio, headphones, earbuds, speakers, sony, bose, kenya',
+      canonicalUrl: '/categories/audio-headphones',
+    },
+    children: [
+      {
+        id: 'cat-4-1',
+        name: 'Headphones',
+        slug: 'headphones',
+        parentId: 'cat-4',
+        productsCount: 14,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 1,
+        description: 'Over-ear and on-ear noise-cancelling headphones.',
+        seo: {
+          metaTitle: 'Headphones — Noise Cancelling Over-Ear',
+          metaDescription:
+            'Sony, Bose, and JBL over-ear headphones with active noise cancellation.',
+          metaKeywords: 'headphones, over-ear, noise cancelling, sony, bose, kenya',
+          canonicalUrl: '/categories/audio-headphones/headphones',
+        },
+      },
+      {
+        id: 'cat-4-2',
+        name: 'Earbuds',
+        slug: 'earbuds',
+        parentId: 'cat-4',
+        productsCount: 12,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 2,
+        description: 'True wireless earbuds and in-ear monitors.',
+        seo: {
+          metaTitle: 'Earbuds — True Wireless & In-Ear',
+          metaDescription:
+            'True wireless earbuds from Samsung, Apple, and Anker for calls and workouts.',
+          metaKeywords: 'earbuds, tws, wireless earbuds, airpods, galaxy buds, kenya',
+          canonicalUrl: '/categories/audio-headphones/earbuds',
+        },
+      },
+      {
+        id: 'cat-4-3',
+        name: 'Speakers',
+        slug: 'speakers',
+        parentId: 'cat-4',
+        productsCount: 8,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 3,
+        description: 'Bluetooth and portable speakers.',
+        seo: {
+          metaTitle: 'Speakers — Bluetooth & Portable',
+          metaDescription:
+            'Portable Bluetooth speakers from JBL, Sony, and Anker for indoor and outdoor use.',
+          metaKeywords: 'speakers, bluetooth speakers, portable speakers, kenya',
+          canonicalUrl: '/categories/audio-headphones/speakers',
+        },
+      },
+    ],
+  },
+  {
+    id: 'cat-5',
+    name: 'Accessories',
+    slug: 'accessories',
+    parentId: null,
+    productsCount: 62,
+    status: 'Active',
+    image: '/phone.jpeg',
+    displayOrder: 5,
+    description: 'Chargers, cables, power banks, and peripherals.',
+    seo: {
+      metaTitle: 'Accessories — Chargers, Cables & Power Banks',
+      metaDescription:
+        'Shop chargers, USB-C cables, power banks, and everyday electronics accessories.',
+      metaKeywords: 'accessories, chargers, cables, power banks, kenya',
+      canonicalUrl: '/categories/accessories',
+    },
+    children: [
+      {
+        id: 'cat-5-1',
+        name: 'Chargers & Cables',
+        slug: 'chargers-cables',
+        parentId: 'cat-5',
+        productsCount: 24,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 1,
+        description: 'Fast chargers and USB-C / Lightning cables.',
+        seo: {
+          metaTitle: 'Chargers & Cables — Fast USB-C & Lightning',
+          metaDescription:
+            'Fast wall chargers and durable USB-C, Lightning, and micro-USB cables.',
+          metaKeywords: 'chargers, cables, usb-c, lightning, fast charger, kenya',
+          canonicalUrl: '/categories/accessories/chargers-cables',
+        },
+      },
+      {
+        id: 'cat-5-2',
+        name: 'Power Banks',
+        slug: 'power-banks',
+        parentId: 'cat-5',
+        productsCount: 18,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 2,
+        description: 'Portable power banks from 10,000mAh to 30,000mAh.',
+        seo: {
+          metaTitle: 'Power Banks — 10,000 to 30,000mAh',
+          metaDescription:
+            'Portable power banks from Anker, Samsung, and Baseus to keep your devices charged.',
+          metaKeywords: 'power banks, portable charger, anker, baseus, kenya',
+          canonicalUrl: '/categories/accessories/power-banks',
+        },
+      },
+      {
+        id: 'cat-5-3',
+        name: 'Keyboards & Mice',
+        slug: 'keyboards-mice',
+        parentId: 'cat-5',
+        productsCount: 12,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 3,
+        description: 'Mechanical keyboards and wireless mice.',
+        seo: {
+          metaTitle: 'Keyboards & Mice — Mechanical & Wireless',
+          metaDescription:
+            'Mechanical keyboards and precision wireless mice from Logitech and Keychron.',
+          metaKeywords: 'keyboards, mice, mechanical, wireless, logitech, kenya',
+          canonicalUrl: '/categories/accessories/keyboards-mice',
+        },
+      },
+      {
+        id: 'cat-5-4',
+        name: 'Storage & Memory',
+        slug: 'storage-memory',
+        parentId: 'cat-5',
+        productsCount: 8,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 4,
+        description: 'External SSDs, flash drives, and memory cards.',
+        seo: {
+          metaTitle: 'Storage & Memory — SSDs, Flash Drives',
+          metaDescription:
+            'External SSDs, USB flash drives, and SD cards from SanDisk and Samsung.',
+          metaKeywords: 'storage, ssd, flash drive, sd card, sandisk, kenya',
+          canonicalUrl: '/categories/accessories/storage-memory',
+        },
+      },
+    ],
+  },
+  {
+    id: 'cat-6',
+    name: 'Wearables',
+    slug: 'wearables',
+    parentId: null,
+    productsCount: 18,
+    status: 'Active',
+    image: '/phone.jpeg',
+    displayOrder: 6,
+    description: 'Smartwatches and fitness trackers.',
+    seo: {
+      metaTitle: 'Wearables — Smartwatches & Fitness Trackers',
+      metaDescription:
+        'Shop smartwatches and fitness trackers from Apple, Samsung, Garmin, and Fitbit.',
+      metaKeywords: 'wearables, smartwatches, fitness trackers, apple watch, kenya',
+      canonicalUrl: '/categories/wearables',
+    },
+    children: [
+      {
+        id: 'cat-6-1',
+        name: 'Smartwatches',
+        slug: 'smartwatches',
+        parentId: 'cat-6',
+        productsCount: 12,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 1,
+        description: 'Apple Watch, Galaxy Watch, and Garmin.',
+        seo: {
+          metaTitle: 'Smartwatches — Apple Watch, Galaxy Watch',
+          metaDescription:
+            'Apple Watch, Samsung Galaxy Watch, and Garmin smartwatches with health tracking.',
+          metaKeywords: 'smartwatches, apple watch, galaxy watch, garmin, kenya',
+          canonicalUrl: '/categories/wearables/smartwatches',
+        },
+      },
+      {
+        id: 'cat-6-2',
+        name: 'Fitness Trackers',
+        slug: 'fitness-trackers',
+        parentId: 'cat-6',
+        productsCount: 6,
+        status: 'Active',
+        image: '/phone.jpeg',
+        displayOrder: 2,
+        description: 'Fitness bands and activity trackers.',
+        seo: {
+          metaTitle: 'Fitness Trackers — Bands & Activity Trackers',
+          metaDescription:
+            'Fitness bands and activity trackers from Fitbit, Xiaomi, and Huawei.',
+          metaKeywords: 'fitness trackers, bands, fitbit, mi band, kenya',
+          canonicalUrl: '/categories/wearables/fitness-trackers',
+        },
+      },
+    ],
+  },
+  {
+    id: 'cat-7',
     name: 'Archived Clearance',
     slug: 'archived-clearance',
     parentId: null,
-    productsCount: 3,
+    productsCount: 5,
     status: 'Inactive',
     image: '/phone.jpeg',
-    displayOrder: 4,
-    description: 'Discontinued clearance stock.',
+    displayOrder: 7,
+    description: 'Discontinued electronics on clearance.',
     seo: {
-      metaTitle: 'Archived Clearance',
-      metaDescription: 'Discontinued clearance stock at discounted prices.',
-      metaKeywords: 'clearance, sale, discontinued',
+      metaTitle: 'Archived Clearance — Discontinued Electronics',
+      metaDescription:
+        'Discontinued electronics and end-of-life stock at discounted prices.',
+      metaKeywords: 'clearance, sale, discontinued, electronics, kenya',
       canonicalUrl: '/categories/archived-clearance',
     },
   },
@@ -237,7 +525,10 @@ export default function CategoriesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openKebabId, setOpenKebabId] = useState<string | null>(null);
-  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({ 'cat-1': true, 'cat-2': true });
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({
+    'cat-1': true,
+    'cat-2': true,
+  });
   const [sortBy, setSortBy] = useState<'displayOrder' | 'name' | 'products'>('displayOrder');
 
   const [addOpen, setAddOpen] = useState(false);
@@ -268,9 +559,8 @@ export default function CategoriesPage() {
       return opts;
     });
 
-  const handleSave = (data: Omit<Category, 'id' | 'children' | 'productsCount'> & { id?: string }) => {
+  const handleSave = (data: Partial<Omit<Category, 'id'>> & { id?: string }) => {
     if (data.id) {
-      // Update existing
       setCategories((prev) =>
         prev.map((c) => {
           if (c.id === data.id) {
@@ -401,7 +691,7 @@ export default function CategoriesPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Categories</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Organize your product catalog hierarchy · {totalCount} categories
+              Organize your electronics catalog hierarchy · {totalCount} categories
             </p>
           </div>
           <button
@@ -492,7 +782,7 @@ export default function CategoriesPage() {
                           setSelectedIds(ids);
                         }
                       }}
-                      className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                      className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                     />
                   </th>
                   <th className="py-2 px-3 font-medium">Category</th>
@@ -548,7 +838,7 @@ export default function CategoriesPage() {
                               type="checkbox"
                               checked={selectedIds.includes(cat.id)}
                               onChange={() => toggleSelectRow(cat.id)}
-                              className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                              className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                             />
                           </td>
                           <td className="py-2 px-3">
@@ -663,7 +953,7 @@ export default function CategoriesPage() {
                                     type="checkbox"
                                     checked={selectedIds.includes(child.id)}
                                     onChange={() => toggleSelectRow(child.id)}
-                                    className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                                    className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                                   />
                                 </td>
                                 <td className="py-2 px-3">

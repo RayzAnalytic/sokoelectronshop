@@ -21,17 +21,12 @@ import {
   List,
   Tag,
   FileText,
-  Calendar,
-  Clock,
   BarChart3,
-  ExternalLink,
-  AlertTriangle,
   Layers,
-  Settings,
-  Copy,
   Edit3,
   Play,
   Pause,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -53,7 +48,6 @@ type SubscriberSource = 'Footer Popup' | 'Checkout' | 'WhatsApp Opt-in' | 'Manua
 type Tab = 'subscribers' | 'lists' | 'segments' | 'templates' | 'campaigns' | 'analytics';
 
 type CampaignStatus = 'Draft' | 'Scheduled' | 'Sending' | 'Sent' | 'Paused' | 'Failed';
-type ProviderId = 'sendgrid' | 'mailgun' | 'ses' | 'resend' | 'smtp';
 
 interface Subscriber {
   id: string;
@@ -106,60 +100,6 @@ interface Campaign {
   bounceRate: number;
   unsubRate: number;
 }
-
-interface EmailProvider {
-  id: ProviderId;
-  name: string;
-  description: string;
-  status: 'Connected' | 'Disconnected';
-  apiKeyMasked: string;
-  dailyLimit: number;
-  sentToday: number;
-  color: string;
-}
-
-const INITIAL_PROVIDERS: EmailProvider[] = [
-  {
-    id: 'sendgrid',
-    name: 'SendGrid',
-    description: 'Transactional and marketing email delivery (Twilio).',
-    status: 'Connected',
-    apiKeyMasked: 'SG.xxxx••••••••••••••••',
-    dailyLimit: 100000,
-    sentToday: 842,
-    color: 'bg-blue-50 text-blue-950 border-blue-100',
-  },
-  {
-    id: 'mailgun',
-    name: 'Mailgun',
-    description: 'Reliable SMTP relay and email API.',
-    status: 'Disconnected',
-    apiKeyMasked: '—',
-    dailyLimit: 10000,
-    sentToday: 0,
-    color: 'bg-red-50 text-red-700 border-red-100',
-  },
-  {
-    id: 'ses',
-    name: 'Amazon SES',
-    description: 'Cost-effective bulk email at scale.',
-    status: 'Disconnected',
-    apiKeyMasked: '—',
-    dailyLimit: 50000,
-    sentToday: 0,
-    color: 'bg-amber-50 text-amber-700 border-amber-100',
-  },
-  {
-    id: 'resend',
-    name: 'Resend',
-    description: 'Modern developer-first email API.',
-    status: 'Disconnected',
-    apiKeyMasked: '—',
-    dailyLimit: 20000,
-    sentToday: 0,
-    color: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  },
-];
 
 const INITIAL_LISTS: SubscriberList[] = [
   { id: 'list-1', name: 'All Subscribers', description: 'Master list of every opted-in contact.', subscriberCount: 7820, color: 'bg-blue-50 text-blue-950 border-blue-100' },
@@ -226,7 +166,6 @@ export default function NewsletterPage() {
   const [segments] = useState<Segment[]>(INITIAL_SEGMENTS);
   const [templates] = useState<Template[]>(INITIAL_TEMPLATES);
   const [campaigns, setCampaigns] = useState<Campaign[]>(INITIAL_CAMPAIGNS);
-  const [providers, setProviders] = useState<EmailProvider[]>(INITIAL_PROVIDERS);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -243,13 +182,9 @@ export default function NewsletterPage() {
   const [broadcastSchedule, setBroadcastSchedule] = useState('now');
   const [showPreview, setShowPreview] = useState(false);
 
-  const [providerSettingsOpen, setProviderSettingsOpen] = useState(false);
-  const [settingsProviderId, setSettingsProviderId] = useState<ProviderId | null>(null);
-  const [providerApiKey, setProviderApiKey] = useState('');
-
   const [templatePreview, setTemplatePreview] = useState<Template | null>(null);
 
-  const anyModalOpen = broadcastOpen || providerSettingsOpen || !!templatePreview;
+  const anyModalOpen = broadcastOpen || !!templatePreview;
 
   useEffect(() => {
     if (toastMessage) {
@@ -273,20 +208,16 @@ export default function NewsletterPage() {
 
   const closeAll = () => {
     setBroadcastOpen(false);
-    setProviderSettingsOpen(false);
     setTemplatePreview(null);
   };
 
   const toast = (msg: string) => setToastMessage(msg);
 
   const sendBroadcast = () => {
-    const provider = providers.find((p) => p.status === 'Connected');
-    if (!provider) {
-      toast('Connect an email provider before sending');
-      return;
-    }
     const audienceSize =
-      lists.find((l) => l.name === broadcastAudience)?.subscriberCount ?? subscribers.filter((s) => s.status === 'Subscribed').length;
+      lists.find((l) => l.name === broadcastAudience)?.subscriberCount ??
+      segments.find((s) => s.name === broadcastAudience)?.count ??
+      subscribers.filter((s) => s.status === 'Subscribed').length;
 
     const newCampaign: Campaign = {
       id: `cmp-${Date.now()}`,
@@ -295,8 +226,14 @@ export default function NewsletterPage() {
       status: broadcastSchedule === 'now' ? 'Sending' : 'Scheduled',
       listName: broadcastAudience,
       recipients: audienceSize,
-      scheduledAt: broadcastSchedule === 'now' ? null : new Date(Date.now() + 86400000).toISOString().replace('T', ' ').substring(0, 16),
-      sentAt: broadcastSchedule === 'now' ? new Date().toISOString().replace('T', ' ').substring(0, 16) : null,
+      scheduledAt:
+        broadcastSchedule === 'now'
+          ? null
+          : new Date(Date.now() + 86400000).toISOString().replace('T', ' ').substring(0, 16),
+      sentAt:
+        broadcastSchedule === 'now'
+          ? new Date().toISOString().replace('T', ' ').substring(0, 16)
+          : null,
       openRate: 0,
       clickRate: 0,
       bounceRate: 0,
@@ -310,8 +247,8 @@ export default function NewsletterPage() {
     setShowPreview(false);
     toast(
       broadcastSchedule === 'now'
-        ? `Broadcast dispatched via ${provider.name}`
-        : `Broadcast scheduled for later via ${provider.name}`
+        ? 'Broadcast dispatched'
+        : 'Broadcast scheduled for later'
     );
   };
 
@@ -338,42 +275,6 @@ export default function NewsletterPage() {
     toast('Subscriber removed');
   };
 
-  const toggleProvider = (id: ProviderId) => {
-    setProviders((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          const next = p.status === 'Connected' ? 'Disconnected' : 'Connected';
-          toast(`${p.name} ${next.toLowerCase()}`);
-          return { ...p, status: next, apiKeyMasked: next === 'Connected' ? '••••••••••••••••' : '—' };
-        }
-        // Only one provider can be active at a time
-        return p.status === 'Connected' ? { ...p, status: 'Disconnected' } : p;
-      })
-    );
-  };
-
-  const openProviderSettings = (id: ProviderId) => {
-    setSettingsProviderId(id);
-    setProviderApiKey('');
-    setProviderSettingsOpen(true);
-  };
-
-  const saveProviderSettings = () => {
-    if (!settingsProviderId) return;
-    setProviders((prev) =>
-      prev.map((p) =>
-        p.id === settingsProviderId
-          ? {
-            ...p,
-            apiKeyMasked: providerApiKey ? `${providerApiKey.slice(0, 6)}••••••••` : p.apiKeyMasked,
-          }
-          : p
-      )
-    );
-    setProviderSettingsOpen(false);
-    toast('Provider credentials saved');
-  };
-
   const filtered = subscribers.filter((sub) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch = !q || sub.email.toLowerCase().includes(q) || sub.name.toLowerCase().includes(q);
@@ -383,7 +284,8 @@ export default function NewsletterPage() {
     return matchesSearch && matchesStatus && matchesSource && matchesList;
   });
 
-  const activeFilterCount = (statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (listFilter ? 1 : 0);
+  const activeFilterCount =
+    (statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (listFilter ? 1 : 0);
 
   const sourceBadge = (s: SubscriberSource) =>
     s === 'Footer Popup'
@@ -407,10 +309,12 @@ export default function NewsletterPage() {
               ? 'bg-red-50 text-red-600 border-red-100'
               : 'bg-slate-100 text-slate-600 border-slate-200';
 
-  // Derived: the currently connected provider (used for banners & gating)
-  const activeProvider = providers.find((p) => p.status === 'Connected');
-
-  const tabs: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }[] = [
+  const tabs: {
+    id: Tab;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    count?: number;
+  }[] = [
     { id: 'subscribers', label: 'Subscribers', icon: Users, count: subscribers.length },
     { id: 'lists', label: 'Lists', icon: List, count: lists.length },
     { id: 'segments', label: 'Segments', icon: Layers, count: segments.length },
@@ -468,17 +372,19 @@ export default function NewsletterPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium border-b-2 transition whitespace-nowrap ${
+                  isActive
                     ? 'border-blue-950 text-blue-950'
                     : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                  }`}
+                }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
                 {tab.label}
                 {tab.count !== undefined && (
                   <span
-                    className={`px-1.5 py-0.5 rounded-sm text-[13px] ${isActive ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}
+                    className={`px-1.5 py-0.5 rounded-sm text-[13px] ${
+                      isActive ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
                   >
                     {tab.count}
                   </span>
@@ -490,28 +396,6 @@ export default function NewsletterPage() {
       </header>
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-
-        {/* EMAIL PROVIDER BANNER */}
-        <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
-          <Mail className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
-          <div className="text-[13px] flex-1 min-w-0">
-            <p className="font-medium text-blue-950">Email delivery is handled by an external provider</p>
-            <p className="text-blue-800 mt-0.5">
-              SokoFlow does not build SMTP infrastructure. Campaigns dispatch through your connected provider (SendGrid, Mailgun, SES, Resend).
-              {activeProvider ? (
-                <> Currently connected: <span className="font-medium">{activeProvider.name}</span>.</>
-              ) : (
-                <> No provider connected — connect one to start sending.</>
-              )}
-            </p>
-          </div>
-          <button
-            onClick={() => setActiveTab('campaigns')}
-            className="text-[13px] font-medium text-blue-950 hover:underline shrink-0"
-          >
-            Manage providers
-          </button>
-        </div>
 
         {/* STATS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -679,7 +563,9 @@ export default function NewsletterPage() {
                                 );
                               })}
                               {sub.listIds.length > 2 && (
-                                <span className="text-[13px] text-slate-500">+{sub.listIds.length - 2}</span>
+                                <span className="text-[13px] text-slate-500">
+                                  +{sub.listIds.length - 2}
+                                </span>
                               )}
                             </div>
                           </td>
@@ -694,10 +580,11 @@ export default function NewsletterPage() {
                           </td>
                           <td className="py-2 px-3">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${sub.status === 'Subscribed'
+                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${
+                                sub.status === 'Subscribed'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                   : 'bg-red-50 text-red-600 border-red-100'
-                                }`}
+                              }`}
                             >
                               {sub.status}
                             </span>
@@ -926,77 +813,6 @@ export default function NewsletterPage() {
         {/* CAMPAIGNS TAB */}
         {activeTab === 'campaigns' && (
           <div className="space-y-3">
-            {/* PROVIDERS CARD */}
-            <div className="bg-white border border-slate-200 rounded-sm">
-              <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-semibold text-slate-900">Email providers</p>
-                  <p className="text-[13px] text-slate-500">
-                    Only one provider can be active at a time
-                  </p>
-                </div>
-                {activeProvider ? (
-                  <span className="inline-flex items-center gap-1.5 text-[13px] font-medium px-2 py-1 rounded-sm border bg-emerald-50 text-emerald-700 border-emerald-100">
-                    <Check className="w-3 h-3" />
-                    Connected: {activeProvider.name}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 text-[13px] font-medium px-2 py-1 rounded-sm border bg-red-50 text-red-600 border-red-100">
-                    <AlertTriangle className="w-3 h-3" />
-                    No provider connected
-                  </span>
-                )}
-              </div>
-
-              <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
-                {providers.map((p) => (
-                  <div
-                    key={p.id}
-                    className={`bg-white border rounded-sm p-2 space-y-2 ${p.status === 'Connected' ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-200'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-[13px] font-medium px-2 py-0.5 rounded-sm border ${p.status === 'Connected'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                            : 'bg-slate-100 text-slate-500 border-slate-200'
-                          }`}
-                      >
-                        {p.status === 'Connected' ? <Check className="w-3 h-3" /> : null}
-                        {p.status}
-                      </span>
-                      <span className="text-[13px] text-slate-400 font-mono">
-                        {p.sentToday}/{p.dailyLimit.toLocaleString()}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-medium text-slate-900">{p.name}</p>
-                      <p className="text-[13px] text-slate-500 mt-0.5">{p.description}</p>
-                      <p className="text-[13px] text-slate-400 font-mono mt-1 truncate">{p.apiKeyMasked}</p>
-                    </div>
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                      <button
-                        onClick={() => openProviderSettings(p.id)}
-                        className="text-[13px] font-medium text-blue-950 hover:underline inline-flex items-center gap-1"
-                      >
-                        <Settings className="w-3 h-3" />
-                        Settings
-                      </button>
-                      <button
-                        onClick={() => toggleProvider(p.id)}
-                        className={`text-[13px] font-medium px-2.5 py-1.5 rounded-sm border transition ${p.status === 'Connected'
-                            ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
-                            : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                      >
-                        {p.status === 'Connected' ? 'Disconnect' : 'Connect'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* CAMPAIGNS TABLE */}
             <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
               <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
@@ -1172,9 +988,9 @@ export default function NewsletterPage() {
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: '13px' }} />
-                    <Bar dataKey="open" name="Open %" fill="#172554" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="click" name="Click %" fill="#059669" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="bounce" name="Bounce %" fill="#dc2626" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="open" name="Open %" fill="#172554" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="click" name="Click %" fill="#059669" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="bounce" name="Bounce %" fill="#dc2626" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1218,7 +1034,7 @@ export default function NewsletterPage() {
               <div className="min-w-0">
                 <h3 className="text-[15px] font-semibold text-slate-900">New campaign</h3>
                 <p className="text-[13px] text-slate-500 mt-0.5">
-                  Compose and dispatch via {activeProvider ? activeProvider.name : 'an external provider'}
+                  Compose and dispatch to your audience
                 </p>
               </div>
               <button
@@ -1230,15 +1046,6 @@ export default function NewsletterPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
-              {!activeProvider && (
-                <div className="bg-red-50 border border-red-200 rounded-sm p-2 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <p className="text-red-700 text-[13px]">
-                    No email provider is connected. Connect one under the Campaigns tab before sending.
-                  </p>
-                </div>
-              )}
-
               <div>
                 <label className="block font-medium text-slate-700 mb-1">
                   Target audience
@@ -1357,75 +1164,10 @@ export default function NewsletterPage() {
               </button>
               <button
                 onClick={sendBroadcast}
-                disabled={!activeProvider}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
                 <Send className="w-3.5 h-3.5" />
                 {broadcastSchedule === 'now' ? 'Dispatch broadcast' : 'Schedule broadcast'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* PROVIDER SETTINGS MODAL */}
-      {providerSettingsOpen && settingsProviderId && (
-        <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
-          onClick={() => setProviderSettingsOpen(false)}
-        >
-          <div
-            className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl space-y-3 text-[13px]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-[15px] font-semibold text-slate-900">
-                {providers.find((p) => p.id === settingsProviderId)?.name} settings
-              </h3>
-              <button
-                onClick={() => setProviderSettingsOpen(false)}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">
-                API key / secret
-              </label>
-              <input
-                type="password"
-                placeholder="Paste API key"
-                value={providerApiKey}
-                onChange={(e) => setProviderApiKey(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
-              />
-              <p className="text-[13px] text-slate-400 mt-1">
-                Keys are stored encrypted. Only the first few characters are shown after saving.
-              </p>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-              <p className="text-amber-800 text-[13px]">
-                SokoFlow does not deliver email directly. All dispatches are routed through the
-                connected provider using their official API.
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setProviderSettingsOpen(false)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveProviderSettings}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-              >
-                Save credentials
               </button>
             </div>
           </div>
@@ -1542,10 +1284,11 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
+        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${
+          isActive
             ? 'bg-blue-50 border-blue-950 text-blue-950'
             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-          }`}
+        }`}
       >
         {value ?? label}
         <ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
@@ -1558,8 +1301,9 @@ function FilterDropdown({
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-              }`}
+            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${
+              !isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+            }`}
           >
             All {label.toLowerCase()}
           </button>
@@ -1573,8 +1317,9 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${selected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-                  }`}
+                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${
+                  selected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                }`}
               >
                 <span className="truncate">{opt}</span>
                 {selected && <Check className="w-3.5 h-3.5" />}

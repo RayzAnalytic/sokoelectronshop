@@ -18,16 +18,8 @@ import {
   Send,
   DollarSign,
   ChevronDown,
-  Truck,
-  Package,
-  CreditCard,
-  MapPin,
-  Tag,
-  FileText,
-  Clock,
   Undo2,
   Ban,
-  AlertCircle,
 } from 'lucide-react';
 
 // --- TYPES ---
@@ -45,7 +37,7 @@ type OrderStatus =
   | 'Refunded'
   | 'Returned';
 
-type PaymentMethod = 'M-Pesa' | 'Airtel Money' | 'Stripe' | 'COD';
+type PaymentMethod = 'M-Pesa';
 type PaymentStatus = 'Paid' | 'Pending' | 'Failed' | 'Refunded';
 
 interface OrderItem {
@@ -163,9 +155,9 @@ const INITIAL_ORDERS: Order[] = [
     discountTotal: 0,
     shippingFee: 0,
     total: 68000,
-    paymentMethod: 'Airtel Money',
+    paymentMethod: 'M-Pesa',
     paymentStatus: 'Paid',
-    transactionRef: 'ATL45920ABC',
+    transactionRef: 'RGH45290ABC',
     fulfillmentStatus: 'Shipped',
     date: '2026-09-22 15:45',
     courier: 'G4S Courier',
@@ -200,14 +192,14 @@ const INITIAL_ORDERS: Order[] = [
     discountTotal: 0,
     shippingFee: 0,
     total: 185000,
-    paymentMethod: 'COD',
+    paymentMethod: 'M-Pesa',
     paymentStatus: 'Pending',
-    transactionRef: 'N/A',
+    transactionRef: 'RGH00112PEND',
     fulfillmentStatus: 'Pending',
     date: '2026-09-23 12:15',
-    internalNotes: 'Call customer before dispatching delivery rider.',
+    internalNotes: 'Customer prompted for M-Pesa STK push. Awaiting confirmation.',
     timeline: [
-      { id: 't-6', user: 'System', action: 'Order placed with Cash on Delivery', date: '2026-09-23 12:15' },
+      { id: 't-6', user: 'System', action: 'Order placed, M-Pesa STK push sent to customer', date: '2026-09-23 12:15' },
     ],
   },
   {
@@ -244,9 +236,9 @@ const INITIAL_ORDERS: Order[] = [
     discountTotal: 12000,
     shippingFee: 500,
     total: 185500,
-    paymentMethod: 'Stripe',
+    paymentMethod: 'M-Pesa',
     paymentStatus: 'Paid',
-    transactionRef: 'STRIPE-88921',
+    transactionRef: 'RGH88921MPS',
     fulfillmentStatus: 'Packed',
     date: '2026-09-21 09:10',
     courier: 'Sendy',
@@ -254,7 +246,7 @@ const INITIAL_ORDERS: Order[] = [
     internalNotes: 'Gift wrapping requested.',
     timeline: [
       { id: 't-7', user: 'System', action: 'Order placed online', date: '2026-09-21 09:10' },
-      { id: 't-8', user: 'Admin Grace', action: 'Payment confirmed via Stripe', date: '2026-09-21 09:12' },
+      { id: 't-8', user: 'Admin Grace', action: 'Payment confirmed via M-Pesa STK push', date: '2026-09-21 09:12' },
       { id: 't-9', user: 'Admin Grace', action: 'Order packed and ready for dispatch', date: '2026-09-21 14:00' },
     ],
   },
@@ -321,9 +313,9 @@ const INITIAL_ORDERS: Order[] = [
     discountTotal: 0,
     shippingFee: 0,
     total: 155000,
-    paymentMethod: 'Airtel Money',
+    paymentMethod: 'M-Pesa',
     paymentStatus: 'Refunded',
-    transactionRef: 'ATL77812XYZ',
+    transactionRef: 'RGH77812XYZ',
     fulfillmentStatus: 'Refunded',
     date: '2026-09-19 16:20',
     courier: 'Wells Fargo Courier',
@@ -334,7 +326,7 @@ const INITIAL_ORDERS: Order[] = [
       { id: 't-15', user: 'Admin Grace', action: 'Payment confirmed', date: '2026-09-19 16:25' },
       { id: 't-16', user: 'Admin Grace', action: 'Order shipped', date: '2026-09-20 09:00' },
       { id: 't-17', user: 'Admin Isaac', action: 'Customer reported defect, return initiated', date: '2026-09-22 14:00' },
-      { id: 't-18', user: 'Admin Isaac', action: 'Refund processed KES 155,000', date: '2026-09-23 10:00' },
+      { id: 't-18', user: 'Admin Isaac', action: 'Refund processed KES 155,000 via M-Pesa reversal', date: '2026-09-23 10:00' },
     ],
   },
   {
@@ -366,7 +358,7 @@ const INITIAL_ORDERS: Order[] = [
     transactionRef: 'FAILED-001',
     fulfillmentStatus: 'Failed',
     date: '2026-09-23 08:45',
-    internalNotes: 'Payment failed. Customer notified to retry.',
+    internalNotes: 'M-Pesa payment failed. Customer notified to retry.',
     timeline: [
       { id: 't-19', user: 'System', action: 'Order placed via WhatsApp', date: '2026-09-23 08:45' },
       { id: 't-20', user: 'System', action: 'M-Pesa payment failed - insufficient funds', date: '2026-09-23 08:46' },
@@ -396,9 +388,9 @@ const INITIAL_ORDERS: Order[] = [
     discountTotal: 0,
     shippingFee: 0,
     total: 135000,
-    paymentMethod: 'Stripe',
+    paymentMethod: 'M-Pesa',
     paymentStatus: 'Paid',
-    transactionRef: 'STRIPE-99012',
+    transactionRef: 'RGH99012MPS',
     fulfillmentStatus: 'Returned',
     date: '2026-09-18 13:30',
     courier: 'Sendy',
@@ -406,7 +398,7 @@ const INITIAL_ORDERS: Order[] = [
     internalNotes: 'Customer returned item. Awaiting inspection.',
     timeline: [
       { id: 't-21', user: 'System', action: 'Order placed online', date: '2026-09-18 13:30' },
-      { id: 't-22', user: 'Admin Grace', action: 'Payment confirmed', date: '2026-09-18 13:35' },
+      { id: 't-22', user: 'Admin Grace', action: 'Payment confirmed via M-Pesa', date: '2026-09-18 13:35' },
       { id: 't-23', user: 'Admin Grace', action: 'Order shipped via Sendy', date: '2026-09-19 10:00' },
       { id: 't-24', user: 'Admin Isaac', action: 'Return requested by customer', date: '2026-09-21 09:00' },
       { id: 't-25', user: 'System', action: 'Item returned and logged', date: '2026-09-22 16:00' },
@@ -414,7 +406,6 @@ const INITIAL_ORDERS: Order[] = [
   },
 ];
 
-const PAYMENT_METHODS: PaymentMethod[] = ['M-Pesa', 'Airtel Money', 'Stripe', 'COD'];
 const PAYMENT_STATUSES: PaymentStatus[] = ['Paid', 'Pending', 'Failed', 'Refunded'];
 
 const ALL_STATUSES: OrderStatus[] = [
@@ -454,7 +445,6 @@ function OrdersListPage({ onSelectOrder }: { onSelectOrder: (id: string) => void
   const [activeTab, setActiveTab] = useState<OrderStatus>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState('');
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState<PaymentMethod | null>(null);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatus | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -475,7 +465,6 @@ function OrdersListPage({ onSelectOrder }: { onSelectOrder: (id: string) => void
 
   const filteredOrders = orders.filter((ord) => {
     if (activeTab !== 'All' && ord.fulfillmentStatus !== activeTab) return false;
-    if (paymentMethodFilter && ord.paymentMethod !== paymentMethodFilter) return false;
     if (paymentStatusFilter && ord.paymentStatus !== paymentStatusFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -596,13 +585,7 @@ function OrdersListPage({ onSelectOrder }: { onSelectOrder: (id: string) => void
             </div>
 
             <FilterDropdown
-              label="Payment"
-              value={paymentMethodFilter}
-              options={PAYMENT_METHODS as unknown as string[]}
-              onChange={(v) => setPaymentMethodFilter(v as PaymentMethod | null)}
-            />
-            <FilterDropdown
-              label="Status"
+              label="Payment status"
               value={paymentStatusFilter}
               options={PAYMENT_STATUSES as unknown as string[]}
               onChange={(v) => setPaymentStatusFilter(v as PaymentStatus | null)}
@@ -666,7 +649,7 @@ function OrdersListPage({ onSelectOrder }: { onSelectOrder: (id: string) => void
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleSelectAll}
-                      className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                      className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                     />
                   </th>
                   <th className="py-2 px-3 font-medium">Order #</th>
@@ -698,7 +681,7 @@ function OrdersListPage({ onSelectOrder }: { onSelectOrder: (id: string) => void
                           type="checkbox"
                           checked={selectedIds.includes(ord.id)}
                           onChange={() => toggleRow(ord.id)}
-                          className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                          className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                         />
                       </td>
                       <td className="py-2 px-3 font-mono font-medium text-slate-900">{ord.orderNumber}</td>
@@ -713,7 +696,7 @@ function OrdersListPage({ onSelectOrder }: { onSelectOrder: (id: string) => void
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-1.5">
                           <span className="inline-block px-2 py-0.5 rounded-sm bg-slate-100 text-slate-700 font-medium border border-slate-200">
-                            {ord.paymentMethod}
+                            M-Pesa
                           </span>
                           <span
                             className={`w-2 h-2 rounded-full ${ord.paymentStatus === 'Paid'
@@ -823,13 +806,13 @@ function OrderDetailPage({ orderId, onBack }: { orderId: string; onBack: () => v
         {
           id: `t-${Date.now()}`,
           user: 'Admin',
-          action: `Refunded KES ${refundAmount}`,
+          action: `Refunded KES ${refundAmount} via M-Pesa reversal`,
           date: new Date().toISOString().replace('T', ' ').substring(0, 16),
         },
         ...prev.timeline,
       ],
     }));
-    setToastMessage(`Refunded KES ${refundAmount}`);
+    setToastMessage(`Refunded KES ${refundAmount} via M-Pesa`);
   };
 
   const markReturned = () => {
@@ -865,8 +848,6 @@ function OrderDetailPage({ orderId, onBack }: { orderId: string; onBack: () => v
     }));
     setToastMessage('Order cancelled');
   };
-
-  const anyModalOpen = whatsAppOpen || refundOpen;
 
   const statusBadgeClass = (s: OrderStatus) => {
     if (s === 'Delivered' || s === 'Paid') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
@@ -1053,10 +1034,10 @@ function OrderDetailPage({ orderId, onBack }: { orderId: string; onBack: () => v
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 border border-slate-200 rounded-sm p-2 text-[13px]">
               <div>
                 <p className="text-slate-500">Method</p>
-                <p className="font-medium text-slate-900 mt-0.5">{order.paymentMethod}</p>
+                <p className="font-medium text-slate-900 mt-0.5">M-Pesa</p>
               </div>
               <div>
-                <p className="text-slate-500">Reference</p>
+                <p className="text-slate-500">M-Pesa reference</p>
                 <p className="font-mono font-medium text-blue-950 mt-0.5">{order.transactionRef}</p>
               </div>
               <div>
@@ -1065,7 +1046,7 @@ function OrderDetailPage({ orderId, onBack }: { orderId: string; onBack: () => v
               </div>
               <div className="flex items-end">
                 <button
-                  onClick={() => setToastMessage('Opening digital receipt…')}
+                  onClick={() => setToastMessage('Opening M-Pesa digital receipt…')}
                   className="text-blue-950 hover:underline font-medium inline-flex items-center gap-1"
                 >
                   View receipt
@@ -1264,9 +1245,7 @@ function OrderDetailPage({ orderId, onBack }: { orderId: string; onBack: () => v
             </div>
             <div>
               <h3 className="text-[15px] font-semibold text-slate-900">Process refund</h3>
-              <p className="text-slate-500 mt-1">
-                Refund to customer via {order.paymentMethod}
-              </p>
+              <p className="text-slate-500 mt-1">Refund to customer via M-Pesa reversal</p>
             </div>
 
             <label className="block text-left">
@@ -1357,7 +1336,7 @@ function FilterDropdown({
             className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
               }`}
           >
-            All {label.toLowerCase()}
+            All statuses
           </button>
           <div className="border-t border-slate-100 my-1" />
           {options.map((opt) => {

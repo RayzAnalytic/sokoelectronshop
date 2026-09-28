@@ -1,3 +1,4 @@
+// components/bestsellingproducts/BestSellingProducts.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -25,6 +26,16 @@ interface Product {
     href: string;
     slug: string;
     stockCount: number;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Currency helper — Kenyan Shilling
+// ─────────────────────────────────────────────────────────────
+function formatKES(amount: number): string {
+    return `KES ${amount.toLocaleString('en-KE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
 }
 
 // Derive "k+ sold this month" from reviewCount
@@ -64,7 +75,10 @@ export default function BestSellingProducts() {
     // Cart store
     const addItem = useCart((s) => s.addItem);
 
-    const handleAddToCart = async (product: Product, e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
+    const handleAddToCart = async (
+        product: Product,
+        e: React.MouseEvent<HTMLButtonElement>
+    ): Promise<void> => {
         e.preventDefault();
         e.stopPropagation();
         setCartAddingId(product.id);
@@ -88,7 +102,6 @@ export default function BestSellingProducts() {
     return (
         <section className="bg-slate-50 py-6 lg:py-8 border-b border-slate-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
-
                 {/* Section Header */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5">
                     <div>
@@ -96,7 +109,8 @@ export default function BestSellingProducts() {
                             Best Selling Products
                         </h2>
                         <p className="text-[13px] text-slate-600 mt-1">
-                            Customer favorites loved for exceptional quality, performance, and value.
+                            Customer favorites loved for exceptional quality,
+                            performance, and value.
                         </p>
                     </div>
                     <Link
@@ -112,7 +126,11 @@ export default function BestSellingProducts() {
                     {bestSellingProducts.map((product) => {
                         const isAdding = cartAddingId === product.id;
                         const discountPercentage = product.previousPrice
-                            ? Math.round(((product.previousPrice - product.price) / product.previousPrice) * 100)
+                            ? Math.round(
+                                  ((product.previousPrice - product.price) /
+                                      product.previousPrice) *
+                                      100
+                              )
                             : null;
 
                         return (
@@ -201,11 +219,11 @@ export default function BestSellingProducts() {
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-baseline space-x-2">
                                             <span className="text-base font-bold text-slate-900">
-                                                ${product.price.toFixed(2)}
+                                                {formatKES(product.price)}
                                             </span>
                                             {product.previousPrice && (
                                                 <span className="text-[11px] text-slate-500 line-through">
-                                                    ${product.previousPrice.toFixed(2)}
+                                                    {formatKES(product.previousPrice)}
                                                 </span>
                                             )}
                                         </div>
@@ -220,9 +238,24 @@ export default function BestSellingProducts() {
                                     >
                                         {isAdding ? (
                                             <>
-                                                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                <svg
+                                                    className="animate-spin h-4 w-4 text-white"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <circle
+                                                        className="opacity-25"
+                                                        cx="12"
+                                                        cy="12"
+                                                        r="10"
+                                                        stroke="currentColor"
+                                                        strokeWidth="4"
+                                                    ></circle>
+                                                    <path
+                                                        className="opacity-75"
+                                                        fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                    ></path>
                                                 </svg>
                                                 <span>Adding...</span>
                                             </>
@@ -234,12 +267,10 @@ export default function BestSellingProducts() {
                                         )}
                                     </button>
                                 </div>
-
                             </Link>
                         );
                     })}
                 </div>
-
             </div>
         </section>
     );

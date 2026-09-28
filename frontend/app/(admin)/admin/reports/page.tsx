@@ -16,11 +16,7 @@ import {
   ChevronDown,
   ExternalLink,
   Eye,
-  Send,
-  Mail,
   MessageCircle,
-  Copy,
-  PieChart as PieIcon,
   Package,
   Warehouse,
   Truck,
@@ -29,7 +25,15 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
+  Play,
+  Music2,
+  Video,
+  ShoppingCart,
+  CircleDollarSign,
+  Boxes,
 } from 'lucide-react';
+import { FaFacebook, FaInstagram, FaYoutube } from 'react-icons/fa';
+
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -43,11 +47,11 @@ import {
   PieChart,
   Pie,
   Cell,
-  AreaChart,
-  Area,
 } from 'recharts';
 
-// --- TYPES ---
+// ============================================================
+// TYPES
+// ============================================================
 type ReportTab =
   | 'sales'
   | 'orders'
@@ -165,44 +169,89 @@ interface DiscountRow {
   status: 'Active' | 'Expired' | 'Scheduled';
 }
 
-interface SocialRow {
-  platform: string;
-  reach: number;
+interface SocialVideoRow {
+  id: string;
+  title: string;
+  product: string;
+  sku: string;
+  category: string;
+  platform: 'TikTok' | 'Instagram' | 'YouTube' | 'Facebook' | 'WhatsApp';
+  videoType: 'Unboxing' | 'Review' | 'Demo' | 'Comparison' | 'Tutorial';
+  published: string;
+  duration: string;
+  views: number;
+  likes: number;
+  comments: number;
   clicks: number;
   orders: number;
   revenue: number;
-  convRate: string;
+  conversionRate: string;
+  ctr: string;
   spend: number;
   roas: string;
 }
 
-// --- MOCK DATA ---
+interface PlatformSummaryRow {
+  platform: 'TikTok' | 'Instagram' | 'YouTube' | 'Facebook' | 'WhatsApp';
+  videos: number;
+  views: number;
+  clicks: number;
+  orders: number;
+  revenue: number;
+  spend: number;
+  roas: string;
+  convRate: string;
+}
+
+interface SocialFunnelRow {
+  date: string;
+  views: number;
+  clicks: number;
+  orders: number;
+  revenue: number;
+}
+
+interface ProductVideoPerfRow {
+  product: string;
+  sku: string;
+  category: string;
+  videos: number;
+  views: number;
+  orders: number;
+  revenue: number;
+  bestPlatform: string;
+  avgConvRate: string;
+}
+
+// ============================================================
+// MOCK DATA — Electronics Shop
+// ============================================================
 const SALES_DAILY_DATA: SaleRow[] = [
-  { date: 'Sep 17', revenue: 45200, orders: 32, aov: 1412, topCategory: 'Software Licenses', refunds: 0 },
-  { date: 'Sep 18', revenue: 58900, orders: 41, aov: 1436, topCategory: 'Payment Plugins', refunds: 1 },
-  { date: 'Sep 19', revenue: 71200, orders: 54, aov: 1318, topCategory: 'SaaS Kits', refunds: 0 },
-  { date: 'Sep 20', revenue: 98400, orders: 72, aov: 1366, topCategory: 'UI Kits', refunds: 2 },
-  { date: 'Sep 21', revenue: 64100, orders: 48, aov: 1335, topCategory: 'WhatsApp Tools', refunds: 1 },
-  { date: 'Sep 22', revenue: 89000, orders: 63, aov: 1412, topCategory: 'Software Licenses', refunds: 0 },
-  { date: 'Sep 23', revenue: 112000, orders: 85, aov: 1317, topCategory: 'Payment Plugins', refunds: 1 },
+  { date: 'Sep 17', revenue: 45200, orders: 32, aov: 1412, topCategory: 'Smartphones', refunds: 0 },
+  { date: 'Sep 18', revenue: 58900, orders: 41, aov: 1436, topCategory: 'Laptops', refunds: 1 },
+  { date: 'Sep 19', revenue: 71200, orders: 54, aov: 1318, topCategory: 'Audio', refunds: 0 },
+  { date: 'Sep 20', revenue: 98400, orders: 72, aov: 1366, topCategory: 'TVs', refunds: 2 },
+  { date: 'Sep 21', revenue: 64100, orders: 48, aov: 1335, topCategory: 'Accessories', refunds: 1 },
+  { date: 'Sep 22', revenue: 89000, orders: 63, aov: 1412, topCategory: 'Smartphones', refunds: 0 },
+  { date: 'Sep 23', revenue: 112000, orders: 85, aov: 1317, topCategory: 'Laptops', refunds: 1 },
 ];
 
 const ORDERS_DATA: OrderRow[] = [
   { id: '#ORD-8942', date: 'Sep 23, 2026', customer: 'Amina Mwangi', items: 3, total: 9899, status: 'Delivered', payment: 'M-Pesa', channel: 'WhatsApp' },
-  { id: '#ORD-8941', date: 'Sep 23, 2026', customer: 'Brian Kiprono', items: 1, total: 1499, status: 'Processing', payment: 'Card', channel: 'Website' },
+  { id: '#ORD-8941', date: 'Sep 23, 2026', customer: 'Brian Kiprono', items: 1, total: 1499, status: 'Processing', payment: 'M-Pesa', channel: 'Website' },
   { id: '#ORD-8940', date: 'Sep 22, 2026', customer: 'Wanjiru Kamau', items: 2, total: 450, status: 'Shipped', payment: 'M-Pesa', channel: 'Instagram' },
-  { id: '#ORD-8939', date: 'Sep 22, 2026', customer: 'Kevin Ochieng', items: 1, total: 899, status: 'Pending', payment: 'Cash', channel: 'TikTok' },
+  { id: '#ORD-8939', date: 'Sep 22, 2026', customer: 'Kevin Ochieng', items: 1, total: 899, status: 'Pending', payment: 'M-Pesa', channel: 'TikTok' },
   { id: '#ORD-8938', date: 'Sep 21, 2026', customer: 'Fatuma Hassan', items: 4, total: 2450, status: 'Delivered', payment: 'M-Pesa', channel: 'Website' },
-  { id: '#ORD-8937', date: 'Sep 21, 2026', customer: 'David Mutua', items: 1, total: 120, status: 'Cancelled', payment: 'Card', channel: 'Facebook' },
+  { id: '#ORD-8937', date: 'Sep 21, 2026', customer: 'David Mutua', items: 1, total: 120, status: 'Cancelled', payment: 'M-Pesa', channel: 'Facebook' },
   { id: '#ORD-8936', date: 'Sep 20, 2026', customer: 'Grace Njeri', items: 2, total: 3200, status: 'Processing', payment: 'M-Pesa', channel: 'WhatsApp' },
 ];
 
 const TOP_PRODUCTS_DATA: ProductRow[] = [
-  { product: 'WhatsApp Chatbot Pro License', sku: 'SFT-BOT-01', qty: 340, revenue: 1020000, returns: 2, net: 1014000, category: 'WhatsApp Tools', lastSold: '2 mins ago' },
-  { product: 'M-Pesa STK Push Gateway Plugin', sku: 'SFT-PAY-02', qty: 290, revenue: 870000, returns: 1, net: 867000, category: 'Payment Plugins', lastSold: '14 mins ago' },
-  { product: 'Multi-Tenant SaaS Starter Kit', sku: 'SFT-SAAS-03', qty: 180, revenue: 1260000, returns: 4, net: 1232000, category: 'SaaS Kits', lastSold: '1 hour ago' },
-  { product: 'Tailwind Dashboard UI Kit', sku: 'SFT-UI-04', qty: 155, revenue: 465000, returns: 0, net: 465000, category: 'UI Kits', lastSold: '3 hours ago' },
-  { product: 'WhatsApp Catalog Sync Bot', sku: 'SFT-CAT-05', qty: 120, revenue: 360000, returns: 1, net: 357000, category: 'WhatsApp Tools', lastSold: '5 hours ago' },
+  { product: 'Samsung Galaxy A55 5G', sku: 'ELEC-SAM-A55', qty: 340, revenue: 1020000, returns: 2, net: 1014000, category: 'Smartphones', lastSold: '2 mins ago' },
+  { product: 'HP Pavilion 15 Core i5', sku: 'ELEC-HP-PAV15', qty: 290, revenue: 870000, returns: 1, net: 867000, category: 'Laptops', lastSold: '14 mins ago' },
+  { product: 'Sony WH-1000XM5 Headphones', sku: 'ELEC-SNY-XM5', qty: 180, revenue: 1260000, returns: 4, net: 1232000, category: 'Audio', lastSold: '1 hour ago' },
+  { product: 'Samsung 55" Crystal UHD TV', sku: 'ELEC-SAM-TV55', qty: 155, revenue: 465000, returns: 0, net: 465000, category: 'TVs', lastSold: '3 hours ago' },
+  { product: 'Anker 20000mAh Power Bank', sku: 'ELEC-ANK-PB20', qty: 120, revenue: 360000, returns: 1, net: 357000, category: 'Accessories', lastSold: '5 hours ago' },
 ];
 
 const CUSTOMERS_DATA: CustomerRow[] = [
@@ -223,18 +272,15 @@ const NEW_VS_RETURNING_DATA = [
   { date: 'Sep 23', newCust: 52, returning: 33 },
 ];
 
+// M-Pesa only — split into two streams (STK Push vs C2B Paybill)
 const PAYMENTS_DATA: PaymentRow[] = [
   { method: 'M-Pesa STK Push', transactions: 1420, volume: 4820000, fees: 67480, net: 4752520, provider: 'Safaricom', successRate: '99.2%' },
   { method: 'M-Pesa C2B Paybill', transactions: 380, volume: 1240000, fees: 22320, net: 1217680, provider: 'Safaricom', successRate: '98.7%' },
-  { method: 'Card (Visa / Mastercard)', transactions: 112, volume: 560000, fees: 16240, net: 543760, provider: 'Stripe', successRate: '96.4%' },
-  { method: 'Bank Transfer (EFT)', transactions: 24, volume: 380000, fees: 1900, net: 378100, provider: 'KCB / Equity', successRate: '100%' },
 ];
 
 const PAYMENT_SHARE_PIE = [
   { name: 'M-Pesa STK Push', value: 4820000, color: '#10b981' },
-  { name: 'M-Pesa C2B', value: 1240000, color: '#059669' },
-  { name: 'Credit Card', value: 560000, color: '#0284c7' },
-  { name: 'Bank Transfer', value: 380000, color: '#6366f1' },
+  { name: 'M-Pesa C2B Paybill', value: 1240000, color: '#059669' },
 ];
 
 const TAXES_DATA: TaxRow[] = [
@@ -245,11 +291,11 @@ const TAXES_DATA: TaxRow[] = [
 ];
 
 const INVENTORY_DATA: InventoryRow[] = [
-  { product: 'WhatsApp Chatbot Pro License', sku: 'SFT-BOT-01', warehouse: 'Nairobi HQ', onHand: 342, reserved: 12, available: 330, reorderPoint: 100, status: 'In Stock', value: 342000 },
-  { product: 'M-Pesa STK Push Gateway Plugin', sku: 'SFT-PAY-02', warehouse: 'Nairobi HQ', onHand: 88, reserved: 8, available: 80, reorderPoint: 100, status: 'Low', value: 88000 },
-  { product: 'Multi-Tenant SaaS Starter Kit', sku: 'SFT-SAAS-03', warehouse: 'Mombasa DC', onHand: 0, reserved: 0, available: 0, reorderPoint: 50, status: 'Out', value: 0 },
-  { product: 'Tailwind Dashboard UI Kit', sku: 'SFT-UI-04', warehouse: 'Nairobi HQ', onHand: 34, reserved: 4, available: 30, reorderPoint: 25, status: 'Low', value: 34000 },
-  { product: 'WhatsApp Catalog Sync Bot', sku: 'SFT-CAT-05', warehouse: 'Kisumu Hub', onHand: 5, reserved: 2, available: 3, reorderPoint: 40, status: 'Critical', value: 5000 },
+  { product: 'Samsung Galaxy A55 5G', sku: 'ELEC-SAM-A55', warehouse: 'Nairobi HQ', onHand: 342, reserved: 12, available: 330, reorderPoint: 100, status: 'In Stock', value: 342000 },
+  { product: 'HP Pavilion 15 Core i5', sku: 'ELEC-HP-PAV15', warehouse: 'Nairobi HQ', onHand: 88, reserved: 8, available: 80, reorderPoint: 100, status: 'Low', value: 88000 },
+  { product: 'Sony WH-1000XM5 Headphones', sku: 'ELEC-SNY-XM5', warehouse: 'Mombasa DC', onHand: 0, reserved: 0, available: 0, reorderPoint: 50, status: 'Out', value: 0 },
+  { product: 'Samsung 55" Crystal UHD TV', sku: 'ELEC-SAM-TV55', warehouse: 'Nairobi HQ', onHand: 34, reserved: 4, available: 30, reorderPoint: 25, status: 'Low', value: 34000 },
+  { product: 'Anker 20000mAh Power Bank', sku: 'ELEC-ANK-PB20', warehouse: 'Kisumu Hub', onHand: 5, reserved: 2, available: 3, reorderPoint: 40, status: 'Critical', value: 5000 },
 ];
 
 const SHIPPING_DATA: ShippingRow[] = [
@@ -267,13 +313,204 @@ const DISCOUNTS_DATA: DiscountRow[] = [
   { code: 'NEWSLETTER20', type: 'Percentage 20%', uses: 62, discountGiven: 62000, revenue: 248000, roi: '4.0x', status: 'Scheduled' },
 ];
 
-const SOCIAL_DATA: SocialRow[] = [
-  { platform: 'WhatsApp Business', reach: 24800, clicks: 6420, orders: 248, revenue: 412000, convRate: '3.86%', spend: 0, roas: '∞' },
-  { platform: 'Instagram Shop', reach: 86200, clicks: 4180, orders: 132, revenue: 218500, convRate: '3.16%', spend: 42000, roas: '5.2x' },
-  { platform: 'TikTok Ads', reach: 142000, clicks: 5840, orders: 62, revenue: 78300, convRate: '1.06%', spend: 18000, roas: '4.35x' },
-  { platform: 'Facebook Ads', reach: 62400, clicks: 3120, orders: 84, revenue: 128900, convRate: '2.69%', spend: 24000, roas: '5.37x' },
+const SOCIAL_VIDEOS_DATA: SocialVideoRow[] = [
+  {
+    id: 'sv-001',
+    title: 'Samsung Galaxy A55 Unboxing + First Impressions',
+    product: 'Samsung Galaxy A55 5G',
+    sku: 'ELEC-SAM-A55',
+    category: 'Smartphones',
+    platform: 'TikTok',
+    videoType: 'Unboxing',
+    published: 'Sep 22, 2026',
+    duration: '0:48',
+    views: 184000,
+    likes: 12400,
+    comments: 512,
+    clicks: 6420,
+    orders: 248,
+    revenue: 992000,
+    conversionRate: '3.86%',
+    ctr: '3.49%',
+    spend: 0,
+    roas: '∞',
+  },
+  {
+    id: 'sv-002',
+    title: 'Sony WH-1000XM5 — Honest Review After 30 Days',
+    product: 'Sony WH-1000XM5 Headphones',
+    sku: 'ELEC-SNY-XM5',
+    category: 'Audio',
+    platform: 'YouTube',
+    videoType: 'Review',
+    published: 'Sep 20, 2026',
+    duration: '14:02',
+    views: 48200,
+    likes: 3410,
+    comments: 386,
+    clicks: 4180,
+    orders: 132,
+    revenue: 924000,
+    conversionRate: '3.16%',
+    ctr: '8.67%',
+    spend: 42000,
+    roas: '22.0x',
+  },
+  {
+    id: 'sv-003',
+    title: 'HP Pavilion 15 vs Lenovo IdeaPad — Which to Buy?',
+    product: 'HP Pavilion 15 Core i5',
+    sku: 'ELEC-HP-PAV15',
+    category: 'Laptops',
+    platform: 'Instagram',
+    videoType: 'Comparison',
+    published: 'Sep 19, 2026',
+    duration: '2:14',
+    views: 31200,
+    likes: 2210,
+    comments: 274,
+    clicks: 2890,
+    orders: 84,
+    revenue: 252000,
+    conversionRate: '2.91%',
+    ctr: '9.26%',
+    spend: 18000,
+    roas: '14.0x',
+  },
+  {
+    id: 'sv-004',
+    title: 'How to Set Up Your Samsung 55" TV in 3 Minutes',
+    product: 'Samsung 55" Crystal UHD TV',
+    sku: 'ELEC-SAM-TV55',
+    category: 'TVs',
+    platform: 'YouTube',
+    videoType: 'Tutorial',
+    published: 'Sep 18, 2026',
+    duration: '3:12',
+    views: 22400,
+    likes: 1620,
+    comments: 198,
+    clicks: 3120,
+    orders: 62,
+    revenue: 186000,
+    conversionRate: '1.99%',
+    ctr: '13.93%',
+    spend: 24000,
+    roas: '7.75x',
+  },
+  {
+    id: 'sv-005',
+    title: 'Anker Power Bank 20000mAh — Real Test (Charges iPhone 8x)',
+    product: 'Anker 20000mAh Power Bank',
+    sku: 'ELEC-ANK-PB20',
+    category: 'Accessories',
+    platform: 'TikTok',
+    videoType: 'Demo',
+    published: 'Sep 17, 2026',
+    duration: '0:38',
+    views: 142000,
+    likes: 9800,
+    comments: 384,
+    clicks: 5840,
+    orders: 168,
+    revenue: 504000,
+    conversionRate: '2.88%',
+    ctr: '4.11%',
+    spend: 12000,
+    roas: '42.0x',
+  },
+  {
+    id: 'sv-006',
+    title: 'WhatsApp Status: Samsung A55 Flash Sale (24hrs)',
+    product: 'Samsung Galaxy A55 5G',
+    sku: 'ELEC-SAM-A55',
+    category: 'Smartphones',
+    platform: 'WhatsApp',
+    videoType: 'Demo',
+    published: 'Sep 16, 2026',
+    duration: '0:20',
+    views: 24800,
+    likes: 0,
+    comments: 142,
+    clicks: 2140,
+    orders: 96,
+    revenue: 384000,
+    conversionRate: '4.49%',
+    ctr: '8.63%',
+    spend: 0,
+    roas: '∞',
+  },
+  {
+    id: 'sv-007',
+    title: 'Facebook Ad: Sony XM5 Noise Cancelling Demo',
+    product: 'Sony WH-1000XM5 Headphones',
+    sku: 'ELEC-SNY-XM5',
+    category: 'Audio',
+    platform: 'Facebook',
+    videoType: 'Demo',
+    published: 'Sep 15, 2026',
+    duration: '1:04',
+    views: 62400,
+    likes: 3120,
+    comments: 218,
+    clicks: 3120,
+    orders: 48,
+    revenue: 336000,
+    conversionRate: '1.54%',
+    ctr: '5.00%',
+    spend: 36000,
+    roas: '9.33x',
+  },
+  {
+    id: 'sv-008',
+    title: 'Anker vs Baseus Power Bank — 5-Minute Comparison',
+    product: 'Anker 20000mAh Power Bank',
+    sku: 'ELEC-ANK-PB20',
+    category: 'Accessories',
+    platform: 'Instagram',
+    videoType: 'Comparison',
+    published: 'Sep 14, 2026',
+    duration: '5:18',
+    views: 18600,
+    likes: 1240,
+    comments: 96,
+    clicks: 1420,
+    orders: 42,
+    revenue: 126000,
+    conversionRate: '2.96%',
+    ctr: '7.63%',
+    spend: 8000,
+    roas: '15.75x',
+  },
 ];
 
+const PLATFORM_SUMMARY_DATA: PlatformSummaryRow[] = [
+  { platform: 'TikTok', videos: 12, views: 326000, clicks: 12260, orders: 416, revenue: 1496000, spend: 12000, roas: '124.7x', convRate: '3.39%' },
+  { platform: 'YouTube', videos: 8, views: 70600, clicks: 7300, orders: 194, revenue: 1110000, spend: 66000, roas: '16.8x', convRate: '2.66%' },
+  { platform: 'Instagram', videos: 9, views: 49800, clicks: 4310, orders: 126, revenue: 378000, spend: 26000, roas: '14.5x', convRate: '2.92%' },
+  { platform: 'Facebook', videos: 6, views: 62400, clicks: 3120, orders: 48, revenue: 336000, spend: 36000, roas: '9.33x', convRate: '1.54%' },
+  { platform: 'WhatsApp', videos: 4, views: 24800, clicks: 2140, orders: 96, revenue: 384000, spend: 0, roas: '∞', convRate: '4.49%' },
+];
+
+const SOCIAL_FUNNEL_DATA: SocialFunnelRow[] = [
+  { date: 'Sep 17', views: 142000, clicks: 5840, orders: 168, revenue: 504000 },
+  { date: 'Sep 18', views: 22400, clicks: 3120, orders: 62, revenue: 186000 },
+  { date: 'Sep 19', views: 31200, clicks: 2890, orders: 84, revenue: 252000 },
+  { date: 'Sep 20', views: 48200, clicks: 4180, orders: 132, revenue: 924000 },
+  { date: 'Sep 21', views: 18600, clicks: 1420, orders: 42, revenue: 126000 },
+  { date: 'Sep 22', views: 184000, clicks: 6420, orders: 248, revenue: 992000 },
+  { date: 'Sep 23', views: 62400, clicks: 3120, orders: 48, revenue: 336000 },
+];
+
+const PRODUCT_VIDEO_PERF_DATA: ProductVideoPerfRow[] = [
+  { product: 'Samsung Galaxy A55 5G', sku: 'ELEC-SAM-A55', category: 'Smartphones', videos: 4, views: 208800, orders: 344, revenue: 1376000, bestPlatform: 'TikTok', avgConvRate: '3.94%' },
+  { product: 'Sony WH-1000XM5 Headphones', sku: 'ELEC-SNY-XM5', category: 'Audio', videos: 3, views: 110600, orders: 180, revenue: 1260000, bestPlatform: 'YouTube', avgConvRate: '2.35%' },
+  { product: 'Anker 20000mAh Power Bank', sku: 'ELEC-ANK-PB20', category: 'Accessories', videos: 3, views: 160600, orders: 210, revenue: 630000, bestPlatform: 'TikTok', avgConvRate: '2.92%' },
+  { product: 'HP Pavilion 15 Core i5', sku: 'ELEC-HP-PAV15', category: 'Laptops', videos: 2, views: 31200, orders: 84, revenue: 252000, bestPlatform: 'Instagram', avgConvRate: '2.91%' },
+  { product: 'Samsung 55" Crystal UHD TV', sku: 'ELEC-SAM-TV55', category: 'TVs', videos: 2, views: 22400, orders: 62, revenue: 186000, bestPlatform: 'YouTube', avgConvRate: '1.99%' },
+];
+
+// Status style maps
 const TAX_STATUS_STYLES: Record<TaxRow['status'], string> = {
   Filed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   Due: 'bg-amber-50 text-amber-700 border-amber-100',
@@ -293,6 +530,17 @@ const DISCOUNT_STATUS_STYLES: Record<DiscountRow['status'], string> = {
   Scheduled: 'bg-blue-50 text-blue-950 border-blue-100',
 };
 
+const VIDEO_TYPE_STYLES: Record<SocialVideoRow['videoType'], string> = {
+  Unboxing: 'bg-blue-50 text-blue-950 border-blue-100',
+  Review: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  Demo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+  Comparison: 'bg-amber-50 text-amber-700 border-amber-100',
+  Tutorial: 'bg-purple-50 text-purple-700 border-purple-100',
+};
+
+// ============================================================
+// COMPONENT
+// ============================================================
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
   const [dateRange, setDateRange] = useState<DateRange>('7days');
@@ -314,7 +562,12 @@ export default function ReportsPage() {
   const [selectedInventory, setSelectedInventory] = useState<InventoryRow | null>(null);
   const [selectedShipping, setSelectedShipping] = useState<ShippingRow | null>(null);
   const [selectedDiscount, setSelectedDiscount] = useState<DiscountRow | null>(null);
-  const [selectedSocial, setSelectedSocial] = useState<SocialRow | null>(null);
+
+  // Social modals
+  const [selectedVideo, setSelectedVideo] = useState<SocialVideoRow | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformSummaryRow | null>(null);
+  const [selectedFunnelDay, setSelectedFunnelDay] = useState<SocialFunnelRow | null>(null);
+  const [selectedProductVideo, setSelectedProductVideo] = useState<ProductVideoPerfRow | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -366,7 +619,7 @@ export default function ReportsPage() {
     { id: 'taxes', label: 'Taxes & VAT', icon: Receipt },
     { id: 'shipping', label: 'Shipping', icon: Truck },
     { id: 'discounts', label: 'Discounts', icon: Percent },
-    { id: 'social', label: 'Social', icon: Share2 },
+    { id: 'social', label: 'Social Videos', icon: Share2 },
   ];
 
   return (
@@ -455,12 +708,10 @@ export default function ReportsPage() {
       {selectedProduct && (
         <Modal onClose={() => setSelectedProduct(null)}>
           <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedProduct.category}</p>
-                <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedProduct.product}</h3>
-                <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedProduct.sku}</p>
-              </div>
+            <div>
+              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedProduct.category}</p>
+              <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedProduct.product}</h3>
+              <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedProduct.sku}</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Stat label="Units Sold" value={selectedProduct.qty.toString()} />
@@ -517,13 +768,6 @@ export default function ReportsPage() {
                 WhatsApp
               </button>
               <button
-                onClick={() => showToast(`Email draft opened for ${selectedCustomer.customer}`)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                Email
-              </button>
-              <button
                 onClick={() => setSelectedCustomer(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
@@ -553,12 +797,6 @@ export default function ReportsPage() {
               <p className="text-[15px] font-bold text-emerald-700 mt-0.5">KES {selectedPayment.net.toLocaleString()}</p>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button
-                onClick={() => showToast(`Reconciling ${selectedPayment.method}…`)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-              >
-                Reconcile
-              </button>
               <button
                 onClick={() => setSelectedPayment(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -614,21 +852,6 @@ export default function ReportsPage() {
             </div>
             <p className="text-[13px] text-slate-500">Due date: {selectedTax.dueDate}</p>
             <div className="flex justify-end gap-2 pt-1">
-              {selectedTax.status === 'Due' && (
-                <button
-                  onClick={() => showToast(`Opening KRA iTax filing for ${selectedTax.period}`)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-                >
-                  File with KRA
-                </button>
-              )}
-              <button
-                onClick={() => showToast(`Downloading VAT return for ${selectedTax.period}`)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download
-              </button>
               <button
                 onClick={() => setSelectedTax(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -663,14 +886,8 @@ export default function ReportsPage() {
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button
-                onClick={() => showToast(`Restocking ${selectedInventory.product}…`)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-              >
-                Restock
-              </button>
-              <button
                 onClick={() => setSelectedInventory(null)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
                 Close
               </button>
@@ -743,29 +960,171 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- SOCIAL MODAL ---- */}
-      {selectedSocial && (
-        <Modal onClose={() => setSelectedSocial(null)}>
+      {/* ---- SOCIAL: VIDEO DETAIL MODAL ---- */}
+      {selectedVideo && (
+        <Modal onClose={() => setSelectedVideo(null)}>
           <div className="space-y-3">
-            <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Social Channel</p>
-              <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedSocial.platform}</h3>
+            <div className="flex items-start gap-3">
+              <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border shrink-0 ${VIDEO_TYPE_STYLES[selectedVideo.videoType]}`}>
+                {selectedVideo.videoType}
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold text-slate-900 leading-snug">{selectedVideo.title}</h3>
+                <p className="text-[13px] text-slate-500 mt-0.5">
+                  {selectedVideo.platform} · {selectedVideo.published} · {selectedVideo.duration}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-sm p-2">
+              <p className="text-[13px] text-blue-900">Featured product</p>
+              <p className="text-[15px] font-bold text-blue-950 mt-0.5">{selectedVideo.product}</p>
+              <p className="text-[13px] text-blue-800 font-mono mt-0.5">
+                {selectedVideo.sku} · {selectedVideo.category}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Stat label="Views" value={selectedVideo.views.toLocaleString()} />
+              <Stat label="Likes" value={selectedVideo.likes.toLocaleString()} />
+              <Stat label="Comments" value={selectedVideo.comments.toLocaleString()} />
+              <Stat label="Clicks to Product" value={selectedVideo.clicks.toLocaleString()} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Stat label="Orders" value={selectedVideo.orders.toLocaleString()} />
+              <Stat label="Conversion Rate" value={selectedVideo.conversionRate} />
+              <Stat label="CTR" value={selectedVideo.ctr} />
+              <Stat label="Ad Spend" value={selectedVideo.spend ? `KES ${selectedVideo.spend.toLocaleString()}` : 'Organic'} />
+            </div>
+
+            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+              <p className="text-[13px] text-emerald-800">Revenue from this video</p>
+              <p className="text-[15px] font-bold text-emerald-700 mt-0.5">
+                KES {selectedVideo.revenue.toLocaleString()}
+              </p>
+              <p className="text-[13px] text-emerald-700 mt-0.5">ROAS: {selectedVideo.roas}</p>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <button
+                onClick={() => showToast(`Opening ${selectedVideo.platform} video ${selectedVideo.id}`)}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open video
+              </button>
+              <button
+                onClick={() => showToast(`Opening product ${selectedVideo.sku}`)}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <Boxes className="w-3.5 h-3.5" />
+                View product
+              </button>
+              <button
+                onClick={() => setSelectedVideo(null)}
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ---- SOCIAL: PLATFORM DETAIL MODAL ---- */}
+      {selectedPlatform && (
+        <Modal onClose={() => setSelectedPlatform(null)}>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <PlatformIcon platform={selectedPlatform.platform} />
+              <h3 className="text-[15px] font-bold text-slate-900">{selectedPlatform.platform}</h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Stat label="Reach" value={selectedSocial.reach.toLocaleString()} />
-              <Stat label="Clicks" value={selectedSocial.clicks.toLocaleString()} />
-              <Stat label="Orders" value={selectedSocial.orders.toString()} />
-              <Stat label="Revenue" value={`KES ${selectedSocial.revenue.toLocaleString()}`} />
-              <Stat label="Conv. Rate" value={selectedSocial.convRate} />
-              <Stat label="Spend" value={selectedSocial.spend ? `KES ${selectedSocial.spend.toLocaleString()}` : '—'} />
+              <Stat label="Videos Published" value={selectedPlatform.videos.toString()} />
+              <Stat label="Total Views" value={selectedPlatform.views.toLocaleString()} />
+              <Stat label="Product Clicks" value={selectedPlatform.clicks.toLocaleString()} />
+              <Stat label="Orders Attributed" value={selectedPlatform.orders.toLocaleString()} />
             </div>
-            <div className="bg-blue-50 border border-blue-100 rounded-sm p-2">
-              <p className="text-[13px] text-blue-900">Return on Ad Spend</p>
-              <p className="text-[15px] font-bold text-blue-950 mt-0.5">{selectedSocial.roas}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Stat label="Conversion Rate" value={selectedPlatform.convRate} />
+              <Stat label="Ad Spend" value={selectedPlatform.spend ? `KES ${selectedPlatform.spend.toLocaleString()}` : 'Organic'} />
+            </div>
+            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+              <p className="text-[13px] text-emerald-800">Revenue from {selectedPlatform.platform}</p>
+              <p className="text-[15px] font-bold text-emerald-700 mt-0.5">
+                KES {selectedPlatform.revenue.toLocaleString()}
+              </p>
+              <p className="text-[13px] text-emerald-700 mt-0.5">ROAS: {selectedPlatform.roas}</p>
             </div>
             <div className="flex justify-end pt-1">
               <button
-                onClick={() => setSelectedSocial(null)}
+                onClick={() => setSelectedPlatform(null)}
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ---- SOCIAL: FUNNEL DAY MODAL ---- */}
+      {selectedFunnelDay && (
+        <Modal onClose={() => setSelectedFunnelDay(null)}>
+          <div className="space-y-3">
+            <div>
+              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Social Funnel Day</p>
+              <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedFunnelDay.date}, 2026</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Stat label="Views" value={selectedFunnelDay.views.toLocaleString()} />
+              <Stat label="Product Clicks" value={selectedFunnelDay.clicks.toLocaleString()} />
+              <Stat label="Orders" value={selectedFunnelDay.orders.toLocaleString()} />
+              <Stat label="Revenue" value={`KES ${selectedFunnelDay.revenue.toLocaleString()}`} />
+            </div>
+            <div className="text-[13px] text-slate-500 space-y-1">
+              <p>View → Click: {((selectedFunnelDay.clicks / selectedFunnelDay.views) * 100).toFixed(2)}%</p>
+              <p>Click → Order: {((selectedFunnelDay.orders / selectedFunnelDay.clicks) * 100).toFixed(2)}%</p>
+              <p>View → Order: {((selectedFunnelDay.orders / selectedFunnelDay.views) * 100).toFixed(2)}%</p>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => setSelectedFunnelDay(null)}
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ---- SOCIAL: PRODUCT VIDEO PERF MODAL ---- */}
+      {selectedProductVideo && (
+        <Modal onClose={() => setSelectedProductVideo(null)}>
+          <div className="space-y-3">
+            <div>
+              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedProductVideo.category}</p>
+              <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedProductVideo.product}</h3>
+              <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedProductVideo.sku}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Stat label="Videos" value={selectedProductVideo.videos.toString()} />
+              <Stat label="Total Views" value={selectedProductVideo.views.toLocaleString()} />
+              <Stat label="Orders" value={selectedProductVideo.orders.toLocaleString()} />
+              <Stat label="Avg Conv. Rate" value={selectedProductVideo.avgConvRate} />
+            </div>
+            <Stat label="Best Platform" value={selectedProductVideo.bestPlatform} />
+            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+              <p className="text-[13px] text-emerald-800">Total revenue from videos</p>
+              <p className="text-[15px] font-bold text-emerald-700 mt-0.5">
+                KES {selectedProductVideo.revenue.toLocaleString()}
+              </p>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => setSelectedProductVideo(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
                 Close
@@ -780,7 +1139,7 @@ export default function ReportsPage() {
         <div className="max-w-[1600px] mx-auto px-3 py-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Reports & Analytics</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">Exportable financial, sales, product, and tax reports</p>
+            <p className="text-[13px] text-slate-500 mt-0.5">Electronics shop · sales, inventory, and product video performance</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -968,7 +1327,7 @@ export default function ReportsPage() {
                           yAxisId="left"
                           dataKey="revenue"
                           fill="#172554"
-                          radius={[4, 4, 0, 0]}
+                          radius={[2, 2, 0, 0]}
                           barSize={24}
                           onClick={(entry: any) => setSelectedSale(entry)}
                           className="cursor-pointer"
@@ -1033,7 +1392,7 @@ export default function ReportsPage() {
                   </button>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-[13px]">
+                  <table className="w-full text-left border-collapse text-[13px] min-w-[820px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                         <th className="py-2 px-3 font-medium">Order</th>
@@ -1097,7 +1456,7 @@ export default function ReportsPage() {
                         <Bar
                           dataKey="revenue"
                           fill="#0284c7"
-                          radius={[0, 4, 4, 0]}
+                          radius={[0, 2, 2, 0]}
                           barSize={18}
                           onClick={(entry: any) => setSelectedProduct(entry)}
                           className="cursor-pointer"
@@ -1118,7 +1477,7 @@ export default function ReportsPage() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[700px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                           <th className="py-2 px-3 font-medium">Product</th>
@@ -1185,7 +1544,7 @@ export default function ReportsPage() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[700px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                           <th className="py-2 px-3 font-medium">Customer</th>
@@ -1249,7 +1608,7 @@ export default function ReportsPage() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[900px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                           <th className="py-2 px-3 font-medium">Product</th>
@@ -1293,12 +1652,12 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- PAYMENTS ---- */}
+            {/* ---- PAYMENTS (M-Pesa only) ---- */}
             {activeTab === 'payments' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
                 <div className="lg:col-span-8 bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-slate-700">Payment Gateway Settlement</span>
+                    <span className="text-[13px] font-medium text-slate-700">M-Pesa Settlement Report</span>
                     <button
                       onClick={() => handleExport('PDF')}
                       className="text-[13px] text-blue-950 hover:underline font-medium"
@@ -1307,10 +1666,10 @@ export default function ReportsPage() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[640px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Method</th>
+                          <th className="py-2 px-3 font-medium">Stream</th>
                           <th className="py-2 px-3 font-medium">Txns</th>
                           <th className="py-2 px-3 font-medium">Volume</th>
                           <th className="py-2 px-3 font-medium">Fees</th>
@@ -1338,7 +1697,7 @@ export default function ReportsPage() {
 
                 <div className="lg:col-span-4 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                   <div>
-                    <h3 className="text-[13px] font-semibold text-slate-900">Method Share</h3>
+                    <h3 className="text-[13px] font-semibold text-slate-900">M-Pesa Stream Split</h3>
                     <p className="text-[13px] text-slate-500">Click a slice for details</p>
                   </div>
                   <div className="h-48 w-full">
@@ -1395,7 +1754,7 @@ export default function ReportsPage() {
                   </button>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-[13px]">
+                  <table className="w-full text-left border-collapse text-[13px] min-w-[720px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                         <th className="py-2 px-3 font-medium">Period</th>
@@ -1462,7 +1821,7 @@ export default function ReportsPage() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[840px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                           <th className="py-2 px-3 font-medium">Carrier</th>
@@ -1512,7 +1871,7 @@ export default function ReportsPage() {
                   </button>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-[13px]">
+                  <table className="w-full text-left border-collapse text-[13px] min-w-[840px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                         <th className="py-2 px-3 font-medium">Code</th>
@@ -1550,76 +1909,225 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- SOCIAL ---- */}
+            {/* ---- SOCIAL: PRODUCT VIDEOS ---- */}
             {activeTab === 'social' && (
               <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                  {SOCIAL_DATA.map((s) => (
-                    <button
-                      key={s.platform}
-                      onClick={() => setSelectedSocial(s)}
-                      className="text-left bg-white border border-slate-200 rounded-sm p-3 space-y-2 hover:border-blue-950 transition-all"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[13px] font-semibold text-slate-900 truncate">{s.platform}</span>
-                        <span className="text-[13px] font-medium text-blue-950 shrink-0">{s.roas}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {[
+                    { label: 'Videos Published', value: '39', change: '+8', up: true, icon: Video, color: 'text-blue-950 bg-blue-50' },
+                    { label: 'Total Views', value: '533,600', change: '+18.2%', up: true, icon: Eye, color: 'text-indigo-700 bg-indigo-50' },
+                    { label: 'Orders from Videos', value: '880', change: '+22.5%', up: true, icon: ShoppingCart, color: 'text-emerald-700 bg-emerald-50' },
+                    { label: 'Video Revenue', value: 'KES 3,696,000', change: '+26.8%', up: true, icon: CircleDollarSign, color: 'text-emerald-700 bg-emerald-50' },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 ${s.color}`}>
+                          <s.icon className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
                       </div>
-                      <div className="text-[15px] font-bold text-slate-900">KES {s.revenue.toLocaleString()}</div>
-                      <div className="flex items-center justify-between text-[13px] text-slate-500">
-                        <span>{s.orders} orders</span>
-                        <span>{s.convRate}</span>
+                      <div className="text-[15px] font-bold text-slate-900">{s.value}</div>
+                      <div className="flex items-center gap-1 text-[13px]">
+                        {s.up ? (
+                          <ArrowUpRight className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <ArrowDownRight className="w-3 h-3 text-red-600" />
+                        )}
+                        <span className={s.up ? 'text-emerald-700' : 'text-red-600'}>{s.change}</span>
+                        <span className="text-slate-400">vs last period</span>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
 
+                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-[13px] font-semibold text-slate-900">Social Sales Funnel</h3>
+                      <p className="text-[13px] text-slate-500">Views → Product clicks → Orders · {dateRangeLabel}</p>
+                    </div>
+                    <div className="flex items-center gap-3 text-[13px]">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 bg-blue-950 rounded-sm" />
+                        <span className="text-slate-600">Views</span>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 bg-emerald-500 rounded-sm" />
+                        <span className="text-slate-600">Orders</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="h-56 sm:h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={SOCIAL_FUNNEL_DATA}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} />
+                        <YAxis yAxisId="left" stroke="#172554" fontSize={13} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={13} />
+                        <Tooltip />
+                        <Bar
+                          yAxisId="left"
+                          dataKey="views"
+                          fill="#172554"
+                          radius={[2, 2, 0, 0]}
+                          barSize={20}
+                          onClick={(entry: any) => setSelectedFunnelDay(entry)}
+                          className="cursor-pointer"
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="orders"
+                          stroke="#10b981"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-[13px] text-slate-400 text-center">Click a bar to see day breakdown</p>
+                </div>
+
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-slate-700">Social Channel Performance</span>
+                  <div className="px-2 sm:px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-medium text-slate-700 truncate">Product Videos Performance</span>
                     <button
-                      onClick={() => handleExport('CSV')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium"
+                      onClick={() => handleExport('Excel')}
+                      className="text-[13px] text-blue-950 hover:underline font-medium shrink-0"
                     >
-                      Export CSV
+                      Export Excel
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[900px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Platform</th>
-                          <th className="py-2 px-3 font-medium text-right">Reach</th>
-                          <th className="py-2 px-3 font-medium text-right">Clicks</th>
-                          <th className="py-2 px-3 font-medium text-right">Orders</th>
-                          <th className="py-2 px-3 font-medium text-right">Conv. Rate</th>
-                          <th className="py-2 px-3 font-medium text-right">Spend</th>
-                          <th className="py-2 px-3 font-medium text-right">ROAS</th>
-                          <th className="py-2 px-3 font-medium text-right">Revenue</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium">Video</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium">Product</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium">Platform</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Views</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Clicks</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Orders</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Conv.</th>
+                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Revenue</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {SOCIAL_DATA.map((s) => (
+                        {SOCIAL_VIDEOS_DATA.map((v) => (
                           <tr
-                            key={s.platform}
-                            onClick={() => setSelectedSocial(s)}
+                            key={v.id}
+                            onClick={() => setSelectedVideo(v)}
                             className="hover:bg-slate-50 cursor-pointer transition"
                           >
-                            <td className="py-2 px-3 font-medium text-slate-900">{s.platform}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-700">{s.reach.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-700">{s.clicks.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-700">{s.orders}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-600">{s.convRate}</td>
-                            <td className="py-2 px-3 text-right font-mono text-red-600">
-                              {s.spend ? `KES ${s.spend.toLocaleString()}` : '—'}
+                            <td className="py-2 px-2 sm:px-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 ${VIDEO_TYPE_STYLES[v.videoType]}`}>
+                                  <Play className="w-3 h-3" />
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-slate-900 truncate max-w-[200px] sm:max-w-[280px]">{v.title}</p>
+                                  <p className="text-[13px] text-slate-400">
+                                    {v.videoType} · {v.duration} · {v.published}
+                                  </p>
+                                </div>
+                              </div>
                             </td>
-                            <td className="py-2 px-3 text-right font-mono font-semibold text-blue-950">{s.roas}</td>
-                            <td className="py-2 px-3 text-right font-mono font-semibold text-emerald-600">
-                              KES {s.revenue.toLocaleString()}
+                            <td className="py-2 px-2 sm:px-3">
+                              <p className="text-slate-700 truncate max-w-[160px]">{v.product}</p>
+                              <p className="text-[13px] text-slate-400 font-mono">{v.sku}</p>
+                            </td>
+                            <td className="py-2 px-2 sm:px-3">
+                              <PlatformIcon platform={v.platform} withLabel />
+                            </td>
+                            <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{v.views.toLocaleString()}</td>
+                            <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-600">{v.clicks.toLocaleString()}</td>
+                            <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-slate-900">{v.orders}</td>
+                            <td className="py-2 px-2 sm:px-3 text-right font-mono text-emerald-600">{v.conversionRate}</td>
+                            <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-emerald-600">
+                              KES {v.revenue.toLocaleString()}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                    <div className="px-2 sm:px-3 py-2 border-b border-slate-200 bg-slate-50">
+                      <span className="text-[13px] font-medium text-slate-700">Platform Summary</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-[13px] min-w-[560px]">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                            <th className="py-2 px-2 sm:px-3 font-medium">Platform</th>
+                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Videos</th>
+                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Views</th>
+                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Orders</th>
+                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Revenue</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {PLATFORM_SUMMARY_DATA.map((p) => (
+                            <tr
+                              key={p.platform}
+                              onClick={() => setSelectedPlatform(p)}
+                              className="hover:bg-slate-50 cursor-pointer transition"
+                            >
+                              <td className="py-2 px-2 sm:px-3">
+                                <PlatformIcon platform={p.platform} withLabel />
+                              </td>
+                              <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{p.videos}</td>
+                              <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{p.views.toLocaleString()}</td>
+                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-slate-900">{p.orders}</td>
+                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-emerald-600">
+                                KES {p.revenue.toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                    <div className="px-2 sm:px-3 py-2 border-b border-slate-200 bg-slate-50">
+                      <span className="text-[13px] font-medium text-slate-700">Top Products by Video Revenue</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-[13px] min-w-[560px]">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                            <th className="py-2 px-2 sm:px-3 font-medium">Product</th>
+                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Videos</th>
+                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Orders</th>
+                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Revenue</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {PRODUCT_VIDEO_PERF_DATA.map((p) => (
+                            <tr
+                              key={p.sku}
+                              onClick={() => setSelectedProductVideo(p)}
+                              className="hover:bg-slate-50 cursor-pointer transition"
+                            >
+                              <td className="py-2 px-2 sm:px-3">
+                                <p className="font-medium text-slate-900 truncate max-w-[180px] sm:max-w-none">{p.product}</p>
+                                <p className="text-[13px] text-slate-400 font-mono">{p.sku} · {p.category}</p>
+                              </td>
+                              <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{p.videos}</td>
+                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-slate-900">{p.orders}</td>
+                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-emerald-600">
+                                KES {p.revenue.toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1631,11 +2139,13 @@ export default function ReportsPage() {
   );
 }
 
-/* ---- Reusable bits ---- */
+/* ============================================================
+   Reusable bits
+   ============================================================ */
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3" onClick={onClose}>
-      <div className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl relative" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           className="absolute top-3 right-3 h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
@@ -1654,6 +2164,35 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
       <p className="text-[13px] font-medium text-slate-500">{label}</p>
       <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function PlatformIcon({ platform, withLabel = false }: { platform: string; withLabel?: boolean }) {
+  const map: Record<string, { icon: any; color: string }> = {
+    TikTok: { icon: Music2, color: 'text-slate-900 bg-slate-100' },
+    Instagram: { icon: FaInstagram, color: 'text-pink-600 bg-pink-50' },
+    YouTube: { icon: FaYoutube, color: 'text-red-600 bg-red-50' },
+    Facebook: { icon: FaFacebook, color: 'text-blue-700 bg-blue-50' },
+    WhatsApp: { icon: MessageCircle, color: 'text-emerald-700 bg-emerald-50' },
+  };
+  const meta = map[platform] ?? { icon: Share2, color: 'text-slate-700 bg-slate-100' };
+  const Icon = meta.icon;
+
+  if (!withLabel) {
+    return (
+      <span className={`w-6 h-6 rounded-sm flex items-center justify-center ${meta.color}`}>
+        <Icon className="w-3.5 h-3.5" />
+      </span>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 ${meta.color}`}>
+        <Icon className="w-3.5 h-3.5" />
+      </span>
+      <span className="text-slate-700 truncate">{platform}</span>
     </div>
   );
 }

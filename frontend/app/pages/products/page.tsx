@@ -1,3 +1,4 @@
+// app/pages/products/page.tsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -72,6 +73,16 @@ const MOCK_REVIEWS: Record<string, Review[]> = {
     ],
 };
 
+// ─────────────────────────────────────────────────────────────
+// Currency helper
+// ─────────────────────────────────────────────────────────────
+function formatKES(amount: number): string {
+    return `KES ${amount.toLocaleString('en-KE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
+}
+
 export default function ProductsPage() {
     // Filter and sort states
     const [searchQuery, setSearchQuery] = useState('');
@@ -105,12 +116,13 @@ export default function ProductsPage() {
 
     const categories = ['All', ...Array.from(new Set(allProducts.map((p) => p.category)))];
     const brands = ['All', ...Array.from(new Set(allProducts.map((p) => p.brand)))];
+    // KES-based price brackets
     const priceRanges = [
         { label: 'All Prices', value: 'All' },
-        { label: 'Under $100', value: '0-100' },
-        { label: '$100 - $500', value: '100-500' },
-        { label: '$500 - $1,000', value: '500-1000' },
-        { label: 'Over $1,000', value: '1000-plus' },
+        { label: 'Under KES 10,000', value: '0-10000' },
+        { label: 'KES 10,000 - KES 50,000', value: '10000-50000' },
+        { label: 'KES 50,000 - KES 100,000', value: '50000-100000' },
+        { label: 'Over KES 100,000', value: '100000-plus' },
     ];
     const stockOptions = ['All', 'In Stock', 'Low Stock', 'Out of Stock'];
 
@@ -126,10 +138,12 @@ export default function ProductsPage() {
             const matchesBrand = selectedBrand === 'All' || product.brand === selectedBrand;
 
             let matchesPrice = true;
-            if (selectedPriceRange === '0-100') matchesPrice = product.price < 100;
-            else if (selectedPriceRange === '100-500') matchesPrice = product.price >= 100 && product.price <= 500;
-            else if (selectedPriceRange === '500-1000') matchesPrice = product.price > 500 && product.price <= 1000;
-            else if (selectedPriceRange === '1000-plus') matchesPrice = product.price > 1000;
+            if (selectedPriceRange === '0-10000') matchesPrice = product.price < 10000;
+            else if (selectedPriceRange === '10000-50000')
+                matchesPrice = product.price >= 10000 && product.price <= 50000;
+            else if (selectedPriceRange === '50000-100000')
+                matchesPrice = product.price > 50000 && product.price <= 100000;
+            else if (selectedPriceRange === '100000-plus') matchesPrice = product.price > 100000;
 
             const matchesStock = selectedStock === 'All' || product.stock === selectedStock;
 
@@ -143,8 +157,12 @@ export default function ProductsPage() {
         if (sortBy === 'price-low') products.sort((a, b) => a.price - b.price);
         else if (sortBy === 'price-high') products.sort((a, b) => b.price - a.price);
         else if (sortBy === 'rating') products.sort((a, b) => b.rating - a.rating);
-        else if (sortBy === 'newest') products.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        else if (sortBy === 'featured') products.sort((a, b) => Number(b.featured) - Number(a.featured));
+        else if (sortBy === 'newest')
+            products.sort(
+                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+        else if (sortBy === 'featured')
+            products.sort((a, b) => Number(b.featured) - Number(a.featured));
         return products;
     }, [filteredProducts, sortBy]);
 
@@ -172,9 +190,7 @@ export default function ProductsPage() {
     const reviewsForActiveProduct = useMemo(() => {
         if (!activeProductDetail) return [];
         const stored = reviewsByProduct[activeProductDetail.id];
-        return stored && stored.length > 0
-            ? stored
-            : MOCK_REVIEWS.default;
+        return stored && stored.length > 0 ? stored : MOCK_REVIEWS.default;
     }, [activeProductDetail, reviewsByProduct]);
 
     const averageReviewRating = useMemo(() => {
@@ -252,19 +268,28 @@ export default function ProductsPage() {
 
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans relative">
-
             {/* MAIN CONTENT */}
-            <div className={`transition-all duration-300 ${activeProductDetail ? 'filter blur-sm brightness-50 pointer-events-none select-none' : ''}`}>
+            <div
+                className={`transition-all duration-300 ${
+                    activeProductDetail
+                        ? 'filter blur-sm brightness-50 pointer-events-none select-none'
+                        : ''
+                }`}
+            >
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
                     {/* Breadcrumb */}
                     <nav className="flex items-center space-x-2 text-[13px] text-slate-500 mb-4">
-                        <Link href="/" className="hover:text-slate-900 flex items-center space-x-1">
+                        <Link
+                            href="/"
+                            className="hover:text-slate-900 flex items-center space-x-1"
+                        >
                             <Home className="w-3.5 h-3.5" />
                             <span>Home</span>
                         </Link>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-slate-900 font-medium">Products Catalog</span>
+                        <span className="text-slate-900 font-medium">
+                            Products Catalog
+                        </span>
                     </nav>
 
                     {/* Heading */}
@@ -273,7 +298,8 @@ export default function ProductsPage() {
                             Electronics & Hardware Catalog
                         </h1>
                         <p className="text-[13px] text-slate-600 mt-0.5">
-                            Browse our complete inventory of certified electronics, high-performance workstations, and smart accessories.
+                            Browse our complete inventory of certified electronics,
+                            high-performance workstations, and smart accessories.
                         </p>
                     </div>
 
@@ -285,7 +311,10 @@ export default function ProductsPage() {
                                 <input
                                     type="text"
                                     value={searchQuery}
-                                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
                                     placeholder="Search products by name, brand, or category..."
                                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-200 focus:ring-1 focus:ring-blue-200"
                                 />
@@ -307,7 +336,10 @@ export default function ProductsPage() {
                                 </span>
                                 <select
                                     value={sortBy}
-                                    onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => {
+                                        setSortBy(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
                                     className="bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
                                     <option value="featured">Featured</option>
@@ -321,56 +353,118 @@ export default function ProductsPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-200">
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Category</label>
+                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    Category
+                                </label>
                                 <select
                                     value={selectedCategory}
-                                    onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => {
+                                        setSelectedCategory(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
                                     className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
-                                    {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                                    {categories.map((cat) => (
+                                        <option key={cat} value={cat}>
+                                            {cat}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Brand</label>
+                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    Brand
+                                </label>
                                 <select
                                     value={selectedBrand}
-                                    onChange={(e) => { setSelectedBrand(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => {
+                                        setSelectedBrand(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
                                     className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
-                                    {brands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+                                    {brands.map((brand) => (
+                                        <option key={brand} value={brand}>
+                                            {brand}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Price Range</label>
+                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    Price Range
+                                </label>
                                 <select
                                     value={selectedPriceRange}
-                                    onChange={(e) => { setSelectedPriceRange(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => {
+                                        setSelectedPriceRange(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
                                     className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
-                                    {priceRanges.map((range) => <option key={range.value} value={range.value}>{range.label}</option>)}
+                                    {priceRanges.map((range) => (
+                                        <option key={range.value} value={range.value}>
+                                            {range.label}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Availability</label>
+                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    Availability
+                                </label>
                                 <select
                                     value={selectedStock}
-                                    onChange={(e) => { setSelectedStock(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => {
+                                        setSelectedStock(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
                                     className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
-                                    {stockOptions.map((stock) => <option key={stock} value={stock}>{stock}</option>)}
+                                    {stockOptions.map((stock) => (
+                                        <option key={stock} value={stock}>
+                                            {stock}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
 
-                        {(selectedCategory !== 'All' || selectedBrand !== 'All' || selectedPriceRange !== 'All' || selectedStock !== 'All' || searchQuery !== '') && (
+                        {(selectedCategory !== 'All' ||
+                            selectedBrand !== 'All' ||
+                            selectedPriceRange !== 'All' ||
+                            selectedStock !== 'All' ||
+                            searchQuery !== '') && (
                             <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-[13px]">
                                 <div className="flex items-center space-x-2 text-slate-600 flex-wrap gap-y-1">
-                                    <span className="font-medium">Active Filters:</span>
-                                    {selectedCategory !== 'All' && <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">Category: {selectedCategory}</span>}
-                                    {selectedBrand !== 'All' && <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">Brand: {selectedBrand}</span>}
-                                    {selectedPriceRange !== 'All' && <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">Price Range: {selectedPriceRange}</span>}
-                                    {selectedStock !== 'All' && <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">Stock: {selectedStock}</span>}
-                                    {searchQuery && <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">Search: "{searchQuery}"</span>}
+                                    <span className="font-medium">
+                                        Active Filters:
+                                    </span>
+                                    {selectedCategory !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Category: {selectedCategory}
+                                        </span>
+                                    )}
+                                    {selectedBrand !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Brand: {selectedBrand}
+                                        </span>
+                                    )}
+                                    {selectedPriceRange !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Price Range: {selectedPriceRange}
+                                        </span>
+                                    )}
+                                    {selectedStock !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Stock: {selectedStock}
+                                        </span>
+                                    )}
+                                    {searchQuery && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Search: "{searchQuery}"
+                                        </span>
+                                    )}
                                 </div>
                                 <button
                                     type="button"
@@ -386,7 +480,15 @@ export default function ProductsPage() {
                     {/* Count */}
                     <div className="flex items-center justify-between mb-6">
                         <p className="text-[13px] text-slate-600">
-                            Showing <span className="font-semibold text-slate-900">{paginatedProducts.length}</span> of <span className="font-semibold text-slate-900">{sortedProducts.length}</span> results
+                            Showing{' '}
+                            <span className="font-semibold text-slate-900">
+                                {paginatedProducts.length}
+                            </span>{' '}
+                            of{' '}
+                            <span className="font-semibold text-slate-900">
+                                {sortedProducts.length}
+                            </span>{' '}
+                            results
                         </p>
                     </div>
 
@@ -396,7 +498,11 @@ export default function ProductsPage() {
                             {paginatedProducts.map((product) => {
                                 const isAdding = cartAddingId === product.id;
                                 const discountPercentage = product.compareAtPrice
-                                    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+                                    ? Math.round(
+                                          ((product.compareAtPrice - product.price) /
+                                              product.compareAtPrice) *
+                                              100
+                                      )
                                     : null;
 
                                 return (
@@ -431,12 +537,13 @@ export default function ProductsPage() {
                                                     className="absolute top-2 right-2 z-10"
                                                 />
                                                 <span
-                                                    className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stock === 'In Stock'
+                                                    className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${
+                                                        product.stock === 'In Stock'
                                                             ? 'bg-emerald-100 text-emerald-800'
                                                             : product.stock === 'Low Stock'
-                                                                ? 'bg-amber-100 text-amber-800'
-                                                                : 'bg-red-100 text-red-800'
-                                                        }`}
+                                                            ? 'bg-amber-100 text-amber-800'
+                                                            : 'bg-red-100 text-red-800'
+                                                    }`}
                                                 >
                                                     {product.stock}
                                                 </span>
@@ -444,8 +551,12 @@ export default function ProductsPage() {
 
                                             <div className="p-3 pb-2">
                                                 <div className="flex items-center justify-between">
-                                                    <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{product.brand}</p>
-                                                    <p className="text-[11px] text-slate-400">{product.category}</p>
+                                                    <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                                                        {product.brand}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-400">
+                                                        {product.category}
+                                                    </p>
                                                 </div>
                                                 <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-1 mt-0.5 mb-1">
                                                     {product.name}
@@ -455,8 +566,12 @@ export default function ProductsPage() {
                                                         <div className="flex items-center text-amber-500">
                                                             <Star className="w-3.5 h-3.5 fill-current" />
                                                         </div>
-                                                        <span className="text-[12px] font-medium text-slate-800">{product.rating}</span>
-                                                        <span className="text-[11px] text-slate-500">({product.reviewCount})</span>
+                                                        <span className="text-[12px] font-medium text-slate-800">
+                                                            {product.rating}
+                                                        </span>
+                                                        <span className="text-[11px] text-slate-500">
+                                                            ({product.reviewCount})
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>
@@ -465,9 +580,13 @@ export default function ProductsPage() {
                                         <div className="p-3 pt-0 mt-auto">
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-baseline space-x-2">
-                                                    <span className="text-sm font-bold text-slate-900">${product.price.toFixed(2)}</span>
+                                                    <span className="text-sm font-bold text-slate-900">
+                                                        {formatKES(product.price)}
+                                                    </span>
                                                     {product.compareAtPrice && (
-                                                        <span className="text-[11px] text-slate-500 line-through">${product.compareAtPrice.toFixed(2)}</span>
+                                                        <span className="text-[11px] text-slate-500 line-through">
+                                                            {formatKES(product.compareAtPrice)}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -490,9 +609,24 @@ export default function ProductsPage() {
                                                 >
                                                     {isAdding ? (
                                                         <>
-                                                            <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                            <svg
+                                                                className="animate-spin h-3.5 w-3.5 text-white"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                            >
+                                                                <circle
+                                                                    className="opacity-25"
+                                                                    cx="12"
+                                                                    cy="12"
+                                                                    r="10"
+                                                                    stroke="currentColor"
+                                                                    strokeWidth="4"
+                                                                ></circle>
+                                                                <path
+                                                                    className="opacity-75"
+                                                                    fill="currentColor"
+                                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                                ></path>
                                                             </svg>
                                                             <span>...</span>
                                                         </>
@@ -513,9 +647,12 @@ export default function ProductsPage() {
                         </div>
                     ) : (
                         <div className="text-center py-16 bg-slate-50 border border-slate-200 rounded-sm mb-12">
-                            <h3 className="text-lg font-bold text-slate-900 mb-1">No products found</h3>
+                            <h3 className="text-lg font-bold text-slate-900 mb-1">
+                                No products found
+                            </h3>
                             <p className="text-[13px] text-slate-600 mb-4">
-                                We couldn't find any items matching your selected filters or search criteria.
+                                We couldn't find any items matching your selected filters
+                                or search criteria.
                             </p>
                             <button
                                 type="button"
@@ -546,10 +683,11 @@ export default function ProductsPage() {
                                         key={pageNumber}
                                         type="button"
                                         onClick={() => setCurrentPage(pageNumber)}
-                                        className={`w-9 h-9 text-[13px] rounded font-medium transition ${currentPage === pageNumber
+                                        className={`w-9 h-9 text-[13px] rounded font-medium transition ${
+                                            currentPage === pageNumber
                                                 ? 'bg-blue-950 text-white'
                                                 : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
-                                            }`}
+                                        }`}
                                     >
                                         {pageNumber}
                                     </button>
@@ -558,7 +696,9 @@ export default function ProductsPage() {
 
                             <button
                                 type="button"
-                                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                                onClick={() =>
+                                    setCurrentPage((p) => Math.min(p + 1, totalPages))
+                                }
                                 disabled={currentPage === totalPages}
                                 className="px-3 py-2 text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -575,14 +715,16 @@ export default function ProductsPage() {
             {activeProductDetail && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-6xl rounded-sm shadow-2xl border border-slate-200 overflow-hidden relative max-h-[95vh] flex flex-col">
-
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div>
                                 <span className="text-xs font-semibold text-blue-950 uppercase">
-                                    {activeProductDetail.brand} • {activeProductDetail.category}
+                                    {activeProductDetail.brand} •{' '}
+                                    {activeProductDetail.category}
                                 </span>
-                                <h2 className="text-lg font-bold text-slate-900">Product Specification</h2>
+                                <h2 className="text-lg font-bold text-slate-900">
+                                    Product Specification
+                                </h2>
                             </div>
                             <button
                                 type="button"
@@ -596,12 +738,13 @@ export default function ProductsPage() {
                         {/* Body — scrollable */}
                         <div className="overflow-y-auto flex-1">
                             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-
                                 {/* LEFT — Gallery */}
                                 <div className="space-y-3">
                                     <div className="relative aspect-[4/3] w-full rounded-sm bg-slate-100 overflow-hidden border border-slate-200">
                                         <img
-                                            src={activeProductDetail.images[selectedImageIndex]}
+                                            src={
+                                                activeProductDetail.images[selectedImageIndex]
+                                            }
                                             alt={activeProductDetail.name}
                                             className="w-full h-full object-cover"
                                         />
@@ -612,7 +755,9 @@ export default function ProductsPage() {
                                             brand={activeProductDetail.brand}
                                             image={activeProductDetail.images[0]}
                                             unitPrice={activeProductDetail.price}
-                                            compareAtPrice={activeProductDetail.compareAtPrice ?? undefined}
+                                            compareAtPrice={
+                                                activeProductDetail.compareAtPrice ?? undefined
+                                            }
                                             slug={activeProductDetail.id}
                                             stockCount={activeProductDetail.stockQuantity ?? 10}
                                             stock={activeProductDetail.stock}
@@ -626,12 +771,17 @@ export default function ProductsPage() {
                                                 key={imgIdx}
                                                 type="button"
                                                 onClick={() => setSelectedImageIndex(imgIdx)}
-                                                className={`aspect-[4/3] rounded-sm bg-slate-100 overflow-hidden border transition ${selectedImageIndex === imgIdx
+                                                className={`aspect-[4/3] rounded-sm bg-slate-100 overflow-hidden border transition ${
+                                                    selectedImageIndex === imgIdx
                                                         ? 'border-blue-300 ring-1 ring-blue-300'
                                                         : 'border-transparent opacity-70 hover:opacity-100'
-                                                    }`}
+                                                }`}
                                             >
-                                                <img src={imgUrl} alt={`Thumbnail ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                                                <img
+                                                    src={imgUrl}
+                                                    alt={`Thumbnail ${imgIdx + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </button>
                                         ))}
                                     </div>
@@ -658,25 +808,29 @@ export default function ProductsPage() {
                                                 {activeProductDetail.rating}
                                             </span>
                                             <span className="text-xs text-slate-500">
-                                                ({activeProductDetail.reviewCount} verified reviews)
+                                                ({activeProductDetail.reviewCount} verified
+                                                reviews)
                                             </span>
                                             <MessageSquare className="w-3.5 h-3.5 text-slate-400 ml-1" />
                                         </button>
 
                                         <div className="flex items-baseline space-x-3 mb-4">
                                             <span className="text-2xl font-bold text-slate-900">
-                                                ${activeProductDetail.price.toFixed(2)}
+                                                {formatKES(activeProductDetail.price)}
                                             </span>
                                             {activeProductDetail.compareAtPrice && (
                                                 <span className="text-sm text-slate-400 line-through">
-                                                    ${activeProductDetail.compareAtPrice.toFixed(2)}
+                                                    {formatKES(
+                                                        activeProductDetail.compareAtPrice
+                                                    )}
                                                 </span>
                                             )}
                                             <span
-                                                className={`text-xs font-medium px-2 py-0.5 ${activeProductDetail.stock === 'In Stock'
+                                                className={`text-xs font-medium px-2 py-0.5 ${
+                                                    activeProductDetail.stock === 'In Stock'
                                                         ? 'bg-emerald-100 text-emerald-800'
                                                         : 'bg-amber-100 text-amber-800'
-                                                    }`}
+                                                }`}
                                             >
                                                 {activeProductDetail.stock}
                                             </span>
@@ -689,7 +843,9 @@ export default function ProductsPage() {
                                         <div className="space-y-2 mb-6 text-xs text-slate-600 border-t border-b border-slate-100 py-3">
                                             <div className="flex items-center space-x-2">
                                                 <ShieldCheck className="w-4 h-4 text-blue-950" />
-                                                <span>1 Year Manufacturer Warranty Included</span>
+                                                <span>
+                                                    1 Year Manufacturer Warranty Included
+                                                </span>
                                             </div>
                                             <div className="flex items-center space-x-2">
                                                 <Truck className="w-4 h-4 text-blue-950" />
@@ -697,7 +853,9 @@ export default function ProductsPage() {
                                             </div>
                                             <div className="flex items-center space-x-2">
                                                 <RotateCcw className="w-4 h-4 text-blue-950" />
-                                                <span>30-Day Hassle-Free Return Policy</span>
+                                                <span>
+                                                    30-Day Hassle-Free Return Policy
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -706,10 +864,15 @@ export default function ProductsPage() {
                                         <button
                                             type="button"
                                             onClick={async (e) => {
-                                                await handleAddToCart(activeProductDetail, e);
+                                                await handleAddToCart(
+                                                    activeProductDetail,
+                                                    e
+                                                );
                                                 handleCloseDetails();
                                             }}
-                                            disabled={activeProductDetail.stock === 'Out of Stock'}
+                                            disabled={
+                                                activeProductDetail.stock === 'Out of Stock'
+                                            }
                                             className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-sm transition flex items-center justify-center space-x-2 disabled:opacity-50"
                                         >
                                             <ShoppingCart className="w-4 h-4" />
@@ -741,7 +904,11 @@ export default function ProductsPage() {
                                     <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
                                         {relatedProducts.map((rp) => {
                                             const rpDiscount = rp.compareAtPrice
-                                                ? Math.round(((rp.compareAtPrice - rp.price) / rp.compareAtPrice) * 100)
+                                                ? Math.round(
+                                                      ((rp.compareAtPrice - rp.price) /
+                                                          rp.compareAtPrice) *
+                                                          100
+                                                  )
                                                 : null;
 
                                             return (
@@ -774,7 +941,7 @@ export default function ProductsPage() {
                                                         {rp.name}
                                                     </p>
                                                     <p className="text-[12px] font-bold text-slate-900 mt-0.5">
-                                                        ${rp.price.toFixed(2)}
+                                                        {formatKES(rp.price)}
                                                     </p>
                                                 </button>
                                             );
@@ -793,7 +960,6 @@ export default function ProductsPage() {
             {activeProductDetail && reviewsModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-3xl rounded-sm shadow-2xl border border-slate-200 overflow-hidden relative max-h-[90vh] flex flex-col">
-
                         {/* Header */}
                         <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div className="min-w-0">
@@ -815,7 +981,6 @@ export default function ProductsPage() {
 
                         {/* Body — scrollable */}
                         <div className="overflow-y-auto flex-1 p-5 space-y-5">
-
                             {/* Summary */}
                             <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-sm p-4">
                                 <div className="text-center">
@@ -826,10 +991,11 @@ export default function ProductsPage() {
                                         {Array.from({ length: 5 }).map((_, i) => (
                                             <Star
                                                 key={i}
-                                                className={`w-3.5 h-3.5 ${i < Math.round(averageReviewRating)
+                                                className={`w-3.5 h-3.5 ${
+                                                    i < Math.round(averageReviewRating)
                                                         ? 'fill-current'
                                                         : 'text-slate-300'
-                                                    }`}
+                                                }`}
                                             />
                                         ))}
                                     </div>
@@ -839,7 +1005,8 @@ export default function ProductsPage() {
                                 </div>
                                 <div className="flex-1 border-l border-slate-200 pl-4">
                                     <p className="text-[12px] text-slate-600">
-                                        Based on verified purchases and community submissions.
+                                        Based on verified purchases and community
+                                        submissions.
                                     </p>
                                     <p className="text-[11px] text-slate-500 mt-1">
                                         Add your own review below ↓
@@ -848,7 +1015,10 @@ export default function ProductsPage() {
                             </div>
 
                             {/* Add review form */}
-                            <form onSubmit={handleSubmitReview} className="bg-white border border-slate-200 rounded-sm p-4 space-y-3">
+                            <form
+                                onSubmit={handleSubmitReview}
+                                className="bg-white border border-slate-200 rounded-sm p-4 space-y-3"
+                            >
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-slate-900">
                                         Write a review
@@ -870,7 +1040,10 @@ export default function ProductsPage() {
                                             type="text"
                                             value={reviewForm.author}
                                             onChange={(e) =>
-                                                setReviewForm({ ...reviewForm, author: e.target.value })
+                                                setReviewForm({
+                                                    ...reviewForm,
+                                                    author: e.target.value,
+                                                })
                                             }
                                             placeholder="e.g. Jane W."
                                             required
@@ -887,16 +1060,22 @@ export default function ProductsPage() {
                                                     key={n}
                                                     type="button"
                                                     onClick={() =>
-                                                        setReviewForm({ ...reviewForm, rating: n })
+                                                        setReviewForm({
+                                                            ...reviewForm,
+                                                            rating: n,
+                                                        })
                                                     }
                                                     className="p-1"
-                                                    aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
+                                                    aria-label={`Rate ${n} star${
+                                                        n > 1 ? 's' : ''
+                                                    }`}
                                                 >
                                                     <Star
-                                                        className={`w-5 h-5 transition ${n <= reviewForm.rating
+                                                        className={`w-5 h-5 transition ${
+                                                            n <= reviewForm.rating
                                                                 ? 'text-amber-500 fill-current'
                                                                 : 'text-slate-300'
-                                                            }`}
+                                                        }`}
                                                     />
                                                 </button>
                                             ))}
@@ -912,7 +1091,10 @@ export default function ProductsPage() {
                                         type="text"
                                         value={reviewForm.title}
                                         onChange={(e) =>
-                                            setReviewForm({ ...reviewForm, title: e.target.value })
+                                            setReviewForm({
+                                                ...reviewForm,
+                                                title: e.target.value,
+                                            })
                                         }
                                         placeholder="Summarize your experience"
                                         className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
@@ -927,7 +1109,10 @@ export default function ProductsPage() {
                                         rows={3}
                                         value={reviewForm.body}
                                         onChange={(e) =>
-                                            setReviewForm({ ...reviewForm, body: e.target.value })
+                                            setReviewForm({
+                                                ...reviewForm,
+                                                body: e.target.value,
+                                            })
                                         }
                                         placeholder="Tell others what you think…"
                                         required
@@ -969,15 +1154,18 @@ export default function ProductsPage() {
                                                     )}
                                                 </p>
                                                 <div className="flex items-center gap-1 mt-0.5">
-                                                    {Array.from({ length: 5 }).map((_, i) => (
-                                                        <Star
-                                                            key={i}
-                                                            className={`w-3 h-3 ${i < review.rating
-                                                                    ? 'text-amber-500 fill-current'
-                                                                    : 'text-slate-300'
+                                                    {Array.from({ length: 5 }).map(
+                                                        (_, i) => (
+                                                            <Star
+                                                                key={i}
+                                                                className={`w-3 h-3 ${
+                                                                    i < review.rating
+                                                                        ? 'text-amber-500 fill-current'
+                                                                        : 'text-slate-300'
                                                                 }`}
-                                                        />
-                                                    ))}
+                                                            />
+                                                        )
+                                                    )}
                                                     <span className="text-[10px] text-slate-400 ml-1 font-mono">
                                                         {review.date}
                                                     </span>

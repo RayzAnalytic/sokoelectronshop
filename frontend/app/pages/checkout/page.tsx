@@ -1,3 +1,4 @@
+// app/pages/checkout/page.tsx
 'use client';
 
 import React, { useMemo, useState, useEffect, Suspense } from 'react';
@@ -29,11 +30,11 @@ import {
   Wallet,
   ShoppingCart,
 } from 'lucide-react';
-import { useCart, type CartItem } from '@/lib/store/cart';
+import { useCart } from '@/lib/store/cart';
 
 // --- TYPES ---
 type PaymentChoice = 'pay-on-delivery' | 'pay-now';
-type PayNowMethod = 'mpesa' | 'airtel' | 'stripe';
+type PayNowMethod = 'mpesa';
 type DeliveryMethod = 'express' | 'standard' | 'pickup';
 type Step = 1 | 2 | 3;
 
@@ -61,12 +62,6 @@ const KENYAN_COUNTIES = [
   'Meru',
   'Nyeri',
   'Kilifi',
-];
-
-const PAY_NOW_METHODS: { id: PayNowMethod; label: string; sub: string }[] = [
-  { id: 'mpesa', label: 'M-Pesa', sub: 'Safaricom STK push' },
-  { id: 'airtel', label: 'Airtel Money', sub: 'Airtel wallet' },
-  { id: 'stripe', label: 'Card', sub: 'Stripe / Visa' },
 ];
 
 // ─── Outer component: Suspense boundary for useSearchParams ───
@@ -103,9 +98,10 @@ function CheckoutInner() {
 
   // ── Filter cart items to only selected ones ──
   const checkoutItems: CheckoutItem[] = useMemo(() => {
-    const source = itemIds.length > 0
-      ? cartItems.filter((i) => itemIds.includes(i.id))
-      : cartItems; // fallback: if no query, use all cart items
+    const source =
+      itemIds.length > 0
+        ? cartItems.filter((i) => itemIds.includes(i.id))
+        : cartItems;
 
     return source.map((i) => ({
       id: i.id,
@@ -133,11 +129,6 @@ function CheckoutInner() {
     paymentChoice: 'pay-now' as PaymentChoice,
     payNowMethod: 'mpesa' as PayNowMethod,
     mpesaPhone: '',
-    airtelPhone: '',
-    cardNumber: '',
-    cardExp: '',
-    cardCvc: '',
-    cardName: '',
     orderNotes: urlNotes,
     agreeTerms: false,
     saveInfo: true,
@@ -208,7 +199,10 @@ function CheckoutInner() {
   }
 
   // --- CALCULATIONS ---
-  const subtotal = checkoutItems.reduce((acc, i) => acc + i.price * i.quantity, 0);
+  const subtotal = checkoutItems.reduce(
+    (acc, i) => acc + i.price * i.quantity,
+    0
+  );
 
   const shippingFee =
     formData.deliveryMethod === 'pickup'
@@ -239,14 +233,14 @@ function CheckoutInner() {
 
   const paymentLabel = (() => {
     if (formData.paymentChoice === 'pay-on-delivery') return 'Cash on delivery';
-    if (formData.payNowMethod === 'mpesa') return 'M-PESA';
-    if (formData.payNowMethod === 'airtel') return 'AIRTEL MONEY';
-    return 'CARD';
+    return 'M-PESA';
   })();
 
   // --- HANDLERS ---
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value, type, checked } = e.target as HTMLInputElement;
     setFormData((prev) => ({
@@ -287,16 +281,8 @@ function CheckoutInner() {
     const errors: Record<string, string> = {};
 
     if (formData.paymentChoice === 'pay-now') {
-      if (formData.payNowMethod === 'mpesa' && !formData.mpesaPhone.trim())
+      if (!formData.mpesaPhone.trim())
         errors.mpesaPhone = 'M-Pesa phone number is required';
-      if (formData.payNowMethod === 'airtel' && !formData.airtelPhone.trim())
-        errors.airtelPhone = 'Airtel phone number is required';
-      if (formData.payNowMethod === 'stripe') {
-        if (!formData.cardNumber.trim()) errors.cardNumber = 'Card number required';
-        if (!formData.cardExp.trim()) errors.cardExp = 'Expiry required';
-        if (!formData.cardCvc.trim()) errors.cardCvc = 'CVC required';
-        if (!formData.cardName.trim()) errors.cardName = 'Name on card required';
-      }
     }
 
     if (!formData.agreeTerms) errors.agreeTerms = 'You must accept the terms';
@@ -349,10 +335,8 @@ function CheckoutInner() {
     setIsProcessing(true);
     setErrorMessage('');
 
-    // Simulate payment processing
     setTimeout(() => {
-      const orderId =
-        'ORD-' + Math.floor(100000 + Math.random() * 900000);
+      const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
 
       const successOrder = {
         orderId,
@@ -385,7 +369,6 @@ function CheckoutInner() {
         items: checkoutItems,
       };
 
-      // Persist so the success page can read it back
       try {
         sessionStorage.setItem(`order:${orderId}`, JSON.stringify(successOrder));
       } catch {
@@ -393,8 +376,6 @@ function CheckoutInner() {
       }
 
       clearCart();
-
-      // Route to the dynamic [id] page
       router.push(`/pages/order-success/${orderId}`);
     }, 1800);
   };
@@ -402,7 +383,6 @@ function CheckoutInner() {
   // --- MAIN ---
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-3 h-14 flex items-center justify-between gap-3">
@@ -430,7 +410,6 @@ function CheckoutInner() {
       </header>
 
       <main className="max-w-6xl mx-auto px-3 py-3 space-y-3">
-
         <StepIndicator current={step} />
 
         {isGuest ? (
@@ -467,10 +446,8 @@ function CheckoutInner() {
           onSubmit={handlePlaceOrder}
           className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start"
         >
-
           {/* LEFT */}
           <div className="lg:col-span-7 space-y-3">
-
             {/* STEP 1 */}
             {step === 1 && (
               <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
@@ -601,7 +578,9 @@ function CheckoutInner() {
                     <DeliveryOption
                       id="express"
                       current={formData.deliveryMethod}
-                      onSelect={(v) => setFormData((p) => ({ ...p, deliveryMethod: v }))}
+                      onSelect={(v) =>
+                        setFormData((p) => ({ ...p, deliveryMethod: v }))
+                      }
                       icon={<Zap className="w-3.5 h-3.5" />}
                       title="Express courier"
                       sub="24–48 hours with live tracking"
@@ -610,7 +589,9 @@ function CheckoutInner() {
                     <DeliveryOption
                       id="standard"
                       current={formData.deliveryMethod}
-                      onSelect={(v) => setFormData((p) => ({ ...p, deliveryMethod: v }))}
+                      onSelect={(v) =>
+                        setFormData((p) => ({ ...p, deliveryMethod: v }))
+                      }
                       icon={<Truck className="w-3.5 h-3.5" />}
                       title="Standard shipping"
                       sub="3–5 business days"
@@ -619,7 +600,9 @@ function CheckoutInner() {
                     <DeliveryOption
                       id="pickup"
                       current={formData.deliveryMethod}
-                      onSelect={(v) => setFormData((p) => ({ ...p, deliveryMethod: v }))}
+                      onSelect={(v) =>
+                        setFormData((p) => ({ ...p, deliveryMethod: v }))
+                      }
                       icon={<Store className="w-3.5 h-3.5" />}
                       title="Store pickup"
                       sub="Ready in 1 hour"
@@ -637,14 +620,17 @@ function CheckoutInner() {
                   <SectionHeader
                     icon={<CreditCard className="w-3.5 h-3.5" />}
                     title="How would you like to pay?"
-                    subtitle="Pay on delivery or pay now with your preferred method"
+                    subtitle="Pay on delivery or pay now with M-Pesa"
                   />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() =>
-                        setFormData((p) => ({ ...p, paymentChoice: 'pay-on-delivery' }))
+                        setFormData((p) => ({
+                          ...p,
+                          paymentChoice: 'pay-on-delivery',
+                        }))
                       }
                       className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${
                         formData.paymentChoice === 'pay-on-delivery'
@@ -708,141 +694,30 @@ function CheckoutInner() {
                           Pay now
                         </span>
                         <span className="block text-[13px] text-slate-500 mt-0.5">
-                          M-Pesa, Airtel Money, or card
+                          M-Pesa Express (STK push)
                         </span>
                       </span>
                     </button>
                   </div>
 
                   {formData.paymentChoice === 'pay-now' && (
-                    <div className="space-y-3 pt-2 border-t border-slate-100">
-                      <p className="text-[13px] font-medium text-slate-700">
-                        Select method
-                      </p>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        {PAY_NOW_METHODS.map((m) => {
-                          const active = formData.payNowMethod === m.id;
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() =>
-                                setFormData((p) => ({ ...p, payNowMethod: m.id }))
-                              }
-                              className={`p-2 border rounded-sm text-left transition ${
-                                active
-                                  ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
-                                  : 'border-slate-200 hover:bg-slate-50'
-                              }`}
-                            >
-                              <span
-                                className={`block text-[13px] font-medium ${
-                                  active ? 'text-blue-950' : 'text-slate-800'
-                                }`}
-                              >
-                                {m.label}
-                              </span>
-                              <span className="block text-[13px] text-slate-500 mt-0.5">
-                                {m.sub}
-                              </span>
-                            </button>
-                          );
-                        })}
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-3 space-y-3 text-[13px]">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                        <Smartphone className="w-3.5 h-3.5" />
+                        M-Pesa Express (STK push)
                       </div>
-
-                      {formData.payNowMethod === 'mpesa' && (
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-3 space-y-3 text-[13px]">
-                          <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
-                            <Smartphone className="w-3.5 h-3.5" />
-                            M-Pesa Express (STK push)
-                          </div>
-                          <Field
-                            label="M-Pesa phone number"
-                            name="mpesaPhone"
-                            value={formData.mpesaPhone}
-                            onChange={handleChange}
-                            placeholder="+254 7XX XXX XXX"
-                            error={fieldErrors.mpesaPhone}
-                          />
-                          <p className="text-[13px] text-slate-600">
-                            We&apos;ll send an STK push to this number. Enter your
-                            PIN to complete the payment.
-                          </p>
-                        </div>
-                      )}
-
-                      {formData.payNowMethod === 'airtel' && (
-                        <div className="bg-red-50 border border-red-100 rounded-sm p-3 space-y-3 text-[13px]">
-                          <div className="flex items-center gap-1.5 text-red-800 font-medium">
-                            <Smartphone className="w-3.5 h-3.5" />
-                            Airtel Money
-                          </div>
-                          <Field
-                            label="Airtel phone number"
-                            name="airtelPhone"
-                            value={formData.airtelPhone}
-                            onChange={handleChange}
-                            placeholder="+254 7XX XXX XXX"
-                            error={fieldErrors.airtelPhone}
-                          />
-                          <p className="text-[13px] text-slate-600">
-                            A USSD push will be triggered to this number on
-                            confirmation.
-                          </p>
-                        </div>
-                      )}
-
-                      {formData.payNowMethod === 'stripe' && (
-                        <div className="bg-blue-50 border border-blue-100 rounded-sm p-3 space-y-3 text-[13px]">
-                          <div className="flex items-center gap-1.5 text-blue-950 font-medium">
-                            <CreditCard className="w-3.5 h-3.5" />
-                            Card payment (Stripe)
-                          </div>
-                          <Field
-                            label="Card number"
-                            name="cardNumber"
-                            value={formData.cardNumber}
-                            onChange={handleChange}
-                            placeholder="4242 4242 4242 4242"
-                            error={fieldErrors.cardNumber}
-                            mono
-                          />
-                          <div className="grid grid-cols-2 gap-3">
-                            <Field
-                              label="Expiry"
-                              name="cardExp"
-                              value={formData.cardExp}
-                              onChange={handleChange}
-                              placeholder="MM / YY"
-                              error={fieldErrors.cardExp}
-                              mono
-                            />
-                            <Field
-                              label="CVC"
-                              name="cardCvc"
-                              value={formData.cardCvc}
-                              onChange={handleChange}
-                              placeholder="123"
-                              error={fieldErrors.cardCvc}
-                              mono
-                            />
-                          </div>
-                          <Field
-                            label="Name on card"
-                            name="cardName"
-                            value={formData.cardName}
-                            onChange={handleChange}
-                            placeholder="As shown on your card"
-                            error={fieldErrors.cardName}
-                          />
-                          <div className="flex items-center gap-1.5 text-[13px] text-emerald-700">
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                            Processed by Stripe. Card details never touch our
-                            server.
-                          </div>
-                        </div>
-                      )}
+                      <Field
+                        label="M-Pesa phone number"
+                        name="mpesaPhone"
+                        value={formData.mpesaPhone}
+                        onChange={handleChange}
+                        placeholder="+254 7XX XXX XXX"
+                        error={fieldErrors.mpesaPhone}
+                      />
+                      <p className="text-[13px] text-slate-600">
+                        We&apos;ll send an STK push to this number. Enter your
+                        PIN to complete the payment.
+                      </p>
                     </div>
                   )}
 
@@ -981,7 +856,6 @@ function CheckoutInner() {
           {/* RIGHT */}
           <aside className="lg:col-span-5 space-y-3 lg:sticky lg:top-16">
             <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
-
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h2 className="text-[15px] font-semibold text-slate-900">
                   Order summary
@@ -1085,7 +959,9 @@ function CheckoutInner() {
                 )}
                 <Row
                   label={`Shipping (${formData.deliveryMethod})`}
-                  value={shippingFee === 0 ? 'Free' : `$${shippingFee.toFixed(2)}`}
+                  value={
+                    shippingFee === 0 ? 'Free' : `$${shippingFee.toFixed(2)}`
+                  }
                 />
                 <Row label="VAT (8.5%)" value={`$${taxAmount.toFixed(2)}`} />
               </div>
@@ -1101,7 +977,9 @@ function CheckoutInner() {
 
               <div className="flex items-center justify-between text-[13px] text-slate-600 pt-1">
                 <span>Payment</span>
-                <span className="font-medium text-slate-900">{paymentLabel}</span>
+                <span className="font-medium text-slate-900">
+                  {paymentLabel}
+                </span>
               </div>
 
               {step === 3 && (

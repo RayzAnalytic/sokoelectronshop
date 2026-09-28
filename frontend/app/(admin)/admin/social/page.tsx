@@ -7,8 +7,6 @@ import {
   CheckCircle2,
   X,
   Trash2,
-  CheckSquare,
-  Square,
   Image as ImageIcon,
   Send,
   Eye,
@@ -44,7 +42,7 @@ import {
 } from 'recharts';
 
 // --- TYPES ---
-type SocialTab = 'Composer' | 'Scheduled' | 'Published' | 'Analytics';
+type SocialTab = 'Scheduled' | 'Published' | 'Analytics';
 type SocialPlatform = 'Facebook' | 'Instagram' | 'TikTok' | 'YouTube' | 'X' | 'WhatsApp';
 type MediaType = 'image' | 'video';
 
@@ -154,7 +152,7 @@ const AVAILABLE_PRODUCTS = [
 ];
 
 const PLATFORMS: SocialPlatform[] = ['Facebook', 'Instagram', 'TikTok', 'YouTube', 'X', 'WhatsApp'];
-const TABS: SocialTab[] = ['Composer', 'Scheduled', 'Published', 'Analytics'];
+const TABS: SocialTab[] = ['Scheduled', 'Published', 'Analytics'];
 
 const MAX_MEDIA_FILES = 5;
 const MAX_FILE_SIZE_MB = 25;
@@ -165,9 +163,6 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-/* ══════════════════════════════════════════
-   Platform icon resolver
-   ══════════════════════════════════════════ */
 const PlatformIcon = ({ platform, className = 'w-3.5 h-3.5' }: { platform: SocialPlatform; className?: string }) => {
   switch (platform) {
     case 'Facebook':
@@ -186,7 +181,7 @@ const PlatformIcon = ({ platform, className = 'w-3.5 h-3.5' }: { platform: Socia
 };
 
 export default function SocialMediaPage() {
-  const [activeTab, setActiveTab] = useState<SocialTab>('Composer');
+  const [activeTab, setActiveTab] = useState<SocialTab>('Scheduled');
   const [accounts, setAccounts] = useState<ConnectedAccount[]>(INITIAL_ACCOUNTS);
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>(INITIAL_SCHEDULED);
   const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>(INITIAL_PUBLISHED);
@@ -194,33 +189,13 @@ export default function SocialMediaPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<ConnectedAccount | null>(null);
 
+  const [composerOpen, setComposerOpen] = useState(false);
   const [composerCaption, setComposerCaption] = useState('');
   const [composerPlatforms, setComposerPlatforms] = useState<SocialPlatform[]>(['Instagram', 'Facebook']);
   const [composerProductTag, setComposerProductTag] = useState('');
   const [composerScheduleTime, setComposerScheduleTime] = useState('');
   const [composerMedia, setComposerMedia] = useState<MediaItem[]>([]);
   const [isScheduling, setIsScheduling] = useState(false);
-
-  // Studio step indicator (1..6)
-  const studioSteps = [
-    { step: 1, label: 'Create', icon: Sparkles },
-    { step: 2, label: 'Media', icon: ImageIcon },
-    { step: 3, label: 'Caption', icon: MessageSquare },
-    { step: 4, label: 'Channels', icon: Share2 },
-    { step: 5, label: 'Publish', icon: Send },
-    { step: 6, label: 'Track', icon: BarChart3 },
-  ];
-
-  const currentStep =
-    composerMedia.length === 0 && !composerCaption
-      ? 1
-      : composerMedia.length === 0
-        ? 2
-        : !composerCaption
-          ? 3
-          : composerPlatforms.length === 0
-            ? 4
-            : 5;
 
   useEffect(() => {
     if (toastMessage) {
@@ -229,10 +204,15 @@ export default function SocialMediaPage() {
     }
   }, [toastMessage]);
 
+  const anyModalOpen = !!disconnectTarget || composerOpen;
+
   useEffect(() => {
-    if (!disconnectTarget) return;
+    if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDisconnectTarget(null);
+      if (e.key === 'Escape') {
+        if (disconnectTarget) setDisconnectTarget(null);
+        else if (composerOpen) closeComposer();
+      }
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
@@ -240,9 +220,31 @@ export default function SocialMediaPage() {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKey);
     };
-  }, [disconnectTarget]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyModalOpen, disconnectTarget, composerOpen]);
 
   const toast = (msg: string) => setToastMessage(msg);
+
+  const openComposer = () => {
+    setComposerCaption('');
+    setComposerPlatforms(accounts.filter((a) => a.connected).map((a) => a.id).slice(0, 2));
+    setComposerProductTag('');
+    setComposerScheduleTime('');
+    setIsScheduling(false);
+    composerMedia.forEach((m) => URL.revokeObjectURL(m.url));
+    setComposerMedia([]);
+    setComposerOpen(true);
+  };
+
+  const closeComposer = () => {
+    setComposerOpen(false);
+    composerMedia.forEach((m) => URL.revokeObjectURL(m.url));
+    setComposerMedia([]);
+    setComposerCaption('');
+    setComposerProductTag('');
+    setComposerScheduleTime('');
+    setIsScheduling(false);
+  };
 
   const togglePlatformConnect = (account: ConnectedAccount) => {
     if (account.connected) {
@@ -258,6 +260,7 @@ export default function SocialMediaPage() {
     setAccounts((prev) =>
       prev.map((a) => (a.id === disconnectTarget.id ? { ...a, connected: false } : a))
     );
+    setComposerPlatforms((prev) => prev.filter((p) => p !== disconnectTarget.id));
     toast(`Disconnected from ${disconnectTarget.name}`);
     setDisconnectTarget(null);
   };
@@ -296,11 +299,7 @@ export default function SocialMediaPage() {
       setActiveTab('Published');
     }
 
-    setComposerCaption('');
-    setComposerScheduleTime('');
-    setIsScheduling(false);
-    composerMedia.forEach((m) => URL.revokeObjectURL(m.url));
-    setComposerMedia([]);
+    closeComposer();
   };
 
   const deleteScheduled = (id: string) => {
@@ -342,11 +341,13 @@ export default function SocialMediaPage() {
               ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
               : 'bg-slate-100 text-slate-800 border-slate-200';
 
+  const connectedAccounts = accounts.filter((a) => a.connected);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
 
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[120] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
@@ -365,7 +366,7 @@ export default function SocialMediaPage() {
             </p>
           </div>
           <button
-            onClick={() => setActiveTab('Composer')}
+            onClick={openComposer}
             className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -383,29 +384,26 @@ export default function SocialMediaPage() {
             <div className="text-[13px]">
               <p className="font-medium text-blue-950">Content Studio</p>
               <p className="text-blue-800 mt-0.5">
-                Create Content → Select Media → Write Caption → Select Channels → Publish / Schedule → Track Results
+                Click <span className="font-medium">Create post</span> to open the studio: upload media, write a caption, select channels, then publish or schedule.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1 overflow-x-auto pb-1">
-            {studioSteps.map((s, i) => {
+            {[
+              { step: 1, label: 'Media', icon: ImageIcon },
+              { step: 2, label: 'Caption', icon: MessageSquare },
+              { step: 3, label: 'Channels', icon: Share2 },
+              { step: 4, label: 'Publish', icon: Send },
+              { step: 5, label: 'Track', icon: BarChart3 },
+            ].map((s, i, arr) => {
               const Icon = s.icon;
-              const isDone = s.step < currentStep;
-              const isActive = s.step === currentStep;
               return (
                 <React.Fragment key={s.step}>
-                  <div
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-[13px] font-medium whitespace-nowrap border transition ${isDone
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : isActive
-                          ? 'bg-blue-950 text-white border-blue-950'
-                          : 'bg-white text-slate-500 border-slate-200'
-                      }`}
-                  >
-                    {isDone ? <CheckCircle2 className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-[13px] font-medium whitespace-nowrap border bg-white text-slate-600 border-slate-200">
+                    <Icon className="w-3 h-3" />
                     {s.step}. {s.label}
                   </div>
-                  {i < studioSteps.length - 1 && (
+                  {i < arr.length - 1 && (
                     <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
                   )}
                 </React.Fragment>
@@ -422,7 +420,7 @@ export default function SocialMediaPage() {
               Connected accounts
             </p>
             <span className="text-[13px] text-slate-500">
-              {accounts.filter((a) => a.connected).length} of {accounts.length} connected
+              {connectedAccounts.length} of {accounts.length} connected
             </span>
           </div>
 
@@ -480,243 +478,20 @@ export default function SocialMediaPage() {
           ))}
         </div>
 
-        {/* TAB 1: COMPOSER */}
-        {activeTab === 'Composer' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {/* Form */}
-            <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-3">
-              <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-blue-950" />
-                Content Studio · New post
-              </p>
-
-              <form onSubmit={publishOrSchedule} className="space-y-3 text-[13px]">
-                {/* Step 2: Media first for clarity */}
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
-                    <ImageIcon className="w-3 h-3" />
-                    Step 2 · Select media
-                  </label>
-                  <MediaUploader media={composerMedia} setMedia={setComposerMedia} onToast={toast} />
-                </div>
-
-                {/* Step 3: Caption */}
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
-                    <MessageSquare className="w-3 h-3" />
-                    Step 3 · Write caption
-                  </label>
-                  <textarea
-                    rows={4}
-                    required
-                    placeholder="Write engaging caption with hashtags…"
-                    value={composerCaption}
-                    onChange={(e) => setComposerCaption(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
-                  />
-                </div>
-
-                {/* Step 4: Channels */}
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
-                    <Share2 className="w-3 h-3" />
-                    Step 4 · Select channels
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PLATFORMS.map((plat) => {
-                      const isSelected = composerPlatforms.includes(plat);
-                      const account = accounts.find((a) => a.id === plat);
-                      const isConnected = account?.connected;
-                      return (
-                        <button
-                          key={plat}
-                          type="button"
-                          disabled={!isConnected}
-                          onClick={() =>
-                            setComposerPlatforms((prev) =>
-                              isSelected ? prev.filter((p) => p !== plat) : [...prev, plat]
-                            )
-                          }
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-sm font-medium text-[13px] transition border ${isSelected
-                              ? 'bg-blue-950 text-white border-blue-950'
-                              : !isConnected
-                                ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                            }`}
-                          title={!isConnected ? `${plat} not connected` : undefined}
-                        >
-                          <PlatformIcon platform={plat} className="w-3.5 h-3.5" />
-                          {plat}
-                          {!isConnected && (
-                            <span className="text-[13px]">· off</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
-                    <ShoppingBag className="w-3 h-3" />
-                    Product tag (optional)
-                  </label>
-                  <select
-                    value={composerProductTag}
-                    onChange={(e) => setComposerProductTag(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                  >
-                    <option value="">No product tag</option>
-                    {AVAILABLE_PRODUCTS.map((prod) => (
-                      <option key={prod} value={prod}>
-                        {prod}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Step 5: Publish / Schedule */}
-                <div className="pt-2 border-t border-slate-100 space-y-2">
-                  <p className="text-[13px] font-medium text-slate-700 inline-flex items-center gap-1">
-                    <Send className="w-3 h-3" />
-                    Step 5 · Publish or schedule
-                  </p>
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-medium text-slate-700">Schedule for later</span>
-                    <input
-                      type="checkbox"
-                      checked={isScheduling}
-                      onChange={(e) => setIsScheduling(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
-                    />
-                  </label>
-
-                  {isScheduling && (
-                    <input
-                      type="text"
-                      placeholder="e.g. Tomorrow at 10:00 AM"
-                      value={composerScheduleTime}
-                      onChange={(e) => setComposerScheduleTime(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                    />
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!composerCaption.trim() || composerPlatforms.length === 0}
-                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  {isScheduling ? 'Schedule post' : 'Publish now'}
-                </button>
-              </form>
-            </div>
-
-            {/* Preview */}
-            <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-blue-950" />
-                  Live preview
-                </p>
-                <span className="text-[13px] bg-blue-50 text-blue-950 border border-blue-100 font-medium px-2 py-0.5 rounded-sm">
-                  {composerPlatforms.length} channel{composerPlatforms.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {composerPlatforms.length === 0 ? (
-                <div className="py-16 text-center text-[13px] text-slate-400">
-                  Select at least one connected platform to view preview.
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-                  {composerPlatforms.map((plat) => (
-                    <div
-                      key={plat}
-                      className="border border-slate-200 rounded-sm p-2 space-y-2 bg-slate-50"
-                    >
-                      <div className="flex items-center justify-between text-[13px]">
-                        <span className="font-medium text-slate-800 inline-flex items-center gap-1.5">
-                          <PlatformIcon platform={plat} className="w-3.5 h-3.5 text-blue-950" />
-                          {plat} preview
-                        </span>
-                        <span className="text-slate-400">
-                          {plat === 'YouTube'
-                            ? 'Video'
-                            : plat === 'WhatsApp'
-                              ? 'Broadcast'
-                              : 'Feed'}
-                        </span>
-                      </div>
-
-                      <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-7 h-7 rounded-full bg-blue-950 text-white font-medium flex items-center justify-center text-[13px]">
-                            SF
-                          </span>
-                          <div>
-                            <p className="text-[13px] font-medium text-slate-900">
-                              SokoFlow Official
-                            </p>
-                            <p className="text-[13px] text-slate-400">Just now</p>
-                          </div>
-                        </div>
-
-                        <p className="text-[13px] text-slate-800 whitespace-pre-wrap">
-                          {composerCaption || 'Your caption will appear here as you type…'}
-                        </p>
-
-                        {composerMedia.length > 0 && (
-                          <div className="grid grid-cols-2 gap-1 rounded-sm overflow-hidden border border-slate-200">
-                            {composerMedia.slice(0, 4).map((m) =>
-                              m.type === 'video' ? (
-                                <video
-                                  key={m.id}
-                                  src={m.url}
-                                  muted
-                                  playsInline
-                                  className="w-full aspect-square object-cover"
-                                />
-                              ) : (
-                                <img
-                                  key={m.id}
-                                  src={m.url}
-                                  alt=""
-                                  className="w-full aspect-square object-cover"
-                                />
-                              )
-                            )}
-                            {composerMedia.length > 4 && (
-                              <div className="relative aspect-square bg-slate-900/70 text-white flex items-center justify-center text-[13px] font-medium">
-                                +{composerMedia.length - 4} more
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {composerProductTag && (
-                          <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 flex items-center gap-2 text-[13px] text-blue-950 font-medium">
-                            <ShoppingBag className="w-3.5 h-3.5 text-blue-950" />
-                            Shop: {composerProductTag}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: SCHEDULED */}
+        {/* TAB 1: SCHEDULED */}
         {activeTab === 'Scheduled' && (
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <p className="text-[13px] font-medium text-slate-700">
                 Upcoming scheduled posts · {scheduledPosts.length}
               </p>
+              <button
+                onClick={openComposer}
+                className="text-[13px] font-medium text-blue-950 hover:underline inline-flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />
+                New post
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
@@ -733,7 +508,7 @@ export default function SocialMediaPage() {
                   {scheduledPosts.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-slate-400 text-[13px]">
-                        No scheduled posts yet.
+                        No scheduled posts yet. Click <span className="font-medium text-slate-600">Create post</span> to add one.
                       </td>
                     </tr>
                   ) : (
@@ -790,13 +565,13 @@ export default function SocialMediaPage() {
           </div>
         )}
 
-        {/* TAB 3: PUBLISHED */}
+        {/* TAB 2: PUBLISHED */}
         {activeTab === 'Published' && (
           <div className="space-y-3">
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
                 <BarChart3 className="w-3.5 h-3.5 text-blue-950" />
-                Step 6 · Track results · platform engagement comparison
+                Platform engagement comparison
               </p>
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -808,14 +583,14 @@ export default function SocialMediaPage() {
                       contentStyle={{
                         backgroundColor: '#ffffff',
                         border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
+                        borderRadius: '2px',
                         color: '#0f172a',
                         fontSize: '13px',
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="Reach" fill="#172554" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Engagement" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Reach" fill="#172554" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="Engagement" fill="#10b981" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -874,7 +649,7 @@ export default function SocialMediaPage() {
           </div>
         )}
 
-        {/* TAB 4: ANALYTICS */}
+        {/* TAB 3: ANALYTICS */}
         {activeTab === 'Analytics' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
@@ -892,7 +667,7 @@ export default function SocialMediaPage() {
                       contentStyle={{
                         backgroundColor: '#ffffff',
                         border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
+                        borderRadius: '2px',
                         color: '#0f172a',
                         fontSize: '13px',
                       }}
@@ -924,13 +699,13 @@ export default function SocialMediaPage() {
                       contentStyle={{
                         backgroundColor: '#ffffff',
                         border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
+                        borderRadius: '2px',
                         color: '#0f172a',
                         fontSize: '13px',
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="Engagement" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Engagement" fill="#10b981" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -939,10 +714,292 @@ export default function SocialMediaPage() {
         )}
       </main>
 
+      {/* ══════════════════════════════════════════ */}
+      {/* CREATE POST MODAL                          */}
+      {/* ══════════════════════════════════════════ */}
+      {composerOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          onClick={closeComposer}
+        >
+          <div
+            className="bg-white border border-slate-200 rounded-sm max-w-5xl w-full max-h-[92vh] flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold text-slate-900 truncate">
+                    Create post
+                  </h3>
+                  <p className="text-[13px] text-slate-500 truncate">
+                    Upload media, write a caption, pick channels, then publish or schedule
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeComposer}
+                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+              {/* LEFT: Form */}
+              <div className="space-y-3 text-[13px]">
+                <form id="composer-form" onSubmit={publishOrSchedule} className="space-y-3">
+
+                  {/* Media */}
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" />
+                      Media (images & videos)
+                    </label>
+                    <MediaUploader media={composerMedia} setMedia={setComposerMedia} onToast={toast} />
+                  </div>
+
+                  {/* Caption */}
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                      <MessageSquare className="w-3 h-3" />
+                      Caption
+                    </label>
+                    <textarea
+                      rows={5}
+                      required
+                      placeholder="Write engaging caption with hashtags…"
+                      value={composerCaption}
+                      onChange={(e) => setComposerCaption(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    />
+                    <p className="text-[13px] text-slate-400 mt-1">
+                      {composerCaption.length} characters
+                    </p>
+                  </div>
+
+                  {/* Channels */}
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                      <Share2 className="w-3 h-3" />
+                      Channels
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PLATFORMS.map((plat) => {
+                        const isSelected = composerPlatforms.includes(plat);
+                        const account = accounts.find((a) => a.id === plat);
+                        const isConnected = account?.connected;
+                        return (
+                          <button
+                            key={plat}
+                            type="button"
+                            disabled={!isConnected}
+                            onClick={() =>
+                              setComposerPlatforms((prev) =>
+                                isSelected ? prev.filter((p) => p !== plat) : [...prev, plat]
+                              )
+                            }
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-sm font-medium text-[13px] transition border ${isSelected
+                                ? 'bg-blue-950 text-white border-blue-950'
+                                : !isConnected
+                                  ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            title={!isConnected ? `${plat} not connected` : undefined}
+                          >
+                            <PlatformIcon platform={plat} className="w-3.5 h-3.5" />
+                            {plat}
+                            {!isConnected && <span className="text-[13px]">· off</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Product tag */}
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
+                      <ShoppingBag className="w-3 h-3" />
+                      Product tag (optional)
+                    </label>
+                    <select
+                      value={composerProductTag}
+                      onChange={(e) => setComposerProductTag(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    >
+                      <option value="">No product tag</option>
+                      {AVAILABLE_PRODUCTS.map((prod) => (
+                        <option key={prod} value={prod}>
+                          {prod}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Publish / Schedule */}
+                  <div className="pt-2 border-t border-slate-100 space-y-2">
+                    <p className="text-[13px] font-medium text-slate-700 inline-flex items-center gap-1">
+                      <Send className="w-3 h-3" />
+                      Publish or schedule
+                    </p>
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-medium text-slate-700">Schedule for later</span>
+                      <input
+                        type="checkbox"
+                        checked={isScheduling}
+                        onChange={(e) => setIsScheduling(e.target.checked)}
+                        className="h-4 w-4 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
+                      />
+                    </label>
+
+                    {isScheduling && (
+                      <input
+                        type="text"
+                        placeholder="e.g. Tomorrow at 10:00 AM"
+                        value={composerScheduleTime}
+                        onChange={(e) => setComposerScheduleTime(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                      />
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* RIGHT: Preview */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-blue-950" />
+                    Live preview
+                  </p>
+                  <span className="text-[13px] bg-blue-50 text-blue-950 border border-blue-100 font-medium px-2 py-0.5 rounded-sm">
+                    {composerPlatforms.length} channel{composerPlatforms.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {composerPlatforms.length === 0 ? (
+                  <div className="py-16 text-center text-[13px] text-slate-400 border border-dashed border-slate-300 rounded-sm">
+                    Select at least one connected platform to view preview.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                    {composerPlatforms.map((plat) => (
+                      <div
+                        key={plat}
+                        className="border border-slate-200 rounded-sm p-2 space-y-2 bg-slate-50"
+                      >
+                        <div className="flex items-center justify-between text-[13px]">
+                          <span className="font-medium text-slate-800 inline-flex items-center gap-1.5">
+                            <PlatformIcon platform={plat} className="w-3.5 h-3.5 text-blue-950" />
+                            {plat} preview
+                          </span>
+                          <span className="text-slate-400">
+                            {plat === 'YouTube'
+                              ? 'Video'
+                              : plat === 'WhatsApp'
+                                ? 'Broadcast'
+                                : 'Feed'}
+                          </span>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-7 h-7 rounded-full bg-blue-950 text-white font-medium flex items-center justify-center text-[13px]">
+                              SF
+                            </span>
+                            <div>
+                              <p className="text-[13px] font-medium text-slate-900">
+                                SokoFlow Official
+                              </p>
+                              <p className="text-[13px] text-slate-400">Just now</p>
+                            </div>
+                          </div>
+
+                          <p className="text-[13px] text-slate-800 whitespace-pre-wrap">
+                            {composerCaption || 'Your caption will appear here as you type…'}
+                          </p>
+
+                          {composerMedia.length > 0 && (
+                            <div className="grid grid-cols-2 gap-1 rounded-sm overflow-hidden border border-slate-200">
+                              {composerMedia.slice(0, 4).map((m) =>
+                                m.type === 'video' ? (
+                                  <video
+                                    key={m.id}
+                                    src={m.url}
+                                    muted
+                                    playsInline
+                                    className="w-full aspect-square object-cover"
+                                  />
+                                ) : (
+                                  <img
+                                    key={m.id}
+                                    src={m.url}
+                                    alt=""
+                                    className="w-full aspect-square object-cover"
+                                  />
+                                )
+                              )}
+                              {composerMedia.length > 4 && (
+                                <div className="relative aspect-square bg-slate-900/70 text-white flex items-center justify-center text-[13px] font-medium">
+                                  +{composerMedia.length - 4} more
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {composerProductTag && (
+                            <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 flex items-center gap-2 text-[13px] text-blue-950 font-medium">
+                              <ShoppingBag className="w-3.5 h-3.5 text-blue-950" />
+                              Shop: {composerProductTag}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-3 py-2 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+              <p className="text-[13px] text-slate-500 truncate">
+                {composerMedia.length > 0 ? `${composerMedia.length} media file(s) attached` : 'No media attached'}
+                {composerPlatforms.length > 0 ? ` · ${composerPlatforms.length} channel(s)` : ''}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closeComposer}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="composer-form"
+                  disabled={!composerCaption.trim() || composerPlatforms.length === 0}
+                  className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {isScheduling ? 'Schedule post' : 'Publish now'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DISCONNECT CONFIRM */}
       {disconnectTarget && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
           onClick={() => setDisconnectTarget(null)}
         >
           <div

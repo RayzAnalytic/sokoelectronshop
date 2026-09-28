@@ -17,7 +17,6 @@ import {
   Tablet,
   MapPin,
   DollarSign,
-  Users,
   Package,
   ShoppingCart,
   RotateCcw,
@@ -28,14 +27,10 @@ import {
   Music2,
   MessageCircle,
   Target,
-  UserPlus,
-  Repeat,
-  Heart,
   Wallet,
 } from 'lucide-react';
 
-import { FaInstagram, FaFacebook, FaFacebookF } from 'react-icons/fa';
-
+import { FaInstagram, FaFacebook } from 'react-icons/fa';
 
 import {
   ResponsiveContainer,
@@ -111,7 +106,6 @@ interface CountyRow {
   revenue: string;
 }
 
-// --- NEW TYPES ---
 interface SalesBreakdownRow {
   name: string;
   revenue: number;
@@ -191,28 +185,7 @@ const TRAFFIC_SOURCES = [
   { name: 'Paid Ads', value: 5, color: '#ec4899', visits: 774, orders: 28, revenue: 'KES 34,200' },
 ];
 
-const TOP_PAGES: TopPage[] = [
-  {
-    page: '/store/sokoflow-pro', views: 14200, avgTime: '2m 14s', bounce: '32.4%', conversions: '3.8%',
-    trend: [{ date: 'Sep 17', views: 1800 }, { date: 'Sep 18', views: 2000 }, { date: 'Sep 19', views: 2200 }, { date: 'Sep 20', views: 2400 }, { date: 'Sep 21', views: 1900 }, { date: 'Sep 22', views: 2100 }, { date: 'Sep 23', views: 1800 }],
-  },
-  {
-    page: '/store/mpesa-gateway', views: 9800, avgTime: '1m 50s', bounce: '41.1%', conversions: '4.2%',
-    trend: [{ date: 'Sep 17', views: 1200 }, { date: 'Sep 18', views: 1400 }, { date: 'Sep 19', views: 1500 }, { date: 'Sep 20', views: 1600 }, { date: 'Sep 21', views: 1300 }, { date: 'Sep 22', views: 1400 }, { date: 'Sep 23', views: 1400 }],
-  },
-  {
-    page: '/', views: 24500, avgTime: '0m 54s', bounce: '54.0%', conversions: '1.9%',
-    trend: [{ date: 'Sep 17', views: 3200 }, { date: 'Sep 18', views: 3400 }, { date: 'Sep 19', views: 3600 }, { date: 'Sep 20', views: 3800 }, { date: 'Sep 21', views: 3300 }, { date: 'Sep 22', views: 3600 }, { date: 'Sep 23', views: 3600 }],
-  },
-  {
-    page: '/store/saas-starter', views: 6400, avgTime: '3m 05s', bounce: '28.2%', conversions: '5.1%',
-    trend: [{ date: 'Sep 17', views: 800 }, { date: 'Sep 18', views: 900 }, { date: 'Sep 19', views: 950 }, { date: 'Sep 20', views: 1000 }, { date: 'Sep 21', views: 850 }, { date: 'Sep 22', views: 950 }, { date: 'Sep 23', views: 950 }],
-  },
-  {
-    page: '/checkout/stk-push', views: 3200, avgTime: '1m 12s', bounce: '18.5%', conversions: '84.0%',
-    trend: [{ date: 'Sep 17', views: 400 }, { date: 'Sep 18', views: 450 }, { date: 'Sep 19', views: 480 }, { date: 'Sep 20', views: 500 }, { date: 'Sep 21', views: 450 }, { date: 'Sep 22', views: 460 }, { date: 'Sep 23', views: 460 }],
-  },
-];
+
 
 const FUNNEL_STAGES: FunnelStage[] = [
   { stage: 'Visited Store', count: 12450, dropoff: '—', breakdown: [{ source: 'WhatsApp', users: 5600 }, { source: 'Organic', users: 3120 }, { source: 'Direct', users: 1860 }, { source: 'Social', users: 1240 }, { source: 'Paid', users: 630 }] },
@@ -255,9 +228,6 @@ const ABANDONED_TREND = [
   { date: 'Sep 23', carts: 18 },
 ];
 
-/* ============================================================
-   NEW: SALES ANALYTICS DATA
-   ============================================================ */
 const SALES_SUMMARY = {
   gross: 2_450_000,
   net: 2_185_400,
@@ -302,9 +272,6 @@ const SALES_BY_BRAND: SalesBreakdownRow[] = [
   { name: 'Nairobi UI', revenue: 175000, orders: 58, units: 58, growth: -1.8, color: '#ec4899' },
 ];
 
-/* ============================================================
-   NEW: CUSTOMER ANALYTICS DATA
-   ============================================================ */
 const CUSTOMER_METRICS: CustomerMetric[] = [
   { id: 'new', label: 'New Customers', value: '842', delta: '+18.4%', positive: true, detail: 'First-time buyers this period.' },
   { id: 'returning', label: 'Returning Customers', value: '578', delta: '+9.2%', positive: true, detail: 'Customers with 2+ purchases.' },
@@ -332,9 +299,6 @@ const TOP_CUSTOMERS = [
   { id: 'c5', name: 'Wanjiru Kamau', email: 'wanjiru@example.com', orders: 9, spent: 48900, avatar: 'WK', tier: 'Silver' },
 ];
 
-/* ============================================================
-   NEW: PRODUCT ANALYTICS DATA
-   ============================================================ */
 const PRODUCT_PERF: ProductPerfRow[] = [
   { id: 'p1', name: 'WhatsApp Chatbot Pro License', sku: 'WCP-PRO', image: '/phone.jpeg', views: 14200, purchases: 160, revenue: 480000, stock: 999, category: 'WhatsApp & Chatbots', conversion: '1.13%', status: 'best' },
   { id: 'p2', name: 'M-Pesa STK Gateway Plugin', sku: 'MPESA-STK', image: '/phone.jpeg', views: 9800, purchases: 133, revenue: 385000, stock: 999, category: 'Payments & Checkout', conversion: '1.36%', status: 'best' },
@@ -346,9 +310,6 @@ const PRODUCT_PERF: ProductPerfRow[] = [
   { id: 'p8', name: 'Basic Invoice Generator', sku: 'INV-BSC', image: '/phone.jpeg', views: 5600, purchases: 6, revenue: 18000, stock: 999, category: 'Analytics Add-ons', conversion: '0.11%', status: 'abandoned' },
 ];
 
-/* ============================================================
-   NEW: CHANNEL ANALYTICS DATA
-   ============================================================ */
 const CHANNEL_DATA: ChannelRow[] = [
   { name: 'Website', share: 42, visitors: 5120, orders: 312, revenue: 'KES 620,000', convRate: '6.1%', color: '#172554', icon: Globe },
   { name: 'WhatsApp', share: 21, visitors: 2560, orders: 248, revenue: 'KES 412,000', convRate: '9.7%', color: '#10b981', icon: MessageCircle },
@@ -399,7 +360,6 @@ export default function AnalyticsPage() {
   const [areaMetric, setAreaMetric] = useState<AreaMetric>('sessions');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Section tab state
   const [activeTab, setActiveTab] = useState<'traffic' | 'sales' | 'customers' | 'products' | 'channels'>('traffic');
 
   const [selectedKpi, setSelectedKpi] = useState<KPI | null>(null);
@@ -411,7 +371,6 @@ export default function AnalyticsPage() {
   const [selectedCartDay, setSelectedCartDay] = useState<string | null>(null);
   const [cartModalOpen, setCartModalOpen] = useState(false);
 
-  // New modal states
   const [selectedSalesRow, setSelectedSalesRow] = useState<SalesBreakdownRow | null>(null);
   const [selectedCustomerMetric, setSelectedCustomerMetric] = useState<CustomerMetric | null>(null);
   const [selectedProductPerf, setSelectedProductPerf] = useState<ProductPerfRow | null>(null);
@@ -925,7 +884,7 @@ export default function AnalyticsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                className={`px-3 py-1.5 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
                 {tab.label}
@@ -938,12 +897,9 @@ export default function AnalyticsPage() {
       {/* MAIN */}
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
 
-        {/* ================================================= */}
-        {/* TAB: TRAFFIC (existing content) */}
-        {/* ================================================= */}
+        {/* TRAFFIC TAB */}
         {activeTab === 'traffic' && (
           <>
-            {/* ROW 1: KPI CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
               {kpis.map((kpi) => (
                 <button
@@ -967,7 +923,6 @@ export default function AnalyticsPage() {
               ))}
             </div>
 
-            {/* ROW 2: TRAFFIC + SOURCES */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
               <div className="lg:col-span-8 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -981,7 +936,7 @@ export default function AnalyticsPage() {
                       <button
                         key={m}
                         onClick={() => setAreaMetric(m)}
-                        className={`px-2.5 py-2 rounded-sm text-[13px] font-medium transition capitalize ${areaMetric === m ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                        className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition capitalize ${areaMetric === m ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                           }`}
                       >
                         {m}
@@ -1055,47 +1010,6 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             </div>
-
-            {/* ROW 3: TOP PAGES */}
-            <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-              <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <span className="text-[13px] font-medium text-slate-700">Top Performing Pages</span>
-                <span className="text-[13px] text-blue-950 font-medium">Click a row</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[13px]">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                      <th className="py-2 px-3 font-medium">Page</th>
-                      <th className="py-2 px-3 font-medium">Views</th>
-                      <th className="py-2 px-3 font-medium">Avg. Time</th>
-                      <th className="py-2 px-3 font-medium">Bounce</th>
-                      <th className="py-2 px-3 font-medium text-right">Conversion</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {TOP_PAGES.map((row) => (
-                      <tr
-                        key={row.page}
-                        onClick={() => setSelectedPage(row)}
-                        className="hover:bg-slate-50 cursor-pointer transition"
-                      >
-                        <td className="py-2 px-3 font-mono font-medium text-blue-950 flex items-center gap-1.5">
-                          <span>{row.page}</span>
-                          <ExternalLink className="w-3 h-3 text-slate-400" />
-                        </td>
-                        <td className="py-2 px-3 font-mono text-slate-700">{row.views.toLocaleString()}</td>
-                        <td className="py-2 px-3 font-mono text-slate-600">{row.avgTime}</td>
-                        <td className="py-2 px-3 font-mono text-slate-600">{row.bounce}</td>
-                        <td className="py-2 px-3 font-mono font-medium text-emerald-600 text-right">{row.conversions}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* ROW 4: FUNNEL */}
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <div>
                 <h3 className="text-[13px] font-semibold text-slate-900">Conversion Funnel</h3>
@@ -1120,7 +1034,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* ROW 5: DEVICES + LOCATIONS */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
               <div className="lg:col-span-6 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                 <div>
@@ -1135,7 +1048,7 @@ export default function AnalyticsPage() {
                       <XAxis type="number" stroke="#94a3b8" fontSize={13} />
                       <YAxis dataKey="device" type="category" width={140} stroke="#172554" fontSize={13} />
                       <Tooltip />
-                      <Bar dataKey="users" radius={[0, 4, 4, 0]} barSize={20} onClick={(entry: any) => setSelectedDevice(entry)} className="cursor-pointer">
+                      <Bar dataKey="users" radius={[0, 2, 2, 0]} barSize={20} onClick={(entry: any) => setSelectedDevice(entry)} className="cursor-pointer">
                         {DEVICES_DATA.map((d, i) => (
                           <Cell key={i} fill={d.fill} />
                         ))}
@@ -1187,7 +1100,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* ROW 6: CART ABANDONMENT */}
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="space-y-1">
@@ -1246,12 +1158,9 @@ export default function AnalyticsPage() {
           </>
         )}
 
-        {/* ================================================= */}
-        {/* TAB: SALES ANALYTICS */}
-        {/* ================================================= */}
+        {/* SALES TAB */}
         {activeTab === 'sales' && (
           <>
-            {/* SALES SUMMARY KPI */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {[
                 { label: 'Gross Sales', value: formatKES(SALES_SUMMARY.gross), delta: '+14.2%', positive: true, icon: DollarSign },
@@ -1278,7 +1187,6 @@ export default function AnalyticsPage() {
               ))}
             </div>
 
-            {/* SALES TREND CHART */}
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <div>
                 <h3 className="text-[13px] font-semibold text-slate-900">Sales Trend — Gross vs Net</h3>
@@ -1312,7 +1220,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* BREAKDOWNS: Product / Category / Brand */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               {[
                 { title: 'Sales by Product', data: SALES_BY_PRODUCT },
@@ -1350,12 +1257,9 @@ export default function AnalyticsPage() {
           </>
         )}
 
-        {/* ================================================= */}
-        {/* TAB: CUSTOMER ANALYTICS */}
-        {/* ================================================= */}
+        {/* CUSTOMERS TAB */}
         {activeTab === 'customers' && (
           <>
-            {/* CUSTOMER METRIC CARDS */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {CUSTOMER_METRICS.map((m) => (
                 <button
@@ -1374,7 +1278,6 @@ export default function AnalyticsPage() {
               ))}
             </div>
 
-            {/* NEW VS RETURNING CHART */}
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <div>
                 <h3 className="text-[13px] font-semibold text-slate-900">New vs Returning Customers</h3>
@@ -1388,7 +1291,7 @@ export default function AnalyticsPage() {
                     <YAxis stroke="#172554" fontSize={13} />
                     <Tooltip />
                     <Bar dataKey="new" name="New" stackId="a" fill="#172554" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="returning" name="Returning" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="returning" name="Returning" stackId="a" fill="#10b981" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1398,7 +1301,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* TOP CUSTOMERS */}
             <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
               <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <span className="text-[13px] font-medium text-slate-700">Top Customers by Lifetime Value</span>
@@ -1443,12 +1345,9 @@ export default function AnalyticsPage() {
           </>
         )}
 
-        {/* ================================================= */}
-        {/* TAB: PRODUCT ANALYTICS */}
-        {/* ================================================= */}
+        {/* PRODUCTS TAB */}
         {activeTab === 'products' && (
           <>
-            {/* PRODUCT SUMMARY CARDS */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {[
                 { label: 'Most Viewed', value: PRODUCT_PERF.reduce((a, b) => a.views > b.views ? a : b).name.split(' ')[0], icon: Eye, color: 'text-blue-950 bg-blue-50' },
@@ -1470,7 +1369,6 @@ export default function AnalyticsPage() {
               ))}
             </div>
 
-            {/* PRODUCT PERFORMANCE TABLE */}
             <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
               <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <span className="text-[13px] font-medium text-slate-700">Product Performance</span>
@@ -1526,12 +1424,9 @@ export default function AnalyticsPage() {
           </>
         )}
 
-        {/* ================================================= */}
-        {/* TAB: CHANNEL ANALYTICS */}
-        {/* ================================================= */}
+        {/* CHANNELS TAB */}
         {activeTab === 'channels' && (
           <>
-            {/* CHANNEL SHARE CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {CHANNEL_DATA.map((ch) => (
                 <button
@@ -1577,7 +1472,6 @@ export default function AnalyticsPage() {
               ))}
             </div>
 
-            {/* CHANNEL TREND */}
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <div>
                 <h3 className="text-[13px] font-semibold text-slate-900">Channel Traffic Trend</h3>
@@ -1600,7 +1494,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* SOCIAL ACTIVITY + CONNECTION */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                 <div>
