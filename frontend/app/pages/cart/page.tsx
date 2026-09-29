@@ -1,3 +1,4 @@
+// app/pages/cart/page.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -25,6 +26,7 @@ import {
   Square,
   AlertTriangle,
   StickyNote,
+  Banknote,
 } from 'lucide-react';
 import Header from '@/components/homepage/Navbar';
 import Footer from '@/components/homepage/Footer';
@@ -32,7 +34,24 @@ import { useCart, type CartItem } from '@/lib/store/cart';
 
 type DeliveryMethod = 'standard' | 'express' | 'pickup';
 
-const FREE_SHIPPING_THRESHOLD = 1200;
+// ─────────────────────────────────────────────────────────────────────────────
+// Money constants — must mirror config/settings.py on the backend.
+// ─────────────────────────────────────────────────────────────────────────────
+const FREE_DELIVERY_THRESHOLD = 5000;      // KES
+const DELIVERY_FEES: Record<DeliveryMethod, number> = {
+  standard: 300,
+  express: 500,
+  pickup: 0,
+};
+const TAX_RATE = 0.16;                     // Kenya VAT
+
+function formatKES(amount: number): string {
+  if (!Number.isFinite(amount)) return 'KES 0';
+  return `KES ${amount.toLocaleString('en-KE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
 
 export default function CartPage() {
   const router = useRouter();
@@ -134,27 +153,31 @@ export default function CartPage() {
   // Calculations — only over SELECTED items
   const subtotal = selectedItems.reduce<number>(
     (acc, item) => acc + item.unitPrice * item.quantity,
-    0
+    0,
   );
 
   const discountAmount = subtotal * appliedDiscount;
-  const shippingFee =
-    deliveryMethod === 'pickup'
-      ? 0
-      : deliveryMethod === 'express'
-      ? 24.99
-      : subtotal >= FREE_SHIPPING_THRESHOLD || subtotal === 0
-      ? 0
-      : 9.99;
-  const taxAmount = (subtotal - discountAmount) * 0.085;
+
+  const shippingFee = (() => {
+    if (deliveryMethod === 'pickup') return 0;
+    if (subtotal === 0) return 0;
+    if (subtotal >= FREE_DELIVERY_THRESHOLD) return 0;
+    return DELIVERY_FEES[deliveryMethod];
+  })();
+
+  const taxAmount = (subtotal - discountAmount) * TAX_RATE;
   const total = subtotal - discountAmount + shippingFee + taxAmount;
 
-  const remainingForFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
-  const freeShippingProgress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+  const remainingForFreeShipping = Math.max(0, FREE_DELIVERY_THRESHOLD - subtotal);
+  const freeShippingProgress = Math.min(
+    100,
+    (subtotal / FREE_DELIVERY_THRESHOLD) * 100,
+  );
 
   const estimatedDelivery = (() => {
     const today = new Date();
-    const days = deliveryMethod === 'express' ? 1 : deliveryMethod === 'pickup' ? 0 : 3;
+    const days =
+      deliveryMethod === 'express' ? 1 : deliveryMethod === 'pickup' ? 0 : 3;
     today.setDate(today.getDate() + days);
     return today.toLocaleDateString('en-KE', {
       weekday: 'short',
@@ -169,7 +192,6 @@ export default function CartPage() {
       return;
     }
 
-    // Pass selected item ids + delivery/coupon state to checkout via query string
     const params = new URLSearchParams();
     params.set('items', selectedItems.map((i) => i.id).join(','));
     params.set('delivery', deliveryMethod);
@@ -187,18 +209,19 @@ export default function CartPage() {
     const itemsText = selectedItems
       .map(
         (item) =>
-          `• ${item.name} (x${item.quantity}) - $${(item.unitPrice * item.quantity).toFixed(2)}`
+          `• ${item.name} (x${item.quantity}) - ${formatKES(item.unitPrice * item.quantity)}`,
       )
-      .filter(Boolean)
       .join('%0A');
 
-    const message = `Hello! I would like to place an order:%0A%0A${itemsText}%0A%0ASubtotal: $${subtotal.toFixed(
-      2
-    )}%0ADiscount: -$${discountAmount.toFixed(2)}%0AShipping (${deliveryMethod}): ${
-      shippingFee === 0 ? 'FREE' : `$${shippingFee.toFixed(2)}`
-    }%0ATax: $${taxAmount.toFixed(2)}%0A%0A*Total: $${total.toFixed(2)}*${
-      orderNotes ? `%0A%0ANotes: ${encodeURIComponent(orderNotes)}` : ''
-    }`;
+    const shippingText =
+      shippingFee === 0 ? 'FREE' : formatKES(shippingFee);
+
+    const message = `Hello! I would like to place an order:%0A%0A${itemsText}%0A%0ASubtotal: ${formatKES(
+      subtotal,
+    )}%0ADiscount: -${formatKES(discountAmount)}%0AShipping (${deliveryMethod}): ${shippingText}%0AVAT (16%): ${formatKES(
+      taxAmount,
+    )}%0A%0A*Total: ${formatKES(total)}*${orderNotes ? `%0A%0ANotes: ${encodeURIComponent(orderNotes)}` : ''
+      }`;
 
     const phoneNumber = '254712345678';
     window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
@@ -249,7 +272,6 @@ export default function CartPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
             {/* LEFT — items, promo, delivery */}
             <div className="lg:col-span-8 space-y-3">
-
               {/* Free shipping progress bar */}
               <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -258,13 +280,13 @@ export default function CartPage() {
                       <>
                         Add{' '}
                         <span className="font-semibold text-slate-900">
-                          ${remainingForFreeShipping.toFixed(2)}
+                          {formatKES(remainingForFreeShipping)}
                         </span>{' '}
-                        more for free shipping
+                        more for free delivery
                       </>
                     ) : (
                       <span className="text-emerald-700 font-medium">
-                        You've unlocked free shipping
+                        You&apos;ve unlocked free delivery
                       </span>
                     )}
                   </p>
@@ -272,9 +294,8 @@ export default function CartPage() {
                 </div>
                 <div className="h-1.5 rounded-sm bg-slate-100 overflow-hidden">
                   <div
-                    className={`h-full transition-all ${
-                      freeShippingProgress >= 100 ? 'bg-emerald-500' : 'bg-blue-950'
-                    }`}
+                    className={`h-full transition-all ${freeShippingProgress >= 100 ? 'bg-emerald-500' : 'bg-blue-950'
+                      }`}
                     style={{ width: `${freeShippingProgress}%` }}
                   />
                 </div>
@@ -312,7 +333,8 @@ export default function CartPage() {
               {/* Items list */}
               <div className="bg-white border border-slate-200 rounded-sm divide-y divide-slate-100">
                 {items.map((item) => {
-                  const isLowStock = item.stockCount !== undefined && item.stockCount <= 3;
+                  const isLowStock =
+                    item.stockCount !== undefined && item.stockCount <= 3;
                   return (
                     <div
                       key={item.id}
@@ -331,7 +353,7 @@ export default function CartPage() {
                           )}
                         </button>
                         <Link
-                          href={`/pages/products/${item.slug}`}
+                          href={`/pages/products?open=${item.productId}`}
                           className="w-16 h-16 rounded-sm bg-slate-100 overflow-hidden shrink-0 border border-slate-200 block"
                         >
                           <img
@@ -346,29 +368,29 @@ export default function CartPage() {
                               {item.brand}
                             </span>
                           )}
-                          <Link href={`/pages/products/${item.slug}`}>
+                          <Link href={`/pages/products?open=${item.productId}`}>
                             <h3 className="text-[13px] font-semibold text-slate-900 hover:text-blue-950 transition truncate">
                               {item.name}
                             </h3>
                           </Link>
                           {item.stock && (
                             <p
-                              className={`text-[13px] font-medium inline-flex items-center gap-1 ${
-                                isLowStock ? 'text-amber-600' : 'text-emerald-600'
-                              }`}
+                              className={`text-[13px] font-medium inline-flex items-center gap-1 ${isLowStock ? 'text-amber-600' : 'text-emerald-600'
+                                }`}
                             >
                               {isLowStock && <AlertTriangle className="w-3 h-3" />}
                               {item.stock}
-                              {item.stockCount !== undefined && ` • Max ${item.stockCount}`}
+                              {item.stockCount !== undefined &&
+                                ` • Max ${item.stockCount}`}
                             </p>
                           )}
                           <div className="flex items-baseline gap-2 pt-0.5">
                             <span className="text-[13px] font-bold text-slate-900">
-                              ${item.unitPrice.toFixed(2)}
+                              {formatKES(item.unitPrice)}
                             </span>
                             {item.compareAtPrice && (
                               <span className="text-[13px] text-slate-400 line-through">
-                                ${item.compareAtPrice.toFixed(2)}
+                                {formatKES(item.compareAtPrice)}
                               </span>
                             )}
                           </div>
@@ -390,7 +412,9 @@ export default function CartPage() {
 
                         <div className="flex items-center border border-slate-200 rounded-sm overflow-hidden bg-white">
                           <button
-                            onClick={() => handleUpdateQuantity(item, item.quantity - 1)}
+                            onClick={() =>
+                              handleUpdateQuantity(item, item.quantity - 1)
+                            }
                             className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
                             aria-label="Decrease quantity"
                           >
@@ -400,7 +424,9 @@ export default function CartPage() {
                             {item.quantity}
                           </span>
                           <button
-                            onClick={() => handleUpdateQuantity(item, item.quantity + 1)}
+                            onClick={() =>
+                              handleUpdateQuantity(item, item.quantity + 1)
+                            }
                             className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
                             aria-label="Increase quantity"
                           >
@@ -408,9 +434,9 @@ export default function CartPage() {
                           </button>
                         </div>
 
-                        <div className="text-right min-w-[65px]">
+                        <div className="text-right min-w-[90px]">
                           <span className="text-[13px] font-bold text-slate-900">
-                            ${(item.unitPrice * item.quantity).toFixed(2)}
+                            {formatKES(item.unitPrice * item.quantity)}
                           </span>
                         </div>
 
@@ -478,9 +504,8 @@ export default function CartPage() {
 
                 {couponMessage && (
                   <p
-                    className={`text-[13px] font-medium ${
-                      appliedDiscount > 0 ? 'text-emerald-600' : 'text-red-600'
-                    }`}
+                    className={`text-[13px] font-medium ${appliedDiscount > 0 ? 'text-emerald-600' : 'text-red-600'
+                      }`}
                   >
                     {couponMessage}
                   </p>
@@ -501,39 +526,63 @@ export default function CartPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {(
                     [
-                      { id: 'standard', label: 'Standard', sub: '2–3 days', price: 9.99, icon: Truck },
-                      { id: 'express', label: 'Express', sub: 'Next day', price: 24.99, icon: Zap },
-                      { id: 'pickup', label: 'Store pickup', sub: 'Ready in 1h', price: 0, icon: Store },
-                    ] as const
+                      {
+                        id: 'standard' as const,
+                        label: 'Standard',
+                        sub: '3–5 days',
+                        price: DELIVERY_FEES.standard,
+                        icon: Truck,
+                      },
+                      {
+                        id: 'express' as const,
+                        label: 'Express',
+                        sub: '24–48 hours',
+                        price: DELIVERY_FEES.express,
+                        icon: Zap,
+                      },
+                      {
+                        id: 'pickup' as const,
+                        label: 'Store pickup',
+                        sub: 'Ready in 1h',
+                        price: DELIVERY_FEES.pickup,
+                        icon: Store,
+                      },
+                    ]
                   ).map(({ id, label, sub, price, icon: Icon }) => {
                     const active = deliveryMethod === id;
+                    const freeForOrder =
+                      id !== 'pickup' &&
+                      subtotal > 0 &&
+                      subtotal >= FREE_DELIVERY_THRESHOLD;
+
                     return (
                       <button
                         key={id}
                         type="button"
                         onClick={() => setDeliveryMethod(id)}
-                        className={`p-2 rounded-sm border text-left transition flex items-start gap-2 ${
-                          active
+                        className={`p-2 rounded-sm border text-left transition flex items-start gap-2 ${active
                             ? 'border-blue-950 bg-blue-50'
                             : 'border-slate-200 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <Icon
-                          className={`w-4 h-4 mt-0.5 shrink-0 ${
-                            active ? 'text-blue-950' : 'text-slate-400'
-                          }`}
+                          className={`w-4 h-4 mt-0.5 shrink-0 ${active ? 'text-blue-950' : 'text-slate-400'
+                            }`}
                         />
                         <div className="min-w-0">
                           <p
-                            className={`text-[13px] font-medium ${
-                              active ? 'text-blue-950' : 'text-slate-800'
-                            }`}
+                            className={`text-[13px] font-medium ${active ? 'text-blue-950' : 'text-slate-800'
+                              }`}
                           >
                             {label}
                           </p>
-                          <p className="text-[13px] text-slate-500 mt-0.5">{sub}</p>
+                          <p className="text-[13px] text-slate-500 mt-0.5">
+                            {sub}
+                          </p>
                           <p className="text-[13px] font-medium text-slate-900 mt-0.5">
-                            {price === 0 ? 'Free' : `$${price.toFixed(2)}`}
+                            {price === 0 || freeForOrder
+                              ? 'Free'
+                              : formatKES(price)}
                           </p>
                         </div>
                       </button>
@@ -542,8 +591,16 @@ export default function CartPage() {
                 </div>
                 <p className="text-[13px] text-slate-500 pt-1">
                   Estimated arrival:{' '}
-                  <span className="font-medium text-slate-900">{estimatedDelivery}</span>
+                  <span className="font-medium text-slate-900">
+                    {estimatedDelivery}
+                  </span>
                 </p>
+                {subtotal > 0 && subtotal < FREE_DELIVERY_THRESHOLD && (
+                  <p className="text-[13px] text-slate-400">
+                    Free delivery on orders over{' '}
+                    {formatKES(FREE_DELIVERY_THRESHOLD)}
+                  </p>
+                )}
               </div>
 
               {/* Order notes */}
@@ -576,25 +633,25 @@ export default function CartPage() {
                       {selectedItems.length !== 1 ? 's' : ''})
                     </span>
                     <span className="font-medium text-slate-900">
-                      ${subtotal.toFixed(2)}
+                      {formatKES(subtotal)}
                     </span>
                   </div>
                   {appliedDiscount > 0 && (
                     <div className="flex justify-between text-emerald-600 font-medium">
                       <span>Discount ({appliedDiscount * 100}%)</span>
-                      <span>-${discountAmount.toFixed(2)}</span>
+                      <span>- {formatKES(discountAmount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span>Shipping</span>
+                    <span>Delivery</span>
                     <span className="font-medium text-slate-900">
-                      {shippingFee === 0 ? 'Free' : `$${shippingFee.toFixed(2)}`}
+                      {shippingFee === 0 ? 'Free' : formatKES(shippingFee)}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span>VAT (8.5%)</span>
+                    <span>VAT (16%)</span>
                     <span className="font-medium text-slate-900">
-                      ${taxAmount.toFixed(2)}
+                      {formatKES(taxAmount)}
                     </span>
                   </div>
                 </div>
@@ -604,7 +661,7 @@ export default function CartPage() {
                     Total
                   </span>
                   <span className="text-[15px] font-bold text-slate-900">
-                    ${total.toFixed(2)}
+                    {formatKES(total)}
                   </span>
                 </div>
 
@@ -620,10 +677,14 @@ export default function CartPage() {
 
                 {/* Payment method icons */}
                 <div className="flex items-center justify-center gap-2 pt-1">
-                  <PaymentChip icon={<Smartphone className="w-3.5 h-3.5" />} label="M-Pesa" />
-                  <PaymentChip icon={<Smartphone className="w-3.5 h-3.5" />} label="Airtel" />
-                  <PaymentChip icon={<CreditCard className="w-3.5 h-3.5" />} label="Card" />
-                  <PaymentChip icon={<Store className="w-3.5 h-3.5" />} label="COD" />
+                  <PaymentChip
+                    icon={<Smartphone className="w-3.5 h-3.5" />}
+                    label="M-Pesa"
+                  />
+                  <PaymentChip
+                    icon={<Banknote className="w-3.5 h-3.5" />}
+                    label="Pay on delivery"
+                  />
                 </div>
 
                 {/* WhatsApp */}
@@ -696,7 +757,13 @@ export default function CartPage() {
 }
 
 /* ───── Payment chip ───── */
-function PaymentChip({ icon, label }: { icon: React.ReactNode; label: string }) {
+function PaymentChip({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <span className="inline-flex items-center gap-1 text-[13px] text-slate-600 bg-white border border-slate-200 rounded-sm px-2 py-1">
       {icon}

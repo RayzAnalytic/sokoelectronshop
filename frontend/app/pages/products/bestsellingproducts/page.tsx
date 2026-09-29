@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
     Star,
     ShoppingCart,
@@ -46,7 +47,6 @@ type Review = {
     verified: boolean;
 };
 
-// Best sellers = top 8 by review count from the shared catalog
 const bestSellersData: Product[] = [...allProducts]
     .sort((a, b) => b.reviewCount - a.reviewCount)
     .slice(0, 8)
@@ -68,7 +68,6 @@ const bestSellersData: Product[] = [...allProducts]
 const categories = ['All', ...Array.from(new Set(bestSellersData.map((p) => p.category)))];
 const brands = ['All', ...Array.from(new Set(bestSellersData.map((p) => p.brand)))];
 
-// Mock reviews — replace with a real API later
 const MOCK_REVIEWS: Review[] = [
     {
         id: 'r1',
@@ -99,7 +98,26 @@ const MOCK_REVIEWS: Review[] = [
     },
 ];
 
+// ─────────────────────────────────────────────────────────────
+// Public page — Suspense wrapper (useSearchParams requires it)
+// ─────────────────────────────────────────────────────────────
 export default function BestSellingPage() {
+    return (
+        <Suspense fallback={null}>
+            <BestSellingPageInner />
+        </Suspense>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// The real page
+// ─────────────────────────────────────────────────────────────
+function BestSellingPageInner() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const openId = searchParams.get('open');
+
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedBrand, setSelectedBrand] = useState('All');
     const [selectedPriceRange, setSelectedPriceRange] = useState('All');
@@ -114,7 +132,6 @@ export default function BestSellingPage() {
     const [selectedModalProduct, setSelectedModalProduct] = useState<Product | null>(null);
     const [modalImageIndex, setModalImageIndex] = useState(0);
 
-    // Reviews modal state
     const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
     const [reviewsByProduct, setReviewsByProduct] = useState<Record<string, Review[]>>({});
     const [reviewForm, setReviewForm] = useState({
@@ -125,10 +142,42 @@ export default function BestSellingPage() {
     });
     const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
-    // Cart store
     const addItem = useCart((s) => s.addItem);
 
-    // Filtering
+    // ── URL is the source of truth for the modal ──────────────
+    useEffect(() => {
+        if (!openId) {
+            setSelectedModalProduct(null);
+            return;
+        }
+        const found = bestSellersData.find((p) => p.id === openId);
+        if (found) {
+            setSelectedModalProduct(found);
+            setModalImageIndex(0);
+        } else {
+            router.replace(pathname, { scroll: false });
+        }
+    }, [openId, router, pathname]);
+
+    function openProductInUrl(id: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('open', id);
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+
+    function replaceProductInUrl(id: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('open', id);
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+
+    function closeProductInUrl() {
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('open');
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+
     const filteredProducts = bestSellersData
         .filter((product) => {
             if (selectedCategory !== 'All' && product.category !== selectedCategory) return false;
@@ -158,7 +207,6 @@ export default function BestSellingPage() {
             return 0;
         });
 
-    // Related products for the active modal
     const relatedProducts = useMemo(() => {
         if (!selectedModalProduct) return [];
         return bestSellersData
@@ -171,7 +219,6 @@ export default function BestSellingPage() {
             .slice(0, 6);
     }, [selectedModalProduct]);
 
-    // Reviews for active product
     const reviewsForActiveProduct = useMemo(() => {
         if (!selectedModalProduct) return [];
         const stored = reviewsByProduct[selectedModalProduct.id];
@@ -222,16 +269,22 @@ export default function BestSellingPage() {
         setSortBy('best-selling');
     };
 
+    // URL-driven open/close
     const openModal = (product: Product) => {
-        setSelectedModalProduct(product);
-        setModalImageIndex(0);
+        openProductInUrl(product.id);
     };
 
     const closeModal = () => {
-        setSelectedModalProduct(null);
+        closeProductInUrl();
         setReviewsModalOpen(false);
         setReviewSubmitted(false);
         setReviewForm({ author: '', rating: 5, title: '', body: '' });
+    };
+
+    const handleSelectRelated = (product: Product) => {
+        replaceProductInUrl(product.id);
+        setModalImageIndex(0);
+        setReviewsModalOpen(false);
     };
 
     const handleSubmitReview = (e: React.FormEvent) => {
@@ -474,11 +527,15 @@ export default function BestSellingPage() {
                                                 </span>
                                             </div>
 
-                                            <Link href={`/pages/products/${product.id}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => openModal(product)}
+                                                className="text-left"
+                                            >
                                                 <h3 className="text-xs font-bold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mb-1">
                                                     {product.name}
                                                 </h3>
-                                            </Link>
+                                            </button>
 
                                             <div className="flex items-center space-x-1 mb-1">
                                                 <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
@@ -551,14 +608,11 @@ export default function BestSellingPage() {
                 )}
             </main>
 
-            {/* ════════════════════════════════════════════════════
-                PRODUCT MODAL — larger + related products + reviews
-                ════════════════════════════════════════════════════ */}
+            {/* PRODUCT MODAL */}
             {selectedModalProduct && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
                     <div className="bg-white rounded-sm max-w-4xl w-full overflow-hidden shadow-2xl relative max-h-[92vh] flex flex-col">
 
-                        {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div>
                                 <span className="text-[11px] font-semibold text-blue-950 uppercase tracking-wide">
@@ -574,11 +628,9 @@ export default function BestSellingPage() {
                             </button>
                         </div>
 
-                        {/* Body — scrollable */}
                         <div className="overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
 
-                                {/* LEFT — Gallery */}
                                 <div className="bg-slate-50 p-2 flex flex-col items-center space-y-2 rounded-sm">
                                     <div className="relative w-full aspect-square bg-white rounded-sm overflow-hidden border border-slate-200 shadow-xs">
                                         <img
@@ -617,7 +669,6 @@ export default function BestSellingPage() {
                                     </div>
                                 </div>
 
-                                {/* RIGHT — Info & Actions */}
                                 <div className="flex flex-col justify-between space-y-3">
                                     <div className="space-y-2">
                                         <div>
@@ -629,7 +680,6 @@ export default function BestSellingPage() {
                                             </h2>
                                         </div>
 
-                                        {/* Clickable rating → opens reviews modal */}
                                         <button
                                             type="button"
                                             onClick={() => setReviewsModalOpen(true)}
@@ -656,7 +706,6 @@ export default function BestSellingPage() {
                                             </span>
                                         </button>
 
-                                        {/* Description — paragraph-aware */}
                                         <div className="text-[12px] text-slate-600 leading-relaxed space-y-2">
                                             {selectedModalProduct.description.split('\n\n').map((para, i) => (
                                                 <p key={i}>{para}</p>
@@ -676,12 +725,6 @@ export default function BestSellingPage() {
                                     </div>
 
                                     <div className="space-y-2 pt-2">
-                                        <Link
-                                            href={`/pages/products/${selectedModalProduct.id}`}
-                                            className="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2 px-4 rounded-sm text-[13px] transition-colors"
-                                        >
-                                            Open Full Product Page →
-                                        </Link>
                                         <button
                                             onClick={async (e) => {
                                                 await handleAddToCart(selectedModalProduct, e);
@@ -697,7 +740,6 @@ export default function BestSellingPage() {
                                 </div>
                             </div>
 
-                            {/* RELATED PRODUCTS */}
                             {relatedProducts.length > 0 && (
                                 <div className="px-5 pb-5 border-t border-slate-100 pt-5">
                                     <div className="flex items-center justify-between mb-3">
@@ -714,11 +756,7 @@ export default function BestSellingPage() {
                                             <button
                                                 key={rp.id}
                                                 type="button"
-                                                onClick={() => {
-                                                    setSelectedModalProduct(rp);
-                                                    setModalImageIndex(0);
-                                                    setReviewsModalOpen(false);
-                                                }}
+                                                onClick={() => handleSelectRelated(rp)}
                                                 className="shrink-0 w-40 text-left group/rel"
                                             >
                                                 <div className="aspect-square rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
@@ -747,14 +785,11 @@ export default function BestSellingPage() {
                 </div>
             )}
 
-            {/* ════════════════════════════════════════════════════
-                REVIEWS SUB-MODAL — on top of product modal
-                ════════════════════════════════════════════════════ */}
+            {/* REVIEWS SUB-MODAL */}
             {selectedModalProduct && reviewsModalOpen && (
                 <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
                     <div className="bg-white rounded-sm max-w-3xl w-full overflow-hidden shadow-2xl relative max-h-[88vh] flex flex-col">
 
-                        {/* Header */}
                         <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div className="min-w-0">
                                 <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
@@ -772,10 +807,8 @@ export default function BestSellingPage() {
                             </button>
                         </div>
 
-                        {/* Body — scrollable */}
                         <div className="overflow-y-auto flex-1 p-5 space-y-5">
 
-                            {/* Summary */}
                             <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-sm p-4">
                                 <div className="text-center">
                                     <p className="text-3xl font-bold text-slate-900">
@@ -806,7 +839,6 @@ export default function BestSellingPage() {
                                 </div>
                             </div>
 
-                            {/* Add review form */}
                             <form onSubmit={handleSubmitReview} className="bg-white border border-slate-200 rounded-sm p-4 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-slate-900">Write a review</h3>
@@ -901,7 +933,6 @@ export default function BestSellingPage() {
                                 </div>
                             </form>
 
-                            {/* Reviews list */}
                             <div className="space-y-3">
                                 <h3 className="text-sm font-bold text-slate-900">
                                     All reviews ({reviewsForActiveProduct.length})

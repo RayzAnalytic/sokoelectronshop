@@ -30,8 +30,12 @@ import {
   Video,
   Star,
   Box,
+  Upload,
 } from 'lucide-react';
 import AddProductModal from '@/components/admin/AddProductModal';
+import BulkUploadModal, {
+  type ImportedProduct,
+} from '@/components/admin/BulkUploadModal';
 
 // --- TYPES ---
 type ProductStatus = 'Published' | 'Draft' | 'Archived';
@@ -302,6 +306,41 @@ const INVENTORY_STATUSES: InventoryStatus[] = ['In Stock', 'Low Stock', 'Out of 
 const formatKES = (n: number) =>
   new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(n);
 
+/** Convert a row from the bulk importer into a full Product. */
+function importedToProduct(row: ImportedProduct): Product {
+  const stock = Number(row.stock) || 0;
+  const price = Number(row.price) || 0;
+  const salePrice = row.salePrice ? Number(row.salePrice) : undefined;
+
+  return {
+    id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: row.name || 'Untitled',
+    sku: row.sku || `SKU-${Math.floor(Math.random() * 900000)}`,
+    description: row.shortDescription || '',
+    shortDescription: row.shortDescription || '',
+    category: row.category || 'Accessories',
+    brand: row.brand || 'Other',
+    tags: [],
+    price,
+    salePrice,
+    costPrice: undefined,
+    tax: 16,
+    discount:
+      salePrice && price > salePrice
+        ? Math.round(((price - salePrice) / price) * 100)
+        : 0,
+    stock,
+    lowStockThreshold: 10,
+    inventoryStatus:
+      stock === 0 ? 'Out of Stock' : stock <= 10 ? 'Low Stock' : 'In Stock',
+    status: row.status === 'draft' ? 'Draft' : 'Published',
+    image: '/phone.jpeg', // placeholder until images are added
+    featured: false,
+    variantOptions: [],
+    variants: [],
+  };
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [searchQuery, setSearchQuery] = useState('');
@@ -317,15 +356,17 @@ export default function ProductsPage() {
 
   // Modals
   const [addOpen, setAddOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null);
   const [variantsProduct, setVariantsProduct] = useState<Product | null>(null);
+  const [toast, setToast] = useState('');
 
   const anyModalOpen =
-    addOpen || deleteProductId !== null || editProduct !== null || viewProduct !== null ||
-    duplicateProduct !== null || variantsProduct !== null;
+    addOpen || bulkOpen || deleteProductId !== null || editProduct !== null ||
+    viewProduct !== null || duplicateProduct !== null || variantsProduct !== null;
 
   // Close kebab when clicking elsewhere
   useEffect(() => {
@@ -333,6 +374,11 @@ export default function ProductsPage() {
     if (openKebabId) document.addEventListener('click', onDoc);
     return () => document.removeEventListener('click', onDoc);
   }, [openKebabId]);
+
+  function flash(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2500);
+  }
 
   // Filter + sort
   const filtered = products
@@ -390,6 +436,14 @@ export default function ProductsPage() {
     setDuplicateProduct(null);
   };
 
+  const handleBulkImport = (rows: ImportedProduct[]) => {
+    const created = rows.map(importedToProduct);
+    setProducts((prev) => [...created, ...prev]);
+    flash(
+      `Imported ${created.length} product${created.length === 1 ? '' : 's'}`,
+    );
+  };
+
   const activeFilterCount =
     (selectedCategory ? 1 : 0) +
     (selectedBrand ? 1 : 0) +
@@ -416,6 +470,16 @@ export default function ProductsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Bulk upload */}
+            <button
+              onClick={() => setBulkOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bulk upload</span>
+              <span className="sm:hidden">Bulk</span>
+            </button>
+
             <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200">
               <button
                 onClick={() => setViewMode('table')}
@@ -830,6 +894,13 @@ export default function ProductsPage() {
         }}
       />
 
+      {/* ---- BULK UPLOAD MODAL ---- */}
+      <BulkUploadModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        onSave={handleBulkImport}
+      />
+
       {/* ---- DELETE CONFIRM ---- */}
       {deleteProductId && (
         <Popup onClose={() => setDeleteProductId(null)}>
@@ -1016,6 +1087,13 @@ export default function ProductsPage() {
 
       {/* Backdrop when any modal is open */}
       {anyModalOpen && <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm" />}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-4 py-2.5 rounded-sm shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -1039,7 +1117,6 @@ function ProductDrawer({
         onClick={(e) => e.stopPropagation()}
         className="bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow-xl flex flex-col"
       >
-        {/* Header */}
         <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
@@ -1059,12 +1136,10 @@ function ProductDrawer({
         </div>
 
         <div className="p-3 space-y-3">
-          {/* Hero image */}
           <div className="aspect-[16/9] rounded-sm overflow-hidden bg-slate-100 border border-slate-200">
             <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
           </div>
 
-          {/* Title + tags */}
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{product.category}</span>
@@ -1082,7 +1157,6 @@ function ProductDrawer({
             )}
           </div>
 
-          {/* Tags */}
           {product.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {product.tags.map((t) => (
@@ -1094,7 +1168,6 @@ function ProductDrawer({
             </div>
           )}
 
-          {/* Pricing */}
           <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
               <DollarSign className="w-3.5 h-3.5" />
@@ -1115,7 +1188,6 @@ function ProductDrawer({
             </div>
           </div>
 
-          {/* Inventory */}
           <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
               <Warehouse className="w-3.5 h-3.5" />
@@ -1128,7 +1200,6 @@ function ProductDrawer({
             </div>
           </div>
 
-          {/* Description */}
           {product.description && (
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
@@ -1139,7 +1210,6 @@ function ProductDrawer({
             </div>
           )}
 
-          {/* Media */}
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
               <ImageIcon className="w-3.5 h-3.5" />
@@ -1160,7 +1230,6 @@ function ProductDrawer({
             </div>
           </div>
 
-          {/* Variants section */}
           <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
@@ -1226,7 +1295,6 @@ function VariantsDrawer({
   onClose: () => void;
   onUpdate: (p: Product) => void;
 }) {
-  // Group variants by option name for the "T-Shirt" style matrix view
   const groupedByFirstOption = useMemo(() => {
     if (product.variantOptions.length === 0) return [];
     const first = product.variantOptions[0].name;
@@ -1258,7 +1326,6 @@ function VariantsDrawer({
         onClick={(e) => e.stopPropagation()}
         className="bg-white border-l border-slate-200 w-full max-w-3xl h-full overflow-y-auto shadow-xl flex flex-col"
       >
-        {/* Header */}
         <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
@@ -1280,7 +1347,6 @@ function VariantsDrawer({
         </div>
 
         <div className="p-3 space-y-3">
-          {/* Option summary */}
           {product.variantOptions.length > 0 && (
             <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
               <div className="text-[13px] font-medium text-slate-700">Option groups</div>
@@ -1305,7 +1371,6 @@ function VariantsDrawer({
             </div>
           )}
 
-          {/* Grouped matrix */}
           <div className="space-y-3">
             {groupedByFirstOption.map(([groupName, variants]) => (
               <div key={groupName} className="bg-white border border-slate-200 rounded-sm overflow-hidden">
@@ -1389,7 +1454,6 @@ function VariantsDrawer({
             ))}
           </div>
 
-          {/* T-Shirt example footnote */}
           <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 text-[13px] text-blue-900">
             <div className="flex items-center gap-1.5 font-medium">
               <Layers className="w-3.5 h-3.5" />
@@ -1452,8 +1516,8 @@ function FilterDropdown({
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
-            ? 'bg-blue-50 border-blue-950 text-blue-950'
-            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+          ? 'bg-blue-50 border-blue-950 text-blue-950'
+          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}
       >
         {icon}

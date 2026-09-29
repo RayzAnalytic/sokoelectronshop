@@ -1,7 +1,13 @@
 // app/pages/checkout/page.tsx
 'use client';
 
-import React, { useMemo, useState, useEffect, Suspense } from 'react';
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  Suspense,
+} from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -29,14 +35,29 @@ import {
   Banknote,
   Wallet,
   ShoppingCart,
+  RefreshCw,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useCart } from '@/lib/store/cart';
+import {
+  api,
+  paymentsApi,
+  pollPayment,
+  ApiError,
+  type Payment,
+  type Me,
+  type CheckoutPayload,
+} from '@/lib/api';
 
-// --- TYPES ---
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 type PaymentChoice = 'pay-on-delivery' | 'pay-now';
 type PayNowMethod = 'mpesa';
 type DeliveryMethod = 'express' | 'standard' | 'pickup';
 type Step = 1 | 2 | 3;
+type Phase = 'idle' | 'submitting' | 'awaiting-pin' | 'failed';
 
 interface CheckoutItem {
   id: string;
@@ -48,23 +69,91 @@ interface CheckoutItem {
   image: string;
 }
 
-// --- DATA ---
+interface OrderDraft {
+  orderId: string;
+  date: string;
+  total: number;
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  tax: number;
+  paymentLabel: string;
+  deliveryMethod: DeliveryMethod;
+  estimatedDelivery: string;
+  coupon: string | null;
+  notes: string | null;
+  customer: {
+    email: string;
+    phone: string;
+    fullName: string;
+    address: {
+      street: string;
+      town: string;
+      county: string;
+      postalCode: string;
+    };
+  };
+  items: CheckoutItem[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Client-side preview values. Server preview is authoritative.
+// ─────────────────────────────────────────────────────────────────────────────
 const KENYAN_COUNTIES = [
-  'Nairobi',
-  'Mombasa',
-  'Kisumu',
-  'Nakuru',
-  'Kiambu',
-  'Machakos',
-  'Kajiado',
-  'Uasin Gishu',
-  'Kakamega',
-  'Meru',
-  'Nyeri',
-  'Kilifi',
+  'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 'Machakos',
+  'Kajiado', 'Uasin Gishu', 'Kakamega', 'Meru', 'Nyeri', 'Kilifi',
 ];
 
-// ─── Outer component: Suspense boundary for useSearchParams ───
+const DELIVERY_FEES: Record<DeliveryMethod, number> = {
+  express: 500,
+  standard: 300,
+  pickup: 0,
+};
+
+const FREE_DELIVERY_THRESHOLD = 5000;
+const TAX_RATE = 0.16;
+const SESSION_KEY = 'checkout:form:v1';
+const ORDER_KEY_PREFIX = 'order:';
+
+const COUPONS: Record<string, number> = {
+  SPRING10: 0.1,
+  WELCOME20: 0.2,
+};
+
+// Matches Django's MinimumLengthValidator in config/settings.py
+const MIN_PASSWORD_LENGTH = 10;
+
+function formatKES(n: number | string): string {
+  const num = typeof n === 'string' ? parseFloat(n) : n;
+  if (!Number.isFinite(num)) return 'KES 0';
+  return `KES ${num.toLocaleString('en-KE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function generateOrderReference(): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `ORD-${ts}-${rand}`;
+}
+
+function describeStatus(status: string): string {
+  switch (status) {
+    case 'TIMEOUT':
+      return 'The M-Pesa request timed out. You can try again.';
+    case 'CANCELLED':
+      return 'The payment was cancelled.';
+    case 'FAILED':
+      return 'The M-Pesa request was not completed.';
+    default:
+      return '';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Outer — Suspense for useSearchParams
+// ─────────────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
   return (
     <Suspense
@@ -79,6 +168,9 @@ export default function CheckoutPage() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Inner
+// ─────────────────────────────────────────────────────────────────────────────
 function CheckoutInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -114,13 +206,18 @@ function CheckoutInner() {
     }));
   }, [cartItems, itemIds]);
 
+  // ── UI state ──
   const [step, setStep] = useState<Step>(1);
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [me, setMe] = useState<Me | null>(null);
   const [isGuest, setIsGuest] = useState(true);
 
+  // ── Form ──
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
     fullName: '',
+    password: '',
     county: 'Nairobi',
     town: '',
     street: '',
@@ -131,20 +228,90 @@ function CheckoutInner() {
     mpesaPhone: '',
     orderNotes: urlNotes,
     agreeTerms: false,
-    saveInfo: true,
     subscribe: true,
   });
 
+  // ── Coupon ──
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
-  const [appliedDiscount, setAppliedDiscount] = useState(0);
+  const [appliedDiscountPct, setAppliedDiscountPct] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
 
-  const [isProcessing, setIsProcessing] = useState(false);
+  // ── Submit / payment state ──
   const [errorMessage, setErrorMessage] = useState('');
+  const [paymentError, setPaymentError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // ── Hydrate delivery method from URL once ──
+  const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null);
+  const [payment, setPayment] = useState<Payment | null>(null);
+
+  // ── Refs ──
+  const paymentAbortRef = useRef<AbortController | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Restore form from sessionStorage
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        setFormData((p) => ({ ...p, ...saved }));
+      }
+    } catch {
+      /* ignore */
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist form when it changes (after hydration).
+  // NOTE: password is intentionally excluded — never written to storage.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const { password: _password, ...persistable } = formData;
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(persistable));
+    } catch {
+      /* quota, ignore */
+    }
+  }, [formData, hydrated]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Check auth on mount — prefill if logged in
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await api.me();
+        if (cancelled) return;
+        if (user) {
+          setMe(user);
+          setIsGuest(false);
+          setFormData((p) => ({
+            ...p,
+            email: p.email || user.email,
+            fullName:
+              p.fullName ||
+              `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim(),
+          }));
+        } else {
+          setIsGuest(true);
+        }
+      } catch {
+        if (!cancelled) setIsGuest(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Hydrate delivery method from URL
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (
       urlDelivery === 'express' ||
@@ -155,25 +322,45 @@ function CheckoutInner() {
     }
   }, [urlDelivery]);
 
-  // ── Auto-apply coupon from URL once ──
+  // ─────────────────────────────────────────────────────────────────────────
+  // Auto-apply coupon from URL
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!urlCoupon) return;
     const code = urlCoupon.toUpperCase();
-    if (code === 'SPRING10') {
-      setAppliedDiscount(0.1);
+    const pct = COUPONS[code];
+    if (pct) {
+      setAppliedDiscountPct(pct);
       setAppliedCoupon(code);
       setCouponCode(code);
-      setCouponMessage('10% discount applied');
-    } else if (code === 'WELCOME20') {
-      setAppliedDiscount(0.2);
-      setAppliedCoupon(code);
-      setCouponCode(code);
-      setCouponMessage('20% discount applied');
+      setCouponMessage(`${pct * 100}% discount applied`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Empty cart guard ──
+  // ─────────────────────────────────────────────────────────────────────────
+  // Warn before leaving while waiting for PIN
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'awaiting-pin') return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [phase]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      paymentAbortRef.current?.abort();
+    };
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Empty cart guard
+  // ─────────────────────────────────────────────────────────────────────────
   if (checkoutItems.length === 0) {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex items-center justify-center p-3">
@@ -198,21 +385,22 @@ function CheckoutInner() {
     );
   }
 
-  // --- CALCULATIONS ---
+  // ─────────────────────────────────────────────────────────────────────────
+  // Client preview totals
+  // ─────────────────────────────────────────────────────────────────────────
   const subtotal = checkoutItems.reduce(
     (acc, i) => acc + i.price * i.quantity,
-    0
+    0,
   );
 
-  const shippingFee =
-    formData.deliveryMethod === 'pickup'
-      ? 0
-      : formData.deliveryMethod === 'express'
-      ? 15
-      : 5;
+  const shippingFee = (() => {
+    if (formData.deliveryMethod === 'pickup') return 0;
+    if (subtotal >= FREE_DELIVERY_THRESHOLD) return 0;
+    return DELIVERY_FEES[formData.deliveryMethod];
+  })();
 
-  const discountAmount = subtotal * appliedDiscount;
-  const taxAmount = (subtotal - discountAmount) * 0.085;
+  const discountAmount = subtotal * appliedDiscountPct;
+  const taxAmount = (subtotal - discountAmount) * TAX_RATE;
   const totalAmount = subtotal - discountAmount + shippingFee + taxAmount;
 
   const estimatedDelivery = (() => {
@@ -221,8 +409,8 @@ function CheckoutInner() {
       formData.deliveryMethod === 'express'
         ? 1
         : formData.deliveryMethod === 'pickup'
-        ? 0
-        : 3;
+          ? 0
+          : 3;
     d.setDate(d.getDate() + days);
     return d.toLocaleDateString('en-KE', {
       weekday: 'short',
@@ -231,16 +419,16 @@ function CheckoutInner() {
     });
   })();
 
-  const paymentLabel = (() => {
-    if (formData.paymentChoice === 'pay-on-delivery') return 'Cash on delivery';
-    return 'M-PESA';
-  })();
+  const paymentLabel =
+    formData.paymentChoice === 'pay-on-delivery' ? 'Cash on delivery' : 'M-PESA';
 
-  // --- HANDLERS ---
+  // ─────────────────────────────────────────────────────────────────────────
+  // Handlers
+  // ─────────────────────────────────────────────────────────────────────────
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    >,
   ) => {
     const { name, value, type, checked } = e.target as HTMLInputElement;
     setFormData((prev) => ({
@@ -264,6 +452,9 @@ function CheckoutInner() {
       errors.email = 'Enter a valid email';
     if (!formData.phone.trim()) errors.phone = 'Phone is required';
     if (!formData.fullName.trim()) errors.fullName = 'Full name is required';
+    if (!formData.password) errors.password = 'Password is required';
+    else if (formData.password.length < MIN_PASSWORD_LENGTH)
+      errors.password = `Use at least ${MIN_PASSWORD_LENGTH} characters`;
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -279,12 +470,10 @@ function CheckoutInner() {
 
   const validateStep3 = () => {
     const errors: Record<string, string> = {};
-
     if (formData.paymentChoice === 'pay-now') {
-      if (!formData.mpesaPhone.trim())
-        errors.mpesaPhone = 'M-Pesa phone number is required';
+      const mpesa = formData.mpesaPhone.trim() || formData.phone.trim();
+      if (!mpesa) errors.mpesaPhone = 'M-Pesa phone number is required';
     }
-
     if (!formData.agreeTerms) errors.agreeTerms = 'You must accept the terms';
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -298,6 +487,7 @@ function CheckoutInner() {
   };
 
   const goBack = () => {
+    if (phase !== 'idle') return;
     setErrorMessage('');
     setStep((prev) => (prev > 1 ? ((prev - 1) as Step) : prev));
   };
@@ -305,82 +495,241 @@ function CheckoutInner() {
   const handleApplyCoupon = (e?: React.SyntheticEvent) => {
     e?.preventDefault();
     const code = couponCode.trim().toUpperCase();
-    if (code === 'SPRING10') {
-      setAppliedDiscount(0.1);
+    const pct = COUPONS[code];
+    if (pct) {
+      setAppliedDiscountPct(pct);
       setAppliedCoupon(code);
-      setCouponMessage('10% discount applied');
-    } else if (code === 'WELCOME20') {
-      setAppliedDiscount(0.2);
-      setAppliedCoupon(code);
-      setCouponMessage('20% discount applied');
+      setCouponMessage(`${pct * 100}% discount applied`);
     } else {
       setAppliedCoupon('');
-      setAppliedDiscount(0);
+      setAppliedDiscountPct(0);
       setCouponMessage('Invalid coupon code');
     }
   };
 
   const removeCoupon = () => {
     setAppliedCoupon('');
-    setAppliedDiscount(0);
+    setAppliedDiscountPct(0);
     setCouponCode('');
     setCouponMessage('');
   };
 
-  // ── PLACE ORDER → save to sessionStorage → clear cart → route to [id] ──
-  const handlePlaceOrder = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!validateStep3()) return;
-
-    setIsProcessing(true);
-    setErrorMessage('');
-
-    setTimeout(() => {
-      const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
-
-      const successOrder = {
-        orderId,
-        date: new Date().toLocaleDateString('en-KE', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        }),
-        total: totalAmount,
-        subtotal,
-        discount: discountAmount,
-        shipping: shippingFee,
-        tax: taxAmount,
-        paymentLabel,
-        deliveryMethod: formData.deliveryMethod,
-        estimatedDelivery,
-        coupon: appliedCoupon || null,
-        notes: formData.orderNotes || null,
-        customer: {
-          email: formData.email,
-          phone: formData.phone,
-          fullName: formData.fullName,
-          address: {
-            street: formData.street,
-            town: formData.town,
-            county: formData.county,
-            postalCode: formData.postalCode,
-          },
+  // ─────────────────────────────────────────────────────────────────────────
+  // Build the order draft once — reused across retries
+  // ─────────────────────────────────────────────────────────────────────────
+  const buildOrderDraft = (): OrderDraft => {
+    const orderId = generateOrderReference();
+    return {
+      orderId,
+      date: new Date().toISOString(),
+      total: totalAmount,
+      subtotal,
+      discount: discountAmount,
+      shipping: shippingFee,
+      tax: taxAmount,
+      paymentLabel,
+      deliveryMethod: formData.deliveryMethod,
+      estimatedDelivery,
+      coupon: appliedCoupon || null,
+      notes: formData.orderNotes.trim() || null,
+      customer: {
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        fullName: formData.fullName.trim(),
+        address: {
+          street: formData.street.trim(),
+          town: formData.town.trim(),
+          county: formData.county.trim(),
+          postalCode: formData.postalCode.trim(),
         },
-        items: checkoutItems,
-      };
-
-      try {
-        sessionStorage.setItem(`order:${orderId}`, JSON.stringify(successOrder));
-      } catch {
-        // ignore quota errors on the demo
-      }
-
-      clearCart();
-      router.push(`/pages/order-success/${orderId}`);
-    }, 1800);
+      },
+      items: checkoutItems,
+    };
   };
 
-  // --- MAIN ---
+  // Maps the local OrderDraft into the backend's `CheckoutPayload` shape.
+  const buildCheckoutPayload = (draft: OrderDraft): CheckoutPayload => ({
+    email: draft.customer.email,
+    phone: draft.customer.phone,
+    full_name: draft.customer.fullName,
+    address: {
+      street: draft.customer.address.street,
+      town: draft.customer.address.town,
+      county: draft.customer.address.county,
+      postal_code: draft.customer.address.postalCode,
+    },
+    delivery_method: draft.deliveryMethod,
+    estimated_delivery: draft.estimatedDelivery,
+    coupon: draft.coupon,
+    notes: draft.notes,
+    items: draft.items.map((i) => ({
+      productId: i.productId,
+      name: i.name,
+      brand: i.brand,
+      price: i.price,
+      quantity: i.quantity,
+      image: i.image,
+    })),
+    totals: {
+      subtotal: draft.subtotal,
+      discount: draft.discount,
+      shipping: draft.shipping,
+      tax: draft.tax,
+      total: draft.total,
+    },
+  });
+
+  const saveDraft = (draft: OrderDraft) => {
+    try {
+      sessionStorage.setItem(`${ORDER_KEY_PREFIX}${draft.orderId}`, JSON.stringify(draft));
+    } catch {
+      /* quota, ignore */
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Submit flow
+  // ─────────────────────────────────────────────────────────────────────────
+  const handlePlaceOrder = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void submit();
+  };
+
+  const submit = async () => {
+    if (phase !== 'idle') return;
+    if (!validateStep3()) return;
+
+    setErrorMessage('');
+    setPaymentError('');
+    setPhase('submitting');
+
+    // 1. Build + persist the draft. Reuse on retries.
+    let draft = orderDraft;
+    if (!draft) {
+      draft = buildOrderDraft();
+      setOrderDraft(draft);
+      saveDraft(draft);
+      // One idempotency key per order, reused across retries.
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
+
+    // 2. COD → done. No payment backend involved.
+    if (formData.paymentChoice === 'pay-on-delivery') {
+      finalizeSuccess(draft.orderId);
+      return;
+    }
+
+    // 3. M-Pesa → fire STK push.
+    await fireStkPush(draft);
+  };
+
+  const fireStkPush = async (draft: OrderDraft) => {
+    setPhase('submitting');
+    setPaymentError('');
+
+    const phone = formData.mpesaPhone.trim() || formData.phone.trim();
+    const amount = Math.round(draft.total);
+    const idemKey = idempotencyKeyRef.current ?? crypto.randomUUID();
+    idempotencyKeyRef.current = idemKey;
+
+    let stk: Payment;
+    try {
+      stk = await paymentsApi.stkPush(
+        {
+          order_reference: draft.orderId,
+          amount,
+          phone_number: phone,
+          metadata: me ? { customer_id: String(me.id) } : undefined,
+          checkout: buildCheckoutPayload(draft),
+          // Only send the password when the user is not already signed in —
+          // the backend skips registration when the email already exists and
+          // the password matches.
+          password: !me ? formData.password : undefined,
+        },
+        idemKey,
+      );
+    } catch (err) {
+      setPhase('failed');
+      setPaymentError(
+        err instanceof ApiError
+          ? err.message || 'Could not reach M-Pesa. Please try again.'
+          : 'Could not start the M-Pesa request. Please try again.',
+      );
+      return;
+    }
+
+    setPayment(stk);
+    setPhase('awaiting-pin');
+    await pollUntilDone(draft.orderId, stk.id);
+  };
+
+  const pollUntilDone = async (orderId: string, paymentId: string) => {
+    const ctrl = new AbortController();
+    paymentAbortRef.current = ctrl;
+
+    try {
+      const finalPayment = await pollPayment(paymentId, {
+        signal: ctrl.signal,
+        onPoll: (p) => setPayment(p),
+      });
+
+      if (finalPayment.status === 'SUCCESS') {
+        finalizeSuccess(orderId);
+        return;
+      }
+
+      setPayment(finalPayment);
+      setPhase('failed');
+      setPaymentError(
+        finalPayment.result_description ||
+        describeStatus(finalPayment.status) ||
+        'Payment could not be completed.',
+      );
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setPhase('failed');
+      setPaymentError(describeError(err));
+    } finally {
+      paymentAbortRef.current = null;
+    }
+  };
+
+  const finalizeSuccess = (orderId: string) => {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+    clearCart();
+    router.push(`/pages/order-success/${orderId}`);
+  };
+
+  // Retry with the SAME order + SAME idempotency key.
+  const handleRetryPayment = () => {
+    if (!orderDraft) return;
+    void fireStkPush(orderDraft);
+  };
+
+  // Start over from step 3 with a fresh order next time.
+  const handleChangeMethod = () => {
+    paymentAbortRef.current?.abort();
+    // Best-effort cancel of the in-flight payment.
+    if (payment && (payment.status === 'PROCESSING' || payment.status === 'PENDING')) {
+      void paymentsApi.cancel(payment.id).catch(() => {
+        /* swallow — the UI is moving on anyway */
+      });
+    }
+    setOrderDraft(null);
+    setPayment(null);
+    setPaymentError('');
+    setPhase('idle');
+    setStep(3);
+    idempotencyKeyRef.current = null;
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* HEADER */}
@@ -412,28 +761,19 @@ function CheckoutInner() {
       <main className="max-w-6xl mx-auto px-3 py-3 space-y-3">
         <StepIndicator current={step} />
 
-        {isGuest ? (
+        {isGuest && step < 3 && (
           <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <p className="text-[13px] text-blue-950">
-              Already have an account? Sign in for faster checkout.
+              Already have an account? Sign in to use your saved details.
             </p>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/auth/login"
-                className="text-[13px] font-medium text-blue-950 hover:underline"
-              >
-                Sign in
-              </Link>
-              <button
-                type="button"
-                onClick={() => setIsGuest(false)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-1.5 rounded-sm text-[13px] transition"
-              >
-                Continue as guest
-              </button>
-            </div>
+            <Link
+              href="/auth/login"
+              className="text-[13px] font-medium text-blue-950 hover:underline"
+            >
+              Sign in
+            </Link>
           </div>
-        ) : null}
+        )}
 
         {errorMessage && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-center gap-2 text-[13px]">
@@ -448,14 +788,18 @@ function CheckoutInner() {
         >
           {/* LEFT */}
           <div className="lg:col-span-7 space-y-3">
-            {/* STEP 1 */}
             {step === 1 && (
               <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
                 <SectionHeader
                   icon={<User className="w-3.5 h-3.5" />}
-                  title="Contact information"
-                  subtitle="We'll send order updates here"
+                  title="Create your account"
+                  subtitle="Your details set up your account so you can track orders and check out faster next time"
                 />
+
+                <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 text-[13px] text-blue-950">
+                  We&apos;ll create your account with the information below.
+                  You&apos;ll be taken to it right after your order is placed.
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
                   <div className="sm:col-span-2">
@@ -489,24 +833,21 @@ function CheckoutInner() {
                     error={fieldErrors.fullName}
                     icon={<User className="w-3.5 h-3.5" />}
                   />
+                  <div className="sm:col-span-2">
+                    <PasswordField
+                      label="Password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                      error={fieldErrors.password}
+                      autoComplete="new-password"
+                    />
+                  </div>
                 </div>
-
-                <label className="flex items-center gap-2 cursor-pointer pt-1">
-                  <input
-                    type="checkbox"
-                    name="saveInfo"
-                    checked={formData.saveInfo}
-                    onChange={handleChange}
-                    className="h-4 w-4 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
-                  />
-                  <span className="text-[13px] text-slate-600">
-                    Save my information for faster checkout next time
-                  </span>
-                </label>
               </section>
             )}
 
-            {/* STEP 2 */}
             {step === 2 && (
               <>
                 <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
@@ -584,7 +925,7 @@ function CheckoutInner() {
                       icon={<Zap className="w-3.5 h-3.5" />}
                       title="Express courier"
                       sub="24–48 hours with live tracking"
-                      price={15}
+                      price={DELIVERY_FEES.express}
                     />
                     <DeliveryOption
                       id="standard"
@@ -595,7 +936,7 @@ function CheckoutInner() {
                       icon={<Truck className="w-3.5 h-3.5" />}
                       title="Standard shipping"
                       sub="3–5 business days"
-                      price={5}
+                      price={DELIVERY_FEES.standard}
                     />
                     <DeliveryOption
                       id="pickup"
@@ -606,15 +947,14 @@ function CheckoutInner() {
                       icon={<Store className="w-3.5 h-3.5" />}
                       title="Store pickup"
                       sub="Ready in 1 hour"
-                      price={0}
+                      price={DELIVERY_FEES.pickup}
                     />
                   </div>
                 </section>
               </>
             )}
 
-            {/* STEP 3 — PAYMENT */}
-            {step === 3 && (
+            {step === 3 && phase === 'idle' && (
               <>
                 <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
                   <SectionHeader
@@ -632,28 +972,25 @@ function CheckoutInner() {
                           paymentChoice: 'pay-on-delivery',
                         }))
                       }
-                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${
-                        formData.paymentChoice === 'pay-on-delivery'
-                          ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}
+                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${formData.paymentChoice === 'pay-on-delivery'
+                        ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
+                        : 'border-slate-200 hover:bg-slate-50'
+                        }`}
                     >
                       <span
-                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${
-                          formData.paymentChoice === 'pay-on-delivery'
-                            ? 'bg-blue-950 text-white'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}
+                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${formData.paymentChoice === 'pay-on-delivery'
+                          ? 'bg-blue-950 text-white'
+                          : 'bg-slate-100 text-slate-500'
+                          }`}
                       >
                         <Banknote className="w-4 h-4" />
                       </span>
                       <span className="min-w-0">
                         <span
-                          className={`block text-[13px] font-medium ${
-                            formData.paymentChoice === 'pay-on-delivery'
-                              ? 'text-blue-950'
-                              : 'text-slate-800'
-                          }`}
+                          className={`block text-[13px] font-medium ${formData.paymentChoice === 'pay-on-delivery'
+                            ? 'text-blue-950'
+                            : 'text-slate-800'
+                            }`}
                         >
                           Pay on delivery
                         </span>
@@ -668,28 +1005,25 @@ function CheckoutInner() {
                       onClick={() =>
                         setFormData((p) => ({ ...p, paymentChoice: 'pay-now' }))
                       }
-                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${
-                        formData.paymentChoice === 'pay-now'
-                          ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}
+                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${formData.paymentChoice === 'pay-now'
+                        ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
+                        : 'border-slate-200 hover:bg-slate-50'
+                        }`}
                     >
                       <span
-                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${
-                          formData.paymentChoice === 'pay-now'
-                            ? 'bg-blue-950 text-white'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}
+                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${formData.paymentChoice === 'pay-now'
+                          ? 'bg-blue-950 text-white'
+                          : 'bg-slate-100 text-slate-500'
+                          }`}
                       >
                         <Wallet className="w-4 h-4" />
                       </span>
                       <span className="min-w-0">
                         <span
-                          className={`block text-[13px] font-medium ${
-                            formData.paymentChoice === 'pay-now'
-                              ? 'text-blue-950'
-                              : 'text-slate-800'
-                          }`}
+                          className={`block text-[13px] font-medium ${formData.paymentChoice === 'pay-now'
+                            ? 'text-blue-950'
+                            : 'text-slate-800'
+                            }`}
                         >
                           Pay now
                         </span>
@@ -711,12 +1045,13 @@ function CheckoutInner() {
                         name="mpesaPhone"
                         value={formData.mpesaPhone}
                         onChange={handleChange}
-                        placeholder="+254 7XX XXX XXX"
+                        placeholder={formData.phone || '+254 7XX XXX XXX'}
                         error={fieldErrors.mpesaPhone}
                       />
                       <p className="text-[13px] text-slate-600">
                         We&apos;ll send an STK push to this number. Enter your
-                        PIN to complete the payment.
+                        PIN to complete the payment. If you leave this blank, we
+                        use the contact number above.
                       </p>
                     </div>
                   )}
@@ -801,56 +1136,76 @@ function CheckoutInner() {
               </>
             )}
 
+            {step === 3 && phase === 'awaiting-pin' && (
+              <PinWaitingScreen
+                phone={payment?.phone_number || formData.mpesaPhone || formData.phone}
+                amount={totalAmount}
+                onCancel={handleChangeMethod}
+              />
+            )}
+
+            {step === 3 && phase === 'failed' && (
+              <PaymentFailedScreen
+                message={paymentError}
+                onRetry={handleRetryPayment}
+                onChangeMethod={handleChangeMethod}
+              />
+            )}
+
             {/* NAV */}
-            <div className="flex items-center justify-between gap-2">
-              {step > 1 ? (
-                <button
-                  type="button"
-                  onClick={goBack}
-                  className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Back
-                </button>
-              ) : (
-                <Link
-                  href="/pages/cart"
-                  className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Return to cart
-                </Link>
-              )}
+            {phase === 'idle' && (
+              <div className="flex items-center justify-between gap-2">
+                {step > 1 ? (
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    Back
+                  </button>
+                ) : (
+                  <Link
+                    href="/pages/cart"
+                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    Return to cart
+                  </Link>
+                )}
 
-              {step < 3 && (
-                <button
-                  type="button"
-                  onClick={goNext}
-                  className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-[13px] transition"
-                >
-                  Continue
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+                {step < 3 && (
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-[13px] transition"
+                  >
+                    Continue
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <TrustBadge
-                icon={<Lock className="w-3.5 h-3.5" />}
-                title="Secure payment"
-                sub="SSL encrypted"
-              />
-              <TrustBadge
-                icon={<RotateCcw className="w-3.5 h-3.5" />}
-                title="30-day returns"
-                sub="No questions asked"
-              />
-              <TrustBadge
-                icon={<ShieldCheck className="w-3.5 h-3.5" />}
-                title="Genuine products"
-                sub="Warranty included"
-              />
-            </div>
+            {phase === 'idle' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <TrustBadge
+                  icon={<Lock className="w-3.5 h-3.5" />}
+                  title="Secure payment"
+                  sub="SSL encrypted"
+                />
+                <TrustBadge
+                  icon={<RotateCcw className="w-3.5 h-3.5" />}
+                  title="30-day returns"
+                  sub="No questions asked"
+                />
+                <TrustBadge
+                  icon={<ShieldCheck className="w-3.5 h-3.5" />}
+                  title="Genuine products"
+                  sub="Warranty included"
+                />
+              </div>
+            )}
           </div>
 
           {/* RIGHT */}
@@ -860,20 +1215,19 @@ function CheckoutInner() {
                 <h2 className="text-[15px] font-semibold text-slate-900">
                   Order summary
                 </h2>
-                <Link
-                  href="/pages/cart"
-                  className="text-[13px] font-medium text-blue-950 hover:underline"
-                >
-                  Edit cart
-                </Link>
+                {phase === 'idle' && (
+                  <Link
+                    href="/pages/cart"
+                    className="text-[13px] font-medium text-blue-950 hover:underline"
+                  >
+                    Edit cart
+                  </Link>
+                )}
               </div>
 
               <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto -mx-2">
                 {checkoutItems.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center gap-2 px-2 py-2"
-                  >
+                  <li key={item.id} className="flex items-center gap-2 px-2 py-2">
                     <img
                       src={item.image}
                       alt={item.name}
@@ -884,86 +1238,87 @@ function CheckoutInner() {
                         {item.name}
                       </p>
                       <p className="text-[13px] text-slate-500">
-                        Qty {item.quantity} × ${item.price.toFixed(2)}
+                        Qty {item.quantity} × {formatKES(item.price)}
                       </p>
                     </div>
                     <span className="text-[13px] font-medium text-slate-900 shrink-0">
-                      ${(item.price * item.quantity).toFixed(2)}
+                      {formatKES(item.price * item.quantity)}
                     </span>
                   </li>
                 ))}
               </ul>
 
-              <div className="pt-2 border-t border-slate-100">
-                {appliedCoupon ? (
-                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1.5">
-                    <span className="text-[13px] font-medium text-emerald-700 inline-flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5" />
-                      {appliedCoupon} — {appliedDiscount * 100}% off
-                    </span>
-                    <button
-                      type="button"
-                      onClick={removeCoupon}
-                      className="text-emerald-700 hover:text-emerald-900 p-1"
-                      aria-label="Remove coupon"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                      <input
-                        type="text"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleApplyCoupon();
-                          }
-                        }}
-                        placeholder="Coupon code"
-                        className="w-full bg-white border border-slate-200 rounded-sm pl-8 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                      />
+              {phase === 'idle' && (
+                <div className="pt-2 border-t border-slate-100">
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1.5">
+                      <span className="text-[13px] font-medium text-emerald-700 inline-flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5" />
+                        {appliedCoupon} — {appliedDiscountPct * 100}% off
+                      </span>
+                      <button
+                        type="button"
+                        onClick={removeCoupon}
+                        className="text-emerald-700 hover:text-emerald-900 p-1"
+                        aria-label="Remove coupon"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleApplyCoupon}
-                      className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyCoupon();
+                            }
+                          }}
+                          placeholder="Coupon code"
+                          className="w-full bg-white border border-slate-200 rounded-sm pl-8 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                  {couponMessage && (
+                    <p
+                      className={`text-[13px] mt-1.5 ${appliedDiscountPct > 0
+                        ? 'text-emerald-600'
+                        : 'text-red-600'
+                        }`}
                     >
-                      Apply
-                    </button>
-                  </div>
-                )}
-                {couponMessage && (
-                  <p
-                    className={`text-[13px] mt-1.5 ${
-                      appliedDiscount > 0 ? 'text-emerald-600' : 'text-red-600'
-                    }`}
-                  >
-                    {couponMessage}
-                  </p>
-                )}
-              </div>
+                      {couponMessage}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="pt-3 border-t border-slate-100 space-y-2 text-[13px] text-slate-600">
-                <Row label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
-                {appliedDiscount > 0 && (
+                <Row label="Subtotal" value={formatKES(subtotal)} />
+                {discountAmount > 0 && (
                   <Row
-                    label={`Discount (${appliedDiscount * 100}%)`}
-                    value={`-$${discountAmount.toFixed(2)}`}
+                    label={`Discount${appliedCoupon ? ` (${appliedCoupon})` : ''}`}
+                    value={`- ${formatKES(discountAmount)}`}
                     success
                   />
                 )}
                 <Row
                   label={`Shipping (${formData.deliveryMethod})`}
-                  value={
-                    shippingFee === 0 ? 'Free' : `$${shippingFee.toFixed(2)}`
-                  }
+                  value={shippingFee === 0 ? 'Free' : formatKES(shippingFee)}
                 />
-                <Row label="VAT (8.5%)" value={`$${taxAmount.toFixed(2)}`} />
+                <Row label="VAT (16%)" value={formatKES(taxAmount)} />
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -971,7 +1326,7 @@ function CheckoutInner() {
                   Total
                 </span>
                 <span className="text-[15px] font-bold text-slate-900">
-                  ${totalAmount.toFixed(2)}
+                  {formatKES(totalAmount)}
                 </span>
               </div>
 
@@ -982,31 +1337,32 @@ function CheckoutInner() {
                 </span>
               </div>
 
-              {step === 3 && (
+              {step === 3 && phase === 'idle' && (
                 <button
                   type="submit"
-                  disabled={isProcessing}
-                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5"
                 >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      {formData.paymentChoice === 'pay-now'
-                        ? 'Processing payment...'
-                        : 'Placing order...'}
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-3.5 h-3.5" />
-                      {formData.paymentChoice === 'pay-on-delivery'
-                        ? `Place order — $${totalAmount.toFixed(2)}`
-                        : `Pay $${totalAmount.toFixed(2)}`}
-                    </>
-                  )}
+                  <Lock className="w-3.5 h-3.5" />
+                  {formData.paymentChoice === 'pay-on-delivery'
+                    ? `Place order — ${formatKES(totalAmount)}`
+                    : `Pay ${formatKES(totalAmount)}`}
                 </button>
               )}
 
-              {step < 3 && (
+              {step === 3 && phase === 'submitting' && (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full bg-blue-950 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 opacity-70 cursor-not-allowed"
+                >
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {formData.paymentChoice === 'pay-now'
+                    ? 'Sending M-Pesa request…'
+                    : 'Placing order…'}
+                </button>
+              )}
+
+              {step < 3 && phase === 'idle' && (
                 <button
                   type="button"
                   onClick={goNext}
@@ -1029,11 +1385,140 @@ function CheckoutInner() {
   );
 }
 
-/* ---------- Sub-components ---------- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Error helper
+// ─────────────────────────────────────────────────────────────────────────────
+function describeError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 0) return 'Network error. Check your connection.';
+    if (err.status === 400) return err.message || 'Please check your details.';
+    if (err.status === 409)
+      return 'A payment for this order is already in progress.';
+    if (err.status === 502)
+      return err.message || 'Could not reach M-Pesa. Please try again.';
+    if (err.status >= 500)
+      return 'Something went wrong on our side. Please try again.';
+    return err.message;
+  }
+  if (err instanceof Error) return err.message;
+  return 'Something went wrong. Please try again.';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PinWaitingScreen({
+  phone,
+  amount,
+  onCancel,
+}: {
+  phone: string;
+  amount: number;
+  onCancel: () => void;
+}) {
+  return (
+    <section className="bg-white border border-slate-200 rounded-sm p-6 space-y-4 text-center">
+      <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
+        <Smartphone className="w-6 h-6" />
+      </div>
+
+      <div className="space-y-1">
+        <h2 className="text-[15px] font-semibold text-slate-900">
+          Check your phone
+        </h2>
+        <p className="text-[13px] text-slate-500">
+          We sent an M-Pesa request to{' '}
+          <span className="font-mono text-slate-700">{phone}</span>
+        </p>
+      </div>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 text-left text-[13px] space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Amount</span>
+          <span className="font-semibold text-slate-900">
+            {formatKES(amount)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Reference</span>
+          <span className="font-mono text-slate-700">Order payment</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-center gap-2 text-[13px] text-slate-600">
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+        <span>Waiting for you to enter your M-Pesa PIN…</span>
+      </div>
+
+      <p className="text-[12px] text-slate-400">
+        This usually takes 15–30 seconds. Don&apos;t close this page.
+      </p>
+
+      <button
+        type="button"
+        onClick={onCancel}
+        className="text-[13px] font-medium text-slate-500 hover:text-slate-800 underline underline-offset-2"
+      >
+        Cancel payment
+      </button>
+    </section>
+  );
+}
+
+function PaymentFailedScreen({
+  message,
+  onRetry,
+  onChangeMethod,
+}: {
+  message: string;
+  onRetry: () => void;
+  onChangeMethod: () => void;
+}) {
+  return (
+    <section className="bg-white border border-slate-200 rounded-sm p-6 space-y-4 text-center">
+      <div className="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+        <AlertCircle className="w-6 h-6" />
+      </div>
+
+      <div className="space-y-1">
+        <h2 className="text-[15px] font-semibold text-slate-900">
+          Payment failed
+        </h2>
+        <p className="text-[13px] text-slate-600 max-w-md mx-auto">
+          {message || 'The M-Pesa request could not be completed.'}
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition w-full sm:w-auto"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Try again
+        </button>
+        <button
+          type="button"
+          onClick={onChangeMethod}
+          className="inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-sm text-[13px] transition w-full sm:w-auto"
+        >
+          Change payment method
+        </button>
+      </div>
+
+      <p className="text-[12px] text-slate-400">
+        If money was deducted, it will be refunded automatically within 24
+        hours.
+      </p>
+    </section>
+  );
+}
 
 function StepIndicator({ current }: { current: Step }) {
   const steps = [
-    { n: 1 as Step, label: 'Contact' },
+    { n: 1 as Step, label: 'Account' },
     { n: 2 as Step, label: 'Delivery' },
     { n: 3 as Step, label: 'Payment' },
   ];
@@ -1045,32 +1530,29 @@ function StepIndicator({ current }: { current: Step }) {
         return (
           <li key={s.n} className="flex items-center gap-2 flex-1">
             <span
-              className={`w-6 h-6 rounded-sm flex items-center justify-center text-[13px] font-medium shrink-0 ${
-                isComplete
-                  ? 'bg-emerald-500 text-white'
-                  : isActive
+              className={`w-6 h-6 rounded-sm flex items-center justify-center text-[13px] font-medium shrink-0 ${isComplete
+                ? 'bg-emerald-500 text-white'
+                : isActive
                   ? 'bg-blue-950 text-white'
                   : 'bg-slate-100 text-slate-500'
-              }`}
+                }`}
             >
               {isComplete ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.n}
             </span>
             <span
-              className={`text-[13px] font-medium truncate ${
-                isActive
-                  ? 'text-blue-950'
-                  : isComplete
+              className={`text-[13px] font-medium truncate ${isActive
+                ? 'text-blue-950'
+                : isComplete
                   ? 'text-emerald-700'
                   : 'text-slate-500'
-              }`}
+                }`}
             >
               {s.label}
             </span>
             {idx < steps.length - 1 && (
               <span
-                className={`flex-1 h-px ${
-                  isComplete ? 'bg-emerald-500' : 'bg-slate-200'
-                }`}
+                className={`flex-1 h-px ${isComplete ? 'bg-emerald-500' : 'bg-slate-200'
+                  }`}
               />
             )}
           </li>
@@ -1142,14 +1624,67 @@ function Field({
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full bg-white border rounded-sm py-2 text-[13px] focus:outline-none focus:ring-1 ${
-            icon ? 'pl-8 pr-3' : 'px-3'
-          } ${
-            error
+          className={`w-full bg-white border rounded-sm py-2 text-[13px] focus:outline-none focus:ring-1 ${icon ? 'pl-8 pr-3' : 'px-3'
+            } ${error
               ? 'border-red-500 focus:ring-red-500'
               : 'border-slate-200 focus:border-blue-950 focus:ring-blue-950'
-          } ${mono ? 'font-mono' : ''}`}
+            } ${mono ? 'font-mono' : ''}`}
         />
+      </div>
+      {error && <p className="text-[13px] text-red-600 mt-1">{error}</p>}
+    </label>
+  );
+}
+
+function PasswordField({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  error,
+  autoComplete = 'new-password',
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  error?: string;
+  autoComplete?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <label className="block">
+      <span className="block font-medium text-slate-700 mb-1">{label}</span>
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+          <Lock className="w-3.5 h-3.5" />
+        </span>
+        <input
+          type={show ? 'text' : 'password'}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className={`w-full bg-white border rounded-sm py-2 pl-8 pr-9 text-[13px] focus:outline-none focus:ring-1 ${error
+            ? 'border-red-500 focus:ring-red-500'
+            : 'border-slate-200 focus:border-blue-950 focus:ring-blue-950'
+            }`}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          aria-label={show ? 'Hide password' : 'Show password'}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+        >
+          {show ? (
+            <EyeOff className="w-3.5 h-3.5" />
+          ) : (
+            <Eye className="w-3.5 h-3.5" />
+          )}
+        </button>
       </div>
       {error && <p className="text-[13px] text-red-600 mt-1">{error}</p>}
     </label>
@@ -1178,25 +1713,22 @@ function DeliveryOption({
     <button
       type="button"
       onClick={() => onSelect(id)}
-      className={`w-full flex items-center justify-between gap-2 p-2 border rounded-sm text-left transition ${
-        active
-          ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
-          : 'border-slate-200 hover:bg-slate-50'
-      }`}
+      className={`w-full flex items-center justify-between gap-2 p-2 border rounded-sm text-left transition ${active
+        ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
+        : 'border-slate-200 hover:bg-slate-50'
+        }`}
     >
       <span className="flex items-start gap-2 min-w-0">
         <span
-          className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${
-            active ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-500'
-          }`}
+          className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${active ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
         >
           {icon}
         </span>
         <span className="min-w-0">
           <span
-            className={`block text-[13px] font-medium ${
-              active ? 'text-blue-950' : 'text-slate-800'
-            }`}
+            className={`block text-[13px] font-medium ${active ? 'text-blue-950' : 'text-slate-800'
+              }`}
           >
             {title}
           </span>
@@ -1204,7 +1736,7 @@ function DeliveryOption({
         </span>
       </span>
       <span className="text-[13px] font-medium text-slate-900 shrink-0">
-        {price === 0 ? 'Free' : `$${price.toFixed(2)}`}
+        {price === 0 ? 'Free' : formatKES(price)}
       </span>
     </button>
   );
@@ -1255,9 +1787,8 @@ function Row({
         {label}
       </span>
       <span
-        className={`${emphasis ? 'text-slate-900 font-semibold' : ''} ${
-          success ? 'text-emerald-600 font-medium' : ''
-        } ${mono ? 'font-mono' : ''}`}
+        className={`${emphasis ? 'text-slate-900 font-semibold' : ''} ${success ? 'text-emerald-600 font-medium' : ''
+          } ${mono ? 'font-mono' : ''}`}
       >
         {value}
       </span>

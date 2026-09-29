@@ -21,11 +21,8 @@ interface Deal {
   discountCode: string;
   brand: string;
   name: string;
-  /** Final price after the discount is applied */
   price: number;
-  /** The product's base price, shown as strikethrough */
   previousPrice: number;
-  /** % saved — matches the badge */
   discountPct: number;
   stockStatus: 'In Stock' | 'Low Stock' | 'Out of Stock';
   stockCount: number;
@@ -44,14 +41,11 @@ function buildDealCards(): Deal[] {
   const cards: Deal[] = [];
 
   for (const discount of discounts) {
-    // Skip discounts that aren't marked for the storefront
     if (!discount.displayOnDealsPage) continue;
 
-    // Skip expired ones (scheduled ones are kept; the timer just shows them counting down to start)
     const status = computeStatus(discount.startDate, discount.endDate);
     if (status === 'Expired') continue;
 
-    // Which products does this discount apply to?
     let applicable: ProductFull[];
     if (discount.appliesTo === 'All Products') {
       applicable = allProducts;
@@ -65,8 +59,6 @@ function buildDealCards(): Deal[] {
 
     for (const product of applicable) {
       const dealPrice = discountedPrice(discount, product.price);
-
-      // Skip if the discount doesn't actually reduce the price
       if (dealPrice >= product.price) continue;
 
       cards.push({
@@ -82,15 +74,14 @@ function buildDealCards(): Deal[] {
         stockCount: product.stockQuantity,
         image: product.images[0],
         category: product.category,
-        // Every card leads to the deals page
-        href: '/pages/products/specialdeals',
+        // Each card opens the shared product-detail modal on the deals page
+        href: `/pages/products/specialdeals?open=${product.id}`,
         promoEndDate: discount.endDate,
         slug: product.id,
       });
     }
   }
 
-  // Highest discount first, one card per product, top 6
   const sorted = cards.sort((a, b) => b.discountPct - a.discountPct);
   const seen = new Set<string>();
   const unique: Deal[] = [];
@@ -107,13 +98,6 @@ const dealsData = buildDealCards();
 
 const formatKES = (n: number) => `KES ${n.toLocaleString()}`;
 
-/**
- * Human-readable time remaining.
- *   "2 days remaining"
- *   "3hrs remaining"
- *   "45 mins remaining"
- *   "Less than a minute"
- */
 function formatRemaining(ms: number): string {
   if (ms <= 0) return 'Expired';
   const totalSec = Math.floor(ms / 1000);
@@ -127,7 +111,6 @@ function formatRemaining(ms: number): string {
   return 'Less than a minute';
 }
 
-// Urgency colors — hotter as the deal approaches expiry
 function urgencyClass(ms: number): string {
   if (ms <= 0) return 'bg-slate-100 text-slate-500 border-slate-200';
   const hours = ms / 3_600_000;
@@ -138,8 +121,6 @@ function urgencyClass(ms: number): string {
 
 export default function DealsSection() {
   const [cartAddingId, setCartAddingId] = useState<string | null>(null);
-
-  // null until mounted — prevents SSR/client mismatch from Date.now()
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -148,7 +129,6 @@ export default function DealsSection() {
     return () => clearInterval(id);
   }, []);
 
-  // Filter out deals whose promo window has closed
   const activeDeals = useMemo(() => {
     if (now === null) return dealsData;
     return dealsData.filter((deal) => {
@@ -157,7 +137,6 @@ export default function DealsSection() {
     });
   }, [now]);
 
-  // Cart store
   const addItem = useCart((s) => s.addItem);
 
   const handleAddToCart = async (
@@ -206,7 +185,6 @@ export default function DealsSection() {
           </Link>
         </div>
 
-        {/* Empty state */}
         {activeDeals.length === 0 ? (
           <div className="bg-slate-50 border border-dashed border-slate-300 rounded-sm p-8 text-center">
             <Clock className="w-8 h-8 text-slate-400 mx-auto mb-2" />
@@ -222,7 +200,6 @@ export default function DealsSection() {
             {activeDeals.map((deal) => {
               const isAdding = cartAddingId === deal.id;
 
-              // Timing only after mount
               const remainingMs =
                 now !== null && deal.promoEndDate
                   ? new Date(deal.promoEndDate).getTime() - now
@@ -237,7 +214,6 @@ export default function DealsSection() {
                   className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
                 >
                   <div>
-                    {/* Product Image */}
                     <div className="aspect-square w-full bg-slate-100 overflow-hidden relative">
                       <img
                         src={deal.image}
@@ -245,28 +221,24 @@ export default function DealsSection() {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
 
-                      {/* 45° Gradient Ribbon — shows the real % off */}
                       <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none z-10">
                         <div className="absolute transform -rotate-45 bg-gradient-to-r from-blue-600 via-blue-500 to-orange-500 text-white font-bold text-[11px] tracking-widest py-1 left-[-42px] top-[20px] w-[150px] text-center shadow-xs">
                           {deal.discountPct}% OFF
                         </div>
                       </div>
 
-                      {/* Stock Status Badge */}
                       <span
-                        className={`absolute top-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${
-                          deal.stockStatus === 'In Stock'
+                        className={`absolute top-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${deal.stockStatus === 'In Stock'
                             ? 'bg-emerald-100 text-emerald-800'
                             : deal.stockStatus === 'Low Stock'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
                       >
                         {deal.stockStatus}
                       </span>
                     </div>
 
-                    {/* Card Content */}
                     <div className="p-2">
                       <p className="text-[11px] font-medium text-slate-500 uppercase truncate">
                         {deal.brand}
@@ -276,7 +248,6 @@ export default function DealsSection() {
                         {deal.name}
                       </h3>
 
-                      {/* Live countdown */}
                       {remainingLabel && remainingMs !== null && (
                         <div
                           className={`flex items-center space-x-1 text-[11px] font-medium border rounded p-1 mb-1 ${urgencyClass(
@@ -290,7 +261,6 @@ export default function DealsSection() {
                     </div>
                   </div>
 
-                  {/* Pricing & Add to Cart */}
                   <div className="p-2 pt-0">
                     <div className="pt-2 border-t border-slate-100 mt-1">
                       <div className="flex items-baseline flex-wrap gap-1.5 mb-2.5">

@@ -18,8 +18,12 @@ import {
   Eye,
   EyeOff,
   Layers,
+  Upload,
 } from 'lucide-react';
 import AddCategoryModal from '@/components/admin/AddCategoryModal';
+import BulkCategoryUploadModal, {
+  type ImportedCategory,
+} from '@/components/admin/BulkCategoryUploadModal';
 
 type CategoryStatus = 'Active' | 'Inactive';
 
@@ -51,10 +55,6 @@ const DEFAULT_SEO: SEOMetadata = {
   canonicalUrl: '',
 };
 
-/**
- * Pure electronics storefront hierarchy.
- * No furniture, no office supplies, no general merchandise.
- */
 const INITIAL_CATEGORIES: Category[] = [
   {
     id: 'cat-1',
@@ -532,9 +532,11 @@ export default function CategoriesPage() {
   const [sortBy, setSortBy] = useState<'displayOrder' | 'name' | 'products'>('displayOrder');
 
   const [addOpen, setAddOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
   const [seoDrawer, setSeoDrawer] = useState<Category | null>(null);
+  const [toast, setToast] = useState('');
 
   // Close kebab on outside click
   useEffect(() => {
@@ -542,6 +544,11 @@ export default function CategoriesPage() {
     if (openKebabId) document.addEventListener('click', onDoc);
     return () => document.removeEventListener('click', onDoc);
   }, [openKebabId]);
+
+  function flash(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2500);
+  }
 
   const toggleExpand = (id: string) => setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   const toggleSelectRow = (id: string) =>
@@ -594,6 +601,81 @@ export default function CategoriesPage() {
         setCategories((prev) => [...prev, newCat]);
       }
     }
+  };
+
+  /** Convert imported CSV rows into Category objects and link parents. */
+  const handleBulkImport = (rows: ImportedCategory[]) => {
+    const lookup = new Map<string, string>();
+    categories.forEach((c) => {
+      lookup.set(c.name.toLowerCase(), c.id);
+      lookup.set(c.slug, c.id);
+      c.children?.forEach((ch) => {
+        lookup.set(ch.name.toLowerCase(), ch.id);
+        lookup.set(ch.slug, ch.id);
+      });
+    });
+
+    const newRoots: Category[] = [];
+    const newChildrenByParent = new Map<string, Category[]>();
+    let resolved = 0;
+
+    for (const row of rows) {
+      const id = `cat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      let parentId: string | null = null;
+      if (row.parentName) {
+        parentId =
+          lookup.get(row.parentName.toLowerCase()) ??
+          lookup.get(row.slug) ??
+          null;
+      }
+
+      const cat: Category = {
+        id,
+        name: row.name,
+        slug: row.slug,
+        parentId,
+        productsCount: 0,
+        status: row.status,
+        image: row.image || '/placeholder.jpeg',
+        displayOrder: row.displayOrder,
+        description: row.description,
+        seo: {
+          metaTitle: row.name,
+          metaDescription: row.description,
+          metaKeywords: '',
+          canonicalUrl: `/categories/${row.slug}`,
+        },
+      };
+
+      lookup.set(cat.name.toLowerCase(), id);
+      lookup.set(cat.slug, id);
+
+      if (parentId) {
+        const arr = newChildrenByParent.get(parentId) ?? [];
+        arr.push(cat);
+        newChildrenByParent.set(parentId, arr);
+        resolved++;
+      } else {
+        newRoots.push(cat);
+      }
+    }
+
+    setCategories((prev) => {
+      const withChildren = prev.map((c) => {
+        const extra = newChildrenByParent.get(c.id);
+        if (!extra) return c;
+        return { ...c, children: [...(c.children ?? []), ...extra] };
+      });
+      return [...withChildren, ...newRoots];
+    });
+
+    const total = rows.length;
+    flash(
+      resolved > 0
+        ? `Imported ${total} categor${total === 1 ? 'y' : 'ies'} (${resolved} nested)`
+        : `Imported ${total} categor${total === 1 ? 'y' : 'ies'}`,
+    );
   };
 
   const confirmDelete = () => {
@@ -694,16 +776,26 @@ export default function CategoriesPage() {
               Organize your electronics catalog hierarchy · {totalCount} categories
             </p>
           </div>
-          <button
-            onClick={() => {
-              setEditingCategory(null);
-              setAddOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add category</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setBulkOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bulk upload</span>
+              <span className="sm:hidden">Bulk</span>
+            </button>
+            <button
+              onClick={() => {
+                setEditingCategory(null);
+                setAddOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add category</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -748,8 +840,8 @@ export default function CategoriesPage() {
                 key={opt}
                 onClick={() => setSortBy(opt)}
                 className={`px-2.5 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${sortBy === opt
-                    ? 'bg-blue-50 border border-blue-950 text-blue-950'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-blue-50 border border-blue-950 text-blue-950'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
               >
                 {opt === 'displayOrder' ? 'Order' : opt === 'name' ? 'Name' : 'Products'}
@@ -888,8 +980,8 @@ export default function CategoriesPage() {
                             <button
                               onClick={() => toggleStatus(cat.id)}
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${cat.status === 'Active'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                                 }`}
                             >
                               {cat.status === 'Active' ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
@@ -900,8 +992,8 @@ export default function CategoriesPage() {
                             <button
                               onClick={() => setSeoDrawer(cat)}
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${seoFilled
-                                  ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
-                                  : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
+                                ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
+                                : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
                                 }`}
                               title={seoFilled ? 'SEO complete' : 'SEO missing'}
                             >
@@ -983,8 +1075,8 @@ export default function CategoriesPage() {
                                   <button
                                     onClick={() => toggleStatus(child.id)}
                                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${child.status === 'Active'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                                      : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                                       }`}
                                   >
                                     {child.status === 'Active' ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
@@ -995,8 +1087,8 @@ export default function CategoriesPage() {
                                   <button
                                     onClick={() => setSeoDrawer(child)}
                                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${childSeoFilled
-                                        ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
-                                        : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
+                                      ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
+                                      : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
                                       }`}
                                   >
                                     <Globe className="w-3 h-3" />
@@ -1055,6 +1147,19 @@ export default function CategoriesPage() {
         onSave={handleSave}
       />
 
+      {/* BULK UPLOAD MODAL */}
+      <BulkCategoryUploadModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        onSave={handleBulkImport}
+        existingCategories={[
+          ...categories.map((c) => ({ name: c.name, slug: c.slug })),
+          ...categories.flatMap((c) =>
+            (c.children ?? []).map((ch) => ({ name: ch.name, slug: ch.slug })),
+          ),
+        ]}
+      />
+
       {/* SEO DRAWER */}
       {seoDrawer && (
         <SEODrawer
@@ -1104,6 +1209,13 @@ export default function CategoriesPage() {
           </div>
         </div>
       )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-4 py-2.5 rounded-sm shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -1139,7 +1251,6 @@ function SEODrawer({
         onClick={(e) => e.stopPropagation()}
         className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto shadow-xl flex flex-col"
       >
-        {/* Header */}
         <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
@@ -1159,7 +1270,6 @@ function SEODrawer({
         </div>
 
         <div className="p-3 space-y-3">
-          {/* Meta Title */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[13px] font-medium text-slate-700">Meta Title</label>
@@ -1179,7 +1289,6 @@ function SEODrawer({
             </p>
           </div>
 
-          {/* Meta Description */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[13px] font-medium text-slate-700">Meta Description</label>
@@ -1199,7 +1308,6 @@ function SEODrawer({
             </p>
           </div>
 
-          {/* Keywords */}
           <div>
             <label className="block text-[13px] font-medium text-slate-700 mb-1">Meta Keywords</label>
             <input
@@ -1214,7 +1322,6 @@ function SEODrawer({
             </p>
           </div>
 
-          {/* Canonical URL */}
           <div>
             <label className="block text-[13px] font-medium text-slate-700 mb-1">Canonical URL</label>
             <input
@@ -1229,7 +1336,6 @@ function SEODrawer({
             </p>
           </div>
 
-          {/* Google preview */}
           <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1">
             <div className="flex items-center gap-1.5 text-[13px] text-slate-500">
               <Search className="w-3 h-3" />
@@ -1245,7 +1351,6 @@ function SEODrawer({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-3 py-3 border-t border-slate-200 sticky bottom-0 bg-white flex items-center justify-end gap-2">
           <button
             onClick={onClose}

@@ -37,7 +37,8 @@ function formatKES(amount: number): string {
 
 // Map the shared dataset → the shape this card expects.
 // Only keeps featured products, capped at 8.
-// Every card links to the products catalogue page.
+// Each card links to the products page with ?open=<id>, which
+// triggers the product-detail modal to open automatically.
 const productsData: Product[] = allProducts
     .filter((p) => p.featured === true)
     .slice(0, 8)
@@ -53,7 +54,7 @@ const productsData: Product[] = allProducts
         stockStatus: p.stock === 'Out of Stock' ? 'Low Stock' : p.stock,
         image: p.images[0],
         category: p.category,
-        href: '/pages/products',
+        href: `/pages/products?open=${p.id}`,
         slug: p.id,
         stockCount: p.stockQuantity,
     }));
@@ -117,10 +118,10 @@ export default function FeaturedProducts() {
                         const isAdding = cartAddingId === product.id;
                         const discountPercentage = product.previousPrice
                             ? Math.round(
-                                  ((product.previousPrice - product.price) /
-                                      product.previousPrice) *
-                                      100
-                              )
+                                ((product.previousPrice - product.price) /
+                                    product.previousPrice) *
+                                100
+                            )
                             : null;
 
                         return (
@@ -146,11 +147,10 @@ export default function FeaturedProducts() {
                                                 </span>
                                             )}
                                             <span
-                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${
-                                                    product.stockStatus === 'In Stock'
+                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
                                                         ? 'bg-emerald-100 text-emerald-800'
                                                         : 'bg-amber-100 text-amber-800'
-                                                }`}
+                                                    }`}
                                             >
                                                 {product.stockStatus}
                                             </span>

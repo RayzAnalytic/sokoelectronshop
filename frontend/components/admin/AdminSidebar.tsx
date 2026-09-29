@@ -3,6 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import { TbSettingsAutomation, TbRobot, TbBolt, TbUserCheck } from "react-icons/tb";
 import {
   LayoutDashboard,
   BarChart3,
@@ -32,7 +34,9 @@ import {
   Menu,
 } from "lucide-react";
 import { useAdminShell } from "./AdminShellContext";
-
+import { HiReceiptRefund } from "react-icons/hi2";
+import { HiArrowUpRight } from "react-icons/hi2";
+import { FaWhatsapp } from "react-icons/fa";
 type NavItem = {
   label: string;
   href: string;
@@ -59,6 +63,7 @@ export const navItems: NavItem[] = [
   { label: "Orders", href: "/admin/orders", icon: ShoppingBag, badge: 12, section: "Sales" },
   { label: "Transactions", href: "/admin/transactions", icon: Receipt, section: "Sales" },
   { label: "Shipping", href: "/admin/shipping", icon: Truck, section: "Sales" },
+  { label: "Returns & Refunds", href: "/admin/returnsrefunds", icon: HiReceiptRefund, section: "Sales" },
 
   // Customers
   { label: "Customers", href: "/admin/customers", icon: Users, section: "Customers" },
@@ -68,8 +73,9 @@ export const navItems: NavItem[] = [
   // Marketing
   { label: "Social", href: "/admin/social", icon: Share2, section: "Marketing" },
   { label: "TikTok Shop", href: "/admin/tiktok", icon: ShoppingBag, section: "Marketing" },
-  { label: "WhatsApp", href: "/admin/whatsapp", icon: MessageCircle, badge: 4, section: "Marketing" },
-
+  { label: "WhatsApp", href: "/admin/whatsapp", icon: FaWhatsapp, badge: 4, section: "Marketing" },
+  { label: "Banner", href: "/admin/banner", icon: HiArrowUpRight, section: "Marketing" },
+  { label: "AI & Automation", href: "/admin/aiatomation", icon: TbSettingsAutomation, section: "Marketing" },
   // System
   { label: "Settings", href: "/admin/settings", icon: Settings, section: "System" },
 ];

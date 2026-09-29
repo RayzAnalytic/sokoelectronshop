@@ -25,7 +25,8 @@ interface NewArrivalProduct {
     stockCount: number;
 }
 
-// Newest 4 from the shared catalog (sorted by createdAt desc)
+// Newest 4 from the shared catalog (sorted by createdAt desc).
+// Each card opens the shared product-detail modal via ?open=<id>.
 const newArrivalsData: NewArrivalProduct[] = [...allProducts]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 4)
@@ -106,7 +107,7 @@ export default function NewArrivals() {
                         <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
                             New Arrivals
                         </h2>
-                        <p className="text-xs sm:text-sm text-slate-600 ">
+                        <p className="text-xs sm:text-sm text-slate-600">
                             Explore the latest electronics added to our store.
                         </p>
                     </div>
@@ -127,7 +128,7 @@ export default function NewArrivals() {
                         return (
                             <Link
                                 key={product.id}
-                                href="/pages/products/newarrivals"
+                                href={`/pages/products/newarrivals?open=${product.id}`}
                                 className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
                             >
                                 <div>
@@ -164,13 +165,12 @@ export default function NewArrivals() {
 
                                         {/* Stock Status — bottom left of image */}
                                         <span
-                                            className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${
-                                                product.stockStatus === 'In Stock'
+                                            className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
                                                     ? 'bg-emerald-100 text-emerald-800'
                                                     : product.stockStatus === 'Low Stock'
-                                                    ? 'bg-amber-100 text-amber-800'
-                                                    : 'bg-red-100 text-red-800'
-                                            }`}
+                                                        ? 'bg-amber-100 text-amber-800'
+                                                        : 'bg-red-100 text-red-800'
+                                                }`}
                                         >
                                             {product.stockStatus}
                                         </span>

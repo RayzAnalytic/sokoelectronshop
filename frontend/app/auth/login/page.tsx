@@ -1,19 +1,37 @@
 // app/auth/login/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { api, ApiError } from '@/lib/api';
 
-const POST_LOGIN_REDIRECT = '/auth/onboarding';
+const ERROR_MESSAGES: Record<string, string> = {
+  google: 'Google sign-in was cancelled.',
+  state: 'Sign-in session expired. Please try again.',
+  code: 'Google did not return an authorization code.',
+  exchange: 'Could not verify your Google account. Please try again.',
+  email: 'Your Google account did not include a verified email.',
+  admin_email:
+    'This email is registered as an admin. Please sign in via the admin page.',
+};
 
-export default function LoginPage() {
+export default function CustomerLoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const errorCode = searchParams.get('error');
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [checking, setChecking] = useState(true);
+
+  const [error, setError] = useState<string>(
+    errorCode ? ERROR_MESSAGES[errorCode] ?? 'Sign-in failed.' : '',
+  );
   const [fieldErrors, setFieldErrors] = useState<{
     identifier?: string;
     password?: string;
@@ -21,7 +39,28 @@ export default function LoginPage() {
 
   const isBusy = loading || googleLoading;
 
-  // ── Validation ──
+  // Already signed in? Bounce by role.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .me()
+      .then((u) => {
+        if (cancelled) return;
+        if (u) {
+          router.replace(u.redirect_to);
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => {
+        // Real error (network, 500). Let the user retry via the form.
+        if (!cancelled) setChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
   const validateForm = () => {
     const errors: { identifier?: string; password?: string } = {};
     if (!identifier.trim()) {
@@ -31,14 +70,13 @@ export default function LoginPage() {
     }
     if (!password) {
       errors.password = 'Password is required.';
-    } else if (password.length < 8) {
-      errors.password = 'Password must be at least 8 characters.';
+    } else if (password.length < 10) {
+      errors.password = 'Password must be at least 10 characters.';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // ── Email + password login (frontend only) ──
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
@@ -47,31 +85,67 @@ export default function LoginPage() {
     if (!validateForm()) return;
 
     setLoading(true);
-
-    // Simulate a short request so the loading state is visible
-    setTimeout(() => {
+    try {
+      const { redirect_to } = await api.login(
+        identifier.trim(),
+        password,
+        rememberMe,
+      );
+      router.replace(redirect_to);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const detail =
+          typeof err.data === 'object' && err.data && 'detail' in err.data
+            ? String((err.data as { detail: unknown }).detail)
+            : 'Invalid email or password.';
+        setError(detail);
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } finally {
       setLoading(false);
-      window.location.href = POST_LOGIN_REDIRECT;
-    }, 600);
+    }
   };
 
-  // ── Google Sign-In (placeholder — not wired yet) ──
   const handleGoogleSignIn = () => {
     setError('');
     setFieldErrors({});
     setGoogleLoading(true);
-    setTimeout(() => {
-      setGoogleLoading(false);
-      setError('Google sign-in is not connected yet.');
-    }, 500);
+    // Full-page navigation — OAuth cannot be done via fetch.
+    window.location.href = api.googleLoginUrl();
   };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <svg
+          className="animate-spin h-5 w-5 text-slate-400"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
+        </svg>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
       <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
         {/* Brand */}
         <header className="text-center space-y-2 pt-2">
-          
           <h1 className="text-[18px] font-semibold text-slate-900">
             Welcome back
           </h1>
@@ -87,7 +161,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Google Sign In (placeholder) */}
+        {/* Google */}
         <button
           type="button"
           onClick={handleGoogleSignIn}
@@ -134,7 +208,7 @@ export default function LoginPage() {
           <span className="flex-1 h-px bg-slate-200" />
         </div>
 
-        {/* Login form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-3" noValidate>
           <Field
             label="Email address"
@@ -168,15 +242,14 @@ export default function LoginPage() {
                 disabled={isBusy}
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
-                  fieldErrors.password
+                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.password
                     ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                     : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
-                }`}
+                  }`}
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => setShowPassword((s) => !s)}
                 disabled={isBusy}
                 tabIndex={-1}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-[12px] font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
@@ -285,11 +358,10 @@ function Field({
         placeholder={placeholder}
         autoComplete={autoComplete}
         disabled={disabled}
-        className={`w-full bg-white border rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
-          error
+        className={`w-full bg-white border rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${error
             ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
             : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
-        }`}
+          }`}
       />
       {error && <p className="text-[11px] text-rose-600">{error}</p>}
     </div>

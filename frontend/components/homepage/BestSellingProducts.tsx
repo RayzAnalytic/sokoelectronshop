@@ -44,8 +44,8 @@ const formatSalesVolume = (reviewCount: number): string => {
     return `${reviewCount}+ sold this month`;
 };
 
-// Best sellers = top 8 by review count
-// Every card links to the best-selling products page
+// Best sellers = top 8 by review count.
+// Each card opens the shared product-detail modal via ?open=<id>.
 const productsData: Product[] = [...allProducts]
     .sort((a, b) => b.reviewCount - a.reviewCount)
     .slice(0, 8)
@@ -62,7 +62,7 @@ const productsData: Product[] = [...allProducts]
         stockStatus: p.stock,
         image: p.images[0],
         category: p.category,
-        href: '/pages/products/bestsellingproducts',
+        href: `/pages/products?open=${p.id}`,
         slug: p.id,
         stockCount: p.stockQuantity,
     }));
@@ -127,10 +127,10 @@ export default function BestSellingProducts() {
                         const isAdding = cartAddingId === product.id;
                         const discountPercentage = product.previousPrice
                             ? Math.round(
-                                  ((product.previousPrice - product.price) /
-                                      product.previousPrice) *
-                                      100
-                              )
+                                ((product.previousPrice - product.price) /
+                                    product.previousPrice) *
+                                100
+                            )
                             : null;
 
                         return (
@@ -154,13 +154,12 @@ export default function BestSellingProducts() {
                                                 {product.salesVolume}
                                             </span>
                                             <span
-                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${
-                                                    product.stockStatus === 'In Stock'
+                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
                                                         ? 'bg-emerald-100 text-emerald-800'
                                                         : product.stockStatus === 'Low Stock'
-                                                        ? 'bg-amber-100 text-amber-800'
-                                                        : 'bg-red-100 text-red-800'
-                                                }`}
+                                                            ? 'bg-amber-100 text-amber-800'
+                                                            : 'bg-red-100 text-red-800'
+                                                    }`}
                                             >
                                                 {product.stockStatus}
                                             </span>

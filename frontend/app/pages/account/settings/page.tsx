@@ -1,99 +1,120 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     User, Mail, Phone, Lock, MapPin, Bell, Trash2, Plus, Edit3, Check,
     X, AlertCircle, Loader2, ChevronDown, ShieldAlert,
 } from 'lucide-react';
-import { currentUser } from '@/data/account';
+import {
+    api,
+    accountApi,
+    ApiError,
+    type Address,
+    type AddressInput,
+} from '@/lib/api';
 
-// ---------- Types ----------
-type PrefKey = 'whatsappUpdates' | 'emailPromotions' | 'smsPromotions' | 'newsletter';
-type Prefs = Record<PrefKey, boolean>;
-
-interface Address {
-    id: string;
-    label: string;
-    name: string;
-    phone: string;
-    street: string;
-    town: string;
-    county: string;
-    postalCode: string;
-    isDefault: boolean;
-}
-
-type AddressDraft = Omit<Address, 'id'>;
-
-// ---------- Storage keys ----------
-const PREFS_KEY = 'account:preferences';
-const PROFILE_KEY = 'account:profile';
-const ADDRESSES_KEY = 'account:addresses';
-
-const DEFAULT_PREFS: Prefs = {
-    whatsappUpdates: currentUser.preferences.whatsappUpdates,
-    emailPromotions: currentUser.preferences.emailPromotions,
-    smsPromotions: currentUser.preferences.smsPromotions,
-    newsletter: currentUser.preferences.newsletter,
-};
-
-const DEFAULT_PROFILE = {
-    firstName: currentUser.firstName,
-    lastName: currentUser.lastName,
-    email: currentUser.email,
-    phone: currentUser.phone,
-};
-
-const DEFAULT_ADDRESSES: Address[] = currentUser.addresses.map((a) => ({ ...a }));
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+// Must match KENYAN_COUNTIES in the backend's config/settings.py.
+// When a config endpoint becomes available, fetch from checkoutApi.config().
 const KENYAN_COUNTIES = [
-    'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 'Machakos',
-    'Kajiado', 'Uasin Gishu', 'Kakamega', 'Meru', 'Nyeri', 'Kilifi',
+    'Baringo', 'Bomet', 'Bungoma', 'Busia', 'Elgeyo-Marakwet', 'Embu',
+    'Garissa', 'Homa Bay', 'Isiolo', 'Kajiado', 'Kakamega', 'Kericho',
+    'Kiambu', 'Kilifi', 'Kirinyaga', 'Kisii', 'Kisumu', 'Kitui', 'Kwale',
+    'Laikipia', 'Lamu', 'Machakos', 'Makueni', 'Mandera', 'Marsabit',
+    'Meru', 'Migori', 'Mombasa', "Murang'a", 'Nairobi', 'Nakuru', 'Nandi',
+    'Narok', 'Nyamira', 'Nyandarua', 'Nyeri', 'Samburu', 'Siaya',
+    'Taita-Taveta', 'Tana River', 'Tharaka-Nithi', 'Trans Nzoia', 'Turkana',
+    'Uasin Gishu', 'Vihiga', 'Wajir', 'West Pokot',
 ];
 
-// ---------- Helpers ----------
-const genId = () =>
-    `addr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// Must match MinimumLengthValidator in the backend's config/settings.py.
+const MIN_PASSWORD_LENGTH = 10;
 
-const emptyDraft = (): AddressDraft => ({
-    label: '',
-    name: '',
+const emptyAddressDraft = (): AddressInput => ({
+    label: 'Home',
+    full_name: '',
     phone: '',
     street: '',
     town: '',
     county: 'Nairobi',
-    postalCode: '',
-    isDefault: false,
+    postal_code: '',
+    is_default: false,
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * DRF returns field errors as `{ field_name: ["message", ...] }`. This
+ * flattens them into a single map for inline display under form fields.
+ */
+function extractFieldErrors(data: unknown): Record<string, string> {
+    if (!data || typeof data !== 'object') return {};
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+        if (Array.isArray(value) && value.length > 0) {
+            out[key] = String(value[0]);
+        } else if (typeof value === 'string') {
+            out[key] = value;
+        }
+    }
+    return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
+    // ── Loading / error (initial fetch) ──
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
+
     // ── Profile ──
-    const [profile, setProfile] = useState(DEFAULT_PROFILE);
+    const [profile, setProfile] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+    });
     const [profileSaving, setProfileSaving] = useState(false);
 
     // ── Password ──
-    const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+    const [passwords, setPasswords] = useState({
+        current: '',
+        next: '',
+        confirm: '',
+    });
     const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
     const [passwordSaving, setPasswordSaving] = useState(false);
 
     // ── Preferences ──
-    const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+    const [prefs, setPrefs] = useState({
+        whatsappUpdates: false,
+        emailPromotions: false,
+        smsPromotions: false,
+        newsletter: false,
+    });
     const [prefsSaving, setPrefsSaving] = useState(false);
 
     // ── Addresses ──
-    const [addresses, setAddresses] = useState<Address[]>(DEFAULT_ADDRESSES);
+    const [addresses, setAddresses] = useState<Address[]>([]);
     const [addressModal, setAddressModal] = useState<
-        | { mode: 'add'; draft: AddressDraft }
-        | { mode: 'edit'; id: string; draft: AddressDraft }
+        | { mode: 'add'; draft: AddressInput }
+        | { mode: 'edit'; id: number; draft: AddressInput }
         | null
     >(null);
-    const [addressDraftErrors, setAddressDraftErrors] = useState<Record<string, string>>({});
+    const [addressDraftErrors, setAddressDraftErrors] = useState<
+        Record<string, string>
+    >({});
     const [addressSaving, setAddressSaving] = useState(false);
 
     // ── Delete confirms ──
     const [deleteAddressTarget, setDeleteAddressTarget] = useState<Address | null>(null);
     const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
     const [deleteAccountConfirm, setDeleteAccountConfirm] = useState('');
+    const [deleteAccountBusy, setDeleteAccountBusy] = useState(false);
 
     // ── Toast ──
     const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -102,81 +123,178 @@ export default function SettingsPage() {
         setTimeout(() => setSavedMsg(null), 2500);
     };
 
-    // ── Hydrate from localStorage on mount ──
+    // ─────────────────────────────────────────────────────────────────────────
+    // Initial load
+    // ─────────────────────────────────────────────────────────────────────────
     useEffect(() => {
-        try {
-            const rawProfile = localStorage.getItem(PROFILE_KEY);
-            if (rawProfile) setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(rawProfile) });
+        let cancelled = false;
 
-            const rawPrefs = localStorage.getItem(PREFS_KEY);
-            if (rawPrefs) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(rawPrefs) });
+        (async () => {
+            const [profileRes, addressesRes] = await Promise.allSettled([
+                accountApi.profile.get(),
+                accountApi.addresses.list(),
+            ]);
 
-            const rawAddresses = localStorage.getItem(ADDRESSES_KEY);
-            if (rawAddresses) setAddresses(JSON.parse(rawAddresses));
-        } catch {
-            // ignore corrupt storage
-        }
+            if (cancelled) return;
+
+            if (profileRes.status === 'fulfilled') {
+                const p = profileRes.value;
+                setProfile({
+                    firstName: p.first_name,
+                    lastName: p.last_name,
+                    email: p.email,
+                    phone: p.phone,
+                });
+                setPrefs({
+                    whatsappUpdates: p.whatsapp_updates,
+                    emailPromotions: p.email_promotions,
+                    smsPromotions: p.sms_promotions,
+                    newsletter: p.newsletter,
+                });
+            } else {
+                setLoadError(
+                    profileRes.reason instanceof ApiError
+                        ? profileRes.reason.message ||
+                        'Could not load your profile.'
+                        : 'Could not load your profile.',
+                );
+            }
+
+            if (addressesRes.status === 'fulfilled') {
+                setAddresses(addressesRes.value);
+            }
+
+            setIsLoading(false);
+        })();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
-    // ── Handlers ──
-    const togglePref = (key: PrefKey) => {
-        setPrefs((p) => ({ ...p, [key]: !p[key] }));
-    };
-
+    // ─────────────────────────────────────────────────────────────────────────
+    // Profile
+    // ─────────────────────────────────────────────────────────────────────────
     const saveProfile = async () => {
         setProfileSaving(true);
-        await new Promise((r) => setTimeout(r, 500));
         try {
-            localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+            const updated = await accountApi.profile.update({
+                first_name: profile.firstName,
+                last_name: profile.lastName,
+                phone: profile.phone,
+            });
+            setProfile({
+                firstName: updated.first_name,
+                lastName: updated.last_name,
+                email: updated.email,
+                phone: updated.phone,
+            });
             flash('Profile updated.');
-        } catch {
-            flash('Could not save profile.');
+        } catch (err) {
+            flash(
+                err instanceof ApiError
+                    ? err.message || 'Could not save profile.'
+                    : 'Could not save profile.',
+            );
         } finally {
             setProfileSaving(false);
         }
     };
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Preferences
+    // ─────────────────────────────────────────────────────────────────────────
+    const togglePref = (key: keyof typeof prefs) => {
+        setPrefs((p) => ({ ...p, [key]: !p[key] }));
+    };
+
     const savePreferences = async () => {
         setPrefsSaving(true);
-        await new Promise((r) => setTimeout(r, 400));
         try {
-            localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+            await accountApi.profile.updatePreferences({
+                whatsapp_updates: prefs.whatsappUpdates,
+                email_promotions: prefs.emailPromotions,
+                sms_promotions: prefs.smsPromotions,
+                newsletter: prefs.newsletter,
+            });
             flash('Preferences saved.');
-        } catch {
-            flash('Could not save preferences.');
+        } catch (err) {
+            flash(
+                err instanceof ApiError
+                    ? err.message || 'Could not save preferences.'
+                    : 'Could not save preferences.',
+            );
         } finally {
             setPrefsSaving(false);
         }
     };
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Password
+    // ─────────────────────────────────────────────────────────────────────────
     const updatePassword = async () => {
         const errors: Record<string, string> = {};
         if (!passwords.current) errors.current = 'Enter your current password';
         if (!passwords.next) errors.next = 'Enter a new password';
-        else if (passwords.next.length < 8) errors.next = 'Password must be at least 8 characters';
+        else if (passwords.next.length < MIN_PASSWORD_LENGTH)
+            errors.next = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
         if (!passwords.confirm) errors.confirm = 'Confirm your new password';
-        else if (passwords.confirm !== passwords.next) errors.confirm = 'Passwords do not match';
+        else if (passwords.confirm !== passwords.next)
+            errors.confirm = 'Passwords do not match';
 
         setPasswordErrors(errors);
         if (Object.keys(errors).length > 0) return;
 
         setPasswordSaving(true);
-        await new Promise((r) => setTimeout(r, 700));
-        setPasswordSaving(false);
-        setPasswords({ current: '', next: '', confirm: '' });
-        flash('Password updated.');
+        try {
+            await api.changePassword(passwords.current, passwords.next);
+            setPasswords({ current: '', next: '', confirm: '' });
+            setPasswordErrors({});
+            flash('Password updated.');
+        } catch (err) {
+            if (err instanceof ApiError && err.status === 400) {
+                // Backend returns { current_password: [...], new_password: [...] }
+                const fields = extractFieldErrors(err.data);
+                const mapped: Record<string, string> = {};
+                if (fields.current_password) mapped.current = fields.current_password;
+                if (fields.new_password) mapped.next = fields.new_password;
+                setPasswordErrors(mapped);
+            } else {
+                flash(
+                    err instanceof ApiError
+                        ? err.message || 'Could not update password.'
+                        : 'Could not update password.',
+                );
+            }
+        } finally {
+            setPasswordSaving(false);
+        }
     };
 
-    // ── Address modal ──
+    // ─────────────────────────────────────────────────────────────────────────
+    // Addresses
+    // ─────────────────────────────────────────────────────────────────────────
     const openAddAddress = () => {
         setAddressDraftErrors({});
-        setAddressModal({ mode: 'add', draft: emptyDraft() });
+        setAddressModal({ mode: 'add', draft: emptyAddressDraft() });
     };
 
     const openEditAddress = (addr: Address) => {
         setAddressDraftErrors({});
-        const { id, ...draft } = addr;
-        setAddressModal({ mode: 'edit', id, draft });
+        setAddressModal({
+            mode: 'edit',
+            id: addr.id,
+            draft: {
+                label: addr.label,
+                full_name: addr.full_name,
+                phone: addr.phone,
+                street: addr.street,
+                town: addr.town,
+                county: addr.county,
+                postal_code: addr.postal_code,
+                is_default: addr.is_default,
+            },
+        });
     };
 
     const closeAddressModal = () => {
@@ -185,9 +303,15 @@ export default function SettingsPage() {
         setAddressDraftErrors({});
     };
 
-    const updateDraft = <K extends keyof AddressDraft>(key: K, value: AddressDraft[K]) => {
+    const updateDraft = <K extends keyof AddressInput>(
+        key: K,
+        value: AddressInput[K],
+    ) => {
         if (!addressModal) return;
-        setAddressModal({ ...addressModal, draft: { ...addressModal.draft, [key]: value } });
+        setAddressModal({
+            ...addressModal,
+            draft: { ...addressModal.draft, [key]: value },
+        });
         if (addressDraftErrors[key]) {
             setAddressDraftErrors((prev) => {
                 const next = { ...prev };
@@ -197,92 +321,124 @@ export default function SettingsPage() {
         }
     };
 
-    const validateDraft = (draft: AddressDraft) => {
-        const errors: Record<string, string> = {};
-        if (!draft.label.trim()) errors.label = 'Label is required';
-        if (!draft.name.trim()) errors.name = 'Full name is required';
-        if (!draft.phone.trim()) errors.phone = 'Phone is required';
-        if (!draft.street.trim()) errors.street = 'Street is required';
-        if (!draft.town.trim()) errors.town = 'Town is required';
-        if (!draft.county.trim()) errors.county = 'County is required';
-        return errors;
-    };
-
     const saveAddress = async () => {
         if (!addressModal) return;
-        const errors = validateDraft(addressModal.draft);
+
+        // Client-side required check — matches the backend serializer.
+        const errors: Record<string, string> = {};
+        if (!addressModal.draft.label.trim()) errors.label = 'Label is required';
+        if (!addressModal.draft.full_name.trim())
+            errors.full_name = 'Full name is required';
+        if (!addressModal.draft.phone.trim()) errors.phone = 'Phone is required';
+        if (!addressModal.draft.street.trim()) errors.street = 'Street is required';
+        if (!addressModal.draft.town.trim()) errors.town = 'Town is required';
+        if (!addressModal.draft.county.trim()) errors.county = 'County is required';
+
         setAddressDraftErrors(errors);
         if (Object.keys(errors).length > 0) return;
 
         setAddressSaving(true);
-        await new Promise((r) => setTimeout(r, 500));
-
-        setAddresses((prev) => {
-            let next: Address[];
-            const draft = addressModal.draft;
-
+        try {
             if (addressModal.mode === 'add') {
-                const newAddr: Address = { id: genId(), ...draft };
-                next = draft.isDefault
-                    ? [...prev.map((a) => ({ ...a, isDefault: false })), newAddr]
-                    : [...prev, newAddr];
-            } else {
-                next = prev.map((a) => {
-                    if (a.id === addressModal.id) return { ...a, ...draft };
-                    return draft.isDefault ? { ...a, isDefault: false } : a;
+                const created = await accountApi.addresses.create(
+                    addressModal.draft,
+                );
+                setAddresses((prev) => {
+                    const next = created.is_default
+                        ? prev.map((a) => ({ ...a, is_default: false }))
+                        : prev;
+                    return [...next, created];
                 });
+                flash('Address added.');
+            } else {
+                const updated = await accountApi.addresses.update(
+                    addressModal.id,
+                    addressModal.draft,
+                );
+                setAddresses((prev) =>
+                    prev.map((a) => {
+                        if (a.id === updated.id) return updated;
+                        return updated.is_default
+                            ? { ...a, is_default: false }
+                            : a;
+                    }),
+                );
+                flash('Address updated.');
             }
-
-            try {
-                localStorage.setItem(ADDRESSES_KEY, JSON.stringify(next));
-            } catch {
-                /* ignore */
+            setAddressModal(null);
+        } catch (err) {
+            if (err instanceof ApiError && err.status === 400) {
+                setAddressDraftErrors(extractFieldErrors(err.data));
+            } else {
+                flash(
+                    err instanceof ApiError
+                        ? err.message || 'Could not save address.'
+                        : 'Could not save address.',
+                );
             }
-            return next;
-        });
-
-        setAddressSaving(false);
-        setAddressModal(null);
-        flash(addressModal.mode === 'add' ? 'Address added.' : 'Address updated.');
+        } finally {
+            setAddressSaving(false);
+        }
     };
 
-    // ── Delete address ──
     const confirmDeleteAddress = async () => {
         if (!deleteAddressTarget) return;
-        const id = deleteAddressTarget.id;
-        await new Promise((r) => setTimeout(r, 300));
-        setAddresses((prev) => {
-            const next = prev.filter((a) => a.id !== id);
-            try {
-                localStorage.setItem(ADDRESSES_KEY, JSON.stringify(next));
-            } catch {
-                /* ignore */
-            }
-            return next;
-        });
+        const target = deleteAddressTarget;
+
+        // Optimistic remove.
+        const previous = addresses;
+        setAddresses((prev) => prev.filter((a) => a.id !== target.id));
         setDeleteAddressTarget(null);
-        flash('Address removed.');
+
+        try {
+            await accountApi.addresses.remove(target.id);
+            flash('Address removed.');
+
+            // If we removed the default, the backend promotes another.
+            // Refetch to sync.
+            if (target.is_default) {
+                const list = await accountApi.addresses.list();
+                setAddresses(list);
+            }
+        } catch (err) {
+            setAddresses(previous);
+            flash(
+                err instanceof ApiError
+                    ? err.message || 'Could not delete address.'
+                    : 'Could not delete address.',
+            );
+        }
     };
 
-    // ── Delete account ──
+    // ─────────────────────────────────────────────────────────────────────────
+    // Delete account
+    // ─────────────────────────────────────────────────────────────────────────
     const confirmDeleteAccount = async () => {
         if (deleteAccountConfirm !== 'DELETE') return;
-        await new Promise((r) => setTimeout(r, 600));
+        setDeleteAccountBusy(true);
         try {
-            localStorage.removeItem(PROFILE_KEY);
-            localStorage.removeItem(PREFS_KEY);
-            localStorage.removeItem(ADDRESSES_KEY);
-        } catch {
-            /* ignore */
+            await accountApi.profile.delete();
+            // Backend logs us out server-side. Force the browser to the home page.
+            window.location.href = '/';
+        } catch (err) {
+            setDeleteAccountBusy(false);
+            flash(
+                err instanceof ApiError
+                    ? err.message || 'Could not delete account.'
+                    : 'Could not delete account.',
+            );
         }
-        setDeleteAccountOpen(false);
-        setDeleteAccountConfirm('');
-        flash('Account deletion requested.');
     };
 
-    const anyModalOpen = !!(addressModal || deleteAddressTarget || deleteAccountOpen);
+    // ─────────────────────────────────────────────────────────────────────────
+    // Effects: body scroll lock + ESC handling
+    // ─────────────────────────────────────────────────────────────────────────
+    const anyModalOpen = !!(
+        addressModal ||
+        deleteAddressTarget ||
+        deleteAccountOpen
+    );
 
-    // Freeze body scroll while a modal is open
     useEffect(() => {
         if (anyModalOpen) {
             const prev = document.body.style.overflow;
@@ -293,7 +449,6 @@ export default function SettingsPage() {
         }
     }, [anyModalOpen]);
 
-    // ESC closes the topmost modal
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
@@ -306,56 +461,105 @@ export default function SettingsPage() {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addressModal, deleteAddressTarget, deleteAccountOpen, addressSaving]);
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Loading state
+    // ─────────────────────────────────────────────────────────────────────────
+    if (isLoading) {
+        return (
+            <div className="space-y-5">
+                <div className="bg-white border border-slate-200 rounded-sm p-5">
+                    <div className="h-4 w-40 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-3 w-64 bg-slate-200 rounded mt-3 animate-pulse" />
+                </div>
+                {[0, 1, 2].map((i) => (
+                    <div
+                        key={i}
+                        className="bg-white border border-slate-200 rounded-sm p-5 space-y-4 animate-pulse"
+                    >
+                        <div className="h-4 w-24 bg-slate-200 rounded" />
+                        <div className="h-8 w-full bg-slate-100 rounded" />
+                        <div className="h-8 w-full bg-slate-100 rounded" />
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-5 relative">
-            {/* ── Page content — dims and blurs when a modal is open ── */}
             <div
-                className={`space-y-5 transition-all duration-200 ${
-                    anyModalOpen ? 'filter blur-[2px] brightness-75 pointer-events-none select-none' : ''
-                }`}
+                className={`space-y-5 transition-all duration-200 ${anyModalOpen
+                    ? 'filter blur-[2px] brightness-75 pointer-events-none select-none'
+                    : ''
+                    }`}
             >
                 {/* Header */}
                 <div className="bg-white border border-slate-200 rounded-sm p-5">
-                    <h1 className="text-lg font-bold text-slate-900">Account Settings</h1>
+                    <h1 className="text-lg font-bold text-slate-900">
+                        Account Settings
+                    </h1>
                     <p className="text-xs text-slate-500 mt-0.5">
                         Manage your profile, security, addresses, and preferences
                     </p>
                 </div>
 
+                {/* Load error banner */}
+                {loadError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-xs flex items-center gap-2">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        {loadError}
+                    </div>
+                )}
+
                 {/* 1. Profile */}
                 <section className="bg-white border border-slate-200 rounded-sm">
                     <header className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
                         <User className="h-4 w-4 text-slate-500" />
-                        <h2 className="text-sm font-semibold text-slate-900">Profile</h2>
+                        <h2 className="text-sm font-semibold text-slate-900">
+                            Profile
+                        </h2>
                     </header>
                     <div className="p-5 space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field
                                 label="First name"
                                 value={profile.firstName}
-                                onChange={(v) => setProfile({ ...profile, firstName: v })}
+                                onChange={(v) =>
+                                    setProfile({ ...profile, firstName: v })
+                                }
                             />
                             <Field
                                 label="Last name"
                                 value={profile.lastName}
-                                onChange={(v) => setProfile({ ...profile, lastName: v })}
+                                onChange={(v) =>
+                                    setProfile({ ...profile, lastName: v })
+                                }
                             />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field
                                 label="Email"
                                 value={profile.email}
-                                onChange={(v) => setProfile({ ...profile, email: v })}
+                                onChange={() => { }}
                                 icon={<Mail className="h-3.5 w-3.5" />}
                                 type="email"
+                                readOnly
+                                hint="Contact support to change your email address."
                             />
                             <Field
                                 label="Phone"
                                 value={profile.phone}
-                                onChange={(v) => setProfile({ ...profile, phone: v })}
+                                onChange={(v) =>
+                                    setProfile({ ...profile, phone: v })
+                                }
                                 icon={<Phone className="h-3.5 w-3.5" />}
+                                placeholder="+254 7XX XXX XXX"
                             />
                         </div>
                         <div className="flex justify-end">
@@ -382,14 +586,24 @@ export default function SettingsPage() {
                 <section className="bg-white border border-slate-200 rounded-sm">
                     <header className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
                         <Lock className="h-4 w-4 text-slate-500" />
-                        <h2 className="text-sm font-semibold text-slate-900">Password</h2>
+                        <h2 className="text-sm font-semibold text-slate-900">
+                            Password
+                        </h2>
                     </header>
                     <div className="p-5 space-y-4">
                         <Field
                             label="Current password"
                             type="password"
                             value={passwords.current}
-                            onChange={(v) => setPasswords({ ...passwords, current: v })}
+                            onChange={(v) => {
+                                setPasswords({ ...passwords, current: v });
+                                if (passwordErrors.current)
+                                    setPasswordErrors((p) => {
+                                        const n = { ...p };
+                                        delete n.current;
+                                        return n;
+                                    });
+                            }}
                             error={passwordErrors.current}
                         />
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -397,14 +611,31 @@ export default function SettingsPage() {
                                 label="New password"
                                 type="password"
                                 value={passwords.next}
-                                onChange={(v) => setPasswords({ ...passwords, next: v })}
+                                onChange={(v) => {
+                                    setPasswords({ ...passwords, next: v });
+                                    if (passwordErrors.next)
+                                        setPasswordErrors((p) => {
+                                            const n = { ...p };
+                                            delete n.next;
+                                            return n;
+                                        });
+                                }}
                                 error={passwordErrors.next}
+                                hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
                             />
                             <Field
                                 label="Confirm new password"
                                 type="password"
                                 value={passwords.confirm}
-                                onChange={(v) => setPasswords({ ...passwords, confirm: v })}
+                                onChange={(v) => {
+                                    setPasswords({ ...passwords, confirm: v });
+                                    if (passwordErrors.confirm)
+                                        setPasswordErrors((p) => {
+                                            const n = { ...p };
+                                            delete n.confirm;
+                                            return n;
+                                        });
+                                }}
                                 error={passwordErrors.confirm}
                             />
                         </div>
@@ -433,7 +664,9 @@ export default function SettingsPage() {
                     <header className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-slate-500" />
-                            <h2 className="text-sm font-semibold text-slate-900">Addresses</h2>
+                            <h2 className="text-sm font-semibold text-slate-900">
+                                Addresses
+                            </h2>
                         </div>
                         <button
                             type="button"
@@ -453,24 +686,30 @@ export default function SettingsPage() {
                     ) : (
                         <ul className="divide-y divide-slate-100">
                             {addresses.map((addr) => (
-                                <li key={addr.id} className="p-5 flex items-start justify-between gap-3">
+                                <li
+                                    key={addr.id}
+                                    className="p-5 flex items-start justify-between gap-3"
+                                >
                                     <div className="text-xs text-slate-700 leading-relaxed">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-sm font-semibold text-slate-900">
                                                 {addr.label}
                                             </span>
-                                            {addr.isDefault && (
+                                            {addr.is_default && (
                                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-950 border border-blue-100">
                                                     Default
                                                 </span>
                                             )}
                                         </div>
                                         <p>
-                                            {addr.name} • {addr.phone}
+                                            {addr.full_name} • {addr.phone}
                                         </p>
                                         <p>{addr.street}</p>
                                         <p>
-                                            {addr.town}, {addr.county} {addr.postalCode}
+                                            {addr.town}, {addr.county}
+                                            {addr.postal_code
+                                                ? ` • ${addr.postal_code}`
+                                                : ''}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
@@ -508,10 +747,26 @@ export default function SettingsPage() {
                     <div className="p-5 space-y-3">
                         {(
                             [
-                                { key: 'whatsappUpdates', label: 'Order updates via WhatsApp', desc: 'Get delivery and payment alerts on WhatsApp' },
-                                { key: 'emailPromotions', label: 'Promotions via email', desc: 'Deals, new arrivals, and special offers' },
-                                { key: 'smsPromotions', label: 'Promotions via SMS', desc: 'Occasional SMS-only discounts' },
-                                { key: 'newsletter', label: 'Newsletter', desc: 'Weekly roundup of tech news and picks' },
+                                {
+                                    key: 'whatsappUpdates',
+                                    label: 'Order updates via WhatsApp',
+                                    desc: 'Get delivery and payment alerts on WhatsApp',
+                                },
+                                {
+                                    key: 'emailPromotions',
+                                    label: 'Promotions via email',
+                                    desc: 'Deals, new arrivals, and special offers',
+                                },
+                                {
+                                    key: 'smsPromotions',
+                                    label: 'Promotions via SMS',
+                                    desc: 'Occasional SMS-only discounts',
+                                },
+                                {
+                                    key: 'newsletter',
+                                    label: 'Newsletter',
+                                    desc: 'Weekly roundup of tech news and picks',
+                                },
                             ] as const
                         ).map(({ key, label, desc }) => (
                             <PrefToggle
@@ -546,14 +801,18 @@ export default function SettingsPage() {
                 <section className="bg-white border border-red-200 rounded-sm">
                     <header className="px-5 py-4 border-b border-red-100 flex items-center gap-2">
                         <Trash2 className="h-4 w-4 text-red-600" />
-                        <h2 className="text-sm font-semibold text-red-700">Danger Zone</h2>
+                        <h2 className="text-sm font-semibold text-red-700">
+                            Danger Zone
+                        </h2>
                     </header>
                     <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
-                            <p className="text-xs font-medium text-slate-900">Delete account</p>
+                            <p className="text-xs font-medium text-slate-900">
+                                Delete account
+                            </p>
                             <p className="text-[11px] text-slate-500 mt-0.5">
-                                Permanently delete your account and all associated data. This cannot
-                                be undone.
+                                Permanently delete your account and all associated
+                                data. This cannot be undone.
                             </p>
                         </div>
                         <button
@@ -567,7 +826,7 @@ export default function SettingsPage() {
                 </section>
             </div>
 
-            {/* ── Toast ── */}
+            {/* Toast */}
             {savedMsg && (
                 <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-400" />
@@ -575,9 +834,12 @@ export default function SettingsPage() {
                 </div>
             )}
 
-            {/* ── Address modal ── */}
+            {/* Address modal */}
             {addressModal && (
-                <Modal onClose={closeAddressModal} title={addressModal.mode === 'add' ? 'Add Address' : 'Edit Address'}>
+                <Modal
+                    onClose={closeAddressModal}
+                    title={addressModal.mode === 'add' ? 'Add Address' : 'Edit Address'}
+                >
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field
@@ -589,10 +851,10 @@ export default function SettingsPage() {
                             />
                             <Field
                                 label="Full name"
-                                value={addressModal.draft.name}
-                                onChange={(v) => updateDraft('name', v)}
+                                value={addressModal.draft.full_name}
+                                onChange={(v) => updateDraft('full_name', v)}
                                 placeholder="Recipient name"
-                                error={addressDraftErrors.name}
+                                error={addressDraftErrors.full_name}
                             />
                         </div>
 
@@ -629,7 +891,9 @@ export default function SettingsPage() {
                                     <div className="relative">
                                         <select
                                             value={addressModal.draft.county}
-                                            onChange={(e) => updateDraft('county', e.target.value)}
+                                            onChange={(e) =>
+                                                updateDraft('county', e.target.value)
+                                            }
                                             className="w-full bg-slate-50 border border-slate-200 rounded-sm py-2 px-3 pr-8 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-950 appearance-none"
                                         >
                                             {KENYAN_COUNTIES.map((c) => (
@@ -649,8 +913,8 @@ export default function SettingsPage() {
                             </div>
                             <Field
                                 label="Postal code"
-                                value={addressModal.draft.postalCode}
-                                onChange={(v) => updateDraft('postalCode', v)}
+                                value={addressModal.draft.postal_code ?? ''}
+                                onChange={(v) => updateDraft('postal_code', v)}
                                 placeholder="Optional"
                             />
                         </div>
@@ -658,8 +922,10 @@ export default function SettingsPage() {
                         <label className="flex items-center gap-2 cursor-pointer pt-1">
                             <input
                                 type="checkbox"
-                                checked={addressModal.draft.isDefault}
-                                onChange={(e) => updateDraft('isDefault', e.target.checked)}
+                                checked={!!addressModal.draft.is_default}
+                                onChange={(e) =>
+                                    updateDraft('is_default', e.target.checked)
+                                }
                                 className="h-4 w-4 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
                             />
                             <span className="text-xs text-slate-700">
@@ -698,9 +964,12 @@ export default function SettingsPage() {
                 </Modal>
             )}
 
-            {/* ── Delete address confirm ── */}
+            {/* Delete address confirm */}
             {deleteAddressTarget && (
-                <Modal onClose={() => setDeleteAddressTarget(null)} maxWidth="max-w-md">
+                <Modal
+                    onClose={() => setDeleteAddressTarget(null)}
+                    maxWidth="max-w-md"
+                >
                     <div className="text-center space-y-3">
                         <div className="w-12 h-12 bg-red-50 text-red-600 rounded-sm flex items-center justify-center mx-auto border border-red-100">
                             <AlertCircle className="h-6 w-6" />
@@ -710,8 +979,8 @@ export default function SettingsPage() {
                                 Delete &ldquo;{deleteAddressTarget.label}&rdquo;?
                             </h3>
                             <p className="text-xs text-slate-500 mt-1">
-                                This address will be removed from your account. This action cannot
-                                be undone.
+                                This address will be removed from your account.
+                                This action cannot be undone.
                             </p>
                         </div>
                         <div className="flex justify-center gap-2 pt-1">
@@ -734,12 +1003,16 @@ export default function SettingsPage() {
                 </Modal>
             )}
 
-            {/* ── Delete account confirm ── */}
+            {/* Delete account confirm */}
             {deleteAccountOpen && (
-                <Modal onClose={() => {
-                    setDeleteAccountOpen(false);
-                    setDeleteAccountConfirm('');
-                }} maxWidth="max-w-md">
+                <Modal
+                    onClose={() => {
+                        if (deleteAccountBusy) return;
+                        setDeleteAccountOpen(false);
+                        setDeleteAccountConfirm('');
+                    }}
+                    maxWidth="max-w-md"
+                >
                     <div className="space-y-4">
                         <div className="w-12 h-12 bg-red-50 text-red-600 rounded-sm flex items-center justify-center mx-auto border border-red-100">
                             <ShieldAlert className="h-6 w-6" />
@@ -749,8 +1022,9 @@ export default function SettingsPage() {
                                 Delete your account?
                             </h3>
                             <p className="text-xs text-slate-500 mt-1">
-                                This permanently removes your profile, addresses, preferences, and
-                                order history. This cannot be undone.
+                                This permanently removes your profile, addresses,
+                                preferences, and order history. This cannot be
+                                undone.
                             </p>
                         </div>
                         <div>
@@ -761,9 +1035,12 @@ export default function SettingsPage() {
                                 <input
                                     type="text"
                                     value={deleteAccountConfirm}
-                                    onChange={(e) => setDeleteAccountConfirm(e.target.value)}
+                                    onChange={(e) =>
+                                        setDeleteAccountConfirm(e.target.value)
+                                    }
+                                    disabled={deleteAccountBusy}
                                     placeholder="DELETE"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-sm py-2 px-3 text-xs text-slate-900 font-mono tracking-wider focus:outline-none focus:ring-1 focus:ring-red-600 focus:border-red-400"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-sm py-2 px-3 text-xs text-slate-900 font-mono tracking-wider focus:outline-none focus:ring-1 focus:ring-red-600 focus:border-red-400 disabled:opacity-60"
                                 />
                             </label>
                         </div>
@@ -774,17 +1051,28 @@ export default function SettingsPage() {
                                     setDeleteAccountOpen(false);
                                     setDeleteAccountConfirm('');
                                 }}
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs"
+                                disabled={deleteAccountBusy}
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs disabled:opacity-60"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="button"
                                 onClick={confirmDeleteAccount}
-                                disabled={deleteAccountConfirm !== 'DELETE'}
-                                className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                disabled={
+                                    deleteAccountConfirm !== 'DELETE' ||
+                                    deleteAccountBusy
+                                }
+                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                                Permanently Delete
+                                {deleteAccountBusy ? (
+                                    <>
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        Deleting…
+                                    </>
+                                ) : (
+                                    'Permanently Delete'
+                                )}
                             </button>
                         </div>
                     </div>
@@ -794,9 +1082,10 @@ export default function SettingsPage() {
     );
 }
 
-/* ══════════════════════════════════════════
-   Reusable modal — click backdrop or ESC to close
-   ══════════════════════════════════════════ */
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────────────────────────────────────
+
 function Modal({
     children,
     onClose,
@@ -810,18 +1099,20 @@ function Modal({
 }) {
     return (
         <div
-            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in duration-150"
+            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
             onClick={onClose}
             role="dialog"
             aria-modal="true"
         >
             <div
-                className={`bg-white border border-slate-200 rounded-sm shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-150`}
+                className={`bg-white border border-slate-200 rounded-sm shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-hidden flex flex-col`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {title && (
                     <header className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-                        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+                        <h2 className="text-sm font-semibold text-slate-900">
+                            {title}
+                        </h2>
                         <button
                             type="button"
                             onClick={onClose}
@@ -838,9 +1129,6 @@ function Modal({
     );
 }
 
-/* ══════════════════════════════════════════
-   Realistic iOS-style toggle
-   ══════════════════════════════════════════ */
 function PrefToggle({
     label,
     desc,
@@ -864,23 +1152,18 @@ function PrefToggle({
                 aria-checked={value}
                 aria-label={label}
                 onClick={onToggle}
-                className={`relative inline-flex h-[22px] w-[40px] shrink-0 items-center rounded-full transition-colors duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-blue-950/30 focus:ring-offset-1 ${
-                    value ? 'bg-blue-950' : 'bg-slate-300 hover:bg-slate-400/70'
-                }`}
+                className={`relative inline-flex h-[22px] w-[40px] shrink-0 items-center rounded-full transition-colors duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-blue-950/30 focus:ring-offset-1 ${value ? 'bg-blue-950' : 'bg-slate-300 hover:bg-slate-400/70'
+                    }`}
             >
                 <span
-                    className={`inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform duration-200 ease-out ${
-                        value ? 'translate-x-[20px]' : 'translate-x-[2px]'
-                    }`}
+                    className={`inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform duration-200 ease-out ${value ? 'translate-x-[20px]' : 'translate-x-[2px]'
+                        }`}
                 />
             </button>
         </div>
     );
 }
 
-/* ══════════════════════════════════════════
-   Small reusable field
-   ══════════════════════════════════════════ */
 function Field({
     label,
     value,
@@ -889,6 +1172,8 @@ function Field({
     icon,
     placeholder,
     error,
+    readOnly,
+    hint,
 }: {
     label: string;
     value: string;
@@ -897,6 +1182,8 @@ function Field({
     icon?: React.ReactNode;
     placeholder?: string;
     error?: string;
+    readOnly?: boolean;
+    hint?: string;
 }) {
     return (
         <label className="block">
@@ -914,16 +1201,18 @@ function Field({
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
-                    className={`w-full bg-slate-50 border rounded-sm py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 ${
-                        icon ? 'pl-9 pr-3' : 'px-3'
-                    } ${
-                        error
+                    readOnly={readOnly}
+                    className={`w-full bg-slate-50 border rounded-sm py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 ${icon ? 'pl-9 pr-3' : 'px-3'
+                        } ${error
                             ? 'border-red-400 focus:ring-red-600'
                             : 'border-slate-200 focus:ring-blue-950'
-                    }`}
+                        } ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                 />
             </div>
             {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
+            {hint && !error && (
+                <p className="text-[10px] text-slate-400 mt-1">{hint}</p>
+            )}
         </label>
     );
 }

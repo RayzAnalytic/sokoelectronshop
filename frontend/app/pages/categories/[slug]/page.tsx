@@ -85,7 +85,7 @@ export default function CategoryPage() {
             return (
               <Link
                 key={product.id}
-                href="/pages/products"
+                href={`/pages/products?open=${product.id}`}
                 className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-slate-300 hover:shadow-xs transition-all duration-150 flex flex-col justify-between"
               >
                 <div>
@@ -115,10 +115,10 @@ export default function CategoryPage() {
                     {/* Stock status — bottom left */}
                     <span
                       className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stock === 'In Stock'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                        : product.stock === 'Low Stock'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                          : 'bg-red-50 text-red-700 border border-red-200/60'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                          : product.stock === 'Low Stock'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                            : 'bg-red-50 text-red-700 border border-red-200/60'
                         }`}
                     >
                       {product.stock}

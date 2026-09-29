@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
     ShoppingCart, X, Star, Check, AlertCircle
 } from 'lucide-react';
@@ -45,7 +46,26 @@ const initialProducts: Product[] = [...allProducts]
         createdAt: p.createdAt,
     }));
 
+// ─────────────────────────────────────────────────────────────
+// Public page — Suspense wrapper (useSearchParams requires it)
+// ─────────────────────────────────────────────────────────────
 export default function NewArrivalsPage() {
+    return (
+        <Suspense fallback={null}>
+            <NewArrivalsPageInner />
+        </Suspense>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// The real page
+// ─────────────────────────────────────────────────────────────
+function NewArrivalsPageInner() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const openId = searchParams.get('open');
+
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedBrand, setSelectedBrand] = useState('All');
@@ -59,8 +79,35 @@ export default function NewArrivalsPage() {
     const [activeDetailProduct, setActiveDetailProduct] = useState<Product | null>(null);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-    // Cart store
     const addItem = useCart((s) => s.addItem);
+
+    // ── URL is the source of truth for the modal ──────────────
+    useEffect(() => {
+        if (!openId) {
+            setActiveDetailProduct(null);
+            return;
+        }
+        const found = initialProducts.find((p) => p.id === openId);
+        if (found) {
+            setActiveDetailProduct(found);
+            setActiveImageIndex(0);
+        } else {
+            router.replace(pathname, { scroll: false });
+        }
+    }, [openId, router, pathname]);
+
+    function openProductInUrl(id: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('open', id);
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+
+    function closeProductInUrl() {
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('open');
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
 
     const categories = useMemo(() => {
         const set = new Set(initialProducts.map(p => p.category));
@@ -129,11 +176,16 @@ export default function NewArrivalsPage() {
         setTimeout(() => setCartNotification(null), 3000);
     };
 
+    // URL-driven open
     const openDetailsModal = (product: Product, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setActiveDetailProduct(product);
-        setActiveImageIndex(0);
+        openProductInUrl(product.id);
+    };
+
+    // URL-driven close
+    const closeDetailsModal = () => {
+        closeProductInUrl();
     };
 
     return (
@@ -412,7 +464,7 @@ export default function NewArrivalsPage() {
                     <div className="bg-white rounded-sm shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 relative">
                         <button
                             type="button"
-                            onClick={() => setActiveDetailProduct(null)}
+                            onClick={closeDetailsModal}
                             className="absolute top-2.5 right-2.5 z-20 w-7 h-7 flex items-center justify-center bg-white/90 hover:bg-slate-100 text-slate-600 rounded-full border border-slate-200 shadow-sm transition-colors"
                         >
                             <X className="w-3.5 h-3.5" />
@@ -504,17 +556,18 @@ export default function NewArrivalsPage() {
                                     </div>
 
                                     <div className="flex items-center gap-2">
-                                        <Link
-                                            href={`/pages/products/${activeDetailProduct.id}`}
+                                        <button
+                                            type="button"
+                                            onClick={closeDetailsModal}
                                             className="flex-1 text-center px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-sm text-[13px] font-medium transition-colors"
                                         >
-                                            Full Page
-                                        </Link>
+                                            Close
+                                        </button>
                                         <button
                                             type="button"
                                             onClick={async (e) => {
                                                 await handleAddToCart(activeDetailProduct, e);
-                                                setActiveDetailProduct(null);
+                                                closeDetailsModal();
                                             }}
                                             disabled={activeDetailProduct.stockStatus === 'Out of Stock'}
                                             className="flex-1 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded-sm text-[13px] font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1"

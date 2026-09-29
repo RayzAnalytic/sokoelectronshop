@@ -9,6 +9,9 @@ import Newsletter from "@/components/homepage/Newsletter";
 import Footer from "@/components/homepage/Footer";
 import NewArrivals from "@/components/homepage/NewArrivals";
 import NMapSection from "@/components/homepage/mapsection";
+import WhatsAppButton from "@/components/homepage/WhatsAppButton";
+import AIAssistantButton from "@/components/homepage/AIAssistantButton";
+
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">
@@ -27,6 +30,15 @@ export default function HomePage() {
       </main>
 
       <Footer />
+
+      {/* Floating action buttons — fixed position, don't affect layout.
+          Stacked vertically: AI Assistant above WhatsApp. */}
+      <AIAssistantButton shopName="MyShop" />
+      <WhatsAppButton
+        phone="254712345678"
+        displayPhone="+254 712 345 678"
+        shopName="MyShop"
+      />
     </div>
   );
 }

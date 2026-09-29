@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
     ArrowRight,
@@ -10,70 +10,7 @@ import {
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react';
-
-// ── 6 slides — theme + background image ──
-const heroSlides = [
-    {
-        id: 1,
-        badge: 'Featured Collection • New Season',
-        headline: 'Top Picks Across Every Category.',
-        description:
-            'Handpicked electronics from the brands customers trust most — smartphones, laptops, audio, and accessories, all in stock and ready to ship.',
-        image: '/hero01.png',
-        primaryCta: { text: 'Shop Collection', href: '/pages/products' },
-        secondaryCta: { text: 'Best Sellers', href: '/pages/products/bestsellingproducts' },
-    },
-    {
-        id: 2,
-        badge: 'Visit Our Store • Westlands Nairobi',
-        headline: 'Experience Tech In Person.',
-        description:
-            'Walk in, try before you buy, and get help from our team in minutes. Two locations open 7 days a week.',
-        image: '/hero02.png',
-        primaryCta: { text: 'Find A Store', href: '/stores' },
-        secondaryCta: { text: 'Talk To Us', href: '/support' },
-    },
-    {
-        id: 3,
-        badge: 'Modern Living • Smart Appliances',
-        headline: 'Smart Appliances For Modern Homes.',
-        description:
-            'Fridges, power stations, and connected devices engineered for reliability — even when the grid is not.',
-        image: '/hero03.png',
-        primaryCta: { text: 'Shop Smart Home', href: '/pages/products' },
-        secondaryCta: { text: 'View Power Stations', href: '/pages/products' },
-    },
-    {
-        id: 4,
-        badge: 'Customer Favorites • Top Rated',
-        headline: 'The Best Products This Month.',
-        description:
-            'Ranked by real customer reviews. Nothing under 4.6 stars makes this list.',
-        image: '/hero04.png',
-        primaryCta: { text: 'Shop Best Sellers', href: '/pages/products/bestsellingproducts' },
-        secondaryCta: { text: 'Read Reviews', href: '/pages/products' },
-    },
-    {
-        id: 5,
-        badge: 'Just Landed • New Arrivals',
-        headline: 'New Products, Straight Off The Truck.',
-        description:
-            'The latest gear added this month — from M4 MacBooks to next-gen controllers. First come, first served.',
-        image: '/hero05.png',
-        primaryCta: { text: 'Shop New Arrivals', href: '/pages/products/newarrivals' },
-        secondaryCta: { text: 'Special Deals', href: '/pages/products/specialdeals' },
-    },
-    {
-        id: 6,
-        badge: 'Browse By Category',
-        headline: 'Find Exactly What You Need.',
-        description:
-            'Every product organized into clear categories — no endless scrolling, no guesswork.',
-        image: '/hero06.png',
-        primaryCta: { text: 'View All Categories', href: '/pages/categories' },
-        secondaryCta: { text: 'Shop All', href: '/pages/products' },
-    },
-];
+import { type Banner, activeHeroSlides } from '@/lib/bannerStore';
 
 const guarantees = [
     { icon: Truck, label: 'Fast Delivery', sub: 'Free over KES 5,000' },
@@ -84,24 +21,69 @@ const guarantees = [
 const SLIDE_INTERVAL_MS = 3500;
 
 export default function Hero() {
+    const [slides, setSlides] = useState<Banner[]>([]);
+    const [hydrated, setHydrated] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
 
+    // Load slides from the store on mount
+    useEffect(() => {
+        setSlides(activeHeroSlides());
+        setHydrated(true);
+    }, []);
+
     // Auto-advance
     useEffect(() => {
-        if (isPaused) return;
+        if (isPaused || slides.length < 2) return;
         const t = setInterval(() => {
-            setCurrentIndex((i) => (i + 1) % heroSlides.length);
+            setCurrentIndex((i) => (i + 1) % slides.length);
         }, SLIDE_INTERVAL_MS);
         return () => clearInterval(t);
-    }, [isPaused]);
+    }, [isPaused, slides.length]);
 
-    const currentSlide = heroSlides[currentIndex];
+    // Keep index in range when slides change
+    useEffect(() => {
+        if (currentIndex >= slides.length) setCurrentIndex(0);
+    }, [slides.length, currentIndex]);
 
     const handlePrev = () =>
-        setCurrentIndex((i) => (i - 1 + heroSlides.length) % heroSlides.length);
+        setCurrentIndex((i) => (i - 1 + slides.length) % slides.length);
     const handleNext = () =>
-        setCurrentIndex((i) => (i + 1) % heroSlides.length);
+        setCurrentIndex((i) => (i + 1) % slides.length);
+
+    // Skeleton before hydration / when no active banners
+    if (!hydrated) {
+        return (
+            <section className="bg-white">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+                    <div className="rounded-3xl bg-slate-100 animate-pulse aspect-[16/7]" />
+                </div>
+            </section>
+        );
+    }
+
+    if (!slides.length) return null;
+
+    const currentSlide = slides[currentIndex];
+
+    // Overlay per slide — driven by the admin design tab
+    const overlayBg = (() => {
+        const o = currentSlide.overlay_opacity / 100;
+        switch (currentSlide.overlay_style) {
+            case 'DARK':
+                return `linear-gradient(rgba(2,6,23,${o}),rgba(2,6,23,${o}))`;
+            case 'LIGHT':
+                return `linear-gradient(rgba(255,255,255,${o}),rgba(255,255,255,${o}))`;
+            case 'GRADIENT':
+                return `linear-gradient(90deg, rgba(2,6,23,${o}) 0%, rgba(2,6,23,${o * 0.5}) 50%, rgba(2,6,23,0) 100%)`;
+            default:
+                return 'none';
+        }
+    })();
+
+    const isLight = currentSlide.overlay_style === 'LIGHT';
+    const textColor = isLight ? 'text-slate-900' : 'text-white';
+    const subColor = isLight ? 'text-slate-700' : 'text-slate-200';
 
     return (
         <section className="bg-white">
@@ -114,67 +96,98 @@ export default function Hero() {
                 >
                     {/* ── Background image layers ── */}
                     <div className="absolute inset-0 z-0">
-                        {heroSlides.map((slide, index) => (
+                        {slides.map((slide, index) => (
                             <div
                                 key={slide.id}
                                 className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${currentIndex === index
                                         ? 'opacity-100 scale-100'
                                         : 'opacity-0 scale-105 pointer-events-none'
                                     }`}
-                                style={{
-                                    backgroundImage: `url(${slide.image})`,
-                                    backgroundSize: 'cover',
-                                    backgroundPosition: 'center',
-                                    transition:
-                                        'opacity 1s ease-in-out, transform 6s ease-out',
-                                }}
-                            />
+                            >
+                                <picture>
+                                    {slide.mobile_image && (
+                                        <source
+                                            media="(max-width: 640px)"
+                                            srcSet={slide.mobile_image}
+                                        />
+                                    )}
+                                    {slide.tablet_image && (
+                                        <source
+                                            media="(max-width: 1024px)"
+                                            srcSet={slide.tablet_image}
+                                        />
+                                    )}
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={slide.desktop_image}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                        style={{
+                                            transition:
+                                                'opacity 1s ease-in-out, transform 6s ease-out',
+                                        }}
+                                    />
+                                </picture>
+                                <div
+                                    className="absolute inset-0"
+                                    style={{ background: overlayBg }}
+                                />
+                            </div>
                         ))}
-
-                        {/* Overlay for text readability */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/40 to-transparent z-10" />
                     </div>
 
                     {/* ── Content ── */}
                     <div className="relative z-20 px-6 sm:px-10 py-10 lg:py-14">
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-
-                            {/* LEFT — content */}
                             <div className="lg:col-span-8 space-y-5">
-
                                 {/* Eyebrow */}
-                                <span className="inline-flex items-center gap-1.5 bg-white text-slate-900 text-[11px] font-medium px-2.5 py-1 rounded-sm">
-                                    {currentSlide.badge}
-                                </span>
+                                {currentSlide.badge && (
+                                    <span
+                                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-sm ${isLight
+                                                ? 'bg-slate-900 text-white'
+                                                : 'bg-white text-slate-900'
+                                            }`}
+                                    >
+                                        {currentSlide.badge}
+                                    </span>
+                                )}
 
                                 {/* Headline */}
-                                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-[1.15]">
+                                <h1
+                                    className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.15] ${textColor}`}
+                                >
                                     {currentSlide.headline}
                                 </h1>
 
                                 {/* Description */}
-                                <p className="text-sm sm:text-base text-slate-200 max-w-xl leading-relaxed">
+                                <p
+                                    className={`text-sm sm:text-base max-w-xl leading-relaxed ${subColor}`}
+                                >
                                     {currentSlide.description}
                                 </p>
 
                                 {/* CTAs */}
                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-                                    <Link
-                                        href={currentSlide.primaryCta.href}
-                                        className="group inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-semibold py-2.5 px-5 rounded-sm text-[13px] transition-colors"
-                                    >
-                                        <span>{currentSlide.primaryCta.text}</span>
-                                        <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-                                    </Link>
-                                    <Link
-                                        href={currentSlide.secondaryCta.href}
-                                        className="inline-flex items-center justify-center bg-transparent hover:bg-white/10 text-white font-medium py-2.5 px-5 rounded-sm text-[13px] border border-white/30 hover:border-white/60 transition-colors"
-                                    >
-                                        {currentSlide.secondaryCta.text}
-                                    </Link>
+                                    {currentSlide.primary_cta_text && (
+                                        <Link
+                                            href={currentSlide.primary_cta_href || '#'}
+                                            className="group inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-semibold py-2.5 px-5 rounded-sm text-[13px] transition-colors"
+                                        >
+                                            <span>{currentSlide.primary_cta_text}</span>
+                                            <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                                        </Link>
+                                    )}
+                                    {currentSlide.secondary_cta_text && (
+                                        <Link
+                                            href={currentSlide.secondary_cta_href || '#'}
+                                            className="inline-flex items-center justify-center bg-transparent hover:bg-white/10 text-white font-medium py-2.5 px-5 rounded-sm text-[13px] border border-white/30 hover:border-white/60 transition-colors"
+                                        >
+                                            {currentSlide.secondary_cta_text}
+                                        </Link>
+                                    )}
                                 </div>
 
-                                {/* Guarantees — small white cards */}
+                                {/* Guarantees */}
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-4 max-w-xl">
                                     {guarantees.map(({ icon: Icon, label, sub }) => (
                                         <div
@@ -195,17 +208,14 @@ export default function Hero() {
                                         </div>
                                     ))}
                                 </div>
-
                             </div>
-
                         </div>
 
                         {/* ── Controls ── */}
                         <div className="flex flex-col sm:flex-row items-center justify-between mt-8 pt-6 border-t border-white/10 z-20 relative">
-
                             {/* Dots */}
                             <div className="flex items-center gap-2 mb-4 sm:mb-0">
-                                {heroSlides.map((slide, index) => (
+                                {slides.map((slide, index) => (
                                     <button
                                         key={slide.id}
                                         type="button"
@@ -238,7 +248,6 @@ export default function Hero() {
                                     <ChevronRight className="w-4 h-4" />
                                 </button>
                             </div>
-
                         </div>
                     </div>
                 </div>

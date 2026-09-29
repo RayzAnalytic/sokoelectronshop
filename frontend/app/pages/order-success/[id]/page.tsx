@@ -12,7 +12,6 @@ import {
   User,
   MapPin,
   ArrowRight,
-  Eye,
   ShieldCheck,
   Home,
   ChevronRight,
@@ -20,7 +19,9 @@ import {
   Smartphone,
   Lock,
   Receipt,
+  UserCircle2,
 } from 'lucide-react';
+import { api, paymentsApi, type Me, type Payment } from '@/lib/api';
 
 // ---------- Types (matches what checkout saves to sessionStorage) ----------
 interface StoredOrderItem {
@@ -60,8 +61,28 @@ interface StoredOrder {
   items: StoredOrderItem[];
 }
 
+/**
+ * Shape of a single item as serialized in the backend's PaymentSnapshot.
+ * Note `price` is a string here — DRF serializes Decimal as string.
+ */
+interface SnapshotItem {
+  productId?: string;
+  name: string;
+  brand?: string;
+  price: string;
+  quantity: number;
+  image?: string;
+}
+
 // ---------- Helpers ----------
-const formatUSD = (n: number) => `$${n.toFixed(2)}`;
+const formatKES = (n: number | string) => {
+  const num = typeof n === 'string' ? parseFloat(n) : n;
+  if (!Number.isFinite(num)) return 'KES 0';
+  return `KES ${num.toLocaleString('en-KE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+};
 
 const deliveryLabel = (method: StoredOrder['deliveryMethod']) => {
   if (method === 'express') return 'Express courier';
@@ -69,26 +90,104 @@ const deliveryLabel = (method: StoredOrder['deliveryMethod']) => {
   return 'Standard shipping';
 };
 
+/** Map a Payment + snapshot from the backend into the local StoredOrder shape. */
+function paymentToStoredOrder(payment: Payment): StoredOrder | null {
+  const snap = payment.snapshot;
+  if (!snap) return null;
+
+  const items = (snap.items as SnapshotItem[] | undefined) ?? [];
+
+  return {
+    orderId: payment.order_reference,
+    date: payment.created_at,
+    total: parseFloat(snap.total),
+    subtotal: parseFloat(snap.subtotal),
+    discount: parseFloat(snap.discount),
+    shipping: parseFloat(snap.shipping),
+    tax: parseFloat(snap.tax),
+    paymentLabel: 'M-PESA',
+    deliveryMethod: snap.delivery_method,
+    estimatedDelivery: snap.estimated_delivery,
+    coupon: snap.coupon || null,
+    notes: snap.notes || null,
+    customer: {
+      email: snap.email,
+      phone: snap.phone,
+      fullName: snap.full_name,
+      address: {
+        street: snap.address_street,
+        town: snap.address_town,
+        county: snap.address_county,
+        postalCode: snap.address_postal_code,
+      },
+    },
+    items: items.map((i, idx) => ({
+      id: `item-${idx}`,
+      productId: i.productId ?? '',
+      name: i.name,
+      brand: i.brand ?? '',
+      price: parseFloat(i.price),
+      quantity: i.quantity,
+      image: i.image ?? '',
+    })),
+  };
+}
+
 export default function OrderSuccessPage() {
   const params = useParams<{ id: string }>();
   const orderId = params?.id ?? '';
 
   const [order, setOrder] = useState<StoredOrder | null>(null);
+  const [payment, setPayment] = useState<Payment | null>(null);
+  const [user, setUser] = useState<Me | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Load: auth + payment (backend) + sessionStorage fallback
+  // ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!orderId) {
       setIsLoading(false);
       return;
     }
-    try {
-      const raw = sessionStorage.getItem(`order:${orderId}`);
-      if (raw) setOrder(JSON.parse(raw));
-    } catch {
-      // Corrupted data or sessionStorage unavailable — leave order null
-    } finally {
+
+    let cancelled = false;
+
+    (async () => {
+      // 1. Read from sessionStorage as an immediate fallback so the page
+      //    renders without waiting on the network.
+      let storedOrder: StoredOrder | null = null;
+      try {
+        const raw = sessionStorage.getItem(`order:${orderId}`);
+        if (raw) storedOrder = JSON.parse(raw);
+      } catch {
+        /* ignore */
+      }
+
+      // 2. Fetch auth + payment in parallel.
+      const [meRes, payRes] = await Promise.allSettled([
+        api.me(),
+        paymentsApi.byReference(orderId),
+      ]);
+
+      if (cancelled) return;
+
+      const me = meRes.status === 'fulfilled' ? meRes.value : null;
+      const pay = payRes.status === 'fulfilled' ? payRes.value : null;
+
+      setUser(me);
+      setPayment(pay);
+
+      // 3. Prefer backend order data when available; fall back to storage.
+      const fromBackend = pay ? paymentToStoredOrder(pay) : null;
+      setOrder(fromBackend ?? storedOrder);
+
       setIsLoading(false);
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [orderId]);
 
   // ---------- LOADING ----------
@@ -112,7 +211,7 @@ export default function OrderSuccessPage() {
             Order not found
           </h1>
           <p className="text-[13px] text-slate-600">
-            We couldn't find details for order{' '}
+            We couldn&apos;t find details for order{' '}
             <span className="font-mono font-medium">{orderId}</span>. If you
             just placed this order, check your email or sign in to view it in
             your account.
@@ -137,6 +236,8 @@ export default function OrderSuccessPage() {
   }
 
   // ---------- DERIVED ----------
+  // COD was removed from checkout, so isPaidOnline is always true. Branching
+  // is kept for when COD returns.
   const isPaidOnline = order.paymentLabel !== 'Cash on delivery';
   const paymentMethodLabel = order.paymentLabel;
   const customerFullName = order.customer.fullName;
@@ -145,6 +246,20 @@ export default function OrderSuccessPage() {
   const deliveryAddress = order.customer.address.street;
   const deliveryCity = order.customer.address.town;
   const deliveryCounty = order.customer.address.county;
+
+  const displayName =
+    (user && `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim()) ||
+    customerFullName ||
+    'Customer';
+
+  const accountEmail = user?.email || customerEmail;
+
+  /**
+   * An account exists if either the session already knows who we are, or the
+   * backend attached a user to this payment. The second signal is the reliable
+   * one right after checkout, before `api.me()` has had a chance to catch up.
+   */
+  const accountExists = user !== null || payment?.user != null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col justify-between">
@@ -163,7 +278,7 @@ export default function OrderSuccessPage() {
             </Link>
             <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm text-[13px] font-medium text-slate-800">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="truncate">{customerFullName || 'Guest'}</span>
+              <span className="truncate">{displayName}</span>
             </div>
           </div>
         </header>
@@ -190,7 +305,7 @@ export default function OrderSuccessPage() {
             </span>
           </nav>
 
-          {/* SUCCESS BLOCK — differs by payment choice */}
+          {/* SUCCESS BLOCK */}
           {isPaidOnline ? (
             <section className="bg-white border border-slate-200 rounded-sm p-6 text-center space-y-4">
               <div className="w-14 h-14 bg-emerald-50 text-emerald-700 rounded-sm flex items-center justify-center mx-auto border border-emerald-100">
@@ -251,9 +366,29 @@ export default function OrderSuccessPage() {
                 <AlertCircle className="w-3.5 h-3.5" />
                 <span>
                   Amount due on delivery:{' '}
-                  <span className="font-semibold">{formatUSD(order.total)}</span>
+                  <span className="font-semibold">{formatKES(order.total)}</span>
                 </span>
               </div>
+            </section>
+          )}
+
+          {/* ACCOUNT CREATED NOTICE */}
+          {accountExists && (
+            <section className="bg-blue-50 border border-blue-100 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <UserCircle2 className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+                <p className="text-[13px] text-blue-950">
+                  Your account was created with{' '}
+                  <span className="font-medium">{accountEmail}</span>. You can
+                  track this order and manage your details anytime.
+                </p>
+              </div>
+              <Link
+                href="/pages/account"
+                className="text-[13px] font-medium text-blue-950 hover:underline shrink-0"
+              >
+                Go to my account
+              </Link>
             </section>
           )}
 
@@ -330,12 +465,12 @@ export default function OrderSuccessPage() {
                           </p>
                           <p className="text-[13px] text-slate-500">
                             Qty {item.quantity} ·{' '}
-                            {formatUSD(item.price)} each
+                            {formatKES(item.price)} each
                           </p>
                         </div>
                       </div>
                       <span className="text-[13px] font-medium text-slate-900 shrink-0">
-                        {formatUSD(item.price * item.quantity)}
+                        {formatKES(item.price * item.quantity)}
                       </span>
                     </li>
                   ))}
@@ -352,24 +487,24 @@ export default function OrderSuccessPage() {
                 </p>
 
                 <div className="space-y-2 text-[13px]">
-                  <Row label="Subtotal" value={formatUSD(order.subtotal)} />
+                  <Row label="Subtotal" value={formatKES(order.subtotal)} />
 
                   {order.discount > 0 && (
                     <Row
                       label={`Discount${order.coupon ? ` (${order.coupon})` : ''}`}
-                      value={`-${formatUSD(order.discount)}`}
+                      value={`- ${formatKES(order.discount)}`}
                       success
                     />
                   )}
 
-                  <Row label="VAT (8.5%)" value={formatUSD(order.tax)} />
+                  <Row label="VAT (16%)" value={formatKES(order.tax)} />
 
                   <Row
                     label="Delivery fee"
                     value={
                       order.shipping === 0
                         ? 'Free'
-                        : formatUSD(order.shipping)
+                        : formatKES(order.shipping)
                     }
                     success={order.shipping === 0}
                   />
@@ -380,7 +515,7 @@ export default function OrderSuccessPage() {
                     Total
                   </span>
                   <span className="text-[15px] font-bold text-slate-900">
-                    {formatUSD(order.total)}
+                    {formatKES(order.total)}
                   </span>
                 </div>
               </section>
@@ -434,7 +569,7 @@ export default function OrderSuccessPage() {
                     <p className="text-[13px] text-amber-800">
                       Amount due on delivery:{' '}
                       <span className="font-semibold">
-                        {formatUSD(order.total)}
+                        {formatKES(order.total)}
                       </span>
                     </p>
                   </div>
@@ -461,16 +596,24 @@ export default function OrderSuccessPage() {
 
                 <div className="pt-2 space-y-2">
                   <Link
+                    href="/pages/account"
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] transition"
+                  >
+                    Go to my account
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+
+                  <Link
                     href="/pages/account/orders"
                     className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
                   >
-                    <Eye className="w-3.5 h-3.5" />
+                    <Package className="w-3.5 h-3.5" />
                     View my orders
                   </Link>
 
                   <Link
                     href="/pages/products"
-                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] transition"
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
                   >
                     Continue shopping
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -552,9 +695,8 @@ function InfoRow({
     <div>
       <p className="text-[13px] text-slate-500">{label}</p>
       <p
-        className={`text-[13px] font-medium mt-0.5 ${
-          success ? 'text-emerald-700' : 'text-slate-900'
-        }`}
+        className={`text-[13px] font-medium mt-0.5 ${success ? 'text-emerald-700' : 'text-slate-900'
+          }`}
       >
         {value}
       </p>
@@ -575,7 +717,8 @@ function Row({
     <div className="flex items-center justify-between gap-2">
       <span className="text-slate-500">{label}</span>
       <span
-        className={`font-medium ${success ? 'text-emerald-700' : 'text-slate-900'}`}
+        className={`font-medium ${success ? 'text-emerald-700' : 'text-slate-900'
+          }`}
       >
         {value}
       </span>
