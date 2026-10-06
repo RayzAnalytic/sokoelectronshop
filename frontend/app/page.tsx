@@ -34,11 +34,7 @@ export default function HomePage() {
       {/* Floating action buttons — fixed position, don't affect layout.
           Stacked vertically: AI Assistant above WhatsApp. */}
       <AIAssistantButton shopName="MyShop" />
-      <WhatsAppButton
-        phone="254712345678"
-        displayPhone="+254 712 345 678"
-        shopName="MyShop"
-      />
+      <WhatsAppButton/>
     </div>
   );
 }

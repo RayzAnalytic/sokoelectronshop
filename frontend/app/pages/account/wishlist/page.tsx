@@ -1,17 +1,14 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-    Heart, ShoppingCart, Trash2, Star, Check, Loader2, AlertCircle,
+    Heart, ShoppingCart, Trash2, Star, Check, Loader2,
 } from 'lucide-react';
-import {
-    accountApi,
-    ApiError,
-    type WishlistRow,
-    type WishlistStock,
-} from '@/lib/api';
+import { ApiError, type WishlistStock } from '@/lib/api';
 import { useCart } from '@/lib/store/cart';
+import { useAuth } from '@/lib/hooks/use-auth';
+import { useWishlist, type WishlistItem } from '@/lib/store/wishlist';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -25,7 +22,7 @@ const formatKES = (n: number | string): string => {
     })}`;
 };
 
-const stockBadgeClass = (stock: WishlistStock): string => {
+const stockBadgeClass = (stock: WishlistStock | undefined): string => {
     switch (stock) {
         case 'In Stock':
             return 'bg-emerald-100 text-emerald-800';
@@ -44,11 +41,20 @@ const stockBadgeClass = (stock: WishlistStock): string => {
 export default function WishlistPage() {
     const addToCart = useCart((s) => s.addItem);
 
-    const [items, setItems] = useState<WishlistRow[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [loadError, setLoadError] = useState('');
-    const [addingId, setAddingId] = useState<number | null>(null);
-    const [removingId, setRemovingId] = useState<number | null>(null);
+    // Cached across the app — one `/me/` request per session.
+    const { me, loading: authLoading } = useAuth();
+    const isSignedIn = me !== null;
+
+    // Store — single source of truth. Every mutation here is
+    // reflected in the product-card hearts and the nav badge.
+    const items = useWishlist((s) => s.items);
+    const hydrated = useWishlist((s) => s._hydrated);
+    const hydrate = useWishlist((s) => s.hydrate);
+    const removeFromStore = useWishlist((s) => s.remove);
+
+    const [addingId, setAddingId] = useState<string | null>(null);
+    const [isAddingAll, setIsAddingAll] = useState(false);
+    const [removingId, setRemovingId] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 
     const flash = (msg: string) => {
@@ -56,45 +62,28 @@ export default function WishlistPage() {
         setTimeout(() => setToast(null), 2500);
     };
 
-    // ── Initial fetch ──
+    // ── Hydrate on mount / when auth state resolves ──
+    // Idempotent — no-op if the store already has data for the
+    // current auth state. Guests read from localStorage; signed-in
+    // customers read from the server.
     useEffect(() => {
-        let cancelled = false;
+        if (authLoading) return;
+        void hydrate(isSignedIn);
+    }, [authLoading, isSignedIn, hydrate]);
 
-        (async () => {
-            try {
-                const list = await accountApi.wishlist.list();
-                if (cancelled) return;
-                setItems(list);
-            } catch (err) {
-                if (cancelled) return;
-                setLoadError(
-                    err instanceof ApiError
-                        ? err.message || 'Could not load your wishlist.'
-                        : 'Could not load your wishlist.',
-                );
-            } finally {
-                if (!cancelled) setIsLoading(false);
-            }
-        })();
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+    // ── Derived counts ──
+    const inStockCount = items.filter(
+        (i) => i.stock !== 'Out of Stock',
+    ).length;
+    const hasInStock = inStockCount > 0;
 
     // ── Remove ──
-    const handleRemove = async (item: WishlistRow) => {
-        setRemovingId(item.id);
-
-        // Optimistic.
-        const previous = items;
-        setItems((prev) => prev.filter((i) => i.id !== item.id));
-
+    const handleRemove = async (item: WishlistItem) => {
+        setRemovingId(item.variant_id);
         try {
-            await accountApi.wishlist.remove(item.id);
-            flash(`Removed "${item.product.name}" from wishlist.`);
+            await removeFromStore(item.variant_id, isSignedIn);
+            flash(`Removed "${item.product_name}" from wishlist.`);
         } catch (err) {
-            setItems(previous);
             flash(
                 err instanceof ApiError
                     ? err.message || 'Could not remove from wishlist.'
@@ -105,69 +94,97 @@ export default function WishlistPage() {
         }
     };
 
-    // ── Add to cart (client-side cart) ──
-    const handleAddToCart = async (item: WishlistRow) => {
-        if (item.stock === 'Out of Stock') return;
-        setAddingId(item.id);
-
-        await addToCart({
-            variantId: String(item.variant_id),
-            productId: String(item.product.id),
-            name: item.product.name,
-            brand: item.product.brand,
-            image: item.product.image || item.variant_image,
-            unitPrice: parseFloat(item.unit_price),
-            compareAtPrice: item.compare_at_price
-                ? parseFloat(item.compare_at_price)
+    // ── Store entry → cart payload ──
+    // The store keeps snake_case (server shape); the cart takes
+    // camelCase. This is the one bridge.
+    const toCartPayload = (item: WishlistItem) => ({
+        variantId: String(item.variant_id),
+        productId: String(item.product_id),
+        name: item.product_name,
+        brand: item.product_brand ?? '',
+        image: item.product_image || item.variant_image || '',
+        unitPrice: item.unit_price,
+        compareAtPrice:
+            item.compare_at_price != null
+                ? item.compare_at_price
                 : undefined,
-            slug: item.product.slug,
-            stockCount: item.stock_count,
-            stock: item.stock,
-        });
+        slug: item.product_slug ?? '',
+        stockCount: item.stock_count ?? 0,
+        stock: item.stock ?? 'In Stock',
+    });
 
-        setAddingId(null);
-        flash(`Added "${item.product.name}" to cart.`);
+    // ── Add to cart (single) ──
+    const handleAddToCart = async (item: WishlistItem) => {
+        if (item.stock === 'Out of Stock') return;
+        setAddingId(item.variant_id);
+
+        try {
+            await addToCart(toCartPayload(item));
+            flash(`Added "${item.product_name}" to cart.`);
+        } catch (err) {
+            flash(
+                err instanceof ApiError
+                    ? err.message || 'Could not add to cart.'
+                    : 'Could not add to cart.',
+            );
+        } finally {
+            setAddingId(null);
+        }
     };
 
+    // ── Add all in-stock items ──
     const handleAddAllToCart = async () => {
+        if (isAddingAll) return;
+
         const inStock = items.filter((i) => i.stock !== 'Out of Stock');
         if (inStock.length === 0) {
             flash('No in-stock items to add.');
             return;
         }
 
+        setIsAddingAll(true);
+
+        let succeeded = 0;
+        let failed = 0;
+
         for (const item of inStock) {
-            await addToCart({
-                variantId: String(item.variant_id),
-                productId: String(item.product.id),
-                name: item.product.name,
-                brand: item.product.brand,
-                image: item.product.image || item.variant_image,
-                unitPrice: parseFloat(item.unit_price),
-                compareAtPrice: item.compare_at_price
-                    ? parseFloat(item.compare_at_price)
-                    : undefined,
-                slug: item.product.slug,
-                stockCount: item.stock_count,
-                stock: item.stock,
-            });
+            try {
+                await addToCart(toCartPayload(item));
+                succeeded += 1;
+            } catch {
+                failed += 1;
+            }
         }
 
-        flash(
-            `Added ${inStock.length} item${inStock.length > 1 ? 's' : ''} to cart.`,
-        );
+        setIsAddingAll(false);
+
+        if (failed === 0) {
+            flash(
+                `Added ${succeeded} item${succeeded > 1 ? 's' : ''} to cart.`,
+            );
+        } else if (succeeded === 0) {
+            flash(
+                `Could not add ${failed} item${failed > 1 ? 's' : ''} to cart.`,
+            );
+        } else {
+            flash(
+                `Added ${succeeded} item${succeeded > 1 ? 's' : ''}; ${failed} failed.`,
+            );
+        }
     };
+
+    // ── Loading state ──
+    const isLoading = authLoading || !hydrated;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Render
     // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-5">
-            {/* Toast */}
             {toast && (
-                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-center gap-2">
-                    <Check className="h-4 w-4 text-emerald-400" />
-                    {toast}
+                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-center gap-2 max-w-sm">
+                    <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span className="truncate">{toast}</span>
                 </div>
             )}
 
@@ -181,27 +198,31 @@ export default function WishlistPage() {
                     <p className="text-xs text-slate-500 mt-0.5">
                         {isLoading
                             ? 'Loading…'
-                            : `${items.length} saved item${items.length !== 1 ? 's' : ''}`}
+                            : items.length === 0
+                                ? 'No saved items'
+                                : `${items.length} saved item${items.length !== 1 ? 's' : ''} · ${inStockCount} in stock`}
                     </p>
                 </div>
                 {!isLoading && items.length > 0 && (
                     <button
                         onClick={handleAddAllToCart}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                        disabled={!hasInStock || isAddingAll}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <ShoppingCart className="h-3.5 w-3.5" />
-                        Add All to Cart
+                        {isAddingAll ? (
+                            <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Adding…
+                            </>
+                        ) : (
+                            <>
+                                <ShoppingCart className="h-3.5 w-3.5" />
+                                Add All to Cart
+                            </>
+                        )}
                     </button>
                 )}
             </div>
-
-            {/* Load error */}
-            {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-xs flex items-center gap-2">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    {loadError}
-                </div>
-            )}
 
             {/* Loading skeleton */}
             {isLoading ? (
@@ -239,20 +260,26 @@ export default function WishlistPage() {
                     </Link>
                 </div>
             ) : (
+                /* Grid */
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {items.map((item) => {
-                        const isAdding = addingId === item.id;
-                        const isRemoving = removingId === item.id;
-                        const discount = item.discount_percent > 0
-                            ? item.discount_percent
-                            : null;
-                        const href = `/pages/products/${item.product.slug}`;
-                        const imgSrc = item.product.image || item.variant_image;
-                        const rating = parseFloat(item.product.rating);
+                        const isAdding = addingId === item.variant_id;
+                        const isRemoving = removingId === item.variant_id;
+                        const discount =
+                            item.discount_percent && item.discount_percent > 0
+                                ? item.discount_percent
+                                : null;
+                        const href = item.product_slug
+                            ? `/pages/products/${item.product_slug}`
+                            : `/pages/products?q=${encodeURIComponent(item.product_name)}`;
+                        const imgSrc =
+                            item.product_image || item.variant_image || '';
+                        const rating =
+                            typeof item.rating === 'number' ? item.rating : NaN;
 
                         return (
                             <div
-                                key={item.id}
+                                key={item.variant_id}
                                 className={`group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all flex flex-col ${isRemoving ? 'opacity-50' : ''
                                     }`}
                             >
@@ -261,7 +288,7 @@ export default function WishlistPage() {
                                     <Link href={href}>
                                         <img
                                             src={imgSrc}
-                                            alt={item.product.name}
+                                            alt={item.product_name}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
                                     </Link>
@@ -293,31 +320,34 @@ export default function WishlistPage() {
 
                                 {/* Content */}
                                 <div className="p-3 flex-1 flex flex-col">
-                                    {item.product.brand && (
+                                    {item.product_brand && (
                                         <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
-                                            {item.product.brand}
+                                            {item.product_brand}
                                         </p>
                                     )}
                                     <Link
                                         href={href}
                                         className="text-xs font-semibold text-slate-900 hover:text-blue-950 line-clamp-2 mt-0.5"
                                     >
-                                        {item.product.name}
+                                        {item.product_name}
                                     </Link>
 
-                                    {item.variant_name && item.variant_name !== 'Default' && (
-                                        <p className="text-[10px] text-slate-500 mt-0.5">
-                                            {item.variant_name}
-                                        </p>
-                                    )}
+                                    {item.variant_name &&
+                                        item.variant_name !== 'Default' && (
+                                            <p className="text-[10px] text-slate-500 mt-0.5">
+                                                {item.variant_name}
+                                            </p>
+                                        )}
 
                                     <div className="flex items-center gap-1 mt-1">
                                         <Star className="h-3 w-3 text-amber-500 fill-current" />
                                         <span className="text-[11px] font-medium text-slate-700">
-                                            {Number.isFinite(rating) ? rating.toFixed(1) : '—'}
+                                            {Number.isFinite(rating) && rating > 0
+                                                ? rating.toFixed(1)
+                                                : '—'}
                                         </span>
                                         <span className="text-[10px] text-slate-400">
-                                            ({item.product.review_count})
+                                            ({item.review_count ?? 0})
                                         </span>
                                     </div>
 
@@ -325,7 +355,7 @@ export default function WishlistPage() {
                                         <span className="text-sm font-bold text-slate-900">
                                             {formatKES(item.unit_price)}
                                         </span>
-                                        {item.compare_at_price && (
+                                        {item.compare_at_price != null && (
                                             <span className="text-[10px] text-slate-400 line-through">
                                                 {formatKES(item.compare_at_price)}
                                             </span>
@@ -343,12 +373,16 @@ export default function WishlistPage() {
                                             onClick={() => handleAddToCart(item)}
                                             disabled={
                                                 isAdding ||
+                                                isAddingAll ||
                                                 item.stock === 'Out of Stock'
                                             }
                                             className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[12px] transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                                         >
                                             {isAdding ? (
-                                                <span>Adding…</span>
+                                                <>
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                    <span>Adding…</span>
+                                                </>
                                             ) : item.stock === 'Out of Stock' ? (
                                                 <span>Sold Out</span>
                                             ) : (

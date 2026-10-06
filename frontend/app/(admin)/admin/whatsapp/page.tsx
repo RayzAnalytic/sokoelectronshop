@@ -1,95 +1,182 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FaWhatsapp } from 'react-icons/fa';
 import {
-  MessageSquare,
+  MessageCircle,
   Send,
   Search,
   Clock,
   CheckCircle2,
   X,
-  ExternalLink,
-  Trash2,
-  CheckSquare,
-  Square,
-  ShoppingBag,
-  DollarSign,
-  Phone,
+  AlertCircle,
+  Shield,
+  ShieldCheck,
   Users,
   LayoutTemplate,
-  Package,
-  Bell,
   Zap,
   ChevronRight,
   CheckCheck,
-  Repeat,
   ToggleLeft,
   ToggleRight,
-  MessageCircle,
-  Activity,
+  Paperclip,
+  Smile,
+  UserPlus,
+  Tag as TagIcon,
+  StickyNote,
+  Check,
+  Ban,
+  Download,
+  Upload,
+  Plus,
+  Trash2,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Image as ImageIcon,
   CreditCard,
-  Shield,
+  TrendingUp,
+  BarChart3,
+  Award,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts';
 
-// ============================================================
+import { adminApi } from '@/lib/admin-api';
+import type {
+  AdminWhatsAppAccount,
+  AdminWhatsAppAnalyticsSeries,
+  AdminWhatsAppAnalyticsSummary,
+  AdminWhatsAppAutomation,
+  AdminWhatsAppBillingSummary,
+  AdminWhatsAppBroadcast,
+  AdminWhatsAppContact,
+  AdminWhatsAppConversation,
+  AdminWhatsAppConversationDetail,
+  AdminWhatsAppCostBreakdown,
+  AdminWhatsAppMessage,
+  AdminWhatsAppTemplate,
+  WhatsAppAutomationStatus,
+  WhatsAppBroadcastStatus,
+  WhatsAppConversationStatus,
+  WhatsAppMessageStatus,
+  WhatsAppQualityScore,
+  WhatsAppTemplateCategory,
+  WhatsAppTemplateStatus,
+} from '@/lib/admin-types';
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TYPES
-// ============================================================
-type WhatsAppOrderStatus = 'New' | 'Replied' | 'Converted' | 'Lost';
+// ═══════════════════════════════════════════════════════════════════════════
 
-interface WhatsAppOrderItem {
-  id: string;
-  name: string;
-  image: string;
-  quantity: number;
-  price: number;
-}
+type Tab =
+  | 'Connection'
+  | 'Inbox'
+  | 'Templates'
+  | 'Automations'
+  | 'Broadcasts'
+  | 'Contacts'
+  | 'Analytics'
+  | 'Billing'
+  | 'Settings';
 
-interface WhatsAppOrder {
-  id: string;
-  customerName: string;
-  customerPhone: string;
-  items: WhatsAppOrderItem[];
-  total: number;
-  status: WhatsAppOrderStatus;
-  lastMessageTime: string;
-  rawMessage: string;
-  internalNotes?: string;
-}
+type ConversationStatus = 'Open' | 'Pending' | 'Resolved' | 'Unassigned';
+type ConversationFilter = 'All' | 'Unassigned' | 'Mine' | 'Open' | 'Resolved';
+type MessageDirection = 'inbound' | 'outbound';
+type DeliveryStatus = 'Sent' | 'Delivered' | 'Read';
 
-type WhatsAppModule =
-  | 'orders'
-  | 'conversations'
-  | 'contacts'
-  | 'templates'
-  | 'products'
-  | 'notifications'
-  | 'automation';
+type TemplateCategory = 'Marketing' | 'Utility' | 'Authentication';
+type TemplateStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected';
+type QualityRating = 'Green' | 'Yellow' | 'Red';
 
-type ConversationStatus = 'Open' | 'Pending' | 'Resolved' | 'Archived';
-type ContactTag = 'VIP' | 'Lead' | 'Customer' | 'Blocked' | 'New';
-type NotificationType = 'Order' | 'Payment' | 'Stock' | 'System' | 'Message';
+type AutomationTrigger =
+  | 'Order Placed'
+  | 'Order Shipped'
+  | 'Order Delivered'
+  | 'Order Cancelled'
+  | 'Payment Received'
+  | 'Abandoned Cart'
+  | 'Welcome Message'
+  | 'Away Message';
 
-interface ChatMessage {
-  id: string;
-  direction: 'inbound' | 'outbound';
-  body: string;
-  timestamp: string;
-  status: 'sent' | 'delivered' | 'read' | 'failed';
-  type: 'text' | 'image' | 'document' | 'order';
-}
+type AutomationStatus = 'Active' | 'Paused' | 'Draft';
+
+type BroadcastStatus = 'Draft' | 'Scheduled' | 'Sending' | 'Paused' | 'Completed' | 'Failed';
+
+type OptInStatus = 'Subscribed' | 'Unsubscribed';
 
 interface Conversation {
   id: string;
-  contactId: string;
-  contactName: string;
-  contactPhone: string;
+  customerName: string;
+  customerPhone: string;
+  whatsappProfileName: string;
   lastMessage: string;
   lastMessageTime: string;
-  unread: number;
   status: ConversationStatus;
-  assignedTo?: string;
-  tags: ContactTag[];
-  messages: ChatMessage[];
+  assignedTo: string | null;
+  tags: string[];
+  notes: string;
+  messages: {
+    id: string;
+    direction: MessageDirection;
+    body: string;
+    timestamp: string;
+    status: DeliveryStatus;
+  }[];
+}
+
+interface Template {
+  id: string;
+  name: string;
+  category: TemplateCategory;
+  language: string;
+  status: TemplateStatus;
+  quality: QualityRating;
+  lastUsed: string;
+  headerType: 'None' | 'Text' | 'Image' | 'Video' | 'Document';
+  headerContent: string;
+  body: string;
+  footer: string;
+  buttons: { type: 'URL' | 'QUICK_REPLY' | 'PHONE'; text: string }[];
+  exampleValues: string[];
+}
+
+interface Automation {
+  id: string;
+  name: string;
+  trigger: AutomationTrigger;
+  templateId: string;
+  delayMinutes: number;
+  recipients: 'Customer' | 'Admin Team' | 'Both';
+  conditions: string;
+  status: AutomationStatus;
+  messagesSent: number;
+  lastTriggered: string;
+}
+
+interface Broadcast {
+  id: string;
+  campaignName: string;
+  templateName: string;
+  recipients: number;
+  delivered: number;
+  read: number;
+  replied: number;
+  dateSent: string;
+  status: BroadcastStatus;
 }
 
 interface Contact {
@@ -97,1819 +184,2501 @@ interface Contact {
   name: string;
   phone: string;
   email?: string;
-  location?: string;
-  tags: ContactTag[];
+  tags: string[];
   totalOrders: number;
   totalSpent: number;
-  lastOrderDate?: string;
-  createdAt: string;
-  optedIn: boolean;
-  notes?: string;
+  lastContact: string;
+  optInStatus: OptInStatus;
+  notes: string;
 }
 
-interface MessageTemplate {
-  id: string;
-  name: string;
-  category: 'Marketing' | 'Utility' | 'Authentication';
-  language: string;
-  status: 'Approved' | 'Pending' | 'Rejected';
-  headerType: 'None' | 'Text' | 'Image' | 'Document';
-  headerContent?: string;
-  body: string;
-  footer?: string;
-  buttons: { type: string; text: string }[];
-  variables: string[];
-  updatedAt: string;
+// ═══════════════════════════════════════════════════════════════════════════
+// ADAPTERS — wire shape → UI shape
+//
+// Every enum on the wire is UPPERCASE (Django TextChoices values). The
+// UI uses title-case for display. The adapters normalise at the
+// boundary so the render tree stays unchanged.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  const diff = Date.now() - then;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'Just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min${min === 1 ? '' : 's'} ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+  const day = Math.floor(hr / 24);
+  if (day === 1) return 'Yesterday';
+  if (day < 7) return `${day} days ago`;
+  return new Date(iso).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
 }
 
-interface WhatsAppProduct {
-  id: string;
-  name: string;
-  image: string;
-  price: number;
-  currency: string;
-  catalogId: string;
-  sku: string;
-  stock: number;
-  status: 'Active' | 'Draft' | 'Out of Stock';
-  retailerId: string;
-  url: string;
-  description: string;
+function mapConversationStatus(s: WhatsAppConversationStatus): ConversationStatus {
+  if (s === 'OPEN') return 'Open';
+  if (s === 'PENDING') return 'Pending';
+  return 'Resolved';
 }
 
-interface WhatsAppNotification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  actionLabel?: string;
-  actionTarget?: string;
+function mapTemplateCategory(c: WhatsAppTemplateCategory): TemplateCategory {
+  if (c === 'MARKETING') return 'Marketing';
+  if (c === 'AUTHENTICATION') return 'Authentication';
+  return 'Utility';
 }
 
-interface AutomationRule {
-  id: string;
-  name: string;
-  trigger: string;
-  action: string;
-  enabled: boolean;
-  executions: number;
-  lastRun: string;
-  description: string;
+function mapTemplateStatus(s: WhatsAppTemplateStatus): TemplateStatus {
+  if (s === 'APPROVED') return 'Approved';
+  if (s === 'PENDING') return 'Pending';
+  if (s === 'REJECTED') return 'Rejected';
+  return 'Draft';
 }
 
-// ============================================================
-// INITIAL DATA
-// ============================================================
-const INITIAL_WHATSAPP_ORDERS: WhatsAppOrder[] = [
-  {
-    id: 'wa-101',
-    customerName: 'Brian Kiprop',
-    customerPhone: '+254 712 345 678',
-    items: [
-      { id: 'p1', name: 'Smart Home Wi-Fi Router AX3000', image: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=200&auto=format&fit=crop&q=80', quantity: 1, price: 6500 },
-      { id: 'p2', name: 'Cat6 Ethernet Cable (10m)', image: 'https://images.unsplash.com/photo-1615840287214-7ff58936c4cf?w=200&auto=format&fit=crop&q=80', quantity: 2, price: 800 },
-    ],
-    total: 8100,
-    status: 'New',
-    lastMessageTime: '10 mins ago',
-    rawMessage: 'Hello! I would like to order:\n- 1x Smart Home Wi-Fi Router AX3000 (KES 6,500)\n- 2x Cat6 Ethernet Cable (10m) (KES 800)\nTotal: KES 8,100\nDeliver to: Westlands, Nairobi.',
-    internalNotes: 'Customer asked if same-day boda delivery is available.',
-  },
-  {
-    id: 'wa-102',
-    customerName: 'Amina Mohamed',
-    customerPhone: '+254 733 987 654',
-    items: [
-      { id: 'p3', name: 'Wireless Ergonomic Mechanical Keyboard', image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=200&auto=format&fit=crop&q=80', quantity: 1, price: 4500 },
-    ],
-    total: 4500,
-    status: 'Replied',
-    lastMessageTime: '45 mins ago',
-    rawMessage: 'Hi, is this keyboard compatible with Mac OS as well? Interested in buying one.',
-    internalNotes: 'Sent compatibility details and payment link via WhatsApp.',
-  },
-  {
-    id: 'wa-103',
-    customerName: 'Kevin Otieno',
-    customerPhone: '+254 722 111 222',
-    items: [
-      { id: 'p4', name: 'UltraWide 29" Gaming Monitor', image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=200&auto=format&fit=crop&q=80', quantity: 1, price: 28000 },
-      { id: 'p5', name: 'Adjustable Desk Monitor Arm', image: 'https://images.unsplash.com/photo-1616627561950-9f746e330187?w=200&auto=format&fit=crop&q=80', quantity: 1, price: 3500 },
-    ],
-    total: 31500,
-    status: 'Converted',
-    lastMessageTime: '3 hours ago',
-    rawMessage: 'Order cart checkout via WhatsApp button:\n- 1x UltraWide 29" Gaming Monitor\n- 1x Adjustable Desk Monitor Arm\nTotal: KES 31,500',
-    internalNotes: 'Converted into formal order #SOKO-9921. Paid via M-Pesa STK.',
-  },
-  {
-    id: 'wa-104',
-    customerName: 'Wanjiku Mwangi',
-    customerPhone: '+254 700 555 444',
-    items: [
-      { id: 'p6', name: 'USB-C Multiport Hub 7-in-1', image: 'https://images.unsplash.com/photo-1625842268584-8f3296236761?w=200&auto=format&fit=crop&q=80', quantity: 1, price: 2200 },
-    ],
-    total: 2200,
-    status: 'Lost',
-    lastMessageTime: 'Yesterday',
-    rawMessage: 'Checking on stock availability for USB hub. Looking for gray color.',
-    internalNotes: 'Item was out of stock in gray. Customer decided not to proceed.',
-  },
-];
+function mapQuality(q: WhatsAppQualityScore | 'UNKNOWN'): QualityRating {
+  if (q === 'GREEN') return 'Green';
+  if (q === 'YELLOW') return 'Yellow';
+  return 'Red';
+}
 
-const INITIAL_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'conv-1',
-    contactId: 'c-1',
-    contactName: 'Brian Kiprop',
-    contactPhone: '+254 712 345 678',
-    lastMessage: 'Great, I will send the M-Pesa shortly.',
-    lastMessageTime: '2 mins ago',
-    unread: 2,
-    status: 'Open',
-    tags: ['Customer'],
-    messages: [
-      { id: 'm1', direction: 'inbound', body: 'Hello! I would like to order the Wi-Fi router.', timestamp: '10:12', status: 'read', type: 'text' },
-      { id: 'm2', direction: 'outbound', body: 'Hi Brian! Great choice. The AX3000 is KES 6,500. Would you like to add anything else?', timestamp: '10:14', status: 'read', type: 'text' },
-      { id: 'm3', direction: 'inbound', body: 'Yes, add 2 Cat6 cables please.', timestamp: '10:15', status: 'read', type: 'text' },
-      { id: 'm4', direction: 'outbound', body: 'Total: KES 8,100. Sending the payment link now.', timestamp: '10:16', status: 'read', type: 'text' },
-      { id: 'm5', direction: 'inbound', body: 'Great, I will send the M-Pesa shortly.', timestamp: '10:18', status: 'delivered', type: 'text' },
-    ],
-  },
-  {
-    id: 'conv-2',
-    contactId: 'c-2',
-    contactName: 'Amina Mohamed',
-    contactPhone: '+254 733 987 654',
-    lastMessage: 'Thanks for the info!',
-    lastMessageTime: '45 mins ago',
-    unread: 0,
-    status: 'Pending',
-    assignedTo: 'Faith K.',
-    tags: ['Lead'],
-    messages: [
-      { id: 'm1', direction: 'inbound', body: 'Hi, is this keyboard compatible with Mac OS?', timestamp: '09:30', status: 'read', type: 'text' },
-      { id: 'm2', direction: 'outbound', body: 'Yes it is! Full macOS support with Cmd key mapping.', timestamp: '09:45', status: 'read', type: 'text' },
-      { id: 'm3', direction: 'inbound', body: 'Thanks for the info!', timestamp: '09:46', status: 'read', type: 'text' },
-    ],
-  },
-];
+function mapMessageStatus(s: WhatsAppMessageStatus): DeliveryStatus {
+  if (s === 'READ') return 'Read';
+  if (s === 'DELIVERED') return 'Delivered';
+  return 'Sent';
+}
 
-const INITIAL_CONTACTS: Contact[] = [
-  {
-    id: 'c-1',
-    name: 'Brian Kiprop',
-    phone: '+254 712 345 678',
-    email: 'brian.k@example.com',
-    location: 'Westlands, Nairobi',
-    tags: ['Customer'],
-    totalOrders: 4,
-    totalSpent: 24500,
-    lastOrderDate: '2024-01-15',
-    createdAt: '2023-08-12',
-    optedIn: true,
-    notes: 'Prefers boda delivery in the morning.',
-  },
-  {
-    id: 'c-2',
-    name: 'Amina Mohamed',
-    phone: '+254 733 987 654',
-    email: 'amina.m@example.com',
-    location: 'Mombasa',
-    tags: ['Lead'],
+function mapAutomationStatus(s: WhatsAppAutomationStatus): AutomationStatus {
+  if (s === 'ACTIVE') return 'Active';
+  if (s === 'PAUSED') return 'Paused';
+  return 'Draft';
+}
+
+function mapBroadcastStatus(s: WhatsAppBroadcastStatus): BroadcastStatus {
+  if (s === 'COMPLETED') return 'Completed';
+  if (s === 'SENDING') return 'Sending';
+  if (s === 'SCHEDULED') return 'Scheduled';
+  if (s === 'PAUSED') return 'Paused';
+  if (s === 'FAILED') return 'Failed';
+  return 'Draft';
+}
+
+function adaptMessage(m: AdminWhatsAppMessage): Conversation['messages'][number] {
+  return {
+    id: String(m.id),
+    direction: m.direction === 'OUT' ? 'outbound' : 'inbound',
+    body: m.body,
+    timestamp: new Date(m.timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    status: mapMessageStatus(m.status),
+  };
+}
+
+function adaptConversation(
+  c: AdminWhatsAppConversation,
+  messages: AdminWhatsAppMessage[] = [],
+): Conversation {
+  return {
+    id: String(c.id),
+    customerName: c.contact.profileName || c.contact.waId,
+    customerPhone: `+${c.contact.waId}`,
+    whatsappProfileName: c.contact.profileName || c.contact.waId,
+    lastMessage: c.lastMessagePreview || '',
+    lastMessageTime: relativeTime(c.lastMessageAt),
+    status: mapConversationStatus(c.status),
+    assignedTo: c.assignedToName || null,
+    tags: c.contact.tags || [],
+    notes: c.contact.notes || '',
+    messages: messages.map(adaptMessage),
+  };
+}
+
+function adaptConversationDetail(c: AdminWhatsAppConversationDetail): Conversation {
+  return adaptConversation(c, c.messages);
+}
+
+function adaptTemplate(t: AdminWhatsAppTemplate): Template {
+  const body = (t.components as any[])?.find((c) => c?.type === 'BODY')?.text ?? '';
+  const header = (t.components as any[])?.find((c) => c?.type === 'HEADER');
+  const footer = (t.components as any[])?.find((c) => c?.type === 'FOOTER')?.text ?? '';
+  const buttons = ((t.components as any[])?.find((c) => c?.type === 'BUTTONS')?.buttons ?? [])
+    .slice(0, 3)
+    .map((b: any) => ({
+      type: (b.type === 'URL' ? 'URL' : b.type === 'PHONE_NUMBER' ? 'PHONE' : 'QUICK_REPLY') as
+        | 'URL'
+        | 'PHONE'
+        | 'QUICK_REPLY',
+      text: b.text ?? '',
+    }));
+
+  return {
+    id: String(t.id),
+    name: t.name,
+    category: mapTemplateCategory(t.category),
+    language: t.language,
+    status: mapTemplateStatus(t.status),
+    quality: mapQuality(t.quality),
+    lastUsed: t.lastSyncedAt ? relativeTime(t.lastSyncedAt) : 'Never',
+    headerType: header ? (header.format ?? 'None') : 'None',
+    headerContent: header?.text ?? '',
+    body,
+    footer,
+    buttons,
+    exampleValues: [],
+  };
+}
+
+function adaptAutomation(a: AdminWhatsAppAutomation): Automation {
+  const recipients: Automation['recipients'] =
+    a.recipients === 'CUSTOMER'
+      ? 'Customer'
+      : a.recipients === 'ADMIN_TEAM'
+        ? 'Admin Team'
+        : 'Both';
+
+  return {
+    id: String(a.id),
+    name: a.name,
+    trigger: a.trigger as AutomationTrigger,
+    templateId: a.templateName || String(a.templateId ?? ''),
+    delayMinutes: a.delayMinutes,
+    recipients,
+    conditions: a.conditions,
+    status: mapAutomationStatus(a.status),
+    messagesSent: a.messagesSent,
+    lastTriggered: a.lastTriggered ? relativeTime(a.lastTriggered) : 'Never',
+  };
+}
+
+function adaptBroadcast(b: AdminWhatsAppBroadcast): Broadcast {
+  return {
+    id: String(b.id),
+    campaignName: b.campaignName,
+    templateName: b.templateName,
+    recipients: b.recipients,
+    delivered: b.delivered,
+    read: b.read,
+    replied: b.replied,
+    dateSent: b.sentAt
+      ? new Date(b.sentAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })
+      : b.scheduledAt
+        ? new Date(b.scheduledAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })
+        : '—',
+    status: mapBroadcastStatus(b.status),
+  };
+}
+
+function adaptContact(c: AdminWhatsAppContact): Contact {
+  return {
+    id: String(c.id),
+    name: c.profileName || `+${c.waId}`,
+    phone: `+${c.waId}`,
+    tags: c.tags || [],
     totalOrders: 0,
     totalSpent: 0,
-    createdAt: '2024-01-10',
-    optedIn: true,
-  },
-  {
-    id: 'c-3',
-    name: 'Kevin Otieno',
-    phone: '+254 722 111 222',
-    location: 'Kileleshwa, Nairobi',
-    tags: ['VIP', 'Customer'],
-    totalOrders: 12,
-    totalSpent: 187000,
-    lastOrderDate: '2024-01-18',
-    createdAt: '2023-03-04',
-    optedIn: true,
-  },
-];
-
-const INITIAL_TEMPLATES: MessageTemplate[] = [
-  {
-    id: 'tpl-1',
-    name: 'order_confirmation',
-    category: 'Utility',
-    language: 'en_US',
-    status: 'Approved',
-    headerType: 'Text',
-    headerContent: 'Order Confirmed',
-    body: 'Hi {{1}}, your order {{2}} has been confirmed. Total: KES {{3}}. We will notify you when it ships.',
-    footer: 'SokoFlow Electronics',
-    buttons: [{ type: 'URL', text: 'Track Order' }],
-    variables: ['customer_name', 'order_id', 'total'],
-    updatedAt: 'Jan 10, 2024',
-  },
-  {
-    id: 'tpl-2',
-    name: 'cart_recovery',
-    category: 'Marketing',
-    language: 'en_US',
-    status: 'Approved',
-    headerType: 'Image',
-    headerContent: 'https://example.com/cart.jpg',
-    body: 'Hi {{1}}, you left {{2}} item(s) in your cart worth KES {{3}}. Complete your order now and get 5% off!',
-    footer: 'Reply STOP to opt out',
-    buttons: [{ type: 'URL', text: 'Resume Cart' }],
-    variables: ['customer_name', 'item_count', 'cart_total'],
-    updatedAt: 'Jan 08, 2024',
-  },
-  {
-    id: 'tpl-3',
-    name: 'payment_reminder',
-    category: 'Utility',
-    language: 'en_US',
-    status: 'Pending',
-    headerType: 'None',
-    body: 'Hi {{1}}, this is a friendly reminder that your order {{2}} is awaiting payment of KES {{3}}.',
-    buttons: [{ type: 'QUICK_REPLY', text: 'Pay Now' }],
-    variables: ['customer_name', 'order_id', 'amount'],
-    updatedAt: 'Jan 14, 2024',
-  },
-];
-
-const INITIAL_PRODUCTS: WhatsAppProduct[] = [
-  {
-    id: 'wp-1',
-    name: 'Smart Home Wi-Fi Router AX3000',
-    image: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=200&auto=format&fit=crop&q=80',
-    price: 6500,
-    currency: 'KES',
-    catalogId: 'cat-001',
-    sku: 'RTR-AX3000',
-    stock: 42,
-    status: 'Active',
-    retailerId: 'ret-001',
-    url: 'https://sokoflow.com/p/router-ax3000',
-    description: 'Dual-band Wi-Fi 6 router',
-  },
-  {
-    id: 'wp-2',
-    name: 'Wireless Ergonomic Mechanical Keyboard',
-    image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=200&auto=format&fit=crop&q=80',
-    price: 4500,
-    currency: 'KES',
-    catalogId: 'cat-001',
-    sku: 'KBD-ERG-01',
-    stock: 18,
-    status: 'Active',
-    retailerId: 'ret-002',
-    url: 'https://sokoflow.com/p/keyboard-erg',
-    description: 'Mac/Windows compatible',
-  },
-  {
-    id: 'wp-3',
-    name: 'UltraWide 29" Gaming Monitor',
-    image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=200&auto=format&fit=crop&q=80',
-    price: 28000,
-    currency: 'KES',
-    catalogId: 'cat-002',
-    sku: 'MON-UW-29',
-    stock: 0,
-    status: 'Out of Stock',
-    retailerId: 'ret-003',
-    url: 'https://sokoflow.com/p/monitor-uw29',
-    description: '2560x1080 IPS panel',
-  },
-];
-
-const INITIAL_NOTIFICATIONS: WhatsAppNotification[] = [
-  { id: 'n-1', type: 'Order', title: 'New WhatsApp order', message: 'Brian Kiprop placed an order worth KES 8,100', timestamp: '10 mins ago', read: false, actionLabel: 'View Order', actionTarget: 'wa-101' },
-  { id: 'n-2', type: 'Payment', title: 'Payment received', message: 'KES 31,500 M-Pesa payment confirmed for #SOKO-9921', timestamp: '3 hours ago', read: false, actionLabel: 'View', actionTarget: 'wa-103' },
-  { id: 'n-3', type: 'Stock', title: 'Low stock alert', message: 'UltraWide 29" Gaming Monitor is now out of stock', timestamp: '5 hours ago', read: true },
-  { id: 'n-4', type: 'Message', title: 'Unread conversation', message: 'Amina Mohamed is waiting for a reply', timestamp: '45 mins ago', read: true, actionLabel: 'Open Chat', actionTarget: 'conv-2' },
-  { id: 'n-5', type: 'System', title: 'Template approved', message: 'order_confirmation template was approved by Meta', timestamp: 'Yesterday', read: true },
-];
-
-const INITIAL_AUTOMATIONS: AutomationRule[] = [
-  { id: 'auto-1', name: 'Welcome new contact', trigger: 'New contact added', action: 'Send welcome template', enabled: true, executions: 342, lastRun: '2 mins ago', description: 'Sends a welcome message with catalog link to every new WhatsApp contact.' },
-  { id: 'auto-2', name: 'Abandoned cart recovery', trigger: 'Cart idle for 30 mins', action: 'Send cart_recovery template', enabled: true, executions: 87, lastRun: '18 mins ago', description: 'Recovers abandoned carts with a 5% discount incentive.' },
-  { id: 'auto-3', name: 'Order status updates', trigger: 'Order status changed', action: 'Send tracking template', enabled: true, executions: 1204, lastRun: '1 min ago', description: 'Notifies customer each time their order moves to a new stage.' },
-  { id: 'auto-4', name: 'Payment reminders', trigger: 'Unpaid order > 1 hour', action: 'Send payment_reminder template', enabled: false, executions: 0, lastRun: 'Never', description: 'Nudges customers with pending payments once per day.' },
-  { id: 'auto-5', name: 'VIP thank-you', trigger: 'Order > KES 50,000', action: 'Send thank-you + loyalty points', enabled: true, executions: 23, lastRun: '4 hours ago', description: 'Sends a personalized thank-you to high-value customers.' },
-];
-
-const STATUS_TABS = ['All', 'New', 'Replied', 'Converted', 'Lost'] as const;
-
-// ============================================================
-// MAIN PAGE
-// ============================================================
-export default function WhatsAppOrdersPage() {
-  const [orders, setOrders] = useState<WhatsAppOrder[]>(INITIAL_WHATSAPP_ORDERS);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [activeOrder, setActiveOrder] = useState<WhatsAppOrder | null>(null);
-
-  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
-  const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const [activeModule, setActiveModule] = useState<WhatsAppModule>('orders');
-  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
-  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
-  const [templates, setTemplates] = useState<MessageTemplate[]>(INITIAL_TEMPLATES);
-  const [waProducts, setWaProducts] = useState<WhatsAppProduct[]>(INITIAL_PRODUCTS);
-  const [notifications, setNotifications] = useState<WhatsAppNotification[]>(INITIAL_NOTIFICATIONS);
-  const [automations, setAutomations] = useState<AutomationRule[]>(INITIAL_AUTOMATIONS);
-
-  const [broadcastAudience, setBroadcastAudience] = useState('All Customers');
-  const [broadcastMessage, setBroadcastMessage] = useState(
-    '🔥 Weekend Flash Sale! Enjoy up to 20% off on all electronics. Tap to shop now: https://example.com'
-  );
-  const [broadcastSchedule, setBroadcastSchedule] = useState('Now');
-
-  const anyModalOpen = isBroadcastOpen || isCreateOrderOpen || activeOrder !== null;
-
-  useEffect(() => {
-    if (toastMessage) {
-      const t = setTimeout(() => setToastMessage(null), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [toastMessage]);
-
-  useEffect(() => {
-    if (!anyModalOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isCreateOrderOpen) setIsCreateOrderOpen(false);
-        else if (isBroadcastOpen) setIsBroadcastOpen(false);
-        else if (activeOrder) setActiveOrder(null);
-      }
-    };
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [anyModalOpen, isCreateOrderOpen, isBroadcastOpen, activeOrder]);
-
-  const toast = (msg: string) => setToastMessage(msg);
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
-      const matchesStatus = statusFilter === 'All' || o.status === statusFilter;
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        !q ||
-        o.customerName.toLowerCase().includes(q) ||
-        o.customerPhone.toLowerCase().includes(q) ||
-        o.rawMessage.toLowerCase().includes(q);
-      return matchesStatus && matchesSearch;
-    });
-  }, [orders, statusFilter, searchQuery]);
-
-  const stats = useMemo(() => {
-    const todayCount = orders.length;
-    const convertedCount = orders.filter((o) => o.status === 'Converted').length;
-    const pendingCount = orders.filter((o) => o.status === 'New' || o.status === 'Replied').length;
-    const totalRevenue = orders.filter((o) => o.status === 'Converted').reduce((sum, o) => sum + o.total, 0);
-    return { todayCount, convertedCount, pendingCount, totalRevenue };
-  }, [orders]);
-
-  const updateStatus = (id: string, newStatus: WhatsAppOrderStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id !== id) return o;
-        const updated = { ...o, status: newStatus };
-        if (activeOrder && activeOrder.id === id) setActiveOrder(updated);
-        return updated;
-      })
-    );
-    toast(`Marked ${newStatus.toLowerCase()}`);
+    lastContact: relativeTime(c.lastInboundAt),
+    optInStatus: c.optInStatus === 'SUBSCRIBED' ? 'Subscribed' : 'Unsubscribed',
+    notes: c.notes || '',
   };
+}
 
-  const deleteOrder = (id: string) => {
-    setOrders((prev) => prev.filter((o) => o.id !== id));
-    if (activeOrder?.id === id) setActiveOrder(null);
-    toast('Order deleted');
-  };
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const allSelected = filteredOrders.length > 0 && selectedIds.length === filteredOrders.length;
-  const toggleSelectAll = () => setSelectedIds(allSelected ? [] : filteredOrders.map((o) => o.id));
-  const toggleRow = (id: string) =>
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+const KES = (n: number) => `KES ${n.toLocaleString('en-KE')}`;
 
-  const bulkDelete = () => {
-    setOrders((prev) => prev.filter((o) => !selectedIds.includes(o.id)));
-    setSelectedIds([]);
-    toast('Selected orders deleted');
-  };
+const TOOLTIP_STYLE = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: '2px',
+  color: '#0f172a',
+  fontSize: '13px',
+};
 
-  const confirmCreateOrder = () => {
-    if (!activeOrder) return;
-    updateStatus(activeOrder.id, 'Converted');
-    setIsCreateOrderOpen(false);
-    toast(`Formal order created from ${activeOrder.customerName}'s chat`);
-  };
+const qualityBadge = (q: QualityRating) =>
+  q === 'Green'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    : q === 'Yellow'
+      ? 'bg-amber-50 text-amber-700 border-amber-100'
+      : 'bg-red-50 text-red-700 border-red-100';
 
-  const sendBroadcast = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsBroadcastOpen(false);
-    toast('Broadcast dispatched');
-  };
+const templateStatusBadge = (s: TemplateStatus) =>
+  s === 'Approved'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    : s === 'Pending'
+      ? 'bg-amber-50 text-amber-700 border-amber-100'
+      : s === 'Rejected'
+        ? 'bg-red-50 text-red-700 border-red-100'
+        : 'bg-slate-100 text-slate-600 border-slate-200';
 
-  const statusBadge = (s: WhatsAppOrderStatus) =>
-    s === 'Converted'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      : s === 'New'
-        ? 'bg-blue-50 text-blue-950 border-blue-100'
-        : s === 'Replied'
+const automationStatusBadge = (s: AutomationStatus) =>
+  s === 'Active'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    : s === 'Paused'
+      ? 'bg-amber-50 text-amber-700 border-amber-100'
+      : 'bg-slate-100 text-slate-600 border-slate-200';
+
+const broadcastStatusBadge = (s: BroadcastStatus) =>
+  s === 'Completed'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    : s === 'Sending'
+      ? 'bg-blue-50 text-blue-950 border-blue-100'
+      : s === 'Scheduled'
+        ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+        : s === 'Paused'
           ? 'bg-amber-50 text-amber-700 border-amber-100'
-          : 'bg-slate-100 text-slate-500 border-slate-200';
+          : s === 'Failed'
+            ? 'bg-red-50 text-red-700 border-red-100'
+            : 'bg-slate-100 text-slate-600 border-slate-200';
 
-  const unreadNotifications = notifications.filter((n) => !n.read).length;
+const conversationStatusBadge = (s: ConversationStatus) =>
+  s === 'Open'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    : s === 'Pending'
+      ? 'bg-amber-50 text-amber-700 border-amber-100'
+      : s === 'Resolved'
+        ? 'bg-slate-100 text-slate-600 border-slate-200'
+        : 'bg-blue-50 text-blue-950 border-blue-100';
 
-  const moduleTabs: { key: WhatsAppModule; label: string; icon: React.ReactNode; badge?: number }[] = [
-    { key: 'orders', label: 'Orders', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
-    { key: 'conversations', label: 'Conversations', icon: <MessageCircle className="w-3.5 h-3.5" />, badge: conversations.reduce((s, c) => s + c.unread, 0) },
-    { key: 'contacts', label: 'Contacts', icon: <Users className="w-3.5 h-3.5" /> },
-    { key: 'templates', label: 'Templates', icon: <LayoutTemplate className="w-3.5 h-3.5" /> },
-    { key: 'products', label: 'Products', icon: <Package className="w-3.5 h-3.5" /> },
-    { key: 'notifications', label: 'Notifications', icon: <Bell className="w-3.5 h-3.5" />, badge: unreadNotifications },
-    { key: 'automation', label: 'Automation', icon: <Zap className="w-3.5 h-3.5" /> },
-  ];
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'Connection', label: 'Connection', icon: Wifi },
+  { id: 'Inbox', label: 'Inbox', icon: MessageCircle },
+  { id: 'Templates', label: 'Templates', icon: LayoutTemplate },
+  { id: 'Automations', label: 'Automations', icon: Zap },
+  { id: 'Broadcasts', label: 'Broadcasts', icon: Send },
+  { id: 'Contacts', label: 'Contacts', icon: Users },
+  { id: 'Analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'Billing', label: 'Billing', icon: CreditCard },
+  { id: 'Settings', label: 'Settings', icon: Shield },
+];
+
+export default function WhatsAppAdminPage() {
+  const [tab, setTab] = useState<Tab>('Inbox');
+  const [connected, setConnected] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // The header badge reflects `WhatsAppAccount.isActive` — one fetch
+  // on mount, refreshed by the Connection tab when the user acts.
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.whatsapp.connection
+      .get()
+      .then((acct) => {
+        if (!cancelled) setConnected(acct.isActive);
+      })
+      .catch(() => {
+        // Unauthenticated or not yet configured — badge shows Disconnected.
+        if (!cancelled) setConnected(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-      {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
+      {toast && (
+        <div className="fixed bottom-3 right-3 z-[120] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
+          <span>{toast}</span>
+          <button onClick={() => setToast(null)} aria-label="Dismiss" className="text-slate-400 hover:text-white">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h1 className="text-[15px] font-semibold text-slate-900 flex items-center gap-2">
-              WhatsApp commerce
-              <span className="inline-flex items-center gap-1 text-[13px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-sm">
-                <MessageSquare className="w-3 h-3" />
-                Cart button feed
-              </span>
-            </h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">
-              Orders, conversations, catalog and automations driven by the WhatsApp checkout button
-            </p>
+        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-9 h-9 rounded-sm bg-[#25D366] text-white flex items-center justify-center shrink-0">
+              <FaWhatsapp className="w-5 h-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-semibold text-slate-900 truncate">
+                WhatsApp Business
+              </h1>
+              <p className="text-[13px] text-slate-500 truncate">
+                Manage conversations, templates, automations, and messaging costs
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsBroadcastOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-sm text-[13px] font-medium border ${connected
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                : 'bg-slate-100 text-slate-500 border-slate-200'
+                }`}
             >
-              <Send className="w-3.5 h-3.5" />
-              Broadcast
-            </button>
+              {connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {connected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
+        </div>
+
+        <div className="max-w-[1600px] mx-auto px-3 pb-0">
+          <div className="flex items-center gap-0.5 overflow-x-auto -mb-px">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium whitespace-nowrap border-b-2 transition ${active
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-        {/* MODULE NAV */}
-        <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex items-center gap-0.5 overflow-x-auto">
-          {moduleTabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveModule(tab.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                activeModule === tab.key ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-              {tab.badge !== undefined && tab.badge > 0 && (
-                <span
-                  className={`px-1.5 rounded-sm text-[13px] ${
-                    activeModule === tab.key ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
+        {tab === 'Connection' && (
+          <ConnectionTab
+            onConnect={() => {
+              setConnected(true);
+              setToast('WhatsApp number connected');
+            }}
+            onDisconnect={() => {
+              setConnected(false);
+              setToast('WhatsApp number disconnected');
+            }}
+            onToast={setToast}
+          />
+        )}
+        {tab === 'Inbox' && <InboxTab onToast={setToast} />}
+        {tab === 'Templates' && <TemplatesTab onToast={setToast} />}
+        {tab === 'Automations' && <AutomationsTab onToast={setToast} />}
+        {tab === 'Broadcasts' && <BroadcastsTab onToast={setToast} />}
+        {tab === 'Contacts' && <ContactsTab onToast={setToast} />}
+        {tab === 'Analytics' && <AnalyticsTab />}
+        {tab === 'Billing' && <BillingTab />}
+        {tab === 'Settings' && <SettingsTab onToast={setToast} />}
+      </main>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 1 — CONNECTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ConnectionTab({
+  onConnect,
+  onDisconnect,
+  onToast,
+}: {
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onToast: (msg: string) => void;
+}) {
+  const [account, setAccount] = useState<AdminWhatsAppAccount | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const acct = await adminApi.whatsapp.connection.get();
+      setAccount(acct);
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load the account.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const acct = await adminApi.whatsapp.connection.refresh();
+      setAccount(acct);
+      onToast('Status refreshed');
+    } catch (e: any) {
+      onToast(e?.message ?? 'Refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!account) return;
+    if (!confirm('Disconnect this WhatsApp number? Outbound sends will stop.')) return;
+    try {
+      await adminApi.whatsapp.connection.setActive(false);
+      setAccount({ ...account, isActive: false });
+      onDisconnect();
+    } catch (e: any) {
+      onToast(e?.message ?? 'Disconnect failed');
+    }
+  };
+
+  const handleConnect = async () => {
+    if (!account) return;
+    try {
+      await adminApi.whatsapp.connection.setActive(true);
+      setAccount({ ...account, isActive: true });
+      onConnect();
+    } catch (e: any) {
+      onToast(e?.message ?? 'Connect failed');
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Connection"
+        subtitle="Connect your WhatsApp Business number to manage customer conversations and automate order updates."
+      />
+
+      {loading ? (
+        <LoadingPanel label="Loading account…" />
+      ) : error ? (
+        <ErrorPanel message={error} onRetry={load} />
+      ) : !account || !account.isActive ? (
+        <div className="max-w-2xl mx-auto my-8 bg-white border border-slate-200 rounded-sm p-6 text-center space-y-4">
+          <span className="w-12 h-12 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto">
+            <FaWhatsapp className="w-6 h-6" />
+          </span>
+          <p className="text-[13px] text-slate-600 max-w-md mx-auto">
+            {account
+              ? 'Your WhatsApp Business number is disconnected. Reconnect it to start sending order updates and replying to customers.'
+              : 'Your WhatsApp Business number is not connected yet. Connect it to start sending order updates, replying to customers, and recovering abandoned carts.'}
+          </p>
+          {account && (
+            <button onClick={handleConnect} className={btnPrimaryGreen}>
+              <Wifi className="w-3.5 h-3.5" />
+              Connect WhatsApp
             </button>
-          ))}
+          )}
         </div>
+      ) : (
+        <>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-2 flex items-start gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-emerald-900">
+              Your WhatsApp number is connected and active. Messages sent from this number
+              will appear in the Shared Inbox and trigger any automations you have turned on.
+            </p>
+          </div>
 
-        {/* ORDERS MODULE */}
-        {activeModule === 'orders' && (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <StatCard label="Total inquiries" value={stats.todayCount.toString()} icon={<MessageSquare className="w-4 h-4" />} tint="bg-emerald-50 text-emerald-700" />
-              <StatCard label="Converted" value={stats.convertedCount.toString()} icon={<CheckCircle2 className="w-4 h-4" />} tint="bg-emerald-50 text-emerald-700" />
-              <StatCard label="Pending reply" value={stats.pendingCount.toString()} icon={<Clock className="w-4 h-4" />} tint="bg-amber-50 text-amber-700" />
-              <StatCard label="WhatsApp revenue" value={`KES ${stats.totalRevenue.toLocaleString()}`} icon={<DollarSign className="w-4 h-4" />} tint="bg-blue-50 text-blue-950" mono />
+          <div className="bg-white border border-slate-200 rounded-sm">
+            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+              <p className="text-[13px] font-semibold text-slate-900">Account Details</p>
             </div>
-
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
-              <div className="bg-slate-100 p-0.5 rounded-sm inline-flex gap-0.5 overflow-x-auto">
-                {STATUS_TABS.map((status) => {
-                  const count = status === 'All' ? orders.length : orders.filter((o) => o.status === status).length;
-                  const isActive = statusFilter === status;
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => setStatusFilter(status)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                        isActive ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+            <div className="divide-y divide-slate-100">
+              <DetailRow
+                label="Business Phone Number"
+                helper="The WhatsApp number customers will see when they message you"
+                value={account.displayPhone}
+              />
+              <DetailRow
+                label="Account Status"
+                helper=""
+                valueNode={
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border bg-emerald-50 text-emerald-700 border-emerald-100">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Active
+                  </span>
+                }
+              />
+              <DetailRow
+                label="Quality Score"
+                helper="Green (Good), Yellow (Medium), or Red (Low). Based on customer feedback and spam reports."
+                valueNode={
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border ${qualityBadge(mapQuality(account.qualityScore))}`}
+                  >
+                    <Award className="w-3 h-3" />
+                    {account.qualityScore === 'GREEN'
+                      ? 'Green (Good)'
+                      : account.qualityScore === 'YELLOW'
+                        ? 'Yellow (Medium)'
+                        : 'Red (Low)'}
+                  </span>
+                }
+              />
+              <DetailRow
+                label="Messaging Limit"
+                helper="How many unique customers you can message in a rolling 24-hour period"
+                value={account.messagingLimit}
+              />
+              <DetailRow
+                label="Business Verification"
+                helper=""
+                valueNode={
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border ${account.verificationStatus === 'VERIFIED'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                      : 'bg-amber-50 text-amber-700 border-amber-100'
                       }`}
+                  >
+                    <ShieldCheck className="w-3 h-3" />
+                    {account.verificationStatus === 'VERIFIED' ? 'Verified' : 'Not Verified'}
+                  </span>
+                }
+              />
+              <DetailRow
+                label="Access Token"
+                helper="System User token used to send messages on your behalf"
+                valueNode={
+                  account.tokenDaysLeft !== null ? (
+                    <span
+                      className={`inline-flex items-center gap-1 text-[13px] ${account.tokenDaysLeft <= 7 ? 'text-amber-700 font-medium' : 'text-slate-600'}`}
                     >
-                      {status}
-                      <span className={`px-1.5 rounded-sm text-[13px] ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                      {account.tokenExpiresAt
+                        ? `Expires in ${account.tokenDaysLeft} day${account.tokenDaysLeft === 1 ? '' : 's'}`
+                        : 'No expiry'}
+                    </span>
+                  ) : (
+                    <span className="text-[13px] text-slate-600">No expiry</span>
+                  )
+                }
+              />
+            </div>
+          </div>
 
-              <div className="relative flex-1 lg:max-w-xs">
+          <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap gap-2">
+            <button onClick={handleRefresh} disabled={refreshing} className={btnSecondary}>
+              {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              {refreshing ? 'Refreshing…' : 'Refresh Status'}
+            </button>
+            <button onClick={handleDisconnect} className={btnDanger}>
+              <X className="w-3.5 h-3.5" />
+              Disconnect
+            </button>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-sm">
+            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+              <p className="text-[13px] font-semibold text-slate-900">Business Profile</p>
+            </div>
+            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field
+                label="Display Name"
+                helper="The business name customers see in WhatsApp. Must match your verified business name."
+                defaultValue={account.businessName}
+              />
+              <Field
+                label="Phone Number ID"
+                helper="The identifier Meta assigns to your WhatsApp Business phone number"
+                defaultValue={account.phoneNumberId}
+              />
+              <Field
+                label="WABA ID"
+                helper="Your WhatsApp Business Account identifier"
+                defaultValue={account.wabaId}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 2 — INBOX
+// ═══════════════════════════════════════════════════════════════════════════
+
+function InboxTab({ onToast }: { onToast: (msg: string) => void }) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ConversationFilter>('All');
+  const [search, setSearch] = useState('');
+  const [draft, setDraft] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [windowOpen, setWindowOpen] = useState(true);
+
+  const active = conversations.find((c) => c.id === activeId) ?? null;
+
+  // Initial list load
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    adminApi.whatsapp.inbox
+      .listConversations({})
+      .then((res) => {
+        if (cancelled) return;
+        const adapted = res.map((c) => adaptConversation(c));
+        setConversations(adapted);
+        setActiveId(adapted[0]?.id ?? null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e?.message ?? 'Could not load conversations.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Detail load when the active conversation changes
+  useEffect(() => {
+    if (!activeId) return;
+    let cancelled = false;
+    setLoadingDetail(true);
+
+    adminApi.whatsapp.inbox
+      .conversationDetail(Number(activeId))
+      .then((detail) => {
+        if (cancelled) return;
+        const adapted = adaptConversationDetail(detail);
+        setWindowOpen(detail.windowOpen);
+        setConversations((prev) =>
+          prev.map((c) => (c.id === adapted.id ? adapted : c)),
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) onToast(e?.message ?? 'Could not load the conversation.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDetail(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, onToast]);
+
+  // Poll for new messages every 15s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const since = new Date(Date.now() - 60_000).toISOString();
+        await adminApi.whatsapp.inbox.poll(since);
+        // The polled messages are not merged here because the shape
+        // (flat list) requires a fan-out per conversation. When the
+        // backend ships a compact delta shape, merge them into state.
+      } catch {
+        // Silent — polling should never surface errors to the user.
+      }
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const filtered = useMemo(
+    () =>
+      conversations.filter((c) => {
+        const q = search.toLowerCase();
+        const matchesSearch =
+          !q ||
+          c.customerName.toLowerCase().includes(q) ||
+          c.customerPhone.toLowerCase().includes(q) ||
+          c.lastMessage.toLowerCase().includes(q);
+
+        const matchesFilter =
+          filter === 'All' ||
+          (filter === 'Mine' && c.assignedTo === 'You') ||
+          (filter === 'Unassigned' && !c.assignedTo) ||
+          filter === c.status;
+
+        return matchesSearch && matchesFilter;
+      }),
+    [conversations, search, filter],
+  );
+
+  const send = async () => {
+    if (!draft.trim() || !active) return;
+    setSending(true);
+    try {
+      const msg = await adminApi.whatsapp.inbox.sendMessage(Number(active.id), {
+        body: draft.trim(),
+      });
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === active.id
+            ? {
+              ...c,
+              messages: [...c.messages, adaptMessage(msg)],
+              lastMessage: msg.body,
+              lastMessageTime: 'Just now',
+            }
+            : c,
+        ),
+      );
+      setDraft('');
+    } catch (e: any) {
+      if (e?.code === 'WINDOW_CLOSED') {
+        setWindowOpen(false);
+        onToast('Reply window closed — send a template instead.');
+      } else {
+        onToast(e?.message ?? 'Could not send the message.');
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!active) return;
+    try {
+      const updated = await adminApi.whatsapp.inbox.resolve(Number(active.id), {});
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === active.id ? { ...c, status: mapConversationStatus(updated.status) } : c,
+        ),
+      );
+      onToast('Conversation marked Resolved');
+    } catch (e: any) {
+      onToast(e?.message ?? 'Could not resolve.');
+    }
+  };
+
+  if (loading) return <LoadingPanel label="Loading conversations…" />;
+  if (error) return <ErrorPanel message={error} />;
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Inbox"
+        subtitle="All your customer conversations in one place. Reply, assign, and track every chat."
+      />
+
+      {conversations.length === 0 ? (
+        <EmptyState
+          icon={<FaWhatsapp className="w-6 h-6" />}
+          title="No conversations yet. When a customer messages your WhatsApp number, their chat will appear here."
+        />
+      ) : (
+        <div
+          className="bg-white border border-slate-200 rounded-sm overflow-hidden grid grid-cols-1 lg:grid-cols-[340px_1fr]"
+          style={{ height: 'calc(100vh - 240px)', minHeight: 540 }}
+        >
+          <div className="border-r border-slate-200 flex flex-col min-h-0">
+            <div className="p-2 border-b border-slate-200 space-y-2 shrink-0">
+              <p className="text-[13px] text-slate-500">
+                The left panel shows all conversations. Click any chat to view the full
+                message history and reply.
+              </p>
+              <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Search name, phone, or message…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  placeholder="Search conversations…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className={inputCls + ' pl-9'}
                 />
+              </div>
+              <div className="bg-slate-100 p-0.5 rounded-sm inline-flex gap-0.5 w-full overflow-x-auto">
+                {(['All', 'Unassigned', 'Mine', 'Open', 'Resolved'] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`flex-1 px-2 py-1.5 rounded-sm text-[12px] font-medium transition whitespace-nowrap ${filter === f ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
+                      }`}
+                  >
+                    {f}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {selectedIds.length > 0 && (
-              <div className="bg-blue-950 text-white rounded-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[13px] font-medium">{selectedIds.length} selected</span>
-                <button
-                  onClick={bulkDelete}
-                  className="bg-red-600 hover:bg-red-500 px-2.5 py-2 rounded-sm text-[13px] font-medium inline-flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete selected
-                </button>
-              </div>
-            )}
-
-            <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-              <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <p className="text-[13px] font-medium text-slate-700">Cart inquiries · {filteredOrders.length}</p>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[13px]">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                      <th className="py-2 px-3 w-10">
-                        <button onClick={toggleSelectAll} className="text-slate-400 hover:text-slate-700">
-                          {allSelected ? <CheckSquare className="w-4 h-4 text-blue-950" /> : <Square className="w-4 h-4" />}
-                        </button>
-                      </th>
-                      <th className="py-2 px-3 font-medium">Customer</th>
-                      <th className="py-2 px-3 font-medium">Items</th>
-                      <th className="py-2 px-3 font-medium text-right">Total</th>
-                      <th className="py-2 px-3 font-medium">Status</th>
-                      <th className="py-2 px-3 font-medium">Last message</th>
-                      <th className="py-2 px-3 w-32"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-12 text-center text-slate-400 text-[13px]">
-                          No WhatsApp orders match your filters.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredOrders.map((order) => {
-                        const isSelected = selectedIds.includes(order.id);
-                        const firstItem = order.items[0];
-                        return (
-                          <tr
-                            key={order.id}
-                            onClick={() => setActiveOrder(order)}
-                            className={`hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/50' : ''}`}
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+              {filtered.map((c) => {
+                const isActive = c.id === activeId;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveId(c.id)}
+                    className={`w-full text-left p-2.5 hover:bg-slate-50 transition ${isActive ? 'bg-emerald-50/60' : ''
+                      }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="w-9 h-9 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
+                        {c.customerName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[13px] font-medium text-slate-900 truncate">
+                            {c.customerName}
+                          </p>
+                          <span className="text-[12px] text-slate-400 font-mono shrink-0">
+                            {c.lastMessageTime}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-slate-500 truncate mt-0.5">
+                          {c.lastMessage || 'No messages yet'}
+                        </p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span
+                            className={`inline-block px-1.5 py-0.5 rounded-sm text-[11px] font-medium border ${conversationStatusBadge(c.status)}`}
                           >
-                            <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
-                              <button onClick={() => toggleRow(order.id)} className="text-slate-400 hover:text-slate-700">
-                                {isSelected ? <CheckSquare className="w-4 h-4 text-blue-950" /> : <Square className="w-4 h-4" />}
-                              </button>
-                            </td>
-                            <td className="py-2 px-3">
-                              <p className="font-medium text-slate-900 truncate">{order.customerName}</p>
-                              <p className="text-[13px] text-emerald-700 font-mono inline-flex items-center gap-1 mt-0.5">
-                                <Phone className="w-3 h-3" />
-                                {order.customerPhone}
-                              </p>
-                            </td>
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {firstItem && (
-                                  <img src={firstItem.image} alt="" className="w-8 h-8 rounded-sm object-cover border border-slate-200 shrink-0" />
-                                )}
-                                <div className="min-w-0">
-                                  <p className="text-slate-700 truncate max-w-xs">
-                                    {firstItem ? `${firstItem.quantity}× ${firstItem.name}` : 'No items'}
-                                  </p>
-                                  {order.items.length > 1 && (
-                                    <p className="text-[13px] text-slate-400">
-                                      +{order.items.length - 1} more item{order.items.length - 1 > 1 ? 's' : ''}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono font-medium text-slate-900">
-                              KES {order.total.toLocaleString()}
-                            </td>
-                            <td className="py-2 px-3">
-                              <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge(order.status)}`}>
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-slate-400 font-mono">{order.lastMessageTime}</td>
-                            <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1">
-                                <a
-                                  href={`https://wa.me/${order.customerPhone.replace(/[^0-9]/g, '')}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title="Open in WhatsApp"
-                                  className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-emerald-700 transition"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                                {order.status !== 'Converted' && (
-                                  <button
-                                    onClick={() => updateStatus(order.id, 'Converted')}
-                                    title="Mark converted"
-                                    className="p-2 rounded-sm bg-white border border-blue-200 hover:bg-blue-50 text-blue-950 transition"
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => deleteOrder(order.id)}
-                                  title="Delete"
-                                  className="p-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                            {c.status}
+                          </span>
+                          {c.assignedTo && (
+                            <span className="text-[11px] text-slate-400 truncate">
+                              · {c.assignedTo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+              {filtered.length === 0 && (
+                <p className="py-12 text-center text-slate-400 text-[13px]">
+                  No conversations match your filters.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {active ? (
+            <div className="flex flex-col min-h-0">
+              <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0 bg-slate-50">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
+                    {active.customerName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-slate-900 truncate">
+                      {active.customerName}
+                    </p>
+                    <p className="text-[12px] text-slate-500 truncate">
+                      {active.customerPhone} · {active.whatsappProfileName}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <ActionButton icon={<UserPlus className="w-3.5 h-3.5" />} label="Assign to" onClick={() => onToast('Assign dialog coming soon')} />
+                  <ActionButton icon={<TagIcon className="w-3.5 h-3.5" />} label="Add Tag" onClick={() => onToast('Tag dialog coming soon')} />
+                  <ActionButton icon={<StickyNote className="w-3.5 h-3.5" />} label="Add Note" onClick={() => onToast('Note dialog coming soon')} />
+                  <ActionButton icon={<Check className="w-3.5 h-3.5" />} label="Resolve" onClick={handleResolve} />
+                  <ActionButton icon={<Ban className="w-3.5 h-3.5" />} label="Mark as Spam" onClick={() => onToast('Reported as spam')} danger />
+                </div>
               </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50">
+                {loadingDetail ? (
+                  <div className="flex items-center justify-center h-full text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span className="text-[13px]">Loading messages…</span>
+                  </div>
+                ) : active.messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-slate-400">
+                    <span className="text-[13px]">No messages loaded yet.</span>
+                  </div>
+                ) : (
+                  active.messages.map((m) => (
+                    <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-[75%] rounded-sm px-2.5 py-2 text-[13px] ${m.direction === 'outbound'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white border border-slate-200 text-slate-800'
+                          }`}
+                      >
+                        <p className="whitespace-pre-wrap">{m.body}</p>
+                        <div
+                          className={`flex items-center gap-1 mt-1 justify-end ${m.direction === 'outbound' ? 'text-emerald-100' : 'text-slate-400'
+                            }`}
+                        >
+                          <span className="text-[11px] font-mono">{m.timestamp}</span>
+                          {m.direction === 'outbound' && (
+                            <CheckCheck
+                              className={`w-3 h-3 ${m.status === 'Read' ? 'text-white' : 'text-emerald-200'}`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t border-slate-200 bg-white shrink-0">
+                {windowOpen ? (
+                  <>
+                    <div className="px-2 pt-2 flex items-center gap-1 overflow-x-auto">
+                      <QuickReply label="Thanks!" onClick={() => setDraft('Thanks for reaching out!')} />
+                      <QuickReply label="Delivery info" onClick={() => setDraft('Delivery takes 1–2 business days within Nairobi.')} />
+                      <QuickReply label="Payment link" onClick={() => setDraft('Here is your payment link: https://sokoflow.com/pay')} />
+                    </div>
+                    <div className="p-2 flex items-end gap-2">
+                      <button className="p-2 rounded-sm hover:bg-slate-100 text-slate-500" aria-label="Attach">
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                      <button className="p-2 rounded-sm hover:bg-slate-100 text-slate-500" aria-label="Emoji">
+                        <Smile className="w-4 h-4" />
+                      </button>
+                      <textarea
+                        rows={1}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            void send();
+                          }
+                        }}
+                        placeholder="Type a message…"
+                        className="flex-1 bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                      />
+                      <button
+                        onClick={() => void send()}
+                        disabled={!draft.trim() || sending}
+                        className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white p-2 rounded-sm"
+                        aria-label="Send"
+                      >
+                        {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-3 bg-amber-50 border-t border-amber-200 flex items-center justify-between gap-2">
+                    <p className="text-[13px] text-amber-900">
+                      The 24-hour reply window is closed. Send a template to continue.
+                    </p>
+                    <button
+                      onClick={() => onToast('Template picker coming soon')}
+                      className="text-[13px] font-medium text-amber-900 hover:underline inline-flex items-center gap-1"
+                    >
+                      <LayoutTemplate className="w-3 h-3" />
+                      Send Template
+                    </button>
+                  </div>
+                )}
+                {windowOpen && (
+                  <div className="px-2 pb-2 flex items-center gap-2 text-[12px]">
+                    <button
+                      onClick={() => onToast('Template picker coming soon')}
+                      className="text-emerald-700 hover:underline inline-flex items-center gap-1"
+                    >
+                      <LayoutTemplate className="w-3 h-3" />
+                      Send Template
+                    </button>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-slate-400">Use when the 24-hour reply window is closed</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
+              <FaWhatsapp className="w-8 h-8" />
+              <p className="text-[13px]">Select a conversation</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuickReply({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="text-[12px] font-medium bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-2 py-1 rounded-sm whitespace-nowrap"
+    >
+      {label}
+    </button>
+  );
+}
+
+function ActionButton({
+  icon,
+  label,
+  onClick,
+  danger,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-sm text-[12px] font-medium border transition ${danger
+        ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
+        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+        }`}
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 3 — TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function TemplatesTab({ onToast }: { onToast: (msg: string) => void }) {
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await adminApi.whatsapp.templates.list({});
+      setTemplates(res.map(adaptTemplate));
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load templates.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await adminApi.whatsapp.templates.sync();
+      onToast(`Synced ${result.added + result.updated} templates from Meta.`);
+      await load();
+    } catch (e: any) {
+      onToast(e?.message ?? 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Templates"
+        subtitle="Pre-approved messages you can send to customers outside the 24-hour reply window."
+        action={
+          <div className="flex items-center gap-2">
+            <button onClick={handleSync} disabled={syncing} className={btnSecondary}>
+              {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              {syncing ? 'Syncing…' : 'Sync from Meta'}
+            </button>
+            <button onClick={() => setShowCreate(true)} className={btnPrimaryGreen}>
+              <Plus className="w-3.5 h-3.5" />
+              Create Template
+            </button>
+          </div>
+        }
+      />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+        <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+        <p className="text-[13px] text-amber-900">
+          All templates must be approved by Meta before you can use them. Approval usually
+          takes a few minutes to a few hours.
+        </p>
+      </div>
+
+      {loading ? (
+        <LoadingPanel label="Loading templates…" />
+      ) : error ? (
+        <ErrorPanel message={error} onRetry={load} />
+      ) : templates.length === 0 ? (
+        <EmptyState
+          icon={<LayoutTemplate className="w-6 h-6" />}
+          title="No templates created yet. Create a template to send order updates, payment reminders, and promotional messages."
+          action={{
+            label: 'Create Template',
+            onClick: () => setShowCreate(true),
+            icon: <Plus className="w-3.5 h-3.5" />,
+          }}
+        />
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                  <th className="py-2 px-3 font-medium">Template Name</th>
+                  <th className="py-2 px-3 font-medium">Category</th>
+                  <th className="py-2 px-3 font-medium">Language</th>
+                  <th className="py-2 px-3 font-medium">Status</th>
+                  <th className="py-2 px-3 font-medium">Quality Rating</th>
+                  <th className="py-2 px-3 font-medium">Last Used</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {templates.map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50">
+                    <td className="py-2 px-3 font-mono font-medium text-slate-900">{t.name}</td>
+                    <td className="py-2 px-3 text-slate-600">{t.category}</td>
+                    <td className="py-2 px-3 text-slate-600">{t.language}</td>
+                    <td className="py-2 px-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${templateStatusBadge(t.status)}`}>
+                        {t.status}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${qualityBadge(t.quality)}`}>
+                        {t.quality}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-slate-500">{t.lastUsed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateTemplateModal
+          onClose={() => setShowCreate(false)}
+          onCreated={async () => {
+            setShowCreate(false);
+            onToast('Template created. Submitting to Meta…');
+            await load();
+          }}
+          onToast={onToast}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateTemplateModal({
+  onClose,
+  onCreated,
+  onToast,
+}: {
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+  onToast: (msg: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<TemplateCategory>('Utility');
+  const [language, setLanguage] = useState('en');
+  const [body, setBody] = useState('');
+  const [footer, setFooter] = useState('');
+  const [exampleValues, setExampleValues] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    const components: any[] = [
+      { type: 'BODY', text: body },
+    ];
+    if (footer) components.push({ type: 'FOOTER', text: footer });
+
+    const categoryMap: Record<TemplateCategory, WhatsAppTemplateCategory> = {
+      Marketing: 'MARKETING',
+      Utility: 'UTILITY',
+      Authentication: 'AUTHENTICATION',
+    };
+
+    try {
+      const created = await adminApi.whatsapp.templates.create({
+        name,
+        language,
+        category: categoryMap[category],
+        components,
+      });
+      // Immediately submit for Meta review
+      await adminApi.whatsapp.templates.submit(created.id);
+      await onCreated();
+    } catch (e: any) {
+      onToast(e?.message ?? 'Could not create the template.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Create Template" subtitle="Submit a template for Meta review" widthClass="max-w-3xl">
+      <form id="create-template-form" onSubmit={handleSubmit} className="space-y-4 text-[13px]">
+        <SectionLabel>Template Details</SectionLabel>
+        <p className="text-[12px] text-slate-500 -mt-2">
+          Choose a name, category, and language. The category determines when you can send
+          this template and how much it costs.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Field label="Template Name" helper="Lowercase, no spaces. Example: order_confirmation" required>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value.replace(/\s+/g, '_').toLowerCase())}
+              required
+              className={inputCls}
+            />
+          </Field>
+          <Field label="Category" helper="Utility for order updates, Marketing for promotions, Authentication for OTPs">
+            <select value={category} onChange={(e) => setCategory(e.target.value as TemplateCategory)} className={inputCls}>
+              <option>Utility</option>
+              <option>Marketing</option>
+              <option>Authentication</option>
+            </select>
+          </Field>
+          <Field label="Language" helper="The language this template is written in">
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} className={inputCls}>
+              <option value="en">English</option>
+              <option value="sw">Swahili</option>
+            </select>
+          </Field>
+        </div>
+
+        <SectionLabel>Body</SectionLabel>
+        <p className="text-[12px] text-slate-500 -mt-2">
+          Write the main message. Use variables like {'{{1}}'} for the customer&apos;s name, {'{{2}}'} for the order
+          number, etc.
+        </p>
+        <Field
+          label="Body Text"
+          helper="Use {{1}}, {{2}} etc. for dynamic content. Keep it clear and short."
+          required
+        >
+          <textarea
+            rows={4}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            required
+            className={inputCls + ' resize-none'}
+            placeholder="Hi {{1}}, your order #{{2}} has been received…"
+          />
+        </Field>
+        <Field label="Example Values" helper="Provide sample values for each variable so Meta can review the template">
+          <input
+            value={exampleValues}
+            onChange={(e) => setExampleValues(e.target.value)}
+            className={inputCls}
+            placeholder="Brian, SOKO-9921"
+          />
+        </Field>
+
+        <SectionLabel>Footer (Optional)</SectionLabel>
+        <Field label="Footer Text">
+          <input value={footer} onChange={(e) => setFooter(e.target.value)} className={inputCls} />
+        </Field>
+
+        {body && (
+          <>
+            <SectionLabel>Live Preview</SectionLabel>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-2 space-y-1">
+              <p className="text-[12px] text-emerald-700 font-medium uppercase">
+                {name || 'Your Business'}
+              </p>
+              <p className="text-[13px] text-slate-800 whitespace-pre-wrap">{body}</p>
+              {footer && <p className="text-[12px] text-slate-500 mt-1">{footer}</p>}
             </div>
           </>
         )}
+      </form>
 
-        {activeModule === 'conversations' && (
-          <ConversationsModule
-            conversations={conversations}
-            activeConversation={activeConversation}
-            onSelect={setActiveConversation}
-            onSend={(convId, body) => {
-              const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.id === convId
-                    ? {
-                      ...c,
-                      messages: [...c.messages, { id: `m-${Date.now()}`, direction: 'outbound', body, timestamp: now, status: 'sent', type: 'text' }],
-                      lastMessage: body,
-                      lastMessageTime: 'Just now',
-                    }
-                    : c
-                )
-              );
-              setActiveConversation((prev) =>
-                prev && prev.id === convId
-                  ? { ...prev, messages: [...prev.messages, { id: `m-${Date.now()}`, direction: 'outbound', body, timestamp: now, status: 'sent', type: 'text' }] }
-                  : prev
-              );
-            }}
-            onStatusChange={(convId, status) => {
-              setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, status } : c)));
-              setActiveConversation((prev) => (prev && prev.id === convId ? { ...prev, status } : prev));
-              toast(`Conversation marked ${status.toLowerCase()}`);
-            }}
-          />
-        )}
+      <ModalFooter>
+        <button type="button" onClick={onClose} className={btnSecondary} disabled={submitting}>
+          Cancel
+        </button>
+        <button type="submit" form="create-template-form" className={btnPrimaryGreen} disabled={submitting}>
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          {submitting ? 'Submitting…' : 'Submit for Approval'}
+        </button>
+      </ModalFooter>
+    </Modal>
+  );
+}
 
-        {activeModule === 'contacts' && (
-          <ContactsModule
-            contacts={contacts}
-            onDelete={(id) => {
-              setContacts((prev) => prev.filter((c) => c.id !== id));
-              toast('Contact deleted');
-            }}
-            onToggleOptIn={(id) => {
-              setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, optedIn: !c.optedIn } : c)));
-              toast('Opt-in updated');
-            }}
-          />
-        )}
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 4 — AUTOMATIONS
+// ═══════════════════════════════════════════════════════════════════════════
 
-        {activeModule === 'templates' && (
-          <TemplatesModule
-            templates={templates}
-            onToggleStatus={(id) => {
-              setTemplates((prev) =>
-                prev.map((t) => (t.id === id ? { ...t, status: t.status === 'Approved' ? 'Pending' : 'Approved' } : t))
-              );
-              toast('Template status updated');
-            }}
-            onDelete={(id) => {
-              setTemplates((prev) => prev.filter((t) => t.id !== id));
-              toast('Template deleted');
-            }}
-          />
-        )}
+function AutomationsTab({ onToast }: { onToast: (msg: string) => void }) {
+  const [automations, setAutomations] = useState<Automation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-        {activeModule === 'products' && (
-          <ProductsModule
-            products={waProducts}
-            onToggleStatus={(id) => {
-              setWaProducts((prev) =>
-                prev.map((p) => (p.id === id ? { ...p, status: p.status === 'Active' ? 'Draft' : 'Active' } : p))
-              );
-              toast('Product status updated');
-            }}
-          />
-        )}
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await adminApi.whatsapp.automations.list();
+      setAutomations(res.map(adaptAutomation));
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load automations.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-        {activeModule === 'notifications' && (
-          <NotificationsModule
-            notifications={notifications}
-            onMarkAllRead={() => {
-              setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-              toast('All notifications marked as read');
-            }}
-            onMarkRead={(id) => setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))}
-            onDelete={(id) => {
-              setNotifications((prev) => prev.filter((n) => n.id !== id));
-              toast('Notification dismissed');
-            }}
-          />
-        )}
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-        {activeModule === 'automation' && (
-          <AutomationModule
-            automations={automations}
-            onToggle={(id) => {
-              setAutomations((prev) => prev.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
-              toast('Automation toggled');
-            }}
-            onRunNow={(id) => {
-              setAutomations((prev) =>
-                prev.map((a) => (a.id === id ? { ...a, executions: a.executions + 1, lastRun: 'Just now' } : a))
-              );
-              toast('Automation executed manually');
-            }}
-          />
-        )}
-      </main>
+  const handleToggle = async (a: Automation) => {
+    try {
+      const updated = await adminApi.whatsapp.automations.toggle(Number(a.id), {});
+      setAutomations((prev) =>
+        prev.map((x) =>
+          x.id === a.id ? { ...x, status: mapAutomationStatus(updated.status) } : x,
+        ),
+      );
+      onToast('Automation toggled');
+    } catch (e: any) {
+      onToast(e?.message ?? 'Could not toggle the automation.');
+    }
+  };
 
-      {/* DETAIL DRAWER */}
-      {activeOrder && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex justify-end" onClick={() => setActiveOrder(null)}>
-          <div className="bg-white border-l border-slate-200 w-full max-w-xl h-full flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                  <MessageSquare className="w-4 h-4" />
-                </span>
+  const triggerDefaultTemplate: Record<AutomationTrigger, string> = {
+    'Order Placed': 'Order Confirmation',
+    'Order Shipped': 'Shipping Update',
+    'Order Delivered': 'Delivery Confirmation',
+    'Order Cancelled': 'Cancellation Notice',
+    'Payment Received': 'Payment Confirmation',
+    'Abandoned Cart': 'Cart Recovery',
+    'Welcome Message': 'Welcome Message',
+    'Away Message': 'Away Reply',
+  };
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Automations"
+        subtitle="Automatically send messages when events happen in your store."
+      />
+
+      {loading ? (
+        <LoadingPanel label="Loading automations…" />
+      ) : error ? (
+        <ErrorPanel message={error} onRetry={load} />
+      ) : automations.length === 0 ? (
+        <EmptyState
+          icon={<Zap className="w-6 h-6" />}
+          title="No automations set up yet. Turn on an automation to send order updates, recover carts, and welcome new customers automatically."
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {automations.map((a) => (
+            <div key={a.id} className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[15px] font-semibold text-slate-900 truncate">{activeOrder.customerName}</p>
-                  <p className="text-[13px] text-slate-500 font-mono truncate">{activeOrder.customerPhone}</p>
+                  <p className="text-[13px] font-semibold text-slate-900 truncate">{a.name}</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">Trigger: {a.trigger}</p>
                 </div>
+                <button
+                  onClick={() => void handleToggle(a)}
+                  className={a.status === 'Active' ? 'text-emerald-600' : 'text-slate-300'}
+                  aria-label="Toggle automation"
+                >
+                  {a.status === 'Active' ? (
+                    <ToggleRight className="w-6 h-6" />
+                  ) : (
+                    <ToggleLeft className="w-6 h-6" />
+                  )}
+                </button>
               </div>
-              <button
-                onClick={() => setActiveOrder(null)}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              <div className="flex flex-wrap gap-1.5 text-[12px]">
+                <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1 text-slate-600">
+                  <Zap className="w-3 h-3" />
+                  {a.trigger}
+                </span>
+                <ChevronRight className="w-3 h-3 text-slate-300 self-center" />
+                <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1 text-emerald-700">
+                  <MessageCircle className="w-3 h-3" />
+                  {a.templateId || '—'}
+                </span>
+                <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1 text-slate-600">
+                  <Clock className="w-3 h-3" />
+                  {a.delayMinutes === 0 ? 'Immediate' : `${a.delayMinutes} min delay`}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[12px] text-slate-500">
+                <span className="inline-flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" />
+                  {a.messagesSent} sent · {a.lastTriggered}
+                </span>
+                <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[11px] ${automationStatusBadge(a.status)}`}>
+                  {a.status}
+                </span>
+              </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
-              <div>
-                <p className="text-[13px] font-medium text-slate-500 mb-1">Original WhatsApp cart message</p>
-                <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2 font-mono text-slate-800 whitespace-pre-wrap leading-relaxed">
-                  {activeOrder.rawMessage}
-                </div>
-              </div>
+      <div className="bg-white border border-slate-200 rounded-sm">
+        <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+          <p className="text-[13px] font-semibold text-slate-900">Available Automation Triggers</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                <th className="py-2 px-3 font-medium">Trigger</th>
+                <th className="py-2 px-3 font-medium">Description</th>
+                <th className="py-2 px-3 font-medium">Default Template</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {(Object.keys(triggerDefaultTemplate) as AutomationTrigger[]).map((t) => (
+                <tr key={t} className="hover:bg-slate-50">
+                  <td className="py-2 px-3 font-medium text-slate-900">{t}</td>
+                  <td className="py-2 px-3 text-slate-600">
+                    {t === 'Order Placed' && 'Fires when a customer completes checkout'}
+                    {t === 'Order Shipped' && 'Fires when order status changes to Shipped'}
+                    {t === 'Order Delivered' && 'Fires when order status changes to Delivered'}
+                    {t === 'Order Cancelled' && 'Fires when an order is cancelled'}
+                    {t === 'Payment Received' && 'Fires when M-Pesa payment is confirmed'}
+                    {t === 'Abandoned Cart' && 'Fires 1 hour after cart is abandoned'}
+                    {t === 'Welcome Message' && 'Fires when a new customer messages for the first time'}
+                    {t === 'Away Message' && 'Fires when a message arrives outside business hours'}
+                  </td>
+                  <td className="py-2 px-3 text-slate-500 font-mono">{triggerDefaultTemplate[t]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-              <div>
-                <p className="text-[13px] font-medium text-slate-500 mb-1">Cart breakdown · {activeOrder.items.length}</p>
-                <ul className="border border-slate-200 rounded-sm divide-y divide-slate-100 overflow-hidden">
-                  {activeOrder.items.map((item) => (
-                    <li key={item.id} className="p-2 flex items-center gap-2 bg-white">
-                      <img src={item.image} alt="" className="w-10 h-10 rounded-sm object-cover border border-slate-200 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-slate-900 truncate">{item.name}</p>
-                        <p className="text-[13px] text-slate-500">{item.quantity} × KES {item.price.toLocaleString()}</p>
-                      </div>
-                      <span className="font-mono font-medium text-slate-900 shrink-0">
-                        KES {(item.price * item.quantity).toLocaleString()}
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 5 — BROADCASTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BroadcastsTab({ onToast }: { onToast: (msg: string) => void }) {
+  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [bRes, tRes] = await Promise.all([
+        adminApi.whatsapp.broadcasts.list({}),
+        adminApi.whatsapp.templates.list({ category: 'MARKETING' }),
+      ]);
+      setBroadcasts(bRes.map(adaptBroadcast));
+      setTemplates(tRes.map(adaptTemplate));
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load broadcasts.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleSend = async (b: Broadcast) => {
+    if (!confirm(`Send "${b.campaignName}" now?`)) return;
+    try {
+      await adminApi.whatsapp.broadcasts.send(Number(b.id));
+      onToast('Broadcast queued for sending.');
+      await load();
+    } catch (e: any) {
+      onToast(e?.message ?? 'Could not send the broadcast.');
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Broadcasts"
+        subtitle="Send promotional messages to your customer list."
+        action={
+          <button onClick={() => setShowCreate(true)} className={btnPrimaryGreen}>
+            <Plus className="w-3.5 h-3.5" />
+            Create Broadcast
+          </button>
+        }
+      />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+        <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+        <p className="text-[13px] text-amber-900">
+          Broadcasts use Marketing templates and cost more than Utility messages. Only send
+          to customers who have opted in to receive marketing messages.
+        </p>
+      </div>
+
+      {loading ? (
+        <LoadingPanel label="Loading broadcasts…" />
+      ) : error ? (
+        <ErrorPanel message={error} onRetry={load} />
+      ) : broadcasts.length === 0 ? (
+        <EmptyState
+          icon={<Send className="w-6 h-6" />}
+          title="No broadcasts sent yet. Create a broadcast to send a promotion, announcement, or update to your customers."
+          action={{
+            label: 'Create Broadcast',
+            onClick: () => setShowCreate(true),
+            icon: <Plus className="w-3.5 h-3.5" />,
+          }}
+        />
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                  <th className="py-2 px-3 font-medium">Campaign Name</th>
+                  <th className="py-2 px-3 font-medium">Template Used</th>
+                  <th className="py-2 px-3 font-medium text-center">Recipients</th>
+                  <th className="py-2 px-3 font-medium text-center">Delivered</th>
+                  <th className="py-2 px-3 font-medium text-center">Read</th>
+                  <th className="py-2 px-3 font-medium text-center">Replied</th>
+                  <th className="py-2 px-3 font-medium">Date Sent</th>
+                  <th className="py-2 px-3 font-medium">Status</th>
+                  <th className="py-2 px-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {broadcasts.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-50">
+                    <td className="py-2 px-3 font-medium text-slate-900">{b.campaignName}</td>
+                    <td className="py-2 px-3 font-mono text-slate-500">{b.templateName}</td>
+                    <td className="py-2 px-3 text-center text-slate-700">{b.recipients.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-center text-slate-700">{b.delivered.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-center text-slate-700">{b.read.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-center text-slate-700">{b.replied.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-slate-500">{b.dateSent}</td>
+                    <td className="py-2 px-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${broadcastStatusBadge(b.status)}`}>
+                        {b.status}
                       </span>
-                    </li>
-                  ))}
-                  <li className="p-2 bg-slate-50 flex items-center justify-between font-medium">
-                    <span>Total</span>
-                    <span className="font-mono text-emerald-700">KES {activeOrder.total.toLocaleString()}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="pt-2 border-t border-slate-100">
-                <p className="text-[13px] font-medium text-slate-500 mb-1">Update status</p>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {(['New', 'Replied', 'Converted', 'Lost'] as const).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => updateStatus(activeOrder.id, st)}
-                      className={`py-2 rounded-sm text-[13px] font-medium transition ${
-                        activeOrder.status === st
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[13px] font-medium text-slate-500 mb-1">Internal notes</p>
-                <textarea
-                  rows={3}
-                  defaultValue={activeOrder.internalNotes || ''}
-                  placeholder="Add notes about the customer, delivery, or payment…"
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                />
-              </div>
-
-              <button
-                onClick={() => setIsCreateOrderOpen(true)}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 rounded-sm text-[13px] inline-flex items-center justify-center gap-1.5"
-              >
-                <ShoppingBag className="w-3.5 h-3.5" />
-                Create order from this chat
-              </button>
-            </div>
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      {(b.status === 'Draft' || b.status === 'Scheduled') && (
+                        <button
+                          onClick={() => void handleSend(b)}
+                          className="text-[12px] font-medium text-emerald-700 hover:underline"
+                        >
+                          Send
+                        </button>
+                      )}
+                      {b.status === 'Sending' && (
+                        <span className="text-[12px] text-slate-400">In progress…</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* CREATE ORDER MODAL */}
-      {isCreateOrderOpen && activeOrder && (
-        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3" onClick={() => setIsCreateOrderOpen(false)}>
-          <div className="bg-white border border-slate-200 rounded-sm max-w-lg w-full max-h-[90vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
-              <div className="min-w-0">
-                <h3 className="text-[15px] font-semibold text-slate-900">Confirm & generate formal order</h3>
-                <p className="text-[13px] text-slate-500 mt-0.5">Convert WhatsApp inquiry into an active fulfillment order</p>
-              </div>
-              <button onClick={() => setIsCreateOrderOpen(false)} className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
-              <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1">
-                <p className="text-[13px] font-medium text-slate-500">Customer</p>
-                <p className="font-medium text-slate-900">{activeOrder.customerName} · {activeOrder.customerPhone}</p>
-              </div>
-
-              <div>
-                <p className="text-[13px] font-medium text-slate-500 mb-1">Pre-filled cart items</p>
-                <ul className="border border-slate-200 rounded-sm divide-y divide-slate-100 overflow-hidden">
-                  {activeOrder.items.map((i) => (
-                    <li key={i.id} className="p-2 flex items-center gap-2">
-                      <img src={i.image} alt="" className="w-9 h-9 rounded-sm object-cover border border-slate-200 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-slate-900 truncate">{i.name}</p>
-                        <p className="text-[13px] text-slate-500">Qty {i.quantity}</p>
-                      </div>
-                      <span className="font-mono font-medium text-slate-900">KES {(i.price * i.quantity).toLocaleString()}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2 flex items-center justify-between">
-                <span className="font-medium text-emerald-900">Total payable</span>
-                <span className="font-mono font-medium text-emerald-700">KES {activeOrder.total.toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
-              <button onClick={() => setIsCreateOrderOpen(false)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]">
-                Cancel
-              </button>
-              <button onClick={confirmCreateOrder} className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]">
-                Confirm & create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BROADCAST MODAL */}
-      {isBroadcastOpen && (
-        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3" onClick={() => setIsBroadcastOpen(false)}>
-          <div className="bg-white border border-slate-200 rounded-sm max-w-lg w-full max-h-[90vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
-              <div>
-                <h3 className="text-[15px] font-semibold text-slate-900">Broadcast WhatsApp campaign</h3>
-                <p className="text-[13px] text-slate-500 mt-0.5">Send a message to a selected audience segment</p>
-              </div>
-              <button onClick={() => setIsBroadcastOpen(false)} className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={sendBroadcast} className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Target audience</label>
-                <select
-                  value={broadcastAudience}
-                  onChange={(e) => setBroadcastAudience(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                >
-                  <option value="All Customers">All customers & contacts (1,420)</option>
-                  <option value="Converted Only">Previous converted buyers (410)</option>
-                  <option value="Recent Inquiries">Recent inquiries (92)</option>
-                  <option value="VIP Members">VIP members (180)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Message</label>
-                <textarea
-                  rows={4}
-                  required
-                  value={broadcastMessage}
-                  onChange={(e) => setBroadcastMessage(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                />
-              </div>
-
-              <div>
-                <p className="text-[13px] font-medium text-slate-500 mb-1">Live preview</p>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-2 space-y-1">
-                  <p className="text-[13px] text-emerald-700 font-medium uppercase">SokoFlow official business</p>
-                  <p className="text-[13px] text-slate-800 whitespace-pre-wrap">{broadcastMessage}</p>
-                  <p className="text-[13px] text-slate-400 text-right">Just now ✓✓</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Schedule</label>
-                <select
-                  value={broadcastSchedule}
-                  onChange={(e) => setBroadcastSchedule(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                >
-                  <option value="Now">Send immediately</option>
-                  <option value="Tomorrow Morning">Tomorrow at 9:00 AM</option>
-                  <option value="Weekend Promo">Saturday at 10:00 AM</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setIsBroadcastOpen(false)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]">
-                  Cancel
-                </button>
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5">
-                  <Send className="w-3.5 h-3.5" />
-                  Send broadcast
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {showCreate && (
+        <CreateBroadcastModal
+          templates={templates}
+          onClose={() => setShowCreate(false)}
+          onCreated={async () => {
+            setShowCreate(false);
+            onToast('Broadcast created.');
+            await load();
+          }}
+          onToast={onToast}
+        />
       )}
     </div>
   );
 }
 
-// ============================================================
-// STAT CARD
-// ============================================================
-function StatCard({
+function CreateBroadcastModal({
+  templates,
+  onClose,
+  onCreated,
+  onToast,
+}: {
+  templates: Template[];
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+  onToast: (msg: string) => void;
+}) {
+  const [campaignName, setCampaignName] = useState('');
+  const [templateName, setTemplateName] = useState(templates[0]?.name ?? '');
+  const [audience, setAudience] = useState('all_opted_in');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!templateName) {
+      onToast('Pick a template first.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await adminApi.whatsapp.broadcasts.create({
+        campaignName,
+        templateName,
+        audience,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      });
+      await onCreated();
+    } catch (e: any) {
+      onToast(e?.message ?? 'Could not create the broadcast.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Create Broadcast" subtitle="Send a promotional message to opted-in customers" widthClass="max-w-3xl">
+      <form id="create-broadcast-form" onSubmit={handleSubmit} className="space-y-4 text-[13px]">
+        <SectionLabel>Campaign Details</SectionLabel>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Campaign Name" helper="For your reference only. Customers won't see this." required>
+            <input
+              value={campaignName}
+              onChange={(e) => setCampaignName(e.target.value)}
+              required
+              className={inputCls}
+              placeholder="Weekend Flash Sale"
+            />
+          </Field>
+          <Field label="Template" helper="Only Marketing templates can be used for broadcasts">
+            <select
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              className={inputCls}
+            >
+              {templates.length === 0 && <option value="">No marketing templates available</option>}
+              {templates.map((t) => (
+                <option key={t.id} value={t.name}>{t.name}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <SectionLabel>Audience</SectionLabel>
+        <Field label="Audience" helper="Only contacts who have opted in will receive the message.">
+          <select value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
+            <option value="all_opted_in">All opted-in contacts</option>
+            <option value="vip">VIP members</option>
+            <option value="repeat_buyers">Repeat buyers</option>
+            <option value="nairobi">Nairobi only</option>
+          </select>
+        </Field>
+
+        <SectionLabel>Schedule</SectionLabel>
+        <Field label="Schedule" helper="Leave blank to send immediately when you press Send.">
+          <input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => setScheduledAt(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+      </form>
+
+      <ModalFooter>
+        <button type="button" onClick={onClose} className={btnSecondary} disabled={submitting}>
+          Cancel
+        </button>
+        <button type="submit" form="create-broadcast-form" className={btnPrimaryGreen} disabled={submitting}>
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          {submitting ? 'Creating…' : 'Create broadcast'}
+        </button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 6 — CONTACTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ContactsTab({ onToast }: { onToast: (msg: string) => void }) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await adminApi.whatsapp.contacts.list({});
+      setContacts(res.map(adaptContact));
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load contacts.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const filtered = useMemo(
+    () =>
+      contacts.filter((c) => {
+        const q = search.toLowerCase();
+        return (
+          !q ||
+          c.name.toLowerCase().includes(q) ||
+          c.phone.toLowerCase().includes(q)
+        );
+      }),
+    [contacts, search],
+  );
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Contacts"
+        subtitle="Your customer list, built from WhatsApp conversations and store orders."
+        action={
+          <div className="flex items-center gap-2">
+            <button onClick={() => onToast('Import coming soon')} className={btnSecondary}>
+              <Upload className="w-3.5 h-3.5" />
+              Import
+            </button>
+            <button onClick={() => onToast('Export coming soon')} className={btnSecondary}>
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          </div>
+        }
+      />
+
+      {loading ? (
+        <LoadingPanel label="Loading contacts…" />
+      ) : error ? (
+        <ErrorPanel message={error} onRetry={load} />
+      ) : contacts.length === 0 ? (
+        <EmptyState
+          icon={<Users className="w-6 h-6" />}
+          title="No contacts yet. Contacts are created automatically when customers message you or place orders."
+        />
+      ) : (
+        <>
+          <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center gap-2">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search contacts…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-[13px]">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                    <th className="py-2 px-3 font-medium">Name</th>
+                    <th className="py-2 px-3 font-medium">Phone Number</th>
+                    <th className="py-2 px-3 font-medium">Tags</th>
+                    <th className="py-2 px-3 font-medium">Last Contact</th>
+                    <th className="py-2 px-3 font-medium">Opt-In Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="py-2 px-3 font-medium text-slate-900">{c.name}</td>
+                      <td className="py-2 px-3 font-mono text-slate-600">{c.phone}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex flex-wrap gap-1">
+                          {c.tags.length === 0 ? (
+                            <span className="text-slate-400">—</span>
+                          ) : (
+                            c.tags.map((t) => (
+                              <span
+                                key={t}
+                                className="px-1.5 py-0.5 rounded-sm text-[12px] bg-slate-100 text-slate-600 border border-slate-200"
+                              >
+                                {t}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-slate-500">{c.lastContact || '—'}</td>
+                      <td className="py-2 px-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${c.optInStatus === 'Subscribed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                        >
+                          {c.optInStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 7 — ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AnalyticsTab() {
+  const [summary, setSummary] = useState<AdminWhatsAppAnalyticsSummary | null>(null);
+  const [series, setSeries] = useState<AdminWhatsAppAnalyticsSeries | null>(null);
+  const [cost, setCost] = useState<AdminWhatsAppCostBreakdown | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [s, se, c] = await Promise.all([
+        adminApi.whatsapp.analytics.summary(),
+        adminApi.whatsapp.analytics.series(),
+        adminApi.whatsapp.analytics.costBreakdown(),
+      ]);
+      setSummary(s);
+      setSeries(se);
+      setCost(c);
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load analytics.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) return <LoadingPanel label="Loading analytics…" />;
+  if (error) return <ErrorPanel message={error} onRetry={load} />;
+  if (!summary || !series || !cost) return null;
+
+  const chartData = series.days.map((d) => ({
+    day: d.day,
+    sent: d.sent,
+    delivered: d.delivered,
+    read: d.read,
+    replies: d.replies,
+  }));
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Analytics"
+        subtitle="Track how your WhatsApp messages perform and how much they cost."
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+        <KpiCard label="Messages Sent" value={summary.sent.toLocaleString()} helper="Total messages sent this period" />
+        <KpiCard label="Messages Delivered" value={summary.delivered.toLocaleString()} helper="Successfully delivered" />
+        <KpiCard label="Messages Read" value={summary.read.toLocaleString()} helper="Opened by the customer" />
+        <KpiCard label="Replies Received" value={summary.replied.toLocaleString()} helper="Customer responses" />
+        <KpiCard label="Total Cost" value={KES(Number(summary.totalCostKes) || 0)} helper="Estimated Meta messaging charges (KES)" accent="emerald" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <ChartCard title="Messages Over Time" subtitle="Daily message volume">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
+              <YAxis stroke="#94a3b8" fontSize={12} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Legend />
+              <Line type="monotone" dataKey="sent" stroke="#0f172a" strokeWidth={2} />
+              <Line type="monotone" dataKey="delivered" stroke="#10b981" strokeWidth={2} />
+              <Line type="monotone" dataKey="read" stroke="#3b82f6" strokeWidth={2} />
+              <Line type="monotone" dataKey="replies" stroke="#ec4899" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Cost by Category" subtitle="Breakdown of Marketing vs. Utility vs. Authentication charges">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={cost.buckets}
+                cx="50%"
+                cy="50%"
+                innerRadius={55}
+                outerRadius={90}
+                paddingAngle={4}
+                dataKey="value"
+                label={({ name, value }) => `${name}: ${value}`}
+              >
+                {cost.buckets.map((e, i) => (
+                  <Cell key={i} fill={e.color} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <RateCard label="Delivery Rate" value={`${summary.deliveryRate.toFixed(1)}%`} helper="Percentage of messages that reached the customer" />
+        <RateCard label="Read Rate" value={`${summary.readRate.toFixed(1)}%`} helper="Percentage of messages opened by the customer" />
+        <RateCard label="Response Rate" value={`${summary.responseRate.toFixed(1)}%`} helper="Percentage of messages that received a reply" />
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+          <p className="text-[13px] font-semibold text-slate-900">Cost Breakdown</p>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            Estimated based on Meta&apos;s published rates.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                <th className="py-2 px-3 font-medium">Category</th>
+                <th className="py-2 px-3 font-medium text-center">Messages</th>
+                <th className="py-2 px-3 font-medium text-right">Share</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {cost.buckets.map((b) => {
+                const total = cost.buckets.reduce((acc, x) => acc + x.value, 0) || 1;
+                return (
+                  <tr key={b.name} className="hover:bg-slate-50">
+                    <td className="py-2 px-3 font-medium text-slate-900">{b.name}</td>
+                    <td className="py-2 px-3 text-center text-slate-700">{b.value}</td>
+                    <td className="py-2 px-3 text-right font-mono text-slate-900">
+                      {((b.value / total) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RateCard({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-sm p-3">
+      <p className="text-[13px] font-medium text-slate-500">{label}</p>
+      <p className="text-[20px] font-bold text-slate-900 mt-0.5">{value}</p>
+      <p className="text-[12px] text-slate-500 mt-1">{helper}</p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 8 — BILLING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BillingTab() {
+  const [summary, setSummary] = useState<AdminWhatsAppBillingSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const s = await adminApi.whatsapp.billing.summary();
+      setSummary(s);
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load billing.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const s = await adminApi.whatsapp.billing.refresh();
+      setSummary(s);
+    } catch (e: any) {
+      // Banner stays as-is; the toast in the parent would be overkill here.
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (loading) return <LoadingPanel label="Loading billing…" />;
+  if (error) return <ErrorPanel message={error} onRetry={load} />;
+  if (!summary) return null;
+
+  const totalCount =
+    summary.utilityCount + summary.marketingCount + summary.authCount + summary.serviceCount;
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Billing"
+        subtitle="Track your WhatsApp messaging costs and manage payment settings."
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <KpiCard label="This Month's Estimate" value={KES(Number(summary.totalKes) || 0)} helper="Estimated Meta charges" accent="emerald" />
+        <KpiCard label="Messages This Month" value={totalCount.toLocaleString()} helper="Utility, Marketing, Auth & Service" />
+        <KpiCard
+          label="Free Service Conversations Used"
+          value={`${summary.freeServiceUsed} / ${summary.freeServiceLimit.toLocaleString()}`}
+          helper="You get 1,000 free service conversations per month"
+        />
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-sm">
+        <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[13px] font-semibold text-slate-900">Cost Summary</p>
+            <p className="text-[12px] text-slate-500 mt-0.5">
+              Last synced: {new Date(summary.lastSyncedAt).toLocaleString('en-KE')}
+            </p>
+          </div>
+          <button onClick={handleRefresh} disabled={refreshing} className={btnSecondary}>
+            {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {refreshing ? 'Syncing…' : 'Sync now'}
+          </button>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <LineRow label="Utility messages" value={KES(Number(summary.utilityKes) || 0)} helper={`${summary.utilityCount} messages`} />
+          <LineRow label="Marketing messages" value={KES(Number(summary.marketingKes) || 0)} helper={`${summary.marketingCount} messages`} />
+          <LineRow label="Authentication messages" value={KES(Number(summary.authKes) || 0)} helper={`${summary.authCount} messages`} />
+          <LineRow label="Service (inbound)" value={Number(summary.serviceKes) === 0 ? 'Free' : KES(Number(summary.serviceKes))} helper={`${summary.serviceCount} conversations`} />
+          <LineRow label="Total" value={KES(Number(summary.totalKes) || 0)} helper="Estimated for this month" emphasis />
+        </div>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+        <AlertCircle className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+        <p className="text-[13px] text-blue-900">
+          Payment method and billing threshold are managed in Meta Business Manager. Open it
+          to add or update a card.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function LineRow({
   label,
   value,
+  helper,
+  emphasis,
+}: {
+  label: string;
+  value: React.ReactNode;
+  helper?: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="px-3 py-2 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className={`text-[13px] ${emphasis ? 'font-semibold text-slate-900' : 'text-slate-800'}`}>{label}</p>
+        {helper && <p className="text-[12px] text-slate-500 mt-0.5">{helper}</p>}
+      </div>
+      <p className={`text-[13px] whitespace-nowrap ${emphasis ? 'font-semibold text-emerald-700' : 'text-slate-900'}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 9 — SETTINGS (local-only for now)
+//
+// These fields are not yet backed by API endpoints. Business hours,
+// team access, and notification preferences stay as component state
+// until the corresponding endpoints exist. Save writes a toast.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function SettingsTab({ onToast }: { onToast: (msg: string) => void }) {
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  return (
+    <div className="space-y-3">
+      <PageHeader
+        title="WhatsApp Settings"
+        subtitle="Configure your WhatsApp business profile, team access, and preferences."
+      />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+        <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+        <p className="text-[13px] text-amber-900">
+          Business hours, team access, and notification preferences are saved locally for now.
+          Backend endpoints for these settings are pending.
+        </p>
+      </div>
+
+      <SettingsSection
+        title="Business Hours"
+        description="Set your operating hours. Messages received outside these hours can trigger an away message."
+      >
+        <div className="space-y-2">
+          {days.map((d) => (
+            <div key={d} className="flex items-center gap-3 text-[13px]">
+              <span className="w-24 text-slate-700">{d}</span>
+              <input type="time" defaultValue="08:00" className={inputCls + ' max-w-[140px]'} />
+              <span className="text-slate-400">–</span>
+              <input type="time" defaultValue="18:00" className={inputCls + ' max-w-[140px]'} />
+              <label className="inline-flex items-center gap-1.5 text-slate-600">
+                <input type="checkbox" />
+                Closed
+              </label>
+            </div>
+          ))}
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Notification Preferences"
+        description="Choose which events trigger alerts."
+      >
+        <div className="space-y-2">
+          <ToggleRow label="New Message" helper="Alert me when a customer sends a message" defaultOn />
+          <ToggleRow label="Unassigned Chat" helper="Alert me when a conversation has not been picked up" defaultOn />
+          <ToggleRow label="Template Rejected" helper="Alert me when Meta rejects a template" defaultOn />
+          <ToggleRow label="Low Quality Score" helper="Alert me if my WhatsApp quality score drops" defaultOn />
+        </div>
+      </SettingsSection>
+
+      <div className="flex justify-end">
+        <button onClick={() => onToast('Settings saved')} className={btnPrimaryGreen}>
+          <Check className="w-3.5 h-3.5" />
+          Save Settings
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHARED PIECES
+// ═══════════════════════════════════════════════════════════════════════════
+
+const inputCls =
+  'w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600';
+
+const btnPrimaryGreen =
+  'inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 disabled:cursor-not-allowed';
+
+const btnSecondary =
+  'inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 disabled:cursor-not-allowed';
+
+const btnDanger =
+  'inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50';
+
+function LoadingPanel({ label }: { label: string }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-sm py-16 flex flex-col items-center gap-2">
+      <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+      <p className="text-[13px] text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function ErrorPanel({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="bg-red-50 border border-red-100 rounded-sm p-3 flex items-start justify-between gap-3">
+      <div className="flex items-start gap-2 min-w-0">
+        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+        <p className="text-[13px] text-red-700">{message}</p>
+      </div>
+      {onRetry && (
+        <button onClick={onRetry} className="text-[12px] font-medium text-red-700 hover:underline shrink-0">
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold text-slate-900">{title}</p>
+        <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  helper,
+  value,
+  valueNode,
+}: {
+  label: string;
+  helper?: string;
+  value?: string;
+  valueNode?: React.ReactNode;
+}) {
+  return (
+    <div className="px-3 py-2 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-slate-800">{label}</p>
+        {helper && <p className="text-[12px] text-slate-500 mt-0.5">{helper}</p>}
+      </div>
+      <div className="text-[13px] text-slate-900 text-right whitespace-nowrap">
+        {valueNode ?? value}
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  helper,
+  required,
   icon,
-  tint,
-  mono,
+  children,
+  defaultValue,
+}: {
+  label: string;
+  helper?: string;
+  required?: boolean;
+  icon?: React.ReactNode;
+  children?: React.ReactNode;
+  defaultValue?: string;
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-1.5 text-[12px] font-medium text-slate-700 mb-1">
+        {icon}
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children ?? <input defaultValue={defaultValue} className={inputCls} />}
+      {helper && <p className="text-[11px] text-slate-500 mt-1">{helper}</p>}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide pt-1">
+      {children}
+    </p>
+  );
+}
+
+function SettingsSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-sm">
+      <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+        <p className="text-[13px] font-semibold text-slate-900">{title}</p>
+        <p className="text-[13px] text-slate-500 mt-0.5">{description}</p>
+      </div>
+      <div className="p-3">{children}</div>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  helper,
+  defaultOn,
+}: {
+  label: string;
+  helper: string;
+  defaultOn?: boolean;
+}) {
+  const [on, setOn] = useState(!!defaultOn);
+  return (
+    <label className="flex items-start justify-between gap-3 cursor-pointer border border-slate-200 rounded-sm p-2 hover:bg-slate-50">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-slate-900">{label}</p>
+        <p className="text-[12px] text-slate-500 mt-0.5">{helper}</p>
+      </div>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => setOn(e.target.checked)}
+        className="h-4 w-4 mt-1 rounded-sm border-slate-300 text-emerald-600 focus:ring-emerald-600 shrink-0"
+      />
+    </label>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  helper,
+  accent,
 }: {
   label: string;
   value: string;
-  icon: React.ReactNode;
-  tint: string;
-  mono?: boolean;
+  helper: string;
+  accent?: 'emerald';
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium text-slate-500 truncate">{label}</p>
-        <p className={`text-[15px] font-bold text-slate-900 mt-0.5 truncate ${mono ? 'font-mono' : ''}`}>{value}</p>
-      </div>
-      <span className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${tint}`}>{icon}</span>
+    <div className="bg-white border border-slate-200 rounded-sm p-3">
+      <p className="text-[12px] font-medium text-slate-500">{label}</p>
+      <p className={`text-[16px] font-bold mt-0.5 ${accent === 'emerald' ? 'text-emerald-700' : 'text-slate-900'}`}>
+        {value}
+      </p>
+      <p className="text-[12px] text-slate-500 mt-1">{helper}</p>
     </div>
   );
 }
 
-// ============================================================
-// CONVERSATIONS MODULE
-// ============================================================
-function ConversationsModule({
-  conversations,
-  activeConversation,
-  onSelect,
-  onSend,
-  onStatusChange,
+function ChartCard({
+  title,
+  subtitle,
+  children,
 }: {
-  conversations: Conversation[];
-  activeConversation: Conversation | null;
-  onSelect: (c: Conversation | null) => void;
-  onSend: (convId: string, body: string) => void;
-  onStatusChange: (convId: string, status: ConversationStatus) => void;
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
 }) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [draft, setDraft] = useState('');
-
-  const filtered = conversations.filter((c) => {
-    const matchesStatus = statusFilter === 'All' || c.status === statusFilter;
-    const q = search.toLowerCase();
-    const matchesSearch =
-      !q ||
-      c.contactName.toLowerCase().includes(q) ||
-      c.contactPhone.toLowerCase().includes(q) ||
-      c.lastMessage.toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
-  });
-
-  const send = () => {
-    if (!draft.trim() || !activeConversation) return;
-    onSend(activeConversation.id, draft.trim());
-    setDraft('');
-  };
-
   return (
-    <div
-      className="bg-white border border-slate-200 rounded-sm overflow-hidden grid grid-cols-1 lg:grid-cols-[340px_1fr]"
-      style={{ height: 'calc(100vh - 220px)', minHeight: 500 }}
-    >
-      <div className="border-r border-slate-200 flex flex-col min-h-0">
-        <div className="p-2 border-b border-slate-200 space-y-2 shrink-0">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search conversations…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-            />
-          </div>
-          <div className="bg-slate-100 p-0.5 rounded-sm inline-flex gap-0.5 w-full overflow-x-auto">
-            {(['All', 'Open', 'Pending', 'Resolved', 'Archived'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`flex-1 px-2 py-1.5 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                  statusFilter === s ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-          {filtered.length === 0 ? (
-            <p className="py-12 text-center text-slate-400 text-[13px]">No conversations found.</p>
-          ) : (
-            filtered.map((c) => {
-              const isActive = activeConversation?.id === c.id;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => onSelect(c)}
-                  className={`w-full text-left p-2.5 hover:bg-slate-50 transition ${isActive ? 'bg-emerald-50/60' : ''}`}
-                >
-                  <div className="flex items-start gap-2">
-                    <div className="w-9 h-9 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
-                      {c.contactName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[13px] font-medium text-slate-900 truncate">{c.contactName}</p>
-                        <span className="text-[13px] text-slate-400 font-mono shrink-0">{c.lastMessageTime}</span>
-                      </div>
-                      <p className="text-[13px] text-slate-500 truncate mt-0.5">{c.lastMessage}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        {c.tags.map((t) => (
-                          <span key={t} className="px-1.5 py-0.5 rounded-sm text-[13px] bg-slate-100 text-slate-600 border border-slate-200">
-                            {t}
-                          </span>
-                        ))}
-                        {c.unread > 0 && (
-                          <span className="ml-auto px-1.5 py-0.5 rounded-sm text-[13px] bg-emerald-600 text-white font-medium">
-                            {c.unread}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
+    <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+      <div>
+        <p className="text-[13px] font-semibold text-slate-900">{title}</p>
+        <p className="text-[12px] text-slate-500 mt-0.5">{subtitle}</p>
       </div>
+      <div className="h-64 w-full">{children}</div>
+    </div>
+  );
+}
 
-      {activeConversation ? (
-        <div className="flex flex-col min-h-0">
-          <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0 bg-slate-50">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
-                {activeConversation.contactName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-slate-900 truncate">{activeConversation.contactName}</p>
-                <p className="text-[13px] text-emerald-700 font-mono truncate">{activeConversation.contactPhone}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <select
-                value={activeConversation.status}
-                onChange={(e) => onStatusChange(activeConversation.id, e.target.value as ConversationStatus)}
-                className="bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              >
-                <option>Open</option>
-                <option>Pending</option>
-                <option>Resolved</option>
-                <option>Archived</option>
-              </select>
-              <a
-                href={`https://wa.me/${activeConversation.contactPhone.replace(/[^0-9]/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-emerald-700"
-                title="Open in WhatsApp"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50">
-            {activeConversation.messages.map((m) => (
-              <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[75%] rounded-sm px-2.5 py-2 text-[13px] ${
-                    m.direction === 'outbound' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-800'
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{m.body}</p>
-                  <div className={`flex items-center gap-1 mt-1 justify-end ${m.direction === 'outbound' ? 'text-emerald-100' : 'text-slate-400'}`}>
-                    <span className="text-[13px] font-mono">{m.timestamp}</span>
-                    {m.direction === 'outbound' && (
-                      <CheckCheck className={`w-3 h-3 ${m.status === 'read' ? 'text-white' : 'text-emerald-200'}`} />
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-2 border-t border-slate-200 bg-white shrink-0">
-            <div className="flex items-end gap-2">
-              <textarea
-                rows={1}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                placeholder="Type a message…"
-                className="flex-1 bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              />
-              <button
-                onClick={send}
-                disabled={!draft.trim()}
-                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white p-2 rounded-sm"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
-          <MessageCircle className="w-8 h-8" />
-          <p className="text-[13px]">Select a conversation to start chatting</p>
-        </div>
+function EmptyState({
+  icon,
+  title,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  action?: { label: string; onClick: () => void; icon?: React.ReactNode };
+}) {
+  return (
+    <div className="max-w-xl mx-auto my-8 bg-white border border-slate-200 rounded-sm p-6 text-center space-y-3">
+      <span className="w-12 h-12 rounded-sm bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+        {icon}
+      </span>
+      <p className="text-[13px] text-slate-600">{title}</p>
+      {action && (
+        <button onClick={action.onClick} className={btnPrimaryGreen}>
+          {action.icon}
+          {action.label}
+        </button>
       )}
     </div>
   );
 }
 
-// ============================================================
-// CONTACTS MODULE
-// ============================================================
-function ContactsModule({
-  contacts,
-  onDelete,
-  onToggleOptIn,
+function Modal({
+  onClose,
+  title,
+  subtitle,
+  widthClass = 'max-w-2xl',
+  children,
 }: {
-  contacts: Contact[];
-  onDelete: (id: string) => void;
-  onToggleOptIn: (id: string) => void;
+  onClose: () => void;
+  title: string;
+  subtitle: string;
+  widthClass?: string;
+  children: React.ReactNode;
 }) {
-  const [search, setSearch] = useState('');
-  const [tagFilter, setTagFilter] = useState<string>('All');
-  const tags: ContactTag[] = ['VIP', 'Lead', 'Customer', 'Blocked', 'New'];
-
-  const filtered = contacts.filter((c) => {
-    const matchesTag = tagFilter === 'All' || c.tags.includes(tagFilter as ContactTag);
-    const q = search.toLowerCase();
-    const matchesSearch =
-      !q ||
-      c.name.toLowerCase().includes(q) ||
-      c.phone.toLowerCase().includes(q) ||
-      (c.email?.toLowerCase().includes(q) ?? false);
-    return matchesTag && matchesSearch;
-  });
-
   return (
-    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-      <div className="p-2 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2">
-        <div className="bg-slate-100 p-0.5 rounded-sm inline-flex gap-0.5 overflow-x-auto">
-          {(['All', ...tags] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTagFilter(t)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                tagFilter === t ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search contacts…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-          />
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-[13px]">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-              <th className="py-2 px-3 font-medium">Contact</th>
-              <th className="py-2 px-3 font-medium">Tags</th>
-              <th className="py-2 px-3 font-medium text-right">Orders</th>
-              <th className="py-2 px-3 font-medium text-right">Spent</th>
-              <th className="py-2 px-3 font-medium">Opt-in</th>
-              <th className="py-2 px-3 font-medium">Added</th>
-              <th className="py-2 px-3 w-24"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-400 text-[13px]">
-                  No contacts match your filters.
-                </td>
-              </tr>
-            ) : (
-              filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-2 px-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
-                        {c.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900 truncate">{c.name}</p>
-                        <p className="text-[13px] text-emerald-700 font-mono truncate">{c.phone}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-2 px-3">
-                    <div className="flex flex-wrap gap-1">
-                      {c.tags.map((t) => (
-                        <span key={t} className="px-1.5 py-0.5 rounded-sm text-[13px] bg-slate-100 text-slate-600 border border-slate-200">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-2 px-3 text-right font-mono">{c.totalOrders}</td>
-                  <td className="py-2 px-3 text-right font-mono text-slate-900">KES {c.totalSpent.toLocaleString()}</td>
-                  <td className="py-2 px-3">
-                    <button
-                      onClick={() => onToggleOptIn(c.id)}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border ${
-                        c.optedIn ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}
-                    >
-                      {c.optedIn ? <ToggleRight className="w-3 h-3" /> : <ToggleLeft className="w-3 h-3" />}
-                      {c.optedIn ? 'Subscribed' : 'Unsubscribed'}
-                    </button>
-                  </td>
-                  <td className="py-2 px-3 text-slate-400 font-mono">{c.createdAt}</td>
-                  <td className="py-2 px-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <a
-                        href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-emerald-700"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                      <button
-                        onClick={() => onDelete(c.id)}
-                        className="p-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// TEMPLATES MODULE
-// ============================================================
-function TemplatesModule({
-  templates,
-  onToggleStatus,
-  onDelete,
-}: {
-  templates: MessageTemplate[];
-  onToggleStatus: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [categoryFilter, setCategoryFilter] = useState<string>('All');
-  const filtered = templates.filter((t) => categoryFilter === 'All' || t.category === categoryFilter);
-
-  const statusBadge = (s: MessageTemplate['status']) =>
-    s === 'Approved'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      : s === 'Pending'
-        ? 'bg-amber-50 text-amber-700 border-amber-100'
-        : 'bg-red-50 text-red-700 border-red-100';
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-      <div className="p-2 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div className="bg-slate-100 p-0.5 rounded-sm inline-flex gap-0.5 overflow-x-auto">
-          {(['All', 'Marketing', 'Utility', 'Authentication'] as const).map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategoryFilter(c)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                categoryFilter === c ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-              }`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="p-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-        {filtered.map((t) => (
-          <div key={t.id} className="border border-slate-200 rounded-sm p-2 space-y-2 bg-white">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-slate-900 font-mono truncate">{t.name}</p>
-                <p className="text-[13px] text-slate-500 mt-0.5">{t.category} · {t.language}</p>
-              </div>
-              <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[13px] shrink-0 ${statusBadge(t.status)}`}>
-                {t.status}
-              </span>
-            </div>
-
-            {t.headerType !== 'None' && (
-              <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 text-[13px]">
-                <span className="text-slate-400">Header: </span>
-                <span className="font-mono text-slate-700 truncate">{t.headerContent || t.headerType}</span>
-              </div>
-            )}
-
-            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
-              <p className="text-[13px] text-slate-800 whitespace-pre-wrap leading-relaxed">{t.body}</p>
-              {t.footer && <p className="text-[13px] text-slate-500 mt-1 border-t border-emerald-100 pt-1">{t.footer}</p>}
-            </div>
-
-            {t.buttons.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {t.buttons.map((b, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded-sm text-[13px] bg-white border border-slate-200 text-slate-600">
-                    {b.type}: {b.text}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-1">
-              {t.variables.map((v) => (
-                <span key={v} className="px-1.5 py-0.5 rounded-sm text-[13px] bg-blue-50 text-blue-950 border border-blue-100 font-mono">
-                  {`{{${v}}}`}
-                </span>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-              <span className="text-[13px] text-slate-400 font-mono">{t.updatedAt}</span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => onToggleStatus(t.id)}
-                  className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"
-                  title="Toggle status"
-                >
-                  <Repeat className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onDelete(t.id)}
-                  className="p-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50"
-                  title="Delete"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+    <div
+      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+      onClick={onClose}
+    >
+      <div
+        className={`bg-white border border-slate-200 rounded-sm w-full ${widthClass} max-h-[92vh] flex flex-col shadow-xl`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold text-slate-900 truncate">{title}</h3>
+            <p className="text-[13px] text-slate-500 truncate">{subtitle}</p>
           </div>
-        ))}
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3">{children}</div>
       </div>
     </div>
   );
 }
 
-// ============================================================
-// PRODUCTS MODULE
-// ============================================================
-function ProductsModule({
-  products,
-  onToggleStatus,
-}: {
-  products: WhatsAppProduct[];
-  onToggleStatus: (id: string) => void;
-}) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-
-  const filtered = products.filter((p) => {
-    const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
-    const q = search.toLowerCase();
-    const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
-  });
-
-  const statusBadge = (s: WhatsAppProduct['status']) =>
-    s === 'Active'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      : s === 'Draft'
-        ? 'bg-slate-100 text-slate-500 border-slate-200'
-        : 'bg-red-50 text-red-700 border-red-100';
-
+function ModalFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-      <div className="p-2 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2">
-        <div className="bg-slate-100 p-0.5 rounded-sm inline-flex gap-0.5 overflow-x-auto">
-          {(['All', 'Active', 'Draft', 'Out of Stock'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                statusFilter === s ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search products or SKU…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-emerald-600"
-          />
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-[13px]">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-              <th className="py-2 px-3 font-medium">Product</th>
-              <th className="py-2 px-3 font-medium">SKU</th>
-              <th className="py-2 px-3 font-medium text-right">Price</th>
-              <th className="py-2 px-3 font-medium text-right">Stock</th>
-              <th className="py-2 px-3 font-medium">Status</th>
-              <th className="py-2 px-3 font-medium">Catalog</th>
-              <th className="py-2 px-3 w-24"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-400 text-[13px]">
-                  No products match your filters.
-                </td>
-              </tr>
-            ) : (
-              filtered.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-2 px-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <img src={p.image} alt="" className="w-8 h-8 rounded-sm object-cover border border-slate-200 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900 truncate max-w-xs">{p.name}</p>
-                        <p className="text-[13px] text-slate-400 truncate">{p.description}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-2 px-3 font-mono text-slate-600">{p.sku}</td>
-                  <td className="py-2 px-3 text-right font-mono font-medium text-slate-900">
-                    {p.currency} {p.price.toLocaleString()}
-                  </td>
-                  <td className="py-2 px-3 text-right font-mono">
-                    <span className={p.stock === 0 ? 'text-red-600 font-medium' : 'text-slate-700'}>{p.stock}</span>
-                  </td>
-                  <td className="py-2 px-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[13px] ${statusBadge(p.status)}`}>
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 font-mono text-slate-500">{p.catalogId}</td>
-                  <td className="py-2 px-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => onToggleStatus(p.id)}
-                        className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"
-                        title="Toggle status"
-                      >
-                        <Repeat className="w-3.5 h-3.5" />
-                      </button>
-                      <a
-                        href={p.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-emerald-700"
-                        title="Open product page"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// NOTIFICATIONS MODULE
-// ============================================================
-function NotificationsModule({
-  notifications,
-  onMarkAllRead,
-  onMarkRead,
-  onDelete,
-}: {
-  notifications: WhatsAppNotification[];
-  onMarkAllRead: () => void;
-  onMarkRead: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [typeFilter, setTypeFilter] = useState<string>('All');
-  const types: NotificationType[] = ['Order', 'Payment', 'Stock', 'System', 'Message'];
-  const filtered = notifications.filter((n) => typeFilter === 'All' || n.type === typeFilter);
-
-  const typeIcon = (t: NotificationType) => {
-    switch (t) {
-      case 'Order': return <ShoppingBag className="w-3.5 h-3.5" />;
-      case 'Payment': return <CreditCard className="w-3.5 h-3.5" />;
-      case 'Stock': return <Package className="w-3.5 h-3.5" />;
-      case 'System': return <Shield className="w-3.5 h-3.5" />;
-      case 'Message': return <MessageCircle className="w-3.5 h-3.5" />;
-    }
-  };
-
-  const typeTint = (t: NotificationType) => {
-    switch (t) {
-      case 'Order': return 'bg-emerald-50 text-emerald-700';
-      case 'Payment': return 'bg-blue-50 text-blue-950';
-      case 'Stock': return 'bg-amber-50 text-amber-700';
-      case 'System': return 'bg-slate-100 text-slate-600';
-      case 'Message': return 'bg-emerald-50 text-emerald-700';
-    }
-  };
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-      <div className="p-2 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div className="bg-slate-100 p-0.5 rounded-sm inline-flex gap-0.5 overflow-x-auto">
-          {(['All', ...types] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                typeFilter === t ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={onMarkAllRead}
-          className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-        >
-          <CheckCheck className="w-3.5 h-3.5" />
-          Mark all read
-        </button>
-      </div>
-
-      <ul className="divide-y divide-slate-100">
-        {filtered.length === 0 ? (
-          <li className="py-12 text-center text-slate-400 text-[13px]">No notifications.</li>
-        ) : (
-          filtered.map((n) => (
-            <li key={n.id} className={`p-2.5 flex items-start gap-2 hover:bg-slate-50 transition-colors ${!n.read ? 'bg-emerald-50/40' : ''}`}>
-              <span className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${typeTint(n.type)}`}>
-                {typeIcon(n.type)}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-[13px] font-medium text-slate-900 truncate">{n.title}</p>
-                  {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />}
-                </div>
-                <p className="text-[13px] text-slate-500 mt-0.5">{n.message}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[13px] text-slate-400 font-mono">{n.timestamp}</span>
-                  {n.actionLabel && (
-                    <button className="text-[13px] text-emerald-700 font-medium hover:underline">{n.actionLabel}</button>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {!n.read && (
-                  <button
-                    onClick={() => onMarkRead(n.id)}
-                    className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-600"
-                    title="Mark read"
-                  >
-                    <CheckCheck className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                <button
-                  onClick={() => onDelete(n.id)}
-                  className="p-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50"
-                  title="Dismiss"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </li>
-          ))
-        )}
-      </ul>
-    </div>
-  );
-}
-
-// ============================================================
-// AUTOMATION MODULE
-// ============================================================
-function AutomationModule({
-  automations,
-  onToggle,
-  onRunNow,
-}: {
-  automations: AutomationRule[];
-  onToggle: (id: string) => void;
-  onRunNow: (id: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-3 flex items-start gap-2">
-        <span className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-          <Zap className="w-4 h-4" />
-        </span>
-        <div>
-          <p className="text-[13px] font-semibold text-slate-900">WhatsApp automation engine</p>
-          <p className="text-[13px] text-slate-500 mt-0.5">
-            Trigger-based messaging that runs inside your commerce workflow — from cart recovery to payment reminders.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {automations.map((a) => (
-          <div key={a.id} className="bg-white border border-slate-200 rounded-sm p-2.5 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-slate-900 truncate">{a.name}</p>
-                <p className="text-[13px] text-slate-500 mt-0.5">{a.description}</p>
-              </div>
-              <button onClick={() => onToggle(a.id)} className={`shrink-0 ${a.enabled ? 'text-emerald-600' : 'text-slate-300'}`}>
-                {a.enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 text-[13px]">
-              <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1 text-slate-600">
-                <Zap className="w-3 h-3" />
-                {a.trigger}
-              </span>
-              <ChevronRight className="w-3 h-3 text-slate-300" />
-              <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1 text-emerald-700">
-                <MessageCircle className="w-3 h-3" />
-                {a.action}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-              <div className="flex items-center gap-3 text-[13px] text-slate-400 font-mono">
-                <span className="inline-flex items-center gap-1">
-                  <Activity className="w-3 h-3" />
-                  {a.executions} runs
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {a.lastRun}
-                </span>
-              </div>
-              <button
-                onClick={() => onRunNow(a.id)}
-                disabled={!a.enabled}
-                className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
-              >
-                <Zap className="w-3 h-3" />
-                Run now
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="px-3 py-2 border-t border-slate-200 flex items-center justify-end gap-2 -mx-3 -mb-3 mt-3 sticky bottom-0 bg-white">
+      {children}
     </div>
   );
 }

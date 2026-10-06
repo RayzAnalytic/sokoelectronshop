@@ -1,102 +1,25 @@
+// components/dealssection/DealsSection.tsx
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ShoppingCart, Clock } from 'lucide-react';
-import { products as allProducts, type ProductFull } from '@/data/products';
-import {
-  discounts,
-  computeStatus,
-  discountedPrice,
-  discountPercent,
-} from '@/data/discounts';
 import { useCart } from '@/lib/store/cart';
+import {
+  catalogApi,
+  type CatalogDealCard,
+  type SpecialDealsQuery,
+} from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────
-// Deal card — one discount applied to one product
+// Helpers — identical to app/pages/special-deals/page.tsx
 // ─────────────────────────────────────────────────────────────
-interface Deal {
-  id: string;
-  productId: string;
-  discountCode: string;
-  brand: string;
-  name: string;
-  price: number;
-  previousPrice: number;
-  discountPct: number;
-  stockStatus: 'In Stock' | 'Low Stock' | 'Out of Stock';
-  stockCount: number;
-  image: string;
-  category: string;
-  href: string;
-  promoEndDate: string | null;
-  slug: string;
-}
+const toNum = (v: string | number | null | undefined): number => {
+  if (v === null || v === undefined) return 0;
+  return typeof v === 'number' ? v : Number(v);
+};
 
-// ─────────────────────────────────────────────────────────────
-// Join discounts × products → deal cards, dedupe, top 6
-// Runs at module load — pure, no React, safe for SSR
-// ─────────────────────────────────────────────────────────────
-function buildDealCards(): Deal[] {
-  const cards: Deal[] = [];
-
-  for (const discount of discounts) {
-    if (!discount.displayOnDealsPage) continue;
-
-    const status = computeStatus(discount.startDate, discount.endDate);
-    if (status === 'Expired') continue;
-
-    let applicable: ProductFull[];
-    if (discount.appliesTo === 'All Products') {
-      applicable = allProducts;
-    } else if (discount.appliesTo === 'Specific Products') {
-      const ids = new Set(discount.linkedProductIds);
-      applicable = allProducts.filter((p) => ids.has(p.id));
-    } else {
-      const cats = new Set(discount.linkedCategories);
-      applicable = allProducts.filter((p) => cats.has(p.category));
-    }
-
-    for (const product of applicable) {
-      const dealPrice = discountedPrice(discount, product.price);
-      if (dealPrice >= product.price) continue;
-
-      cards.push({
-        id: `${discount.id}__${product.id}`,
-        productId: product.id,
-        discountCode: discount.code,
-        brand: product.brand,
-        name: product.name,
-        price: dealPrice,
-        previousPrice: product.price,
-        discountPct: discountPercent(discount, product.price),
-        stockStatus: product.stock,
-        stockCount: product.stockQuantity,
-        image: product.images[0],
-        category: product.category,
-        // Each card opens the shared product-detail modal on the deals page
-        href: `/pages/products/specialdeals?open=${product.id}`,
-        promoEndDate: discount.endDate,
-        slug: product.id,
-      });
-    }
-  }
-
-  const sorted = cards.sort((a, b) => b.discountPct - a.discountPct);
-  const seen = new Set<string>();
-  const unique: Deal[] = [];
-  for (const card of sorted) {
-    if (seen.has(card.productId)) continue;
-    seen.add(card.productId);
-    unique.push(card);
-    if (unique.length >= 6) break;
-  }
-  return unique;
-}
-
-const dealsData = buildDealCards();
-
-const formatKES = (n: number) => `KES ${n.toLocaleString()}`;
+const formatKES = (n: number) => `KES ${n.toLocaleString('en-KE')}`;
 
 function formatRemaining(ms: number): string {
   if (ms <= 0) return 'Expired';
@@ -119,50 +42,94 @@ function urgencyClass(ms: number): string {
   return 'bg-slate-50 text-slate-600 border-slate-200';
 }
 
+type StockStatus = 'In Stock' | 'Low Stock' | 'Out of Stock';
+
+const stockStatusFor = (deal: CatalogDealCard): StockStatus => {
+  if (!deal.inStock || deal.stockCount <= 0) return 'Out of Stock';
+  if (deal.stockCount < 5) return 'Low Stock';
+  return 'In Stock';
+};
+
+const DEALS_LIMIT = 6;
+
 export default function DealsSection() {
+  const [deals, setDeals] = useState<CatalogDealCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [cartAddingId, setCartAddingId] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
 
+  const addItem = useCart((s) => s.addItem);
+
+  // ── Live ticker for the countdowns ────────────────────────
   useEffect(() => {
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
+  // ── Fetch top deals from the same endpoint the page uses ──
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    const query: SpecialDealsQuery = {
+      sort_by: 'Featured Deals',
+    };
+
+    catalogApi.specialDeals
+      .list(query, ctrl.signal)
+      .then((cards) => setDeals(cards.slice(0, DEALS_LIMIT)))
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setDeals([]);
+        setError('Could not load current deals.');
+      })
+      .finally(() => setLoading(false));
+
+    return () => ctrl.abort();
+  }, []);
+
+  // ── Hide deals whose promo has expired since fetch ────────
   const activeDeals = useMemo(() => {
-    if (now === null) return dealsData;
-    return dealsData.filter((deal) => {
-      if (!deal.promoEndDate) return true;
-      return new Date(deal.promoEndDate).getTime() > now;
+    if (now === null) return deals;
+    return deals.filter((deal) => {
+      if (!deal.endDate) return true;
+      return new Date(deal.endDate).getTime() > now;
     });
-  }, [now]);
+  }, [deals, now]);
 
-  const addItem = useCart((s) => s.addItem);
+  const handleAddToCart = useCallback(
+    async (deal: CatalogDealCard, e: React.MouseEvent): Promise<void> => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!deal.inStock) return;
 
-  const handleAddToCart = async (
-    deal: Deal,
-    e: React.MouseEvent
-  ): Promise<void> => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCartAddingId(deal.id);
+      setCartAddingId(deal.id);
+      try {
+        await addItem({
+          variantId: deal.productId,
+          productId: deal.productId,
+          name: deal.name,
+          brand: deal.brand,
+          image: deal.image || '',
+          unitPrice: toNum(deal.price),
+          compareAtPrice: toNum(deal.originalPrice),
+          slug: deal.productId,
+          stockCount: deal.stockCount,
+          stock: stockStatusFor(deal),
+        });
+      } finally {
+        setCartAddingId(null);
+      }
+    },
+    [addItem],
+  );
 
-    await addItem({
-      variantId: deal.productId,
-      productId: deal.productId,
-      name: deal.name,
-      brand: deal.brand,
-      image: deal.image,
-      unitPrice: deal.price,
-      compareAtPrice: deal.previousPrice,
-      slug: deal.slug,
-      stockCount: deal.stockCount,
-      stock: deal.stockStatus,
-    });
-
-    setCartAddingId(null);
-  };
-
+  // ─────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────
   return (
     <section className="bg-white py-6 lg:py-8 border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
@@ -178,31 +145,58 @@ export default function DealsSection() {
             </p>
           </div>
           <Link
-            href="/pages/products/specialdeals"
+            href="/pages/special-deals"
             className="text-[13px] font-medium text-blue-950 hover:underline mt-2 sm:mt-0 inline-flex items-center"
           >
             View all deals →
           </Link>
         </div>
 
-        {activeDeals.length === 0 ? (
+        {/* Loading skeleton */}
+        {loading && activeDeals.length === 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+            {Array.from({ length: DEALS_LIMIT }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+              >
+                <div className="aspect-square bg-slate-100" />
+                <div className="p-2 space-y-2">
+                  <div className="h-3 bg-slate-100 rounded w-1/2" />
+                  <div className="h-4 bg-slate-100 rounded w-3/4" />
+                  <div className="h-7 bg-slate-100 rounded mt-2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Empty / error state */}
+        {!loading && (error || activeDeals.length === 0) && (
           <div className="bg-slate-50 border border-dashed border-slate-300 rounded-sm p-8 text-center">
             <Clock className="w-8 h-8 text-slate-400 mx-auto mb-2" />
             <p className="text-sm font-medium text-slate-900">
-              No active deals right now
+              {error ?? 'No active deals right now'}
             </p>
             <p className="text-xs text-slate-500 mt-1">
               Check back soon for new promotions.
             </p>
           </div>
-        ) : (
+        )}
+
+        {/* Deals grid — 6 across on desktop */}
+        {!loading && !error && activeDeals.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
             {activeDeals.map((deal) => {
               const isAdding = cartAddingId === deal.id;
+              const price = toNum(deal.price);
+              const previousPrice = toNum(deal.originalPrice);
+              const stockStatus = stockStatusFor(deal);
+              const discountPct = deal.discountPct;
 
               const remainingMs =
-                now !== null && deal.promoEndDate
-                  ? new Date(deal.promoEndDate).getTime() - now
+                now !== null && deal.endDate
+                  ? new Date(deal.endDate).getTime() - now
                   : null;
               const remainingLabel =
                 remainingMs !== null ? formatRemaining(remainingMs) : null;
@@ -210,35 +204,45 @@ export default function DealsSection() {
               return (
                 <Link
                   key={deal.id}
-                  href={deal.href}
+                  href={`/pages/special-deals?open=${deal.productId}`}
                   className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
                 >
                   <div>
+                    {/* Image */}
                     <div className="aspect-square w-full bg-slate-100 overflow-hidden relative">
-                      <img
-                        src={deal.image}
-                        alt={deal.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                      {deal.image ? (
+                        <img
+                          src={deal.image}
+                          alt={deal.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300">
+                          <ShoppingCart className="w-8 h-8 text-slate-400" />
+                        </div>
+                      )}
 
+                      {/* Diagonal discount ribbon */}
                       <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none z-10">
                         <div className="absolute transform -rotate-45 bg-gradient-to-r from-blue-600 via-blue-500 to-orange-500 text-white font-bold text-[11px] tracking-widest py-1 left-[-42px] top-[20px] w-[150px] text-center shadow-xs">
-                          {deal.discountPct}% OFF
+                          {discountPct}% OFF
                         </div>
                       </div>
 
+                      {/* Stock badge */}
                       <span
-                        className={`absolute top-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${deal.stockStatus === 'In Stock'
+                        className={`absolute top-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${stockStatus === 'In Stock'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : deal.stockStatus === 'Low Stock'
+                            : stockStatus === 'Low Stock'
                               ? 'bg-amber-100 text-amber-800'
                               : 'bg-red-100 text-red-800'
                           }`}
                       >
-                        {deal.stockStatus}
+                        {stockStatus}
                       </span>
                     </div>
 
+                    {/* Body */}
                     <div className="p-2">
                       <p className="text-[11px] font-medium text-slate-500 uppercase truncate">
                         {deal.brand}
@@ -251,7 +255,7 @@ export default function DealsSection() {
                       {remainingLabel && remainingMs !== null && (
                         <div
                           className={`flex items-center space-x-1 text-[11px] font-medium border rounded p-1 mb-1 ${urgencyClass(
-                            remainingMs
+                            remainingMs,
                           )}`}
                         >
                           <Clock className="w-3 h-3 shrink-0" />
@@ -261,24 +265,23 @@ export default function DealsSection() {
                     </div>
                   </div>
 
+                  {/* Footer */}
                   <div className="p-2 pt-0">
                     <div className="pt-2 border-t border-slate-100 mt-1">
                       <div className="flex items-baseline flex-wrap gap-1.5 mb-2.5">
                         <span className="text-sm font-bold text-red-600">
-                          {formatKES(deal.price)}
+                          {formatKES(price)}
                         </span>
                         <span className="text-[11px] text-slate-400 line-through">
-                          {formatKES(deal.previousPrice)}
+                          {formatKES(previousPrice)}
                         </span>
                       </div>
 
                       <button
                         type="button"
                         onClick={(e) => handleAddToCart(deal, e)}
-                        disabled={
-                          isAdding || deal.stockStatus === 'Out of Stock'
-                        }
-                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-1.5 px-2 rounded text-[12px] transition duration-150 ease-in-out disabled:opacity-50 flex items-center justify-center space-x-1"
+                        disabled={isAdding || stockStatus === 'Out of Stock'}
+                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-1.5 px-2 rounded text-[12px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
                       >
                         {isAdding ? (
                           <>
@@ -303,7 +306,7 @@ export default function DealsSection() {
                             </svg>
                             <span>Adding...</span>
                           </>
-                        ) : deal.stockStatus === 'Out of Stock' ? (
+                        ) : stockStatus === 'Out of Stock' ? (
                           <span>Sold Out</span>
                         ) : (
                           <>

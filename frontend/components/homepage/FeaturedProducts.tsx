@@ -1,33 +1,26 @@
 // components/featuredproducts/FeaturedProducts.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Star, ShoppingCart } from 'lucide-react';
-import { products as allProducts } from '@/data/products';
 import { useCart } from '@/lib/store/cart';
 import { WishlistButton } from '@/components/wishlistbutton/WishlistButton';
-
-interface Product {
-    id: string;
-    featured: boolean;
-    brand: string;
-    name: string;
-    price: number;
-    previousPrice: number | null;
-    rating: number;
-    reviewCount: number;
-    stockStatus: 'In Stock' | 'Low Stock';
-    image: string;
-    category: string;
-    href: string;
-    slug: string;
-    stockCount: number;
-}
+import {
+    catalogApi,
+    type CatalogProduct,
+    type ProductsQuery,
+} from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────
-// Currency helper — Kenyan Shilling
+// Helpers — identical to the ones in app/pages/products/page.tsx
+// so both pages format prices and parse decimals the same way.
 // ─────────────────────────────────────────────────────────────
+const toNum = (v: string | number | null | undefined): number => {
+    if (v === null || v === undefined) return 0;
+    return typeof v === 'number' ? v : Number(v);
+};
+
 function formatKES(amount: number): string {
     return `KES ${amount.toLocaleString('en-KE', {
         minimumFractionDigits: 2,
@@ -35,60 +28,73 @@ function formatKES(amount: number): string {
     })}`;
 }
 
-// Map the shared dataset → the shape this card expects.
-// Only keeps featured products, capped at 8.
-// Each card links to the products page with ?open=<id>, which
-// triggers the product-detail modal to open automatically.
-const productsData: Product[] = allProducts
-    .filter((p) => p.featured === true)
-    .slice(0, 8)
-    .map((p) => ({
-        id: p.id,
-        featured: true,
-        brand: p.brand,
-        name: p.name,
-        price: p.price,
-        previousPrice: p.compareAtPrice,
-        rating: p.rating,
-        reviewCount: p.reviewCount,
-        stockStatus: p.stock === 'Out of Stock' ? 'Low Stock' : p.stock,
-        image: p.images[0],
-        category: p.category,
-        href: `/pages/products?open=${p.id}`,
-        slug: p.id,
-        stockCount: p.stockQuantity,
-    }));
+const FEATURED_LIMIT = 8;
 
 export default function FeaturedProducts() {
-    const featuredProducts: Product[] = productsData;
+    const [products, setProducts] = useState<CatalogProduct[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [cartAddingId, setCartAddingId] = useState<string | null>(null);
 
-    // Cart store
     const addItem = useCart((s) => s.addItem);
 
-    const handleAddToCart = async (
-        product: Product,
-        e: React.MouseEvent<HTMLButtonElement>
-    ): Promise<void> => {
-        e.preventDefault();
-        e.stopPropagation();
-        setCartAddingId(product.id);
+    // ── Fetch featured products from the same API as /pages/products ──
+    useEffect(() => {
+        const ctrl = new AbortController();
+        setLoading(true);
+        setError(null);
 
-        await addItem({
-            variantId: product.id,
-            productId: product.id,
-            name: product.name,
-            brand: product.brand,
-            image: product.image,
-            unitPrice: product.price,
-            compareAtPrice: product.previousPrice ?? undefined,
-            slug: product.slug,
-            stockCount: product.stockCount,
-            stock: product.stockStatus,
-        });
+        const query: ProductsQuery = {
+            sort_by: 'featured',
+            page: 1,
+            page_size: FEATURED_LIMIT,
+        };
 
-        setCartAddingId(null);
-    };
+        catalogApi.products
+            .list(query, ctrl.signal)
+            .then((page) => setProducts(page.results))
+            .catch((err: unknown) => {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                setProducts([]);
+                setError('Failed to load featured products.');
+            })
+            .finally(() => setLoading(false));
+
+        return () => ctrl.abort();
+    }, []);
+
+    const handleAddToCart = useCallback(
+        async (
+            product: CatalogProduct,
+            e: React.MouseEvent<HTMLButtonElement>,
+        ): Promise<void> => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (product.stock === 'Out of Stock') return;
+
+            setCartAddingId(product.id);
+            try {
+                await addItem({
+                    variantId: product.id,
+                    productId: product.id,
+                    name: product.name,
+                    brand: product.brand,
+                    image: product.images[0] ?? '',
+                    unitPrice: toNum(product.price),
+                    compareAtPrice:
+                        product.compareAtPrice !== null
+                            ? toNum(product.compareAtPrice)
+                            : undefined,
+                    slug: product.slug,
+                    stockCount: product.stockQuantity,
+                    stock: product.stock,
+                });
+            } finally {
+                setCartAddingId(null);
+            }
+        },
+        [addItem],
+    );
 
     return (
         <section className="bg-white py-6 lg:py-8 border-b border-slate-200">
@@ -112,153 +118,205 @@ export default function FeaturedProducts() {
                     </Link>
                 </div>
 
-                {/* Product Grid - 4 Columns with gap-4 */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {featuredProducts.map((product) => {
-                        const isAdding = cartAddingId === product.id;
-                        const discountPercentage = product.previousPrice
-                            ? Math.round(
-                                ((product.previousPrice - product.price) /
-                                    product.previousPrice) *
-                                100
-                            )
-                            : null;
+                {/* Error state */}
+                {error && !loading && (
+                    <div className="text-center py-10 bg-red-50 border border-red-200 rounded-sm">
+                        <p className="text-[13px] text-red-700">{error}</p>
+                    </div>
+                )}
 
-                        return (
-                            <Link
-                                key={product.id}
-                                href={product.href}
-                                className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
+                {/* Loading skeleton */}
+                {loading && products.length === 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {Array.from({ length: FEATURED_LIMIT }).map((_, i) => (
+                            <div
+                                key={i}
+                                className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
                             >
-                                <div>
-                                    {/* Product Image - Full Width, Flush to Top */}
-                                    <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
-                                        <img
-                                            src={product.image}
-                                            alt={product.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                        />
+                                <div className="aspect-[16/10] bg-slate-100" />
+                                <div className="p-3 space-y-2">
+                                    <div className="h-3 bg-slate-100 rounded w-1/3" />
+                                    <div className="h-4 bg-slate-100 rounded w-3/4" />
+                                    <div className="h-3 bg-slate-100 rounded w-1/2" />
+                                    <div className="h-8 bg-slate-100 rounded mt-3" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
-                                        {/* Left stack — discount + stock badges */}
-                                        <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1.5">
-                                            {discountPercentage && (
-                                                <span className="bg-red-600 text-white font-semibold text-[10px] px-2 py-0.5 rounded shadow-xs">
-                                                    -{discountPercentage}%
-                                                </span>
-                                            )}
-                                            <span
-                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
-                                                        ? 'bg-emerald-100 text-emerald-800'
-                                                        : 'bg-amber-100 text-amber-800'
-                                                    }`}
-                                            >
-                                                {product.stockStatus}
-                                            </span>
-                                        </div>
+                {/* Empty state */}
+                {!loading && !error && products.length === 0 && (
+                    <p className="text-center py-10 text-[13px] text-slate-500">
+                        No featured products at the moment.
+                    </p>
+                )}
 
-                                        {/* Wishlist heart — top right */}
-                                        <WishlistButton
-                                            variantId={product.id}
-                                            productId={product.id}
-                                            name={product.name}
-                                            brand={product.brand}
-                                            image={product.image}
-                                            unitPrice={product.price}
-                                            compareAtPrice={product.previousPrice ?? undefined}
-                                            slug={product.slug}
-                                            stockCount={product.stockCount}
-                                            stock={product.stockStatus}
-                                            size="sm"
-                                            className="absolute top-2 right-2 z-10"
-                                        />
-                                    </div>
+                {/* Product Grid — 4 columns, same layout as before */}
+                {!loading && !error && products.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {products.map((product) => {
+                            const isAdding = cartAddingId === product.id;
+                            const price = toNum(product.price);
+                            const comparePrice =
+                                product.compareAtPrice !== null
+                                    ? toNum(product.compareAtPrice)
+                                    : null;
 
-                                    {/* Content Area with tighter spacing */}
-                                    <div className="p-3 pb-2">
-                                        {/* Brand */}
-                                        <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
-                                            {product.brand}
-                                        </p>
+                            // Prefer the backend's discount percentage; fall back
+                            // to computing it when the field is null.
+                            const discountPercentage =
+                                product.discountPercentage ??
+                                (comparePrice && comparePrice > price
+                                    ? Math.round(
+                                        ((comparePrice - price) / comparePrice) * 100,
+                                    )
+                                    : null);
 
-                                        {/* Name */}
-                                        <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-1 mt-0.5 mb-1">
-                                            {product.name}
-                                        </h3>
+                            return (
+                                <Link
+                                    key={product.id}
+                                    href={`/pages/products?open=${product.id}`}
+                                    className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
+                                >
+                                    <div>
+                                        {/* Product Image */}
+                                        <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
+                                            <img
+                                                src={product.images[0] ?? '/placeholder.jpeg'}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                            />
 
-                                        {/* Rating */}
-                                        {product.rating && (
-                                            <div className="flex items-center space-x-1 mb-2">
-                                                <div className="flex items-center text-amber-500">
-                                                    <Star className="w-3.5 h-3.5 fill-current" />
-                                                </div>
-                                                <span className="text-[12px] font-medium text-slate-800">
-                                                    {product.rating}
-                                                </span>
-                                                <span className="text-[11px] text-slate-500">
-                                                    ({product.reviewCount})
+                                            {/* Left stack — discount + stock badges */}
+                                            <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1.5">
+                                                {discountPercentage && (
+                                                    <span className="bg-red-600 text-white font-semibold text-[10px] px-2 py-0.5 rounded shadow-xs">
+                                                        -{discountPercentage}%
+                                                    </span>
+                                                )}
+                                                <span
+                                                    className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stock === 'In Stock'
+                                                            ? 'bg-emerald-100 text-emerald-800'
+                                                            : product.stock === 'Low Stock'
+                                                                ? 'bg-amber-100 text-amber-800'
+                                                                : 'bg-red-100 text-red-800'
+                                                        }`}
+                                                >
+                                                    {product.stock}
                                                 </span>
                                             </div>
-                                        )}
-                                    </div>
-                                </div>
 
-                                {/* Price and Add to Cart Action */}
-                                <div className="p-3 pt-0 mt-auto">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-baseline space-x-2">
-                                            <span className="text-sm font-bold text-slate-900">
-                                                {formatKES(product.price)}
-                                            </span>
-                                            {product.previousPrice && (
-                                                <span className="text-[11px] text-slate-500 line-through">
-                                                    {formatKES(product.previousPrice)}
-                                                </span>
+                                            {/* Wishlist heart — top right */}
+                                            <WishlistButton
+                                                variantId={product.id}
+                                                productId={product.id}
+                                                name={product.name}
+                                                brand={product.brand}
+                                                image={product.images[0] ?? ''}
+                                                unitPrice={price}
+                                                compareAtPrice={comparePrice ?? undefined}
+                                                slug={product.slug}
+                                                stockCount={product.stockQuantity}
+                                                stock={product.stock}
+                                                size="sm"
+                                                className="absolute top-2 right-2 z-10"
+                                            />
+                                        </div>
+
+                                        {/* Content Area */}
+                                        <div className="p-3 pb-2">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                                                    {product.brand}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400">
+                                                    {product.category}
+                                                </p>
+                                            </div>
+
+                                            <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-1 mt-0.5 mb-1">
+                                                {product.name}
+                                            </h3>
+
+                                            {Number(product.rating) > 0 && (
+                                                <div className="flex items-center space-x-1 mb-2">
+                                                    <div className="flex items-center text-amber-500">
+                                                        <Star className="w-3.5 h-3.5 fill-current" />
+                                                    </div>
+                                                    <span className="text-[12px] font-medium text-slate-800">
+                                                        {toNum(product.rating).toFixed(1)}
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-500">
+                                                        ({product.reviewCount})
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* Add to Cart Button */}
-                                    <button
-                                        type="button"
-                                        onClick={(e) => handleAddToCart(product, e)}
-                                        disabled={isAdding}
-                                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition duration-150 ease-in-out disabled:opacity-50 flex items-center justify-center space-x-1.5"
-                                    >
-                                        {isAdding ? (
-                                            <>
-                                                <svg
-                                                    className="animate-spin h-3.5 w-3.5 text-white"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <circle
-                                                        className="opacity-25"
-                                                        cx="12"
-                                                        cy="12"
-                                                        r="10"
-                                                        stroke="currentColor"
-                                                        strokeWidth="4"
-                                                    ></circle>
-                                                    <path
-                                                        className="opacity-75"
-                                                        fill="currentColor"
-                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                                    ></path>
-                                                </svg>
-                                                <span>Adding...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <ShoppingCart className="w-3.5 h-3.5" />
-                                                <span>Add to Cart</span>
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </Link>
-                        );
-                    })}
-                </div>
+                                    {/* Price and Add to Cart */}
+                                    <div className="p-3 pt-0 mt-auto">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-baseline space-x-2">
+                                                <span className="text-sm font-bold text-slate-900">
+                                                    {formatKES(price)}
+                                                </span>
+                                                {comparePrice !== null && (
+                                                    <span className="text-[11px] text-slate-500 line-through">
+                                                        {formatKES(comparePrice)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleAddToCart(product, e)}
+                                            disabled={
+                                                isAdding ||
+                                                product.stock === 'Out of Stock'
+                                            }
+                                            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+                                        >
+                                            {isAdding ? (
+                                                <>
+                                                    <svg
+                                                        className="animate-spin h-3.5 w-3.5 text-white"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <circle
+                                                            className="opacity-25"
+                                                            cx="12"
+                                                            cy="12"
+                                                            r="10"
+                                                            stroke="currentColor"
+                                                            strokeWidth="4"
+                                                        />
+                                                        <path
+                                                            className="opacity-75"
+                                                            fill="currentColor"
+                                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                        />
+                                                    </svg>
+                                                    <span>Adding...</span>
+                                                </>
+                                            ) : product.stock === 'Out of Stock' ? (
+                                                <span>Sold Out</span>
+                                            ) : (
+                                                <>
+                                                    <ShoppingCart className="w-3.5 h-3.5" />
+                                                    <span>Add to Cart</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </section>
     );

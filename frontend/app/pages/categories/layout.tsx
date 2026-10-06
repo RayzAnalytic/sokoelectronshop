@@ -1,44 +1,101 @@
+// components/categories/CategoriesLayout.tsx
 'use client';
 
-import React, { useTransition } from 'react';
+import React, { Suspense, useEffect, useState, useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Sidebar from '@/components/categories/Sidebar';
 import Header from '@/components/homepage/Navbar';
 import Footer from '@/components/homepage/Footer';
+
+import WhatsAppButton from '@/components/homepage/WhatsAppButton';
+import AIAssistantButton from '@/components/homepage/AIAssistantButton';
+
 import { Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 
 interface CategoriesLayoutProps {
     children: React.ReactNode;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Public wrapper — provides the Suspense boundary that
+// useSearchParams() requires in Next.js 14+.
+// ─────────────────────────────────────────────────────────────
 export default function CategoriesLayout({ children }: CategoriesLayoutProps) {
+    return (
+        <Suspense fallback={null}>
+            <CategoriesLayoutInner>{children}</CategoriesLayoutInner>
+        </Suspense>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// The real layout
+// ─────────────────────────────────────────────────────────────
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** Values that should be stripped from the URL entirely. */
+const DEFAULT_VALUES: Record<string, string[]> = {
+    q: [''],
+    stock: ['all'],
+    sort: ['featured'],
+};
+
+function CategoriesLayoutInner({ children }: CategoriesLayoutProps) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    // URL-driven state
-    const searchQuery = searchParams.get('q') ?? '';
+    // ── URL is the source of truth ────────────────────────────
+    const urlSearch = searchParams.get('q') ?? '';
     const stockFilter = searchParams.get('stock') ?? 'all';
     const sortBy = searchParams.get('sort') ?? 'featured';
 
-    // Helper: update a single query param without dropping others
+    // ── Local mirror so the input stays responsive ───────────
+    const [searchInput, setSearchInput] = useState(urlSearch);
+
+    // If the URL changes externally (back/forward, link click), sync the input
+    useEffect(() => {
+        setSearchInput(urlSearch);
+    }, [urlSearch]);
+
+    // ── Param writer ──────────────────────────────────────────
     const setParam = (key: string, value: string | null) => {
         const params = new URLSearchParams(searchParams.toString());
-        if (value === null || value === '' || value === 'all' && key === 'stock') {
+        const defaults = DEFAULT_VALUES[key] ?? [];
+
+        if (value === null || defaults.includes(value)) {
             params.delete(key);
         } else {
             params.set(key, value);
         }
-        // Reset to first page on any filter change
+
+        // Reset pagination on every filter change
         params.delete('page');
+
+        const qs = params.toString();
         startTransition(() => {
-            router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+            router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
         });
     };
 
+    // ── Debounced search ──────────────────────────────────────
+    useEffect(() => {
+        if (searchInput === urlSearch) return;
+
+        const t = setTimeout(() => {
+            setParam('q', searchInput.trim() || null);
+        }, SEARCH_DEBOUNCE_MS);
+
+        return () => clearTimeout(t);
+        // `searchParams`, `pathname`, `router` are stable inside setParam
+        // via closure — including them here would restart the timer on
+        // every render. Only the value and URL-search matter.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchInput, urlSearch]);
+
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setParam('q', e.target.value);
+        setSearchInput(e.target.value);
     };
 
     return (
@@ -59,8 +116,7 @@ export default function CategoriesLayout({ children }: CategoriesLayoutProps) {
 
                 {/* Body */}
                 <div className="flex flex-col lg:flex-row gap-4 items-start relative">
-
-                    {/* ========== SIDEBAR (sticky – stops before footer) ========== */}
+                    {/* ========== SIDEBAR ========== */}
                     <nav
                         aria-label="Categories"
                         className="
@@ -76,7 +132,6 @@ export default function CategoriesLayout({ children }: CategoriesLayoutProps) {
 
                     {/* ========== RIGHT COLUMN ========== */}
                     <div className="w-full flex-1 min-w-0 flex flex-col gap-2">
-
                         {/* Sticky Search / Filter Bar */}
                         <div className="sticky top-[100px] z-30 bg-white/95 backdrop-blur-md pb-2 pt-1 -mx-1 px-1">
                             <div className="bg-white p-1.5 rounded-sm border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
@@ -85,7 +140,7 @@ export default function CategoriesLayout({ children }: CategoriesLayoutProps) {
                                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                                     <input
                                         type="text"
-                                        value={searchQuery}
+                                        value={searchInput}
                                         onChange={handleSearchChange}
                                         placeholder="Search Categories..."
                                         className="w-full rounded-sm border border-slate-200 bg-white pl-9 pr-3 py-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 transition-all"
@@ -132,7 +187,7 @@ export default function CategoriesLayout({ children }: CategoriesLayoutProps) {
                             </div>
                         </div>
 
-                        {/* Product Grid — slug page renders here */}
+                        {/* Product Grid — the slug page renders here */}
                         <section
                             id="grid"
                             aria-labelledby="page-title"
@@ -146,6 +201,15 @@ export default function CategoriesLayout({ children }: CategoriesLayoutProps) {
             </main>
 
             <Footer />
+
+            {/*
+              Floating action buttons — fixed position, don't affect layout.
+              Stacked vertically: AI Assistant above WhatsApp.
+              Both fetch their config from the backend and render nothing
+              when disabled — no props needed.
+            */}
+            <AIAssistantButton shopName="MyShop" />
+            <WhatsAppButton />
         </div>
     );
 }

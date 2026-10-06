@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Download,
   Calendar,
@@ -31,6 +32,8 @@ import {
   ShoppingCart,
   CircleDollarSign,
   Boxes,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaYoutube } from 'react-icons/fa';
 
@@ -49,488 +52,74 @@ import {
   Cell,
 } from 'recharts';
 
-// ============================================================
-// TYPES
-// ============================================================
-type ReportTab =
-  | 'sales'
-  | 'orders'
-  | 'customers'
-  | 'products'
-  | 'inventory'
-  | 'payments'
-  | 'taxes'
-  | 'shipping'
-  | 'discounts'
-  | 'social';
-
-type DateRange =
-  | 'today'
-  | 'yesterday'
-  | '7days'
-  | '30days'
-  | 'this_month'
-  | 'last_month'
-  | 'custom';
+import { adminApi } from '@/lib/admin-api';
+import type {
+  ReportQuery,
+  ReportRange,
+  ReportTab,
+  ReportSalesResponse,
+  ReportSaleRow,
+  ReportOrdersResponse,
+  ReportOrderRow,
+  ReportCustomersResponse,
+  ReportTopBuyer,
+  ReportProductsResponse,
+  ReportProductRow,
+  ReportInventoryResponse,
+  ReportInventoryRow,
+  ReportPaymentsResponse,
+  ReportPaymentStream,
+  ReportPaymentShareSlice,
+  ReportTaxesResponse,
+  ReportTaxRow,
+  ReportShippingResponse,
+  ReportShippingRow,
+  ReportDiscountsResponse,
+  ReportDiscountRow,
+  ReportSocialResponse,
+  ReportSocialVideo,
+  ReportPlatformSummary,
+  ReportSocialFunnelPoint,
+  ReportProductVideoPerf,
+  ReportTaxStatus,
+  ReportDiscountStatus,
+} from '@/lib/admin-types';
 
 type ExportFormat = 'CSV' | 'PDF' | 'Excel';
 
-interface SaleRow {
-  date: string;
-  revenue: number;
-  orders: number;
-  aov: number;
-  topCategory: string;
-  refunds: number;
+interface ReportDataMap {
+  sales?: ReportSalesResponse;
+  orders?: ReportOrdersResponse;
+  customers?: ReportCustomersResponse;
+  products?: ReportProductsResponse;
+  inventory?: ReportInventoryResponse;
+  payments?: ReportPaymentsResponse;
+  taxes?: ReportTaxesResponse;
+  shipping?: ReportShippingResponse;
+  discounts?: ReportDiscountsResponse;
+  social?: ReportSocialResponse;
 }
 
-interface OrderRow {
-  id: string;
-  date: string;
-  customer: string;
-  items: number;
-  total: number;
-  status: string;
-  payment: string;
-  channel: string;
-}
-
-interface ProductRow {
-  product: string;
-  sku: string;
-  qty: number;
-  revenue: number;
-  returns: number;
-  net: number;
-  category: string;
-  lastSold: string;
-}
-
-interface CustomerRow {
-  customer: string;
-  email: string;
-  phone: string;
-  orders: number;
-  spent: number;
-  aov: number;
-  lastOrder: string;
-  county: string;
-}
-
-interface PaymentRow {
-  method: string;
-  transactions: number;
-  volume: number;
-  fees: number;
-  net: number;
-  provider: string;
-  successRate: string;
-}
-
-interface TaxRow {
-  period: string;
-  taxableSales: number;
-  vat16: number;
-  net: number;
-  dueDate: string;
-  status: 'Filed' | 'Due' | 'Overdue';
-}
-
-interface InventoryRow {
-  product: string;
-  sku: string;
-  warehouse: string;
-  onHand: number;
-  reserved: number;
-  available: number;
-  reorderPoint: number;
-  status: 'In Stock' | 'Low' | 'Critical' | 'Out';
-  value: number;
-}
-
-interface ShippingRow {
-  carrier: string;
-  shipments: number;
-  delivered: number;
-  inTransit: number;
-  failed: number;
-  avgDays: number;
-  cost: number;
-  onTimeRate: string;
-}
-
-interface DiscountRow {
-  code: string;
-  type: string;
-  uses: number;
-  discountGiven: number;
-  revenue: number;
-  roi: string;
-  status: 'Active' | 'Expired' | 'Scheduled';
-}
-
-interface SocialVideoRow {
-  id: string;
-  title: string;
-  product: string;
-  sku: string;
-  category: string;
-  platform: 'TikTok' | 'Instagram' | 'YouTube' | 'Facebook' | 'WhatsApp';
-  videoType: 'Unboxing' | 'Review' | 'Demo' | 'Comparison' | 'Tutorial';
-  published: string;
-  duration: string;
-  views: number;
-  likes: number;
-  comments: number;
-  clicks: number;
-  orders: number;
-  revenue: number;
-  conversionRate: string;
-  ctr: string;
-  spend: number;
-  roas: string;
-}
-
-interface PlatformSummaryRow {
-  platform: 'TikTok' | 'Instagram' | 'YouTube' | 'Facebook' | 'WhatsApp';
-  videos: number;
-  views: number;
-  clicks: number;
-  orders: number;
-  revenue: number;
-  spend: number;
-  roas: string;
-  convRate: string;
-}
-
-interface SocialFunnelRow {
-  date: string;
-  views: number;
-  clicks: number;
-  orders: number;
-  revenue: number;
-}
-
-interface ProductVideoPerfRow {
-  product: string;
-  sku: string;
-  category: string;
-  videos: number;
-  views: number;
-  orders: number;
-  revenue: number;
-  bestPlatform: string;
-  avgConvRate: string;
-}
-
-// ============================================================
-// MOCK DATA — Electronics Shop
-// ============================================================
-const SALES_DAILY_DATA: SaleRow[] = [
-  { date: 'Sep 17', revenue: 45200, orders: 32, aov: 1412, topCategory: 'Smartphones', refunds: 0 },
-  { date: 'Sep 18', revenue: 58900, orders: 41, aov: 1436, topCategory: 'Laptops', refunds: 1 },
-  { date: 'Sep 19', revenue: 71200, orders: 54, aov: 1318, topCategory: 'Audio', refunds: 0 },
-  { date: 'Sep 20', revenue: 98400, orders: 72, aov: 1366, topCategory: 'TVs', refunds: 2 },
-  { date: 'Sep 21', revenue: 64100, orders: 48, aov: 1335, topCategory: 'Accessories', refunds: 1 },
-  { date: 'Sep 22', revenue: 89000, orders: 63, aov: 1412, topCategory: 'Smartphones', refunds: 0 },
-  { date: 'Sep 23', revenue: 112000, orders: 85, aov: 1317, topCategory: 'Laptops', refunds: 1 },
-];
-
-const ORDERS_DATA: OrderRow[] = [
-  { id: '#ORD-8942', date: 'Sep 23, 2026', customer: 'Amina Mwangi', items: 3, total: 9899, status: 'Delivered', payment: 'M-Pesa', channel: 'WhatsApp' },
-  { id: '#ORD-8941', date: 'Sep 23, 2026', customer: 'Brian Kiprono', items: 1, total: 1499, status: 'Processing', payment: 'M-Pesa', channel: 'Website' },
-  { id: '#ORD-8940', date: 'Sep 22, 2026', customer: 'Wanjiru Kamau', items: 2, total: 450, status: 'Shipped', payment: 'M-Pesa', channel: 'Instagram' },
-  { id: '#ORD-8939', date: 'Sep 22, 2026', customer: 'Kevin Ochieng', items: 1, total: 899, status: 'Pending', payment: 'M-Pesa', channel: 'TikTok' },
-  { id: '#ORD-8938', date: 'Sep 21, 2026', customer: 'Fatuma Hassan', items: 4, total: 2450, status: 'Delivered', payment: 'M-Pesa', channel: 'Website' },
-  { id: '#ORD-8937', date: 'Sep 21, 2026', customer: 'David Mutua', items: 1, total: 120, status: 'Cancelled', payment: 'M-Pesa', channel: 'Facebook' },
-  { id: '#ORD-8936', date: 'Sep 20, 2026', customer: 'Grace Njeri', items: 2, total: 3200, status: 'Processing', payment: 'M-Pesa', channel: 'WhatsApp' },
-];
-
-const TOP_PRODUCTS_DATA: ProductRow[] = [
-  { product: 'Samsung Galaxy A55 5G', sku: 'ELEC-SAM-A55', qty: 340, revenue: 1020000, returns: 2, net: 1014000, category: 'Smartphones', lastSold: '2 mins ago' },
-  { product: 'HP Pavilion 15 Core i5', sku: 'ELEC-HP-PAV15', qty: 290, revenue: 870000, returns: 1, net: 867000, category: 'Laptops', lastSold: '14 mins ago' },
-  { product: 'Sony WH-1000XM5 Headphones', sku: 'ELEC-SNY-XM5', qty: 180, revenue: 1260000, returns: 4, net: 1232000, category: 'Audio', lastSold: '1 hour ago' },
-  { product: 'Samsung 55" Crystal UHD TV', sku: 'ELEC-SAM-TV55', qty: 155, revenue: 465000, returns: 0, net: 465000, category: 'TVs', lastSold: '3 hours ago' },
-  { product: 'Anker 20000mAh Power Bank', sku: 'ELEC-ANK-PB20', qty: 120, revenue: 360000, returns: 1, net: 357000, category: 'Accessories', lastSold: '5 hours ago' },
-];
-
-const CUSTOMERS_DATA: CustomerRow[] = [
-  { customer: 'Brian Kipkorir', email: 'brian@merchant.co.ke', phone: '+254 712 345 678', orders: 12, spent: 45600, aov: 3800, lastOrder: 'Sep 23, 2026', county: 'Nairobi' },
-  { customer: 'Brenda Akinyi', email: 'brenda@shop.co.ke', phone: '+254 722 987 654', orders: 9, spent: 34200, aov: 3800, lastOrder: 'Sep 22, 2026', county: 'Nairobi' },
-  { customer: 'Kevin Odhiambo', email: 'kevin@tech.co.ke', phone: '+254 733 112 233', orders: 7, spent: 28900, aov: 4128, lastOrder: 'Sep 21, 2026', county: 'Mombasa' },
-  { customer: 'Mercy Wanjiku', email: 'mercy@store.co.ke', phone: '+254 700 554 433', orders: 6, spent: 24000, aov: 4000, lastOrder: 'Sep 20, 2026', county: 'Kisumu' },
-  { customer: 'Collins Cheruiyot', email: 'collins@soko.co.ke', phone: '+254 711 223 344', orders: 5, spent: 19500, aov: 3900, lastOrder: 'Sep 19, 2026', county: 'Nakuru' },
-];
-
-const NEW_VS_RETURNING_DATA = [
-  { date: 'Sep 17', newCust: 22, returning: 10 },
-  { date: 'Sep 18', newCust: 28, returning: 13 },
-  { date: 'Sep 19', newCust: 35, returning: 19 },
-  { date: 'Sep 20', newCust: 46, returning: 26 },
-  { date: 'Sep 21', newCust: 30, returning: 18 },
-  { date: 'Sep 22', newCust: 40, returning: 23 },
-  { date: 'Sep 23', newCust: 52, returning: 33 },
-];
-
-// M-Pesa only — split into two streams (STK Push vs C2B Paybill)
-const PAYMENTS_DATA: PaymentRow[] = [
-  { method: 'M-Pesa STK Push', transactions: 1420, volume: 4820000, fees: 67480, net: 4752520, provider: 'Safaricom', successRate: '99.2%' },
-  { method: 'M-Pesa C2B Paybill', transactions: 380, volume: 1240000, fees: 22320, net: 1217680, provider: 'Safaricom', successRate: '98.7%' },
-];
-
-const PAYMENT_SHARE_PIE = [
-  { name: 'M-Pesa STK Push', value: 4820000, color: '#10b981' },
-  { name: 'M-Pesa C2B Paybill', value: 1240000, color: '#059669' },
-];
-
-const TAXES_DATA: TaxRow[] = [
-  { period: 'September 2026 (W3)', taxableSales: 6850000, vat16: 1096000, net: 5754000, dueDate: 'Oct 20, 2026', status: 'Due' },
-  { period: 'September 2026 (W2)', taxableSales: 5420000, vat16: 867200, net: 4552800, dueDate: 'Oct 20, 2026', status: 'Due' },
-  { period: 'September 2026 (W1)', taxableSales: 4980000, vat16: 796800, net: 4183200, dueDate: 'Sep 20, 2026', status: 'Filed' },
-  { period: 'August 2026 (Full)', taxableSales: 21400000, vat16: 3424000, net: 17976000, dueDate: 'Sep 20, 2026', status: 'Filed' },
-];
-
-const INVENTORY_DATA: InventoryRow[] = [
-  { product: 'Samsung Galaxy A55 5G', sku: 'ELEC-SAM-A55', warehouse: 'Nairobi HQ', onHand: 342, reserved: 12, available: 330, reorderPoint: 100, status: 'In Stock', value: 342000 },
-  { product: 'HP Pavilion 15 Core i5', sku: 'ELEC-HP-PAV15', warehouse: 'Nairobi HQ', onHand: 88, reserved: 8, available: 80, reorderPoint: 100, status: 'Low', value: 88000 },
-  { product: 'Sony WH-1000XM5 Headphones', sku: 'ELEC-SNY-XM5', warehouse: 'Mombasa DC', onHand: 0, reserved: 0, available: 0, reorderPoint: 50, status: 'Out', value: 0 },
-  { product: 'Samsung 55" Crystal UHD TV', sku: 'ELEC-SAM-TV55', warehouse: 'Nairobi HQ', onHand: 34, reserved: 4, available: 30, reorderPoint: 25, status: 'Low', value: 34000 },
-  { product: 'Anker 20000mAh Power Bank', sku: 'ELEC-ANK-PB20', warehouse: 'Kisumu Hub', onHand: 5, reserved: 2, available: 3, reorderPoint: 40, status: 'Critical', value: 5000 },
-];
-
-const SHIPPING_DATA: ShippingRow[] = [
-  { carrier: 'G4S Kenya', shipments: 820, delivered: 742, inTransit: 62, failed: 16, avgDays: 2.4, cost: 205000, onTimeRate: '94.2%' },
-  { carrier: 'Sendy', shipments: 540, delivered: 498, inTransit: 38, failed: 4, avgDays: 1.8, cost: 135000, onTimeRate: '97.1%' },
-  { carrier: 'Pickup Mtaani', shipments: 320, delivered: 298, inTransit: 18, failed: 4, avgDays: 1.2, cost: 48000, onTimeRate: '98.4%' },
-  { carrier: 'Postal Corp', shipments: 180, delivered: 152, inTransit: 22, failed: 6, avgDays: 4.1, cost: 27000, onTimeRate: '88.3%' },
-];
-
-const DISCOUNTS_DATA: DiscountRow[] = [
-  { code: 'WELCOME10', type: 'Percentage 10%', uses: 342, discountGiven: 128000, revenue: 1152000, roi: '9.0x', status: 'Active' },
-  { code: 'MPESA200', type: 'Fixed KES 200', uses: 218, discountGiven: 43600, revenue: 872000, roi: '20.0x', status: 'Active' },
-  { code: 'BLACKFRIDAY', type: 'Percentage 25%', uses: 189, discountGiven: 245000, revenue: 735000, roi: '3.0x', status: 'Expired' },
-  { code: 'WHATSAPP15', type: 'Percentage 15%', uses: 124, discountGiven: 78000, revenue: 442000, roi: '5.7x', status: 'Active' },
-  { code: 'NEWSLETTER20', type: 'Percentage 20%', uses: 62, discountGiven: 62000, revenue: 248000, roi: '4.0x', status: 'Scheduled' },
-];
-
-const SOCIAL_VIDEOS_DATA: SocialVideoRow[] = [
-  {
-    id: 'sv-001',
-    title: 'Samsung Galaxy A55 Unboxing + First Impressions',
-    product: 'Samsung Galaxy A55 5G',
-    sku: 'ELEC-SAM-A55',
-    category: 'Smartphones',
-    platform: 'TikTok',
-    videoType: 'Unboxing',
-    published: 'Sep 22, 2026',
-    duration: '0:48',
-    views: 184000,
-    likes: 12400,
-    comments: 512,
-    clicks: 6420,
-    orders: 248,
-    revenue: 992000,
-    conversionRate: '3.86%',
-    ctr: '3.49%',
-    spend: 0,
-    roas: '∞',
-  },
-  {
-    id: 'sv-002',
-    title: 'Sony WH-1000XM5 — Honest Review After 30 Days',
-    product: 'Sony WH-1000XM5 Headphones',
-    sku: 'ELEC-SNY-XM5',
-    category: 'Audio',
-    platform: 'YouTube',
-    videoType: 'Review',
-    published: 'Sep 20, 2026',
-    duration: '14:02',
-    views: 48200,
-    likes: 3410,
-    comments: 386,
-    clicks: 4180,
-    orders: 132,
-    revenue: 924000,
-    conversionRate: '3.16%',
-    ctr: '8.67%',
-    spend: 42000,
-    roas: '22.0x',
-  },
-  {
-    id: 'sv-003',
-    title: 'HP Pavilion 15 vs Lenovo IdeaPad — Which to Buy?',
-    product: 'HP Pavilion 15 Core i5',
-    sku: 'ELEC-HP-PAV15',
-    category: 'Laptops',
-    platform: 'Instagram',
-    videoType: 'Comparison',
-    published: 'Sep 19, 2026',
-    duration: '2:14',
-    views: 31200,
-    likes: 2210,
-    comments: 274,
-    clicks: 2890,
-    orders: 84,
-    revenue: 252000,
-    conversionRate: '2.91%',
-    ctr: '9.26%',
-    spend: 18000,
-    roas: '14.0x',
-  },
-  {
-    id: 'sv-004',
-    title: 'How to Set Up Your Samsung 55" TV in 3 Minutes',
-    product: 'Samsung 55" Crystal UHD TV',
-    sku: 'ELEC-SAM-TV55',
-    category: 'TVs',
-    platform: 'YouTube',
-    videoType: 'Tutorial',
-    published: 'Sep 18, 2026',
-    duration: '3:12',
-    views: 22400,
-    likes: 1620,
-    comments: 198,
-    clicks: 3120,
-    orders: 62,
-    revenue: 186000,
-    conversionRate: '1.99%',
-    ctr: '13.93%',
-    spend: 24000,
-    roas: '7.75x',
-  },
-  {
-    id: 'sv-005',
-    title: 'Anker Power Bank 20000mAh — Real Test (Charges iPhone 8x)',
-    product: 'Anker 20000mAh Power Bank',
-    sku: 'ELEC-ANK-PB20',
-    category: 'Accessories',
-    platform: 'TikTok',
-    videoType: 'Demo',
-    published: 'Sep 17, 2026',
-    duration: '0:38',
-    views: 142000,
-    likes: 9800,
-    comments: 384,
-    clicks: 5840,
-    orders: 168,
-    revenue: 504000,
-    conversionRate: '2.88%',
-    ctr: '4.11%',
-    spend: 12000,
-    roas: '42.0x',
-  },
-  {
-    id: 'sv-006',
-    title: 'WhatsApp Status: Samsung A55 Flash Sale (24hrs)',
-    product: 'Samsung Galaxy A55 5G',
-    sku: 'ELEC-SAM-A55',
-    category: 'Smartphones',
-    platform: 'WhatsApp',
-    videoType: 'Demo',
-    published: 'Sep 16, 2026',
-    duration: '0:20',
-    views: 24800,
-    likes: 0,
-    comments: 142,
-    clicks: 2140,
-    orders: 96,
-    revenue: 384000,
-    conversionRate: '4.49%',
-    ctr: '8.63%',
-    spend: 0,
-    roas: '∞',
-  },
-  {
-    id: 'sv-007',
-    title: 'Facebook Ad: Sony XM5 Noise Cancelling Demo',
-    product: 'Sony WH-1000XM5 Headphones',
-    sku: 'ELEC-SNY-XM5',
-    category: 'Audio',
-    platform: 'Facebook',
-    videoType: 'Demo',
-    published: 'Sep 15, 2026',
-    duration: '1:04',
-    views: 62400,
-    likes: 3120,
-    comments: 218,
-    clicks: 3120,
-    orders: 48,
-    revenue: 336000,
-    conversionRate: '1.54%',
-    ctr: '5.00%',
-    spend: 36000,
-    roas: '9.33x',
-  },
-  {
-    id: 'sv-008',
-    title: 'Anker vs Baseus Power Bank — 5-Minute Comparison',
-    product: 'Anker 20000mAh Power Bank',
-    sku: 'ELEC-ANK-PB20',
-    category: 'Accessories',
-    platform: 'Instagram',
-    videoType: 'Comparison',
-    published: 'Sep 14, 2026',
-    duration: '5:18',
-    views: 18600,
-    likes: 1240,
-    comments: 96,
-    clicks: 1420,
-    orders: 42,
-    revenue: 126000,
-    conversionRate: '2.96%',
-    ctr: '7.63%',
-    spend: 8000,
-    roas: '15.75x',
-  },
-];
-
-const PLATFORM_SUMMARY_DATA: PlatformSummaryRow[] = [
-  { platform: 'TikTok', videos: 12, views: 326000, clicks: 12260, orders: 416, revenue: 1496000, spend: 12000, roas: '124.7x', convRate: '3.39%' },
-  { platform: 'YouTube', videos: 8, views: 70600, clicks: 7300, orders: 194, revenue: 1110000, spend: 66000, roas: '16.8x', convRate: '2.66%' },
-  { platform: 'Instagram', videos: 9, views: 49800, clicks: 4310, orders: 126, revenue: 378000, spend: 26000, roas: '14.5x', convRate: '2.92%' },
-  { platform: 'Facebook', videos: 6, views: 62400, clicks: 3120, orders: 48, revenue: 336000, spend: 36000, roas: '9.33x', convRate: '1.54%' },
-  { platform: 'WhatsApp', videos: 4, views: 24800, clicks: 2140, orders: 96, revenue: 384000, spend: 0, roas: '∞', convRate: '4.49%' },
-];
-
-const SOCIAL_FUNNEL_DATA: SocialFunnelRow[] = [
-  { date: 'Sep 17', views: 142000, clicks: 5840, orders: 168, revenue: 504000 },
-  { date: 'Sep 18', views: 22400, clicks: 3120, orders: 62, revenue: 186000 },
-  { date: 'Sep 19', views: 31200, clicks: 2890, orders: 84, revenue: 252000 },
-  { date: 'Sep 20', views: 48200, clicks: 4180, orders: 132, revenue: 924000 },
-  { date: 'Sep 21', views: 18600, clicks: 1420, orders: 42, revenue: 126000 },
-  { date: 'Sep 22', views: 184000, clicks: 6420, orders: 248, revenue: 992000 },
-  { date: 'Sep 23', views: 62400, clicks: 3120, orders: 48, revenue: 336000 },
-];
-
-const PRODUCT_VIDEO_PERF_DATA: ProductVideoPerfRow[] = [
-  { product: 'Samsung Galaxy A55 5G', sku: 'ELEC-SAM-A55', category: 'Smartphones', videos: 4, views: 208800, orders: 344, revenue: 1376000, bestPlatform: 'TikTok', avgConvRate: '3.94%' },
-  { product: 'Sony WH-1000XM5 Headphones', sku: 'ELEC-SNY-XM5', category: 'Audio', videos: 3, views: 110600, orders: 180, revenue: 1260000, bestPlatform: 'YouTube', avgConvRate: '2.35%' },
-  { product: 'Anker 20000mAh Power Bank', sku: 'ELEC-ANK-PB20', category: 'Accessories', videos: 3, views: 160600, orders: 210, revenue: 630000, bestPlatform: 'TikTok', avgConvRate: '2.92%' },
-  { product: 'HP Pavilion 15 Core i5', sku: 'ELEC-HP-PAV15', category: 'Laptops', videos: 2, views: 31200, orders: 84, revenue: 252000, bestPlatform: 'Instagram', avgConvRate: '2.91%' },
-  { product: 'Samsung 55" Crystal UHD TV', sku: 'ELEC-SAM-TV55', category: 'TVs', videos: 2, views: 22400, orders: 62, revenue: 186000, bestPlatform: 'YouTube', avgConvRate: '1.99%' },
-];
-
-// Status style maps
-const TAX_STATUS_STYLES: Record<TaxRow['status'], string> = {
+const TAX_STATUS_STYLES: Record<ReportTaxStatus, string> = {
   Filed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   Due: 'bg-amber-50 text-amber-700 border-amber-100',
   Overdue: 'bg-red-50 text-red-600 border-red-100',
 };
 
-const INVENTORY_STATUS_STYLES: Record<InventoryRow['status'], string> = {
+const INVENTORY_STATUS_STYLES: Record<ReportInventoryRow['status'], string> = {
   'In Stock': 'bg-emerald-50 text-emerald-700 border-emerald-100',
   Low: 'bg-amber-50 text-amber-700 border-amber-100',
   Critical: 'bg-orange-50 text-orange-700 border-orange-100',
   Out: 'bg-red-50 text-red-600 border-red-100',
 };
 
-const DISCOUNT_STATUS_STYLES: Record<DiscountRow['status'], string> = {
+const DISCOUNT_STATUS_STYLES: Record<ReportDiscountStatus, string> = {
   Active: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   Expired: 'bg-slate-50 text-slate-600 border-slate-200',
   Scheduled: 'bg-blue-50 text-blue-950 border-blue-100',
 };
 
-const VIDEO_TYPE_STYLES: Record<SocialVideoRow['videoType'], string> = {
+const VIDEO_TYPE_STYLES: Record<ReportSocialVideo['videoType'], string> = {
   Unboxing: 'bg-blue-50 text-blue-950 border-blue-100',
   Review: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   Demo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
@@ -538,51 +127,224 @@ const VIDEO_TYPE_STYLES: Record<SocialVideoRow['videoType'], string> = {
   Tutorial: 'bg-purple-50 text-purple-700 border-purple-100',
 };
 
-// ============================================================
-// COMPONENT
-// ============================================================
+// ─────────────────────────────────────────────────────────────
+// Reports tab → admin page it hands off to
+// ─────────────────────────────────────────────────────────────
+const REPORT_TAB_ROUTES: Record<ReportTab, string> = {
+  sales: '/admin/orders',
+  orders: '/admin/orders',
+  customers: '/admin/customers',
+  products: '/admin/products',
+  inventory: '/admin/inventory',
+  payments: '/admin/transactions',
+  taxes: '/admin/settings?tab=taxes',
+  shipping: '/admin/shipping',
+  discounts: '/admin/discounts',
+  social: '/admin/social',
+};
+
+// Human label for the "Open in X" button
+const REPORT_TAB_TARGETS: Record<ReportTab, string> = {
+  sales: 'Orders',
+  orders: 'Orders',
+  customers: 'Customers',
+  products: 'Products',
+  inventory: 'Inventory',
+  payments: 'Transactions',
+  taxes: 'Settings',
+  shipping: 'Shipping',
+  discounts: 'Discounts',
+  social: 'Social',
+};
+
 export default function ReportsPage() {
+  const router = useRouter();
+
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
-  const [dateRange, setDateRange] = useState<DateRange>('7days');
+  const [dateRange, setDateRange] = useState<ReportRange>('7days');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState<ReportQuery>({ range: '7days' });
+
+  const [reportData, setReportData] = useState<ReportDataMap>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Modals
-  const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentRow | null>(null);
-  const [selectedPieSlice, setSelectedPieSlice] = useState<typeof PAYMENT_SHARE_PIE[0] | null>(null);
-  const [selectedTax, setSelectedTax] = useState<TaxRow | null>(null);
-  const [selectedInventory, setSelectedInventory] = useState<InventoryRow | null>(null);
-  const [selectedShipping, setSelectedShipping] = useState<ShippingRow | null>(null);
-  const [selectedDiscount, setSelectedDiscount] = useState<DiscountRow | null>(null);
-
-  // Social modals
-  const [selectedVideo, setSelectedVideo] = useState<SocialVideoRow | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<PlatformSummaryRow | null>(null);
-  const [selectedFunnelDay, setSelectedFunnelDay] = useState<SocialFunnelRow | null>(null);
-  const [selectedProductVideo, setSelectedProductVideo] = useState<ProductVideoPerfRow | null>(null);
+  const [selectedSale, setSelectedSale] = useState<ReportSaleRow | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<ReportOrderRow | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ReportProductRow | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<ReportTopBuyer | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<ReportPaymentStream | null>(null);
+  const [selectedPieSlice, setSelectedPieSlice] = useState<ReportPaymentShareSlice | null>(null);
+  const [selectedTax, setSelectedTax] = useState<ReportTaxRow | null>(null);
+  const [selectedInventory, setSelectedInventory] = useState<ReportInventoryRow | null>(null);
+  const [selectedShipping, setSelectedShipping] = useState<ReportShippingRow | null>(null);
+  const [selectedDiscount, setSelectedDiscount] = useState<ReportDiscountRow | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<ReportSocialVideo | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<ReportPlatformSummary | null>(null);
+  const [selectedFunnelDay, setSelectedFunnelDay] = useState<ReportSocialFunnelPoint | null>(null);
+  const [selectedProductVideo, setSelectedProductVideo] = useState<ReportProductVideoPerf | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleTabChange = (tab: ReportTab) => {
-    setIsLoading(true);
-    setActiveTab(tab);
-    setTimeout(() => setIsLoading(false), 300);
+  // ── Handoff to the operational admin page ────────────────
+  const openInAdmin = (
+    tab: ReportTab,
+    extra: Record<string, string | undefined> = {},
+  ) => {
+    const base = REPORT_TAB_ROUTES[tab];
+    const params = new URLSearchParams();
+
+    params.set('range', appliedQuery.range ?? '7days');
+    if (appliedQuery.range === 'custom') {
+      if (appliedQuery.start) params.set('start', appliedQuery.start);
+      if (appliedQuery.end) params.set('end', appliedQuery.end);
+    }
+    for (const [k, v] of Object.entries(extra)) {
+      if (v !== undefined && v !== '') params.set(k, v);
+    }
+
+    const sep = base.includes('?') ? '&' : '?';
+    router.push(`${base}${sep}${params.toString()}`);
   };
 
-  const handleExport = (format: ExportFormat) => {
+  // "Sep 17" → "2026-09-17" (uses current year from the report label)
+  const toIsoDate = (short: string) => {
+    const year = new Date().getFullYear();
+    const d = new Date(`${short}, ${year}`);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  };
+
+  // ── Fetch on tab or query change ─────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+
+    const load = async () => {
+      try {
+        switch (activeTab) {
+          case 'sales': {
+            const data = await adminApi.reports.sales(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, sales: data }));
+            break;
+          }
+          case 'orders': {
+            const data = await adminApi.reports.orders(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, orders: data }));
+            break;
+          }
+          case 'customers': {
+            const data = await adminApi.reports.customers(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, customers: data }));
+            break;
+          }
+          case 'products': {
+            const data = await adminApi.reports.products(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, products: data }));
+            break;
+          }
+          case 'inventory': {
+            const data = await adminApi.reports.inventory(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, inventory: data }));
+            break;
+          }
+          case 'payments': {
+            const data = await adminApi.reports.payments(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, payments: data }));
+            break;
+          }
+          case 'taxes': {
+            const data = await adminApi.reports.taxes(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, taxes: data }));
+            break;
+          }
+          case 'shipping': {
+            const data = await adminApi.reports.shipping(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, shipping: data }));
+            break;
+          }
+          case 'discounts': {
+            const data = await adminApi.reports.discounts(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, discounts: data }));
+            break;
+          }
+          case 'social': {
+            const data = await adminApi.reports.social(appliedQuery);
+            if (!cancelled) setReportData((p) => ({ ...p, social: data }));
+            break;
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load report');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, appliedQuery.range, appliedQuery.start, appliedQuery.end]);
+
+  const handleTabChange = (tab: ReportTab) => {
+    setActiveTab(tab);
+  };
+
+  const handleRangePick = (rng: ReportRange) => {
+    setDateRange(rng);
+    if (rng !== 'custom') {
+      setAppliedQuery({ range: rng });
+      setIsDateMenuOpen(false);
+    }
+  };
+
+  const handleApplyCustom = () => {
+    if (!customStart || !customEnd) {
+      showToast('Please select both start and end dates');
+      return;
+    }
+    setAppliedQuery({ range: 'custom', start: customStart, end: customEnd });
+    setIsDateMenuOpen(false);
+  };
+
+  const handleRefresh = async () => {
+    try {
+      await adminApi.reports.refreshCache({ tab: activeTab });
+      setAppliedQuery((q) => ({ ...q }));
+      showToast(`Refreshed ${activeTab.toUpperCase()} report`);
+    } catch {
+      showToast(`Refresh failed for ${activeTab.toUpperCase()}`);
+    }
+  };
+
+  const handleExport = async (format: ExportFormat) => {
     setIsExportMenuOpen(false);
-    showToast(`Exported ${activeTab.toUpperCase()} report as ${format}`);
+    setIsExporting(true);
+    try {
+      const res = await adminApi.reports.logExport({
+        tab: activeTab,
+        range: appliedQuery.range ?? '7days',
+        format,
+      });
+      showToast(`Exported ${activeTab.toUpperCase()} as ${format} → ${res.filename}`);
+    } catch {
+      showToast(`Export failed for ${activeTab.toUpperCase()}`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const dateRangeLabel = (() => {
@@ -599,7 +361,7 @@ export default function ReportsPage() {
     }
   })();
 
-  const DATE_OPTIONS: { id: DateRange; label: string }[] = [
+  const DATE_OPTIONS: { id: ReportRange; label: string }[] = [
     { id: 'today', label: 'Today' },
     { id: 'yesterday', label: 'Yesterday' },
     { id: '7days', label: 'Last 7 Days' },
@@ -609,7 +371,7 @@ export default function ReportsPage() {
     { id: 'custom', label: 'Custom Range…' },
   ];
 
-  const TABS: { id: ReportTab; label: string; icon: any }[] = [
+  const TABS: { id: ReportTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'sales', label: 'Sales', icon: TrendingUp },
     { id: 'orders', label: 'Orders', icon: ShoppingBag },
     { id: 'customers', label: 'Customers', icon: Users },
@@ -622,10 +384,20 @@ export default function ReportsPage() {
     { id: 'social', label: 'Social Videos', icon: Share2 },
   ];
 
+  const sales = reportData.sales;
+  const orders = reportData.orders;
+  const customers = reportData.customers;
+  const products = reportData.products;
+  const inventory = reportData.inventory;
+  const payments = reportData.payments;
+  const taxes = reportData.taxes;
+  const shipping = reportData.shipping;
+  const discounts = reportData.discounts;
+  const social = reportData.social;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
 
-      {/* TOAST */}
       {toastMessage && (
         <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -636,7 +408,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ---- SALE ROW MODAL ---- */}
+      {/* ─── SALES DAY MODAL ─── */}
       {selectedSale && (
         <Modal onClose={() => setSelectedSale(null)}>
           <div className="space-y-3">
@@ -651,12 +423,23 @@ export default function ReportsPage() {
               <Stat label="Avg Order Value" value={`KES ${selectedSale.aov.toLocaleString()}`} />
               <Stat label="Refunds" value={selectedSale.refunds.toString()} />
             </div>
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex justify-end gap-2 pt-1 flex-wrap">
               <button
                 onClick={() => showToast(`Exported ${selectedSale.date} sales breakdown`)}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
               >
                 Export day
+              </button>
+              <button
+                onClick={() => {
+                  const iso = toIsoDate(selectedSale.date);
+                  setSelectedSale(null);
+                  openInAdmin('orders', { date: iso });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                Open day in Orders
+                <ExternalLink className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setSelectedSale(null)}
@@ -669,7 +452,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- ORDER MODAL ---- */}
+      {/* ─── ORDER MODAL ─── */}
       {selectedOrder && (
         <Modal onClose={() => setSelectedOrder(null)}>
           <div className="space-y-3">
@@ -687,11 +470,14 @@ export default function ReportsPage() {
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button
-                onClick={() => showToast(`Opening order ${selectedOrder.id}`)}
+                onClick={() => {
+                  setSelectedOrder(null);
+                  openInAdmin('orders', { reference: selectedOrder.id });
+                }}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                View order
+                Open in Orders
               </button>
               <button
                 onClick={() => setSelectedOrder(null)}
@@ -704,7 +490,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- PRODUCT MODAL ---- */}
+      {/* ─── PRODUCT MODAL ─── */}
       {selectedProduct && (
         <Modal onClose={() => setSelectedProduct(null)}>
           <div className="space-y-3">
@@ -722,11 +508,14 @@ export default function ReportsPage() {
             <p className="text-[13px] text-slate-500">Last sold: {selectedProduct.lastSold}</p>
             <div className="flex justify-end gap-2 pt-1">
               <button
-                onClick={() => showToast(`Opening product page for ${selectedProduct.product}`)}
+                onClick={() => {
+                  setSelectedProduct(null);
+                  openInAdmin('products', { sku: selectedProduct.sku });
+                }}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                View product
+                Open in Products
               </button>
               <button
                 onClick={() => setSelectedProduct(null)}
@@ -739,7 +528,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- CUSTOMER MODAL ---- */}
+      {/* ─── CUSTOMER MODAL ─── */}
       {selectedCustomer && (
         <Modal onClose={() => setSelectedCustomer(null)}>
           <div className="space-y-3">
@@ -768,6 +557,16 @@ export default function ReportsPage() {
                 WhatsApp
               </button>
               <button
+                onClick={() => {
+                  setSelectedCustomer(null);
+                  openInAdmin('customers', { q: selectedCustomer.email });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open in Customers
+              </button>
+              <button
                 onClick={() => setSelectedCustomer(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
@@ -778,7 +577,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- PAYMENT MODAL ---- */}
+      {/* ─── PAYMENT MODAL ─── */}
       {selectedPayment && (
         <Modal onClose={() => setSelectedPayment(null)}>
           <div className="space-y-3">
@@ -798,6 +597,16 @@ export default function ReportsPage() {
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button
+                onClick={() => {
+                  setSelectedPayment(null);
+                  openInAdmin('payments', { method: selectedPayment.method });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open in Transactions
+              </button>
+              <button
                 onClick={() => setSelectedPayment(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
@@ -808,8 +617,8 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- PIE SLICE MODAL ---- */}
-      {selectedPieSlice && (
+      {/* ─── PIE SLICE MODAL ─── */}
+      {selectedPieSlice && payments && (
         <Modal onClose={() => setSelectedPieSlice(null)}>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -818,9 +627,21 @@ export default function ReportsPage() {
             </div>
             <Stat label="Volume" value={`KES ${selectedPieSlice.value.toLocaleString()}`} />
             <p className="text-[13px] text-slate-500">
-              Share of total: {Math.round((selectedPieSlice.value / PAYMENT_SHARE_PIE.reduce((a, b) => a + b.value, 0)) * 100)}%
+              Share of total: {Math.round(
+                (selectedPieSlice.value / payments.share.reduce((a, b) => a + b.value, 0)) * 100,
+              )}%
             </p>
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setSelectedPieSlice(null);
+                  openInAdmin('payments', { method: selectedPieSlice.name });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open in Transactions
+              </button>
               <button
                 onClick={() => setSelectedPieSlice(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -832,7 +653,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- TAX MODAL ---- */}
+      {/* ─── TAX MODAL ─── */}
       {selectedTax && (
         <Modal onClose={() => setSelectedTax(null)}>
           <div className="space-y-3">
@@ -853,6 +674,16 @@ export default function ReportsPage() {
             <p className="text-[13px] text-slate-500">Due date: {selectedTax.dueDate}</p>
             <div className="flex justify-end gap-2 pt-1">
               <button
+                onClick={() => {
+                  setSelectedTax(null);
+                  openInAdmin('taxes', { period: selectedTax.period });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open tax settings
+              </button>
+              <button
                 onClick={() => setSelectedTax(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
@@ -863,7 +694,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- INVENTORY MODAL ---- */}
+      {/* ─── INVENTORY MODAL ─── */}
       {selectedInventory && (
         <Modal onClose={() => setSelectedInventory(null)}>
           <div className="space-y-3">
@@ -886,6 +717,16 @@ export default function ReportsPage() {
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button
+                onClick={() => {
+                  setSelectedInventory(null);
+                  openInAdmin('inventory', { sku: selectedInventory.sku });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open in Inventory
+              </button>
+              <button
                 onClick={() => setSelectedInventory(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
@@ -896,7 +737,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- SHIPPING MODAL ---- */}
+      {/* ─── SHIPPING MODAL ─── */}
       {selectedShipping && (
         <Modal onClose={() => setSelectedShipping(null)}>
           <div className="space-y-3">
@@ -913,7 +754,17 @@ export default function ReportsPage() {
               <Stat label="On-Time Rate" value={selectedShipping.onTimeRate} />
             </div>
             <Stat label="Total Cost" value={`KES ${selectedShipping.cost.toLocaleString()}`} />
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setSelectedShipping(null);
+                  openInAdmin('shipping', { carrier: selectedShipping.carrier });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open in Shipping
+              </button>
               <button
                 onClick={() => setSelectedShipping(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -925,7 +776,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- DISCOUNT MODAL ---- */}
+      {/* ─── DISCOUNT MODAL ─── */}
       {selectedDiscount && (
         <Modal onClose={() => setSelectedDiscount(null)}>
           <div className="space-y-3">
@@ -948,7 +799,17 @@ export default function ReportsPage() {
               <p className="text-[13px] text-emerald-800">Return on discount</p>
               <p className="text-[15px] font-bold text-emerald-700 mt-0.5">{selectedDiscount.roi}</p>
             </div>
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setSelectedDiscount(null);
+                  openInAdmin('discounts', { code: selectedDiscount.code });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open in Discounts
+              </button>
               <button
                 onClick={() => setSelectedDiscount(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -960,7 +821,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- SOCIAL: VIDEO DETAIL MODAL ---- */}
+      {/* ─── SOCIAL: VIDEO MODAL ─── */}
       {selectedVideo && (
         <Modal onClose={() => setSelectedVideo(null)}>
           <div className="space-y-3">
@@ -1008,14 +869,20 @@ export default function ReportsPage() {
 
             <div className="flex flex-wrap justify-end gap-2 pt-1">
               <button
-                onClick={() => showToast(`Opening ${selectedVideo.platform} video ${selectedVideo.id}`)}
+                onClick={() => {
+                  setSelectedVideo(null);
+                  openInAdmin('social', { post: selectedVideo.id });
+                }}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                Open video
+                Open in Social
               </button>
               <button
-                onClick={() => showToast(`Opening product ${selectedVideo.sku}`)}
+                onClick={() => {
+                  setSelectedVideo(null);
+                  openInAdmin('products', { sku: selectedVideo.sku });
+                }}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 <Boxes className="w-3.5 h-3.5" />
@@ -1032,7 +899,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- SOCIAL: PLATFORM DETAIL MODAL ---- */}
+      {/* ─── SOCIAL: PLATFORM MODAL ─── */}
       {selectedPlatform && (
         <Modal onClose={() => setSelectedPlatform(null)}>
           <div className="space-y-3">
@@ -1057,7 +924,17 @@ export default function ReportsPage() {
               </p>
               <p className="text-[13px] text-emerald-700 mt-0.5">ROAS: {selectedPlatform.roas}</p>
             </div>
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setSelectedPlatform(null);
+                  openInAdmin('social', { platform: selectedPlatform.platform });
+                }}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open in Social
+              </button>
               <button
                 onClick={() => setSelectedPlatform(null)}
                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -1069,7 +946,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- SOCIAL: FUNNEL DAY MODAL ---- */}
+      {/* ─── SOCIAL: FUNNEL DAY MODAL ─── */}
       {selectedFunnelDay && (
         <Modal onClose={() => setSelectedFunnelDay(null)}>
           <div className="space-y-3">
@@ -1100,7 +977,7 @@ export default function ReportsPage() {
         </Modal>
       )}
 
-      {/* ---- SOCIAL: PRODUCT VIDEO PERF MODAL ---- */}
+      {/* ─── SOCIAL: PRODUCT VIDEO PERF MODAL ─── */}
       {selectedProductVideo && (
         <Modal onClose={() => setSelectedProductVideo(null)}>
           <div className="space-y-3">
@@ -1143,7 +1020,15 @@ export default function ReportsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* DATE RANGE PICKER */}
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="bg-white border border-slate-200 rounded-sm p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              title="Refresh this tab"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+
             <div className="relative">
               <button
                 onClick={() => setIsDateMenuOpen(!isDateMenuOpen)}
@@ -1161,14 +1046,7 @@ export default function ReportsPage() {
                     {DATE_OPTIONS.map((opt) => (
                       <button
                         key={opt.id}
-                        onClick={() => {
-                          if (opt.id === 'custom') {
-                            setDateRange('custom');
-                          } else {
-                            setDateRange(opt.id);
-                            setIsDateMenuOpen(false);
-                          }
-                        }}
+                        onClick={() => handleRangePick(opt.id)}
                         className={`w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between ${dateRange === opt.id ? 'text-blue-950 font-medium bg-blue-50/40' : 'text-slate-700'
                           }`}
                       >
@@ -1198,14 +1076,7 @@ export default function ReportsPage() {
                           />
                         </div>
                         <button
-                          onClick={() => {
-                            if (customStart && customEnd) {
-                              setIsDateMenuOpen(false);
-                              showToast(`Filtered from ${customStart} to ${customEnd}`);
-                            } else {
-                              showToast('Please select both start and end dates');
-                            }
-                          }}
+                          onClick={handleApplyCustom}
                           className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px]"
                         >
                           Apply Range
@@ -1217,14 +1088,14 @@ export default function ReportsPage() {
               )}
             </div>
 
-            {/* EXPORT MENU */}
             <div className="relative">
               <button
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                disabled={isExporting}
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Export</span>
+                <span>{isExporting ? 'Exporting…' : 'Export'}</span>
                 <ChevronDown className="w-3 h-3" />
               </button>
 
@@ -1272,8 +1143,8 @@ export default function ReportsPage() {
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-3 text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
-                    ? 'border-blue-950 text-blue-950 bg-blue-50/30'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                  ? 'border-blue-950 text-blue-950 bg-blue-50/30'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
@@ -1287,6 +1158,22 @@ export default function ReportsPage() {
       {/* MAIN */}
       <main className="max-w-[1600px] mx-auto px-3 py-3">
 
+        {error && !isLoading && (
+          <div className="bg-red-50 border border-red-100 rounded-sm p-3 mb-3 flex items-start gap-2 text-[13px]">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-red-700">Couldn&apos;t load this report</p>
+              <p className="text-red-600 mt-0.5">{error}</p>
+            </div>
+            <button
+              onClick={handleRefresh}
+              className="bg-white border border-red-200 hover:bg-red-100 text-red-700 font-medium px-2 py-1 rounded-sm text-[13px]"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="space-y-3">
             <div className="h-64 bg-slate-100 rounded-sm w-full animate-pulse" />
@@ -1294,14 +1181,14 @@ export default function ReportsPage() {
           </div>
         ) : (
           <>
-            {/* ---- SALES ---- */}
-            {activeTab === 'sales' && (
+            {/* ───── SALES ───── */}
+            {activeTab === 'sales' && sales && (
               <div className="space-y-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-[13px] font-semibold text-slate-900">Revenue & Orders Timeline</h3>
-                      <p className="text-[13px] text-slate-500">Daily transaction volume vs order counts · {dateRangeLabel}</p>
+                      <p className="text-[13px] text-slate-500">Daily transaction volume vs order counts · {sales.range_label}</p>
                     </div>
                     <div className="flex items-center gap-3 text-[13px]">
                       <span className="flex items-center gap-1.5">
@@ -1317,7 +1204,7 @@ export default function ReportsPage() {
 
                   <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={SALES_DAILY_DATA}>
+                      <ComposedChart data={sales.daily}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} />
                         <YAxis yAxisId="left" stroke="#172554" fontSize={13} />
@@ -1329,7 +1216,7 @@ export default function ReportsPage() {
                           fill="#172554"
                           radius={[2, 2, 0, 0]}
                           barSize={24}
-                          onClick={(entry: any) => setSelectedSale(entry)}
+                          onClick={(entry: unknown) => setSelectedSale(entry as ReportSaleRow)}
                           className="cursor-pointer"
                         />
                         <Line yAxisId="right" type="monotone" dataKey="orders" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
@@ -1342,12 +1229,21 @@ export default function ReportsPage() {
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Daily Sales Breakdown</span>
-                    <button
-                      onClick={() => handleExport('CSV')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium"
-                    >
-                      Export CSV
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleExport('CSV')}
+                        className="text-[13px] text-blue-950 hover:underline font-medium"
+                      >
+                        Export CSV
+                      </button>
+                      <button
+                        onClick={() => openInAdmin('sales')}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      >
+                        Open in Orders
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px]">
@@ -1360,7 +1256,7 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {SALES_DAILY_DATA.map((row, idx) => (
+                        {sales.daily.map((row, idx) => (
                           <tr
                             key={idx}
                             onClick={() => setSelectedSale(row)}
@@ -1379,17 +1275,26 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- ORDERS ---- */}
-            {activeTab === 'orders' && (
+            {/* ───── ORDERS ───── */}
+            {activeTab === 'orders' && orders && (
               <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                 <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                  <span className="text-[13px] font-medium text-slate-700">Order Report · {dateRangeLabel}</span>
-                  <button
-                    onClick={() => handleExport('CSV')}
-                    className="text-[13px] text-blue-950 hover:underline font-medium"
-                  >
-                    Export CSV
-                  </button>
+                  <span className="text-[13px] font-medium text-slate-700">Order Report · {orders.range_label}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleExport('CSV')}
+                      className="text-[13px] text-blue-950 hover:underline font-medium"
+                    >
+                      Export CSV
+                    </button>
+                    <button
+                      onClick={() => openInAdmin('orders')}
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                    >
+                      Open in Orders
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-[13px] min-w-[820px]">
@@ -1406,7 +1311,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {ORDERS_DATA.map((o) => (
+                      {orders.rows.map((o) => (
                         <tr
                           key={o.id}
                           onClick={() => setSelectedOrder(o)}
@@ -1420,10 +1325,10 @@ export default function ReportsPage() {
                           <td className="py-2 px-3 text-slate-600">{o.channel}</td>
                           <td className="py-2 px-3">
                             <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${o.status === 'Delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                : o.status === 'Processing' ? 'bg-blue-50 text-blue-950 border-blue-100'
-                                  : o.status === 'Shipped' ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                    : o.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                      : 'bg-red-50 text-red-600 border-red-100'
+                              : o.status === 'Processing' ? 'bg-blue-50 text-blue-950 border-blue-100'
+                                : o.status === 'Shipped' ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                  : o.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                    : 'bg-red-50 text-red-600 border-red-100'
                               }`}>
                               {o.status}
                             </span>
@@ -1437,8 +1342,8 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- PRODUCTS ---- */}
-            {activeTab === 'products' && (
+            {/* ───── PRODUCTS ───── */}
+            {activeTab === 'products' && products && (
               <div className="space-y-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                   <div>
@@ -1448,7 +1353,7 @@ export default function ReportsPage() {
 
                   <div className="h-56 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={TOP_PRODUCTS_DATA} layout="vertical">
+                      <BarChart data={products.rows} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                         <XAxis type="number" stroke="#94a3b8" fontSize={13} />
                         <YAxis dataKey="product" type="category" width={180} stroke="#172554" fontSize={13} />
@@ -1458,7 +1363,7 @@ export default function ReportsPage() {
                           fill="#0284c7"
                           radius={[0, 2, 2, 0]}
                           barSize={18}
-                          onClick={(entry: any) => setSelectedProduct(entry)}
+                          onClick={(entry: unknown) => setSelectedProduct(entry as ReportProductRow)}
                           className="cursor-pointer"
                         />
                       </BarChart>
@@ -1469,12 +1374,21 @@ export default function ReportsPage() {
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Product Performance</span>
-                    <button
-                      onClick={() => handleExport('Excel')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium"
-                    >
-                      Export Excel
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleExport('Excel')}
+                        className="text-[13px] text-blue-950 hover:underline font-medium"
+                      >
+                        Export Excel
+                      </button>
+                      <button
+                        onClick={() => openInAdmin('products')}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      >
+                        Open in Products
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px] min-w-[700px]">
@@ -1489,7 +1403,7 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {TOP_PRODUCTS_DATA.map((p, idx) => (
+                        {products.rows.map((p, idx) => (
                           <tr
                             key={idx}
                             onClick={() => setSelectedProduct(p)}
@@ -1510,8 +1424,8 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- CUSTOMERS ---- */}
-            {activeTab === 'customers' && (
+            {/* ───── CUSTOMERS ───── */}
+            {activeTab === 'customers' && customers && (
               <div className="space-y-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                   <div>
@@ -1521,7 +1435,7 @@ export default function ReportsPage() {
 
                   <div className="h-56 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={NEW_VS_RETURNING_DATA}>
+                      <ComposedChart data={customers.new_vs_returning}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} />
                         <YAxis stroke="#172554" fontSize={13} />
@@ -1536,12 +1450,21 @@ export default function ReportsPage() {
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Top Buyers</span>
-                    <button
-                      onClick={() => handleExport('CSV')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium"
-                    >
-                      Export CSV
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleExport('CSV')}
+                        className="text-[13px] text-blue-950 hover:underline font-medium"
+                      >
+                        Export CSV
+                      </button>
+                      <button
+                        onClick={() => openInAdmin('customers')}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      >
+                        Open in Customers
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px] min-w-[700px]">
@@ -1555,7 +1478,7 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {CUSTOMERS_DATA.map((c, idx) => (
+                        {customers.top_buyers.map((c, idx) => (
                           <tr
                             key={idx}
                             onClick={() => setSelectedCustomer(c)}
@@ -1575,15 +1498,15 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- INVENTORY ---- */}
-            {activeTab === 'inventory' && (
+            {/* ───── INVENTORY ───── */}
+            {activeTab === 'inventory' && inventory && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { label: 'Total SKUs', value: '482', icon: Package, color: 'text-blue-950 bg-blue-50' },
-                    { label: 'Low Stock', value: '12', icon: AlertTriangle, color: 'text-amber-700 bg-amber-50' },
-                    { label: 'Critical', value: '4', icon: AlertTriangle, color: 'text-orange-700 bg-orange-50' },
-                    { label: 'Out of Stock', value: '3', icon: X, color: 'text-red-600 bg-red-50' },
+                    { label: 'Total SKUs', value: inventory.counts.total_skus, icon: Package, color: 'text-blue-950 bg-blue-50' },
+                    { label: 'Low Stock', value: inventory.counts.low, icon: AlertTriangle, color: 'text-amber-700 bg-amber-50' },
+                    { label: 'Critical', value: inventory.counts.critical, icon: AlertTriangle, color: 'text-orange-700 bg-orange-50' },
+                    { label: 'Out of Stock', value: inventory.counts.out, icon: X, color: 'text-red-600 bg-red-50' },
                   ].map((s) => (
                     <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
                       <div className="flex items-center gap-1.5">
@@ -1600,12 +1523,21 @@ export default function ReportsPage() {
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Inventory Levels</span>
-                    <button
-                      onClick={() => handleExport('Excel')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium"
-                    >
-                      Export Excel
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleExport('Excel')}
+                        className="text-[13px] text-blue-950 hover:underline font-medium"
+                      >
+                        Export Excel
+                      </button>
+                      <button
+                        onClick={() => openInAdmin('inventory')}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      >
+                        Open in Inventory
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px] min-w-[900px]">
@@ -1622,7 +1554,7 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {INVENTORY_DATA.map((r) => (
+                        {inventory.rows.map((r) => (
                           <tr
                             key={r.sku}
                             onClick={() => setSelectedInventory(r)}
@@ -1652,18 +1584,27 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- PAYMENTS (M-Pesa only) ---- */}
-            {activeTab === 'payments' && (
+            {/* ───── PAYMENTS ───── */}
+            {activeTab === 'payments' && payments && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
                 <div className="lg:col-span-8 bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-slate-700">M-Pesa Settlement Report</span>
-                    <button
-                      onClick={() => handleExport('PDF')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium"
-                    >
-                      Export PDF
-                    </button>
+                    <span className="text-[13px] font-medium text-slate-700">M-Pesa Settlement Report · {payments.range_label}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleExport('PDF')}
+                        className="text-[13px] text-blue-950 hover:underline font-medium"
+                      >
+                        Export PDF
+                      </button>
+                      <button
+                        onClick={() => openInAdmin('payments')}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      >
+                        Open in Transactions
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px] min-w-[640px]">
@@ -1677,7 +1618,7 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {PAYMENTS_DATA.map((pay, idx) => (
+                        {payments.streams.map((pay, idx) => (
                           <tr
                             key={idx}
                             onClick={() => setSelectedPayment(pay)}
@@ -1704,17 +1645,17 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={PAYMENT_SHARE_PIE}
+                          data={payments.share}
                           cx="50%"
                           cy="50%"
                           innerRadius={40}
                           outerRadius={65}
                           paddingAngle={3}
                           dataKey="value"
-                          onClick={(entry: any) => setSelectedPieSlice(entry)}
+                          onClick={(entry: unknown) => setSelectedPieSlice(entry as ReportPaymentShareSlice)}
                           className="cursor-pointer"
                         >
-                          {PAYMENT_SHARE_PIE.map((entry, i) => (
+                          {payments.share.map((entry, i) => (
                             <Cell key={i} fill={entry.color} className="hover:opacity-80" />
                           ))}
                         </Pie>
@@ -1723,7 +1664,7 @@ export default function ReportsPage() {
                     </ResponsiveContainer>
                   </div>
                   <div className="space-y-0.5 text-[13px]">
-                    {PAYMENT_SHARE_PIE.map((slice) => (
+                    {payments.share.map((slice) => (
                       <button
                         key={slice.name}
                         onClick={() => setSelectedPieSlice(slice)}
@@ -1741,17 +1682,26 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- TAXES ---- */}
-            {activeTab === 'taxes' && (
+            {/* ───── TAXES ───── */}
+            {activeTab === 'taxes' && taxes && (
               <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                 <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                   <span className="text-[13px] font-medium text-slate-700">KRA VAT (16%) & Taxable Sales</span>
-                  <button
-                    onClick={() => handleExport('Excel')}
-                    className="text-[13px] text-blue-950 hover:underline font-medium"
-                  >
-                    Export Excel
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleExport('Excel')}
+                      className="text-[13px] text-blue-950 hover:underline font-medium"
+                    >
+                      Export Excel
+                    </button>
+                    <button
+                      onClick={() => openInAdmin('taxes')}
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                    >
+                      Open tax settings
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-[13px] min-w-[720px]">
@@ -1765,7 +1715,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {TAXES_DATA.map((tax, idx) => (
+                      {taxes.rows.map((tax, idx) => (
                         <tr
                           key={idx}
                           onClick={() => setSelectedTax(tax)}
@@ -1788,15 +1738,15 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- SHIPPING ---- */}
-            {activeTab === 'shipping' && (
+            {/* ───── SHIPPING ───── */}
+            {activeTab === 'shipping' && shipping && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { label: 'Total Shipments', value: '1,860', icon: Truck, color: 'text-blue-950 bg-blue-50' },
-                    { label: 'Delivered', value: '1,690', icon: CheckCircle2, color: 'text-emerald-700 bg-emerald-50' },
-                    { label: 'In Transit', value: '140', icon: Truck, color: 'text-indigo-700 bg-indigo-50' },
-                    { label: 'Failed', value: '30', icon: X, color: 'text-red-600 bg-red-50' },
+                    { label: 'Total Shipments', value: shipping.totals.shipments.toLocaleString(), icon: Truck, color: 'text-blue-950 bg-blue-50' },
+                    { label: 'Delivered', value: shipping.totals.delivered.toLocaleString(), icon: CheckCircle2, color: 'text-emerald-700 bg-emerald-50' },
+                    { label: 'In Transit', value: shipping.totals.in_transit.toLocaleString(), icon: Truck, color: 'text-indigo-700 bg-indigo-50' },
+                    { label: 'Failed', value: shipping.totals.failed.toLocaleString(), icon: X, color: 'text-red-600 bg-red-50' },
                   ].map((s) => (
                     <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
                       <div className="flex items-center gap-1.5">
@@ -1813,12 +1763,21 @@ export default function ReportsPage() {
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Carrier Performance</span>
-                    <button
-                      onClick={() => handleExport('CSV')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium"
-                    >
-                      Export CSV
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleExport('CSV')}
+                        className="text-[13px] text-blue-950 hover:underline font-medium"
+                      >
+                        Export CSV
+                      </button>
+                      <button
+                        onClick={() => openInAdmin('shipping')}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      >
+                        Open in Shipping
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px] min-w-[840px]">
@@ -1835,7 +1794,7 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {SHIPPING_DATA.map((s) => (
+                        {shipping.rows.map((s) => (
                           <tr
                             key={s.carrier}
                             onClick={() => setSelectedShipping(s)}
@@ -1858,17 +1817,26 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- DISCOUNTS ---- */}
-            {activeTab === 'discounts' && (
+            {/* ───── DISCOUNTS ───── */}
+            {activeTab === 'discounts' && discounts && (
               <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                 <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                   <span className="text-[13px] font-medium text-slate-700">Discount Code Performance</span>
-                  <button
-                    onClick={() => handleExport('Excel')}
-                    className="text-[13px] text-blue-950 hover:underline font-medium"
-                  >
-                    Export Excel
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleExport('Excel')}
+                      className="text-[13px] text-blue-950 hover:underline font-medium"
+                    >
+                      Export Excel
+                    </button>
+                    <button
+                      onClick={() => openInAdmin('discounts')}
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                    >
+                      Open in Discounts
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-[13px] min-w-[840px]">
@@ -1884,7 +1852,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {DISCOUNTS_DATA.map((d) => (
+                      {discounts.rows.map((d) => (
                         <tr
                           key={d.code}
                           onClick={() => setSelectedDiscount(d)}
@@ -1909,15 +1877,15 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* ---- SOCIAL: PRODUCT VIDEOS ---- */}
-            {activeTab === 'social' && (
+            {/* ───── SOCIAL ───── */}
+            {activeTab === 'social' && social && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {[
-                    { label: 'Videos Published', value: '39', change: '+8', up: true, icon: Video, color: 'text-blue-950 bg-blue-50' },
-                    { label: 'Total Views', value: '533,600', change: '+18.2%', up: true, icon: Eye, color: 'text-indigo-700 bg-indigo-50' },
-                    { label: 'Orders from Videos', value: '880', change: '+22.5%', up: true, icon: ShoppingCart, color: 'text-emerald-700 bg-emerald-50' },
-                    { label: 'Video Revenue', value: 'KES 3,696,000', change: '+26.8%', up: true, icon: CircleDollarSign, color: 'text-emerald-700 bg-emerald-50' },
+                    { label: 'Videos Published', value: social.summary.videos.toLocaleString(), change: social.summary.changes.videos, up: true, icon: Video, color: 'text-blue-950 bg-blue-50' },
+                    { label: 'Total Views', value: social.summary.views.toLocaleString(), change: social.summary.changes.views, up: true, icon: Eye, color: 'text-indigo-700 bg-indigo-50' },
+                    { label: 'Orders from Videos', value: social.summary.orders.toLocaleString(), change: social.summary.changes.orders, up: true, icon: ShoppingCart, color: 'text-emerald-700 bg-emerald-50' },
+                    { label: 'Video Revenue', value: `KES ${social.summary.revenue.toLocaleString()}`, change: social.summary.changes.revenue, up: true, icon: CircleDollarSign, color: 'text-emerald-700 bg-emerald-50' },
                   ].map((s) => (
                     <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
                       <div className="flex items-center gap-1.5">
@@ -1944,7 +1912,7 @@ export default function ReportsPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-[13px] font-semibold text-slate-900">Social Sales Funnel</h3>
-                      <p className="text-[13px] text-slate-500">Views → Product clicks → Orders · {dateRangeLabel}</p>
+                      <p className="text-[13px] text-slate-500">Views → Product clicks → Orders</p>
                     </div>
                     <div className="flex items-center gap-3 text-[13px]">
                       <span className="flex items-center gap-1.5">
@@ -1960,7 +1928,7 @@ export default function ReportsPage() {
 
                   <div className="h-56 sm:h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={SOCIAL_FUNNEL_DATA}>
+                      <ComposedChart data={social.funnel}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} />
                         <YAxis yAxisId="left" stroke="#172554" fontSize={13} />
@@ -1972,7 +1940,7 @@ export default function ReportsPage() {
                           fill="#172554"
                           radius={[2, 2, 0, 0]}
                           barSize={20}
-                          onClick={(entry: any) => setSelectedFunnelDay(entry)}
+                          onClick={(entry: unknown) => setSelectedFunnelDay(entry as ReportSocialFunnelPoint)}
                           className="cursor-pointer"
                         />
                         <Line
@@ -1992,12 +1960,21 @@ export default function ReportsPage() {
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
                   <div className="px-2 sm:px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
                     <span className="text-[13px] font-medium text-slate-700 truncate">Product Videos Performance</span>
-                    <button
-                      onClick={() => handleExport('Excel')}
-                      className="text-[13px] text-blue-950 hover:underline font-medium shrink-0"
-                    >
-                      Export Excel
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleExport('Excel')}
+                        className="text-[13px] text-blue-950 hover:underline font-medium"
+                      >
+                        Export Excel
+                      </button>
+                      <button
+                        onClick={() => openInAdmin('social')}
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      >
+                        Open in Social
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px] min-w-[900px]">
@@ -2014,7 +1991,7 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {SOCIAL_VIDEOS_DATA.map((v) => (
+                        {social.videos.map((v) => (
                           <tr
                             key={v.id}
                             onClick={() => setSelectedVideo(v)}
@@ -2071,7 +2048,7 @@ export default function ReportsPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {PLATFORM_SUMMARY_DATA.map((p) => (
+                          {social.platforms.map((p) => (
                             <tr
                               key={p.platform}
                               onClick={() => setSelectedPlatform(p)}
@@ -2108,7 +2085,7 @@ export default function ReportsPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {PRODUCT_VIDEO_PERF_DATA.map((p) => (
+                          {social.product_perf.map((p) => (
                             <tr
                               key={p.sku}
                               onClick={() => setSelectedProductVideo(p)}
@@ -2169,7 +2146,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function PlatformIcon({ platform, withLabel = false }: { platform: string; withLabel?: boolean }) {
-  const map: Record<string, { icon: any; color: string }> = {
+  const map: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
     TikTok: { icon: Music2, color: 'text-slate-900 bg-slate-100' },
     Instagram: { icon: FaInstagram, color: 'text-pink-600 bg-pink-50' },
     YouTube: { icon: FaYoutube, color: 'text-red-600 bg-red-50' },

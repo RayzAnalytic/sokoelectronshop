@@ -2,20 +2,22 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Star, MessageSquare, Clock, Image as ImageIcon, Pencil, Trash2,
     ExternalLink, X, Check, AlertCircle, Loader2, ShoppingBag,
-    Upload,
+    Upload, Package,
 } from 'lucide-react';
 import {
     accountApi,
     ApiError,
+    type PendingReviewItem,
     type ReviewRow,
     type ReviewWriteInput,
 } from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types
+// Local view types
 // ─────────────────────────────────────────────────────────────────────────────
 type ReviewStatus = 'Published' | 'Pending' | 'Rejected';
 
@@ -33,6 +35,7 @@ interface Review {
     date: string;
     status: ReviewStatus;
     rejectionReason?: string;
+    orderReference: string;
 }
 
 interface ReviewDraft {
@@ -40,6 +43,12 @@ interface ReviewDraft {
     title: string;
     body: string;
     images: string[];
+}
+
+interface ProductPreview {
+    name: string;
+    image: string;
+    brand?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,11 +72,12 @@ function rowToReview(row: ReviewRow): Review {
         date: row.created_at,
         status: titleCase(row.status) as ReviewStatus,
         rejectionReason: row.rejection_reason || undefined,
+        orderReference: row.order_reference || '',
     };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Constants
 // ─────────────────────────────────────────────────────────────────────────────
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE_MB = 5;
@@ -77,6 +87,9 @@ const BODY_MIN = 10;
 const BODY_MAX = 1200;
 const PAGE_SIZE = 5;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
     try {
         return new Date(iso).toLocaleDateString('en-KE', {
@@ -112,17 +125,35 @@ function statusIcon(s: ReviewStatus) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Editor state
+// ─────────────────────────────────────────────────────────────────────────────
+type EditorState =
+    | {
+        mode: 'edit';
+        reviewId: number;
+        preview: ProductPreview;
+        draft: ReviewDraft;
+    }
+    | {
+        mode: 'create';
+        pending: PendingReviewItem;
+        preview: ProductPreview;
+        draft: ReviewDraft;
+    };
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ReviewsPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
     const [reviews, setReviews] = useState<Review[]>([]);
+    const [pending, setPending] = useState<PendingReviewItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-    const [editorOpen, setEditorOpen] = useState<
-        | { mode: 'edit'; reviewId: number; draft: ReviewDraft }
-        | null
-    >(null);
+    const [editorOpen, setEditorOpen] = useState<EditorState | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Review | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 
@@ -131,15 +162,19 @@ export default function ReviewsPage() {
         setTimeout(() => setToast(null), 2500);
     };
 
-    // ── Fetch reviews on mount ──
+    // ── Initial fetch ──
     useEffect(() => {
         let cancelled = false;
 
         (async () => {
             try {
-                const rows = await accountApi.reviews.list();
+                const [rows, pend] = await Promise.all([
+                    accountApi.reviews.list(),
+                    accountApi.reviews.pending(),
+                ]);
                 if (cancelled) return;
                 setReviews(rows.map(rowToReview));
+                setPending(pend);
             } catch (err) {
                 if (cancelled) return;
                 setLoadError(
@@ -157,6 +192,27 @@ export default function ReviewsPage() {
         };
     }, []);
 
+    // ── Deep-link: ?order=REF or ?product=ID ──
+    useEffect(() => {
+        if (pending.length === 0) return;
+
+        const orderRef = searchParams.get('order');
+        const productId = searchParams.get('product');
+        if (!orderRef && !productId) return;
+
+        const match = pending.find(
+            (p) =>
+                (orderRef && p.order_reference === orderRef) ||
+                (productId && p.product_id === productId),
+        );
+
+        if (match) {
+            openCreateEditor(match);
+            router.replace('/pages/account/reviews');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pending, searchParams, router]);
+
     // ── Summary stats ──
     const stats = useMemo(() => {
         const total = reviews.length;
@@ -164,10 +220,15 @@ export default function ReviewsPage() {
             total === 0
                 ? 0
                 : reviews.reduce((acc, r) => acc + r.rating, 0) / total;
-        const pending = reviews.filter((r) => r.status === 'Pending').length;
+        const pendingCount = reviews.filter((r) => r.status === 'Pending').length;
         const withPhotos = reviews.filter((r) => r.images.length > 0).length;
-        return { total, avg, pending, withPhotos };
+        return { total, avg, pending: pendingCount, withPhotos };
     }, [reviews]);
+
+    // Reset pagination when the review list changes identity.
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+    }, [reviews.length]);
 
     const visible = useMemo(
         () => reviews.slice(0, visibleCount),
@@ -176,11 +237,15 @@ export default function ReviewsPage() {
 
     const hasMore = visibleCount < reviews.length;
 
-    // ── Handlers ──
+    // ── Open editors ──
     const openEdit = (review: Review) => {
         setEditorOpen({
             mode: 'edit',
             reviewId: review.id,
+            preview: {
+                name: review.productName,
+                image: review.productImage,
+            },
             draft: {
                 rating: review.rating,
                 title: review.title,
@@ -190,14 +255,32 @@ export default function ReviewsPage() {
         });
     };
 
-    const closeEditor = () => {
-        setEditorOpen(null);
+    const openCreateEditor = (item: PendingReviewItem) => {
+        setEditorOpen({
+            mode: 'create',
+            pending: item,
+            preview: {
+                name: item.product_name,
+                image: item.product_image,
+                brand: item.product_brand,
+            },
+            draft: {
+                rating: 0,
+                title: '',
+                body: '',
+                images: [],
+            },
+        });
     };
 
-    const saveReview = async (draft: ReviewDraft) => {
-        if (!editorOpen) return;
+    const closeEditor = () => setEditorOpen(null);
 
-        const payload: Partial<ReviewWriteInput> = {
+    // ── Save (create or update) ──
+    const saveReview = async (draft: ReviewDraft) => {
+        const open = editorOpen;
+        if (!open) return;
+
+        const base = {
             rating: draft.rating,
             title: draft.title.trim(),
             body: draft.body.trim(),
@@ -205,38 +288,66 @@ export default function ReviewsPage() {
         };
 
         try {
-            const updated = await accountApi.reviews.update(
-                editorOpen.reviewId,
-                payload,
-            );
-            const mapped = rowToReview(updated);
-            setReviews((prev) =>
-                prev.map((r) => (r.id === mapped.id ? mapped : r)),
-            );
-            setEditorOpen(null);
-            flash('Review updated and resubmitted for moderation.');
+            if (open.mode === 'edit') {
+                const updated = await accountApi.reviews.update(
+                    open.reviewId,
+                    base,
+                );
+                const mapped = rowToReview(updated);
+                setReviews((prev) =>
+                    prev.map((r) => (r.id === mapped.id ? mapped : r)),
+                );
+                flash('Review updated and resubmitted for moderation.');
+                setEditorOpen(null);
+            } else {
+                const p = open.pending;
+
+                const payload: ReviewWriteInput = {
+                    ...base,
+                    product_id: p.product_id,
+                    product_name: p.product_name,
+                    product_image: p.product_image,
+                    product_brand: p.product_brand,
+                    order_reference: p.order_reference,
+                };
+
+                const created = await accountApi.reviews.create(payload);
+                const mapped = rowToReview(created);
+
+                setReviews((prev) => [mapped, ...prev]);
+                setPending((prev) =>
+                    prev.filter((x) => x.product_id !== p.product_id),
+                );
+
+                flash('Review submitted for moderation.');
+                setEditorOpen(null);
+            }
         } catch (err) {
             flash(
                 err instanceof ApiError
-                    ? err.message || 'Could not update the review.'
-                    : 'Could not update the review.',
+                    ? err.message ||
+                    `Could not ${open.mode === 'edit' ? 'update' : 'submit'} the review.`
+                    : `Could not ${open.mode === 'edit' ? 'update' : 'submit'} the review.`,
             );
-            // Keep the modal open so the user can retry.
         }
     };
 
+    // ── Delete ──
     const confirmDelete = async () => {
         if (!deleteTarget) return;
         const target = deleteTarget;
         const previous = reviews;
 
-        // Optimistic remove.
         setReviews((prev) => prev.filter((r) => r.id !== target.id));
         setDeleteTarget(null);
 
         try {
             await accountApi.reviews.remove(target.id);
             flash('Review deleted.');
+
+            if (target.orderReference) {
+                accountApi.reviews.pending().then(setPending).catch(() => { });
+            }
         } catch (err) {
             setReviews(previous);
             flash(
@@ -247,13 +358,16 @@ export default function ReviewsPage() {
         }
     };
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-5">
             {/* Toast */}
             {toast && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-center gap-2">
-                    <Check className="h-4 w-4 text-emerald-400" />
-                    {toast}
+                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{toast}</span>
                 </div>
             )}
 
@@ -265,7 +379,11 @@ export default function ReviewsPage() {
                         My Reviews
                     </h1>
                     <p className="text-xs text-slate-500 mt-0.5">
-                        View and manage your product reviews.
+                        {isLoading
+                            ? 'Loading…'
+                            : pending.length > 0
+                                ? `${pending.length} item${pending.length > 1 ? 's' : ''} awaiting your review`
+                                : 'View and manage your product reviews.'}
                     </p>
                 </div>
                 <Link
@@ -305,10 +423,10 @@ export default function ReviewsPage() {
                     }
                 />
                 <SummaryCard
-                    label="Pending Reviews"
-                    value={stats.pending.toLocaleString()}
+                    label="Awaiting Review"
+                    value={pending.length.toLocaleString()}
                     icon={<Clock className="h-4 w-4" />}
-                    tint="bg-slate-100 text-slate-700"
+                    tint="bg-orange-50 text-orange-900"
                 />
                 <SummaryCard
                     label="With Photos"
@@ -318,63 +436,106 @@ export default function ReviewsPage() {
                 />
             </div>
 
-            {/* Loading */}
-            {isLoading ? (
-                <div className="space-y-3">
-                    {[0, 1, 2].map((i) => (
-                        <ReviewSkeleton key={i} />
-                    ))}
-                </div>
-            ) : reviews.length === 0 ? (
-                /* Empty state */
-                <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
-                    <MessageSquare className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                    <h2 className="text-sm font-semibold text-slate-900">
-                        You haven&apos;t written any reviews yet.
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                        Shop products and share your experience with other customers.
-                    </p>
-                    <Link
-                        href="/pages/products"
-                        className="mt-4 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition-colors"
-                    >
-                        <ShoppingBag className="h-3.5 w-3.5" />
-                        Start Shopping
-                    </Link>
-                </div>
-            ) : (
-                <>
+            {/* Awaiting Your Review */}
+            {!isLoading && pending.length > 0 && (
+                <section className="space-y-3">
+                    <div className="flex items-center gap-2 px-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                        <h2 className="text-sm font-semibold text-slate-900">
+                            Awaiting Your Review
+                        </h2>
+                        <span className="text-[11px] text-slate-500">
+                            ({pending.length})
+                        </span>
+                    </div>
                     <ul className="space-y-3">
-                        {visible.map((review) => (
-                            <li key={review.id}>
-                                <ReviewCard
-                                    review={review}
-                                    onEdit={() => openEdit(review)}
-                                    onDelete={() => setDeleteTarget(review)}
+                        {pending.map((item) => (
+                            <li key={`${item.order_reference}-${item.product_id}`}>
+                                <PendingCard
+                                    item={item}
+                                    onWrite={() => openCreateEditor(item)}
                                 />
                             </li>
                         ))}
                     </ul>
-
-                    {/* Load more */}
-                    {hasMore && (
-                        <div className="flex justify-center pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition"
-                            >
-                                Load more reviews
-                            </button>
-                        </div>
-                    )}
-                </>
+                </section>
             )}
+
+            {/* Your Reviews */}
+            <section className="space-y-3">
+                {!isLoading && reviews.length > 0 && (
+                    <h2 className="text-sm font-semibold text-slate-900 px-1">
+                        Your Reviews ({reviews.length})
+                    </h2>
+                )}
+
+                {isLoading ? (
+                    <div className="space-y-3">
+                        {[0, 1, 2].map((i) => (
+                            <ReviewSkeleton key={i} />
+                        ))}
+                    </div>
+                ) : reviews.length === 0 ? (
+                    <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
+                        <MessageSquare className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                        <h2 className="text-sm font-semibold text-slate-900">
+                            You haven&apos;t written any reviews yet.
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                            {pending.length > 0
+                                ? 'Pick one of the items above to get started.'
+                                : 'Shop products and share your experience with other customers.'}
+                        </p>
+                        {pending.length === 0 && (
+                            <Link
+                                href="/pages/products"
+                                className="mt-4 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition-colors"
+                            >
+                                <ShoppingBag className="h-3.5 w-3.5" />
+                                Start Shopping
+                            </Link>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        <ul className="space-y-3">
+                            {visible.map((review) => (
+                                <li key={review.id}>
+                                    <ReviewCard
+                                        review={review}
+                                        onEdit={() => openEdit(review)}
+                                        onDelete={() => setDeleteTarget(review)}
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+
+                        {hasMore && (
+                            <div className="flex justify-center pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setVisibleCount((c) => c + PAGE_SIZE)
+                                    }
+                                    className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition"
+                                >
+                                    Load more reviews
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </section>
 
             {/* Editor modal */}
             {editorOpen && (
                 <ReviewEditor
+                    title={
+                        editorOpen.mode === 'edit'
+                            ? 'Edit Review'
+                            : 'Write a Review'
+                    }
+                    preview={editorOpen.preview}
                     draft={editorOpen.draft}
                     onCancel={closeEditor}
                     onSave={saveReview}
@@ -459,6 +620,56 @@ function Stars({
     );
 }
 
+function PendingCard({
+    item,
+    onWrite,
+}: {
+    item: PendingReviewItem;
+    onWrite: () => void;
+}) {
+    return (
+        <article className="bg-white border border-slate-200 rounded-sm p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <img
+                src={item.product_image || '/placeholder.png'}
+                alt={item.product_name}
+                className="w-16 h-16 rounded-sm object-cover border border-slate-200 shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+                {item.product_brand && (
+                    <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                        {item.product_brand}
+                    </p>
+                )}
+                <p className="text-sm font-semibold text-slate-900 truncate">
+                    {item.product_name}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1">
+                        <Package className="h-3 w-3" />
+                        Order #{item.order_reference}
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <span>Delivered {formatDate(item.delivered_at)}</span>
+                    {item.quantity > 1 && (
+                        <>
+                            <span className="text-slate-300">•</span>
+                            <span>Qty {item.quantity}</span>
+                        </>
+                    )}
+                </p>
+            </div>
+            <button
+                type="button"
+                onClick={onWrite}
+                className="shrink-0 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+            >
+                <Pencil className="h-3 w-3" />
+                Write Review
+            </button>
+        </article>
+    );
+}
+
 function ReviewCard({
     review,
     onEdit,
@@ -468,12 +679,15 @@ function ReviewCard({
     onEdit: () => void;
     onDelete: () => void;
 }) {
-    const productHref = `/pages/products/${review.productSlug}`;
+    // Reviews created before the catalog FK existed may have an empty
+    // slug — fall back to a search query so the link never 404s.
+    const productHref = review.productSlug
+        ? `/pages/products/${review.productSlug}`
+        : `/pages/products?q=${encodeURIComponent(review.productName)}`;
 
     return (
         <article className="bg-white border border-slate-200 rounded-sm p-5">
             <div className="flex flex-col sm:flex-row gap-4">
-                {/* Product image */}
                 <Link
                     href={productHref}
                     className="shrink-0 self-start"
@@ -486,7 +700,6 @@ function ReviewCard({
                     />
                 </Link>
 
-                {/* Main content */}
                 <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -513,11 +726,17 @@ function ReviewCard({
                         </span>
                     </div>
 
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                         <Stars value={review.rating} />
                         <span className="text-[11px] text-slate-500">
                             {review.rating.toFixed(1)}
                         </span>
+                        {review.orderReference && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                <Check className="h-2.5 w-2.5" />
+                                Verified purchase
+                            </span>
+                        )}
                     </div>
 
                     {review.title && (
@@ -532,7 +751,6 @@ function ReviewCard({
                         </p>
                     )}
 
-                    {/* Review images */}
                     {review.images.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2">
                             {review.images.map((src, idx) => (
@@ -554,7 +772,6 @@ function ReviewCard({
                         </div>
                     )}
 
-                    {/* Rejection reason */}
                     {review.status === 'Rejected' && review.rejectionReason && (
                         <div className="mt-3 bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-start gap-2">
                             <AlertCircle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
@@ -564,7 +781,6 @@ function ReviewCard({
                         </div>
                     )}
 
-                    {/* Meta + actions */}
                     <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                         <p className="text-[11px] text-slate-500">
                             Reviewed {formatDate(review.date)}
@@ -620,13 +836,17 @@ function ReviewSkeleton() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Review editor
+// Review editor — handles both create and edit
 // ─────────────────────────────────────────────────────────────────────────────
 function ReviewEditor({
+    title,
+    preview,
     draft: initialDraft,
     onCancel,
     onSave,
 }: {
+    title: string;
+    preview: ProductPreview;
     draft: ReviewDraft;
     onCancel: () => void;
     onSave: (draft: ReviewDraft) => Promise<void> | void;
@@ -634,6 +854,7 @@ function ReviewEditor({
     const [draft, setDraft] = useState<ReviewDraft>(initialDraft);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const validate = (d: ReviewDraft) => {
@@ -650,31 +871,42 @@ function ReviewEditor({
         return e;
     };
 
-    const handleFiles = (files: FileList | null) => {
+    const handleFiles = async (files: FileList | null) => {
         if (!files || files.length === 0) return;
 
         const remaining = MAX_IMAGES - draft.images.length;
         if (remaining <= 0) {
-            setErrors((p) => ({ ...p, images: `Maximum ${MAX_IMAGES} images.` }));
+            setErrors((p) => ({
+                ...p,
+                images: `Maximum ${MAX_IMAGES} images.`,
+            }));
             return;
         }
+
+        const toProcess = Array.from(files).slice(0, remaining);
+        setUploading(true);
 
         const accepted: string[] = [];
         const rejected: string[] = [];
 
-        Array.from(files)
-            .slice(0, remaining)
-            .forEach((file) => {
-                if (!ACCEPTED_TYPES.includes(file.type)) {
-                    rejected.push(`${file.name}: unsupported type`);
-                    return;
-                }
-                if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
-                    rejected.push(`${file.name}: over ${MAX_IMAGE_SIZE_MB}MB`);
-                    return;
-                }
-                accepted.push(URL.createObjectURL(file));
-            });
+        for (const file of toProcess) {
+            if (!ACCEPTED_TYPES.includes(file.type)) {
+                rejected.push(`${file.name}: unsupported type`);
+                continue;
+            }
+            if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+                rejected.push(`${file.name}: over ${MAX_IMAGE_SIZE_MB}MB`);
+                continue;
+            }
+            try {
+                const { url } = await accountApi.reviews.uploadImage(file);
+                accepted.push(url);
+            } catch {
+                rejected.push(`${file.name}: upload failed`);
+            }
+        }
+
+        setUploading(false);
 
         if (accepted.length > 0) {
             setDraft((p) => ({ ...p, images: [...p.images, ...accepted] }));
@@ -686,10 +918,7 @@ function ReviewEditor({
         }
 
         if (rejected.length > 0) {
-            setErrors((p) => ({
-                ...p,
-                images: rejected.join(' • '),
-            }));
+            setErrors((p) => ({ ...p, images: rejected.join(' • ') }));
         }
 
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -706,6 +935,7 @@ function ReviewEditor({
         const e = validate(draft);
         setErrors(e);
         if (Object.keys(e).length > 0) return;
+        if (uploading) return;
 
         setSubmitting(true);
         try {
@@ -715,19 +945,20 @@ function ReviewEditor({
         }
     };
 
-    // ESC closes
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && !submitting) onCancel();
+            if (e.key === 'Escape' && !submitting && !uploading) onCancel();
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [onCancel, submitting]);
+    }, [onCancel, submitting, uploading]);
+
+    const busy = submitting || uploading;
 
     return (
         <div
             className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
-            onClick={() => !submitting && onCancel()}
+            onClick={() => !busy && onCancel()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="review-editor-title"
@@ -741,11 +972,11 @@ function ReviewEditor({
                         id="review-editor-title"
                         className="text-sm font-semibold text-slate-900"
                     >
-                        Edit Review
+                        {title}
                     </h2>
                     <button
                         type="button"
-                        onClick={() => !submitting && onCancel()}
+                        onClick={() => !busy && onCancel()}
                         className="h-7 w-7 flex items-center justify-center rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
                         aria-label="Close"
                     >
@@ -754,6 +985,25 @@ function ReviewEditor({
                 </header>
 
                 <div className="p-5 overflow-y-auto space-y-5">
+                    {/* Product context */}
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-sm">
+                        <img
+                            src={preview.image || '/placeholder.png'}
+                            alt={preview.name}
+                            className="w-12 h-12 rounded-sm object-cover border border-slate-200 shrink-0"
+                        />
+                        <div className="min-w-0">
+                            {preview.brand && (
+                                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                                    {preview.brand}
+                                </p>
+                            )}
+                            <p className="text-xs font-semibold text-slate-900 truncate">
+                                {preview.name}
+                            </p>
+                        </div>
+                    </div>
+
                     {/* Rating */}
                     <div>
                         <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
@@ -772,7 +1022,9 @@ function ReviewEditor({
                             }}
                         />
                         {errors.rating && (
-                            <p className="text-[11px] text-red-600 mt-1">{errors.rating}</p>
+                            <p className="text-[11px] text-red-600 mt-1">
+                                {errors.rating}
+                            </p>
                         )}
                     </div>
 
@@ -805,7 +1057,9 @@ function ReviewEditor({
                                 }`}
                         />
                         {errors.title && (
-                            <p className="text-[11px] text-red-600 mt-1">{errors.title}</p>
+                            <p className="text-[11px] text-red-600 mt-1">
+                                {errors.title}
+                            </p>
                         )}
                     </div>
 
@@ -837,7 +1091,9 @@ function ReviewEditor({
                                 }`}
                         />
                         {errors.body && (
-                            <p className="text-[11px] text-red-600 mt-1">{errors.body}</p>
+                            <p className="text-[11px] text-red-600 mt-1">
+                                {errors.body}
+                            </p>
                         )}
                     </div>
 
@@ -858,7 +1114,8 @@ function ReviewEditor({
                                     <button
                                         type="button"
                                         onClick={() => removeImage(idx)}
-                                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        disabled={uploading}
+                                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40"
                                         aria-label="Remove image"
                                     >
                                         <X className="h-3 w-3" />
@@ -870,10 +1127,19 @@ function ReviewEditor({
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="w-20 h-20 rounded-sm border-2 border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/30 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-blue-950 transition"
+                                    disabled={uploading}
+                                    className="w-20 h-20 rounded-sm border-2 border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/30 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-blue-950 transition disabled:opacity-60 disabled:cursor-wait"
                                 >
-                                    <Upload className="h-4 w-4" />
-                                    <span className="text-[10px] font-medium">Add</span>
+                                    {uploading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Upload className="h-4 w-4" />
+                                            <span className="text-[10px] font-medium">
+                                                Add
+                                            </span>
+                                        </>
+                                    )}
                                 </button>
                             )}
                         </div>
@@ -888,12 +1154,14 @@ function ReviewEditor({
                         />
 
                         <p className="text-[10px] text-slate-400">
-                            JPG, PNG, or WEBP. Max {MAX_IMAGE_SIZE_MB}MB each, up to{' '}
-                            {MAX_IMAGES} photos.
+                            JPG, PNG, or WEBP. Max {MAX_IMAGE_SIZE_MB}MB each, up
+                            to {MAX_IMAGES} photos.
                         </p>
 
                         {errors.images && (
-                            <p className="text-[11px] text-red-600 mt-1">{errors.images}</p>
+                            <p className="text-[11px] text-red-600 mt-1">
+                                {errors.images}
+                            </p>
                         )}
                     </div>
                 </div>
@@ -902,7 +1170,7 @@ function ReviewEditor({
                     <button
                         type="button"
                         onClick={onCancel}
-                        disabled={submitting}
+                        disabled={busy}
                         className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60"
                     >
                         Cancel
@@ -910,13 +1178,19 @@ function ReviewEditor({
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={submitting}
+                        disabled={busy}
+                        aria-busy={submitting}
                         className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         {submitting ? (
                             <>
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                 Submitting…
+                            </>
+                        ) : uploading ? (
+                            <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Uploading…
                             </>
                         ) : (
                             'Submit Review'
@@ -957,7 +1231,9 @@ function StarSelector({
                     className="p-0.5 transition-transform hover:scale-110"
                 >
                     <Star
-                        className={`h-6 w-6 ${n <= active ? 'text-amber-500 fill-current' : 'text-slate-300'
+                        className={`h-6 w-6 ${n <= active
+                            ? 'text-amber-500 fill-current'
+                            : 'text-slate-300'
                             }`}
                     />
                 </button>
@@ -1041,6 +1317,7 @@ function DeleteConfirm({
                         type="button"
                         onClick={handleConfirm}
                         disabled={deleting}
+                        aria-busy={deleting}
                         className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         {deleting ? (

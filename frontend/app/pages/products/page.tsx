@@ -1,7 +1,7 @@
 // app/pages/products/page.tsx
 'use client';
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
@@ -19,56 +19,24 @@ import {
     Send,
     MessageSquare,
     CheckCircle2,
+    AlertCircle,
 } from 'lucide-react';
-import { products as allProducts } from '@/data/products';
 import { useCart } from '@/lib/store/cart';
 import { WishlistButton } from '@/components/wishlistbutton/WishlistButton';
+import {
+    catalogApi,
+    type CatalogProduct,
+    type CatalogProductDetail,
+    type CatalogReview,
+    type ProductsQuery,
+} from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────
-// Types
+// Helpers
 // ─────────────────────────────────────────────────────────────
-type Product = typeof allProducts[0];
-
-type Review = {
-    id: string;
-    author: string;
-    rating: number;
-    title: string;
-    body: string;
-    date: string;
-    verified: boolean;
-};
-
-const MOCK_REVIEWS: Record<string, Review[]> = {
-    default: [
-        {
-            id: 'r1',
-            author: 'Brian K.',
-            rating: 5,
-            title: 'Excellent quality',
-            body: 'Exactly as described. Fast shipping and well packaged. Would buy again.',
-            date: '2026-09-12',
-            verified: true,
-        },
-        {
-            id: 'r2',
-            author: 'Amina M.',
-            rating: 4,
-            title: 'Great value',
-            body: 'Works well, solid build. Only minor gripe is the manual could be clearer.',
-            date: '2026-09-05',
-            verified: true,
-        },
-        {
-            id: 'r3',
-            author: 'Kevin O.',
-            rating: 5,
-            title: 'Highly recommend',
-            body: 'Second purchase from this store. Consistent quality and fair pricing.',
-            date: '2026-08-28',
-            verified: true,
-        },
-    ],
+const toNum = (v: string | number | null | undefined): number => {
+    if (v === null || v === undefined) return 0;
+    return typeof v === 'number' ? v : Number(v);
 };
 
 function formatKES(amount: number): string {
@@ -78,9 +46,20 @@ function formatKES(amount: number): string {
     })}`;
 }
 
+const ITEMS_PER_PAGE = 8;
+
+const PRICE_RANGES = [
+    { label: 'All Prices', value: 'All' },
+    { label: 'Under KES 10,000', value: '0-10000' },
+    { label: 'KES 10,000 - KES 50,000', value: '10000-50000' },
+    { label: 'KES 50,000 - KES 100,000', value: '50000-100000' },
+    { label: 'Over KES 100,000', value: '100000-plus' },
+] as const;
+
+const STOCK_OPTIONS = ['All', 'In Stock', 'Low Stock', 'Out of Stock'] as const;
+
 // ─────────────────────────────────────────────────────────────
-// Public page — thin Suspense wrapper
-// useSearchParams() requires a Suspense boundary in Next.js 14+.
+// Public page — Suspense wrapper (useSearchParams)
 // ─────────────────────────────────────────────────────────────
 export default function ProductsPage() {
     return (
@@ -99,216 +78,283 @@ function ProductsPageInner() {
     const searchParams = useSearchParams();
     const openId = searchParams.get('open');
 
-    // Filter and sort states
+    // ── Filter / sort state ───────────────────────────────────
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedBrand, setSelectedBrand] = useState('All');
     const [selectedPriceRange, setSelectedPriceRange] = useState('All');
-    const [selectedStock, setSelectedStock] = useState('All');
-    const [sortBy, setSortBy] = useState('featured');
+    const [selectedStock, setSelectedStock] = useState<string>('All');
+    const [sortBy, setSortBy] = useState<ProductsQuery['sort_by']>('featured');
     const [currentPage, setCurrentPage] = useState(1);
+
+    // ── Data ──────────────────────────────────────────────────
+    const [products, setProducts] = useState<CatalogProduct[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    const [categories, setCategories] = useState<string[]>(['All']);
+    const [brands, setBrands] = useState<string[]>(['All']);
+
+    // ── Modal state ───────────────────────────────────────────
+    const [activeProductDetail, setActiveProductDetail] =
+        useState<CatalogProductDetail | null>(null);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [cartAddingId, setCartAddingId] = useState<string | null>(null);
 
-    // Modal state
-    const [activeProductDetail, setActiveProductDetail] = useState<Product | null>(null);
-    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-
-    // Reviews modal state
+    // ── Reviews state ─────────────────────────────────────────
     const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
-    const [reviewsByProduct, setReviewsByProduct] = useState<Record<string, Review[]>>({});
+    const [reviews, setReviews] = useState<CatalogReview[]>([]);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
     const [reviewForm, setReviewForm] = useState({
         author: '',
         rating: 5,
         title: '',
         body: '',
     });
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const [reviewError, setReviewError] = useState<string | null>(null);
     const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
     const addItem = useCart((s) => s.addItem);
-    const itemsPerPage = 8;
 
-    // ── URL is the source of truth for the modal ──────────────
+    // ── Debounce search input ─────────────────────────────────
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+
+    // ── Fetch categories + brands once ────────────────────────
+    useEffect(() => {
+        const ctrl = new AbortController();
+        Promise.all([
+            catalogApi.categories.list(ctrl.signal),
+            catalogApi.brands.list(ctrl.signal),
+        ])
+            .then(([cats, brs]) => {
+                setCategories(['All', ...cats.map((c) => c.name)]);
+                setBrands(['All', ...brs.map((b) => b.name)]);
+            })
+            .catch(() => {
+                /* non-fatal — dropdowns fall back to 'All' */
+            });
+        return () => ctrl.abort();
+    }, []);
+
+    // ── Fetch products whenever filters change ────────────────
+    useEffect(() => {
+        const ctrl = new AbortController();
+        setLoading(true);
+        setLoadError(null);
+
+        const query: ProductsQuery = {
+            search: debouncedSearch || undefined,
+            category: selectedCategory !== 'All' ? selectedCategory : undefined,
+            brand: selectedBrand !== 'All' ? selectedBrand : undefined,
+            price_range:
+                selectedPriceRange !== 'All'
+                    ? (selectedPriceRange as ProductsQuery['price_range'])
+                    : undefined,
+            stock:
+                selectedStock !== 'All'
+                    ? (selectedStock as ProductsQuery['stock'])
+                    : undefined,
+            sort_by: sortBy,
+            page: currentPage,
+            page_size: ITEMS_PER_PAGE,
+        };
+
+        catalogApi.products
+            .list(query, ctrl.signal)
+            .then((page) => {
+                setProducts(page.results);
+                setTotalCount(page.count);
+            })
+            .catch((err: unknown) => {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                setProducts([]);
+                setTotalCount(0);
+                setLoadError('Failed to load products. Please try again.');
+            })
+            .finally(() => setLoading(false));
+
+        return () => ctrl.abort();
+    }, [
+        debouncedSearch,
+        selectedCategory,
+        selectedBrand,
+        selectedPriceRange,
+        selectedStock,
+        sortBy,
+        currentPage,
+    ]);
+
+    // ── Detail modal driven by ?open= ─────────────────────────
     useEffect(() => {
         if (!openId) {
             setActiveProductDetail(null);
             return;
         }
-        const found = allProducts.find((p) => p.id === openId);
-        if (found) {
-            setActiveProductDetail(found);
-            setSelectedImageIndex(0);
-        } else {
-            // Unknown product ID → strip the query param silently
-            router.replace(pathname, { scroll: false });
-        }
+        const ctrl = new AbortController();
+        setDetailLoading(true);
+
+        catalogApi.products
+            .detail(openId, ctrl.signal)
+            .then((detail) => {
+                setActiveProductDetail(detail);
+                setSelectedImageIndex(0);
+            })
+            .catch((err: unknown) => {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                setActiveProductDetail(null);
+                // Unknown product — strip the query param
+                router.replace(pathname, { scroll: false });
+            })
+            .finally(() => setDetailLoading(false));
+
+        return () => ctrl.abort();
     }, [openId, router, pathname]);
 
-    // ── Helpers to push / clear the modal URL ─────────────────
-    function openProductInUrl(id: string) {
+    // ── Fetch reviews when sub-modal opens ────────────────────
+    useEffect(() => {
+        if (!reviewsModalOpen || !activeProductDetail) return;
+        const ctrl = new AbortController();
+        setReviewsLoading(true);
+
+        catalogApi.products.reviews
+            .list(activeProductDetail.id, ctrl.signal)
+            .then(setReviews)
+            .catch(() => setReviews([]))
+            .finally(() => setReviewsLoading(false));
+
+        return () => ctrl.abort();
+    }, [reviewsModalOpen, activeProductDetail]);
+
+    // ── URL helpers for the modal ─────────────────────────────
+    const openProductInUrl = (id: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('open', id);
         router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    }
+    };
 
-    function replaceProductInUrl(id: string) {
+    const replaceProductInUrl = (id: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('open', id);
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }
+    };
 
-    function closeProductInUrl() {
+    const closeProductInUrl = () => {
         const params = new URLSearchParams(searchParams.toString());
         params.delete('open');
         const qs = params.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    }
-
-    const categories = ['All', ...Array.from(new Set(allProducts.map((p) => p.category)))];
-    const brands = ['All', ...Array.from(new Set(allProducts.map((p) => p.brand)))];
-    const priceRanges = [
-        { label: 'All Prices', value: 'All' },
-        { label: 'Under KES 10,000', value: '0-10000' },
-        { label: 'KES 10,000 - KES 50,000', value: '10000-50000' },
-        { label: 'KES 50,000 - KES 100,000', value: '50000-100000' },
-        { label: 'Over KES 100,000', value: '100000-plus' },
-    ];
-    const stockOptions = ['All', 'In Stock', 'Low Stock', 'Out of Stock'];
-
-    const filteredProducts = useMemo(() => {
-        return allProducts.filter((product) => {
-            const matchesSearch =
-                product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                product.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                product.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-            const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-            const matchesBrand = selectedBrand === 'All' || product.brand === selectedBrand;
-
-            let matchesPrice = true;
-            if (selectedPriceRange === '0-10000') matchesPrice = product.price < 10000;
-            else if (selectedPriceRange === '10000-50000')
-                matchesPrice = product.price >= 10000 && product.price <= 50000;
-            else if (selectedPriceRange === '50000-100000')
-                matchesPrice = product.price > 50000 && product.price <= 100000;
-            else if (selectedPriceRange === '100000-plus') matchesPrice = product.price > 100000;
-
-            const matchesStock = selectedStock === 'All' || product.stock === selectedStock;
-
-            return matchesSearch && matchesCategory && matchesBrand && matchesPrice && matchesStock;
-        });
-    }, [searchQuery, selectedCategory, selectedBrand, selectedPriceRange, selectedStock]);
-
-    const sortedProducts = useMemo(() => {
-        const products = [...filteredProducts];
-        if (sortBy === 'price-low') products.sort((a, b) => a.price - b.price);
-        else if (sortBy === 'price-high') products.sort((a, b) => b.price - a.price);
-        else if (sortBy === 'rating') products.sort((a, b) => b.rating - a.rating);
-        else if (sortBy === 'newest')
-            products.sort(
-                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-        else if (sortBy === 'featured')
-            products.sort((a, b) => Number(b.featured) - Number(a.featured));
-        return products;
-    }, [filteredProducts, sortBy]);
-
-    const totalPages = Math.ceil(sortedProducts.length / itemsPerPage) || 1;
-    const paginatedProducts = useMemo(() => {
-        const start = (currentPage - 1) * itemsPerPage;
-        return sortedProducts.slice(start, start + itemsPerPage);
-    }, [sortedProducts, currentPage]);
-
-    const relatedProducts = useMemo(() => {
-        if (!activeProductDetail) return [];
-        return allProducts
-            .filter(
-                (p) =>
-                    p.id !== activeProductDetail.id &&
-                    (p.category === activeProductDetail.category ||
-                        p.brand === activeProductDetail.brand)
-            )
-            .slice(0, 6);
-    }, [activeProductDetail]);
-
-    const reviewsForActiveProduct = useMemo(() => {
-        if (!activeProductDetail) return [];
-        const stored = reviewsByProduct[activeProductDetail.id];
-        return stored && stored.length > 0 ? stored : MOCK_REVIEWS.default;
-    }, [activeProductDetail, reviewsByProduct]);
-
-    const averageReviewRating = useMemo(() => {
-        if (reviewsForActiveProduct.length === 0) return 0;
-        const sum = reviewsForActiveProduct.reduce((acc, r) => acc + r.rating, 0);
-        return Math.round((sum / reviewsForActiveProduct.length) * 10) / 10;
-    }, [reviewsForActiveProduct]);
-
-    const handleAddToCart = async (product: Product, e: React.MouseEvent): Promise<void> => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (product.stock === 'Out of Stock') return;
-        setCartAddingId(product.id);
-        await addItem({
-            variantId: product.id,
-            productId: product.id,
-            name: product.name,
-            brand: product.brand,
-            image: product.images[0],
-            unitPrice: product.price,
-            compareAtPrice: product.compareAtPrice ?? undefined,
-            slug: product.id,
-            stockCount: product.stockQuantity ?? 10,
-            stock: product.stock,
-        });
-        setCartAddingId(null);
     };
 
-    // Now pushes the product ID into the URL — the useEffect above opens the modal.
-    const handleOpenDetails = (product: Product) => {
+    // ── Derived pagination ────────────────────────────────────
+    const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
+
+    // ── Reviews derived ───────────────────────────────────────
+    const averageReviewRating = useMemo(() => {
+        if (reviews.length === 0) return 0;
+        const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+        return Math.round((sum / reviews.length) * 10) / 10;
+    }, [reviews]);
+
+    // ── Add to cart ───────────────────────────────────────────
+    const handleAddToCart = useCallback(
+        async (product: CatalogProduct, e?: React.MouseEvent): Promise<void> => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            if (product.stock === 'Out of Stock') return;
+
+            setCartAddingId(product.id);
+            try {
+                await addItem({
+                    variantId: product.id,
+                    productId: product.id,
+                    name: product.name,
+                    brand: product.brand,
+                    image: product.images[0] ?? '',
+                    unitPrice: toNum(product.price),
+                    compareAtPrice:
+                        product.compareAtPrice !== null
+                            ? toNum(product.compareAtPrice)
+                            : undefined,
+                    slug: product.slug,
+                    stockCount: product.stockQuantity,
+                    stock: product.stock,
+                });
+            } finally {
+                setCartAddingId(null);
+            }
+        },
+        [addItem],
+    );
+
+    // ── Modal open/close handlers ─────────────────────────────
+    const handleOpenDetails = (product: CatalogProduct) => {
         openProductInUrl(product.id);
     };
 
-    // Clears the query param — the useEffect above closes the modal.
     const handleCloseDetails = () => {
         closeProductInUrl();
         setReviewsModalOpen(false);
         setReviewSubmitted(false);
+        setReviewError(null);
         setReviewForm({ author: '', rating: 5, title: '', body: '' });
     };
 
-    // Related-product click replaces rather than pushes — avoids
-    // stacking 10 history entries while browsing related items.
-    const handleSelectRelated = (product: Product) => {
-        replaceProductInUrl(product.id);
+    const handleSelectRelated = (productId: string) => {
+        replaceProductInUrl(productId);
         setSelectedImageIndex(0);
         setReviewsModalOpen(false);
     };
 
-    const handleSubmitReview = (e: React.FormEvent) => {
+    // ── Submit review ─────────────────────────────────────────
+    const handleSubmitReview = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!activeProductDetail) return;
         if (!reviewForm.author.trim() || !reviewForm.body.trim()) return;
 
-        const newReview: Review = {
-            id: `r-${Date.now()}`,
-            author: reviewForm.author.trim(),
-            rating: reviewForm.rating,
-            title: reviewForm.title.trim() || 'Review',
-            body: reviewForm.body.trim(),
-            date: new Date().toISOString().slice(0, 10),
-            verified: false,
-        };
+        setReviewSubmitting(true);
+        setReviewError(null);
 
-        setReviewsByProduct((prev) => {
-            const current = prev[activeProductDetail.id] ?? MOCK_REVIEWS.default;
-            return { ...prev, [activeProductDetail.id]: [newReview, ...current] };
-        });
+        try {
+            const created = await catalogApi.products.reviews.create(
+                activeProductDetail.id,
+                {
+                    author: reviewForm.author.trim(),
+                    rating: reviewForm.rating,
+                    title: reviewForm.title.trim() || undefined,
+                    body: reviewForm.body.trim(),
+                },
+            );
+            setReviews((prev) => [created, ...prev]);
+            setReviewSubmitted(true);
+            setReviewForm({ author: '', rating: 5, title: '', body: '' });
 
-        setReviewSubmitted(true);
-        setReviewForm({ author: '', rating: 5, title: '', body: '' });
+            // Refresh the detail so rating/reviewCount aggregates update
+            catalogApi.products
+                .detail(activeProductDetail.id)
+                .then(setActiveProductDetail)
+                .catch(() => {
+                    /* non-fatal */
+                });
+        } catch {
+            setReviewError('Could not submit review. Please try again.');
+        } finally {
+            setReviewSubmitting(false);
+        }
     };
 
+    // ── Clear filters ─────────────────────────────────────────
     const clearAllFilters = () => {
         setSearchQuery('');
+        setDebouncedSearch('');
         setSelectedCategory('All');
         setSelectedBrand('All');
         setSelectedPriceRange('All');
@@ -317,6 +363,16 @@ function ProductsPageInner() {
         setCurrentPage(1);
     };
 
+    const hasActiveFilters =
+        selectedCategory !== 'All' ||
+        selectedBrand !== 'All' ||
+        selectedPriceRange !== 'All' ||
+        selectedStock !== 'All' ||
+        searchQuery.trim() !== '';
+
+    // ─────────────────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans relative">
             <div
@@ -339,7 +395,7 @@ function ProductsPageInner() {
                     {/* Heading */}
                     <div className="mb-5 border-b border-slate-200 pb-6">
                         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-                            Electronics & Hardware Catalog
+                            Electronics &amp; Hardware Catalog
                         </h1>
                         <p className="text-[13px] text-slate-600 mt-0.5">
                             Browse our complete inventory of certified electronics,
@@ -365,7 +421,10 @@ function ProductsPageInner() {
                                 {searchQuery && (
                                     <button
                                         type="button"
-                                        onClick={() => setSearchQuery('')}
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setCurrentPage(1);
+                                        }}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                                     >
                                         Clear
@@ -381,7 +440,7 @@ function ProductsPageInner() {
                                 <select
                                     value={sortBy}
                                     onChange={(e) => {
-                                        setSortBy(e.target.value);
+                                        setSortBy(e.target.value as ProductsQuery['sort_by']);
                                         setCurrentPage(1);
                                     }}
                                     className="bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
@@ -446,7 +505,7 @@ function ProductsPageInner() {
                                     }}
                                     className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
-                                    {priceRanges.map((range) => (
+                                    {PRICE_RANGES.map((range) => (
                                         <option key={range.value} value={range.value}>
                                             {range.label}
                                         </option>
@@ -465,7 +524,7 @@ function ProductsPageInner() {
                                     }}
                                     className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
-                                    {stockOptions.map((stock) => (
+                                    {STOCK_OPTIONS.map((stock) => (
                                         <option key={stock} value={stock}>
                                             {stock}
                                         </option>
@@ -474,49 +533,45 @@ function ProductsPageInner() {
                             </div>
                         </div>
 
-                        {(selectedCategory !== 'All' ||
-                            selectedBrand !== 'All' ||
-                            selectedPriceRange !== 'All' ||
-                            selectedStock !== 'All' ||
-                            searchQuery !== '') && (
-                                <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-[13px]">
-                                    <div className="flex items-center space-x-2 text-slate-600 flex-wrap gap-y-1">
-                                        <span className="font-medium">Active Filters:</span>
-                                        {selectedCategory !== 'All' && (
-                                            <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
-                                                Category: {selectedCategory}
-                                            </span>
-                                        )}
-                                        {selectedBrand !== 'All' && (
-                                            <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
-                                                Brand: {selectedBrand}
-                                            </span>
-                                        )}
-                                        {selectedPriceRange !== 'All' && (
-                                            <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
-                                                Price Range: {selectedPriceRange}
-                                            </span>
-                                        )}
-                                        {selectedStock !== 'All' && (
-                                            <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
-                                                Stock: {selectedStock}
-                                            </span>
-                                        )}
-                                        {searchQuery && (
-                                            <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
-                                                Search: &ldquo;{searchQuery}&rdquo;
-                                            </span>
-                                        )}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={clearAllFilters}
-                                        className="text-blue-950 font-medium hover:underline text-[13px]"
-                                    >
-                                        Reset All Filters
-                                    </button>
+                        {hasActiveFilters && (
+                            <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-[13px]">
+                                <div className="flex items-center space-x-2 text-slate-600 flex-wrap gap-y-1">
+                                    <span className="font-medium">Active Filters:</span>
+                                    {selectedCategory !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Category: {selectedCategory}
+                                        </span>
+                                    )}
+                                    {selectedBrand !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Brand: {selectedBrand}
+                                        </span>
+                                    )}
+                                    {selectedPriceRange !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Price Range: {selectedPriceRange}
+                                        </span>
+                                    )}
+                                    {selectedStock !== 'All' && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Stock: {selectedStock}
+                                        </span>
+                                    )}
+                                    {searchQuery && (
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                            Search: &ldquo;{searchQuery}&rdquo;
+                                        </span>
+                                    )}
                                 </div>
-                            )}
+                                <button
+                                    type="button"
+                                    onClick={clearAllFilters}
+                                    className="text-blue-950 font-medium hover:underline text-[13px]"
+                                >
+                                    Reset All Filters
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Count */}
@@ -524,28 +579,62 @@ function ProductsPageInner() {
                         <p className="text-[13px] text-slate-600">
                             Showing{' '}
                             <span className="font-semibold text-slate-900">
-                                {paginatedProducts.length}
+                                {products.length}
                             </span>{' '}
                             of{' '}
                             <span className="font-semibold text-slate-900">
-                                {sortedProducts.length}
+                                {totalCount}
                             </span>{' '}
                             results
                         </p>
                     </div>
 
-                    {/* Product Grid */}
-                    {paginatedProducts.length > 0 ? (
+                    {/* Error state */}
+                    {loadError && !loading && (
+                        <div className="text-center py-12 bg-red-50 border border-red-200 rounded-sm mb-8">
+                            <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                            <p className="text-[13px] text-red-700 mb-3">{loadError}</p>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage((p) => p)}
+                                className="bg-blue-950 text-white px-4 py-2 rounded text-[13px] font-medium hover:bg-blue-900"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Loading skeleton */}
+                    {loading && products.length === 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                            {paginatedProducts.map((product) => {
+                            {Array.from({ length: ITEMS_PER_PAGE }).map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+                                >
+                                    <div className="aspect-[16/10] bg-slate-100" />
+                                    <div className="p-3 space-y-2">
+                                        <div className="h-3 bg-slate-100 rounded w-1/3" />
+                                        <div className="h-4 bg-slate-100 rounded w-3/4" />
+                                        <div className="h-3 bg-slate-100 rounded w-1/2" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Product Grid */}
+                    {!loading && products.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                            {products.map((product) => {
                                 const isAdding = cartAddingId === product.id;
-                                const discountPercentage = product.compareAtPrice
-                                    ? Math.round(
-                                        ((product.compareAtPrice - product.price) /
-                                            product.compareAtPrice) *
-                                        100
-                                    )
-                                    : null;
+                                const price = toNum(product.price);
+                                const comparePrice =
+                                    product.compareAtPrice !== null
+                                        ? toNum(product.compareAtPrice)
+                                        : null;
+                                const discountPercentage =
+                                    product.discountPercentage ?? null;
 
                                 return (
                                     <div
@@ -555,7 +644,7 @@ function ProductsPageInner() {
                                         <div>
                                             <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
                                                 <img
-                                                    src={product.images[0]}
+                                                    src={product.images[0] ?? '/placeholder.jpeg'}
                                                     alt={product.name}
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                 />
@@ -569,11 +658,11 @@ function ProductsPageInner() {
                                                     productId={product.id}
                                                     name={product.name}
                                                     brand={product.brand}
-                                                    image={product.images[0]}
-                                                    unitPrice={product.price}
-                                                    compareAtPrice={product.compareAtPrice ?? undefined}
-                                                    slug={product.id}
-                                                    stockCount={product.stockQuantity ?? 10}
+                                                    image={product.images[0] ?? ''}
+                                                    unitPrice={price}
+                                                    compareAtPrice={comparePrice ?? undefined}
+                                                    slug={product.slug}
+                                                    stockCount={product.stockQuantity}
                                                     stock={product.stock}
                                                     size="sm"
                                                     className="absolute top-2 right-2 z-10"
@@ -602,13 +691,13 @@ function ProductsPageInner() {
                                                 <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-1 mt-0.5 mb-1">
                                                     {product.name}
                                                 </h3>
-                                                {product.rating && (
+                                                {Number(product.rating) > 0 && (
                                                     <div className="flex items-center space-x-1 mb-2">
                                                         <div className="flex items-center text-amber-500">
                                                             <Star className="w-3.5 h-3.5 fill-current" />
                                                         </div>
                                                         <span className="text-[12px] font-medium text-slate-800">
-                                                            {product.rating}
+                                                            {toNum(product.rating).toFixed(1)}
                                                         </span>
                                                         <span className="text-[11px] text-slate-500">
                                                             ({product.reviewCount})
@@ -622,11 +711,11 @@ function ProductsPageInner() {
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-baseline space-x-2">
                                                     <span className="text-sm font-bold text-slate-900">
-                                                        {formatKES(product.price)}
+                                                        {formatKES(price)}
                                                     </span>
-                                                    {product.compareAtPrice && (
+                                                    {comparePrice !== null && (
                                                         <span className="text-[11px] text-slate-500 line-through">
-                                                            {formatKES(product.compareAtPrice)}
+                                                            {formatKES(comparePrice)}
                                                         </span>
                                                     )}
                                                 </div>
@@ -645,7 +734,10 @@ function ProductsPageInner() {
                                                 <button
                                                     type="button"
                                                     onClick={(e) => handleAddToCart(product, e)}
-                                                    disabled={isAdding || product.stock === 'Out of Stock'}
+                                                    disabled={
+                                                        isAdding ||
+                                                        product.stock === 'Out of Stock'
+                                                    }
                                                     className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded text-[13px] transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
                                                 >
                                                     {isAdding ? (
@@ -662,12 +754,12 @@ function ProductsPageInner() {
                                                                     r="10"
                                                                     stroke="currentColor"
                                                                     strokeWidth="4"
-                                                                ></circle>
+                                                                />
                                                                 <path
                                                                     className="opacity-75"
                                                                     fill="currentColor"
                                                                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                                                ></path>
+                                                                />
                                                             </svg>
                                                             <span>...</span>
                                                         </>
@@ -686,7 +778,10 @@ function ProductsPageInner() {
                                 );
                             })}
                         </div>
-                    ) : (
+                    )}
+
+                    {/* Empty state */}
+                    {!loading && !loadError && products.length === 0 && (
                         <div className="text-center py-16 bg-slate-50 border border-slate-200 rounded-sm mb-12">
                             <h3 className="text-lg font-bold text-slate-900 mb-1">
                                 No products found
@@ -776,7 +871,10 @@ function ProductsPageInner() {
                                 <div className="space-y-3">
                                     <div className="relative aspect-[4/3] w-full rounded-sm bg-slate-100 overflow-hidden border border-slate-200">
                                         <img
-                                            src={activeProductDetail.images[selectedImageIndex]}
+                                            src={
+                                                activeProductDetail.images[selectedImageIndex] ??
+                                                '/placeholder.jpeg'
+                                            }
                                             alt={activeProductDetail.name}
                                             className="w-full h-full object-cover"
                                         />
@@ -785,11 +883,15 @@ function ProductsPageInner() {
                                             productId={activeProductDetail.id}
                                             name={activeProductDetail.name}
                                             brand={activeProductDetail.brand}
-                                            image={activeProductDetail.images[0]}
-                                            unitPrice={activeProductDetail.price}
-                                            compareAtPrice={activeProductDetail.compareAtPrice ?? undefined}
-                                            slug={activeProductDetail.id}
-                                            stockCount={activeProductDetail.stockQuantity ?? 10}
+                                            image={activeProductDetail.images[0] ?? ''}
+                                            unitPrice={toNum(activeProductDetail.price)}
+                                            compareAtPrice={
+                                                activeProductDetail.compareAtPrice !== null
+                                                    ? toNum(activeProductDetail.compareAtPrice)
+                                                    : undefined
+                                            }
+                                            slug={activeProductDetail.slug}
+                                            stockCount={activeProductDetail.stockQuantity}
                                             stock={activeProductDetail.stock}
                                             size="md"
                                             className="absolute top-3 right-3 z-10"
@@ -832,7 +934,7 @@ function ProductsPageInner() {
                                                 <Star className="w-4 h-4 fill-current" />
                                             </div>
                                             <span className="text-sm font-semibold text-slate-800 underline-offset-2 group-hover/rating:underline">
-                                                {activeProductDetail.rating}
+                                                {toNum(activeProductDetail.rating).toFixed(1)}
                                             </span>
                                             <span className="text-xs text-slate-500">
                                                 ({activeProductDetail.reviewCount} verified reviews)
@@ -842,11 +944,13 @@ function ProductsPageInner() {
 
                                         <div className="flex items-baseline space-x-3 mb-4">
                                             <span className="text-2xl font-bold text-slate-900">
-                                                {formatKES(activeProductDetail.price)}
+                                                {formatKES(toNum(activeProductDetail.price))}
                                             </span>
-                                            {activeProductDetail.compareAtPrice && (
+                                            {activeProductDetail.compareAtPrice !== null && (
                                                 <span className="text-sm text-slate-400 line-through">
-                                                    {formatKES(activeProductDetail.compareAtPrice)}
+                                                    {formatKES(
+                                                        toNum(activeProductDetail.compareAtPrice),
+                                                    )}
                                                 </span>
                                             )}
                                             <span
@@ -859,9 +963,53 @@ function ProductsPageInner() {
                                             </span>
                                         </div>
 
-                                        <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                                        <p className="text-sm text-slate-600 mb-6 leading-relaxed whitespace-pre-line">
                                             {activeProductDetail.description}
                                         </p>
+
+                                        {activeProductDetail.features.length > 0 && (
+                                            <div className="mb-4">
+                                                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
+                                                    Key Highlights
+                                                </h4>
+                                                <ul className="space-y-1">
+                                                    {activeProductDetail.features.map((f, i) => (
+                                                        <li
+                                                            key={i}
+                                                            className="text-xs text-slate-600 flex items-start gap-1.5"
+                                                        >
+                                                            <span className="w-1.5 h-1.5 bg-blue-950 rounded-full mt-1.5 shrink-0" />
+                                                            <span>{f}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {Object.keys(activeProductDetail.specs).length > 0 && (
+                                            <div className="mb-6">
+                                                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
+                                                    Specifications
+                                                </h4>
+                                                <div className="grid grid-cols-2 gap-1.5 text-xs">
+                                                    {Object.entries(
+                                                        activeProductDetail.specs,
+                                                    ).map(([k, v]) => (
+                                                        <div
+                                                            key={k}
+                                                            className="bg-slate-50 p-1.5 rounded border border-slate-200"
+                                                        >
+                                                            <span className="text-slate-400 block text-[11px]">
+                                                                {k}
+                                                            </span>
+                                                            <span className="font-semibold text-slate-800">
+                                                                {v}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="space-y-2 mb-6 text-xs text-slate-600 border-t border-b border-slate-100 py-3">
                                             <div className="flex items-center space-x-2">
@@ -882,11 +1030,13 @@ function ProductsPageInner() {
                                     <div className="flex items-center space-x-3 pt-4 border-t border-slate-200">
                                         <button
                                             type="button"
-                                            onClick={async (e) => {
-                                                await handleAddToCart(activeProductDetail, e);
+                                            onClick={async () => {
+                                                await handleAddToCart(activeProductDetail);
                                                 handleCloseDetails();
                                             }}
-                                            disabled={activeProductDetail.stock === 'Out of Stock'}
+                                            disabled={
+                                                activeProductDetail.stock === 'Out of Stock'
+                                            }
                                             className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-sm transition flex items-center justify-center space-x-2 disabled:opacity-50"
                                         >
                                             <ShoppingCart className="w-4 h-4" />
@@ -903,37 +1053,42 @@ function ProductsPageInner() {
                                 </div>
                             </div>
 
-                            {relatedProducts.length > 0 && (
+                            {activeProductDetail.relatedProducts.length > 0 && (
                                 <div className="px-6 pb-6 border-t border-slate-100 pt-6">
                                     <div className="flex items-center justify-between mb-4">
                                         <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
                                             You may also like
                                         </h4>
                                         <span className="text-[11px] text-slate-400">
-                                            {relatedProducts.length} related items
+                                            {activeProductDetail.relatedProducts.length} related items
                                         </span>
                                     </div>
 
                                     <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-                                        {relatedProducts.map((rp) => {
-                                            const rpDiscount = rp.compareAtPrice
-                                                ? Math.round(
-                                                    ((rp.compareAtPrice - rp.price) /
-                                                        rp.compareAtPrice) *
-                                                    100
-                                                )
-                                                : null;
+                                        {activeProductDetail.relatedProducts.map((rp) => {
+                                            const rpPrice = toNum(rp.price);
+                                            const rpCompare =
+                                                rp.compareAtPrice !== null
+                                                    ? toNum(rp.compareAtPrice)
+                                                    : null;
+                                            const rpDiscount =
+                                                rp.discountPercentage ??
+                                                (rpCompare && rpCompare > rpPrice
+                                                    ? Math.round(
+                                                        ((rpCompare - rpPrice) / rpCompare) * 100,
+                                                    )
+                                                    : null);
 
                                             return (
                                                 <button
                                                     key={rp.id}
                                                     type="button"
-                                                    onClick={() => handleSelectRelated(rp)}
+                                                    onClick={() => handleSelectRelated(rp.id)}
                                                     className="shrink-0 w-40 text-left group/rel"
                                                 >
                                                     <div className="aspect-[4/3] rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
                                                         <img
-                                                            src={rp.images[0]}
+                                                            src={rp.images[0] ?? '/placeholder.jpeg'}
                                                             alt={rp.name}
                                                             className="w-full h-full object-cover group-hover/rel:scale-105 transition-transform duration-300"
                                                         />
@@ -950,7 +1105,7 @@ function ProductsPageInner() {
                                                         {rp.name}
                                                     </p>
                                                     <p className="text-[12px] font-bold text-slate-900 mt-0.5">
-                                                        {formatKES(rp.price)}
+                                                        {formatKES(rpPrice)}
                                                     </p>
                                                 </button>
                                             );
@@ -1003,7 +1158,7 @@ function ProductsPageInner() {
                                         ))}
                                     </div>
                                     <p className="text-[11px] text-slate-500 mt-1">
-                                        {reviewsForActiveProduct.length} reviews
+                                        {reviews.length} reviews
                                     </p>
                                 </div>
                                 <div className="flex-1 border-l border-slate-200 pl-4">
@@ -1032,6 +1187,12 @@ function ProductsPageInner() {
                                     )}
                                 </div>
 
+                                {reviewError && (
+                                    <div className="text-[12px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+                                        {reviewError}
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
@@ -1041,10 +1202,14 @@ function ProductsPageInner() {
                                             type="text"
                                             value={reviewForm.author}
                                             onChange={(e) =>
-                                                setReviewForm({ ...reviewForm, author: e.target.value })
+                                                setReviewForm({
+                                                    ...reviewForm,
+                                                    author: e.target.value,
+                                                })
                                             }
                                             placeholder="e.g. Jane W."
                                             required
+                                            maxLength={120}
                                             className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                         />
                                     </div>
@@ -1058,7 +1223,10 @@ function ProductsPageInner() {
                                                     key={n}
                                                     type="button"
                                                     onClick={() =>
-                                                        setReviewForm({ ...reviewForm, rating: n })
+                                                        setReviewForm({
+                                                            ...reviewForm,
+                                                            rating: n,
+                                                        })
                                                     }
                                                     className="p-1"
                                                     aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
@@ -1083,9 +1251,13 @@ function ProductsPageInner() {
                                         type="text"
                                         value={reviewForm.title}
                                         onChange={(e) =>
-                                            setReviewForm({ ...reviewForm, title: e.target.value })
+                                            setReviewForm({
+                                                ...reviewForm,
+                                                title: e.target.value,
+                                            })
                                         }
                                         placeholder="Summarize your experience"
+                                        maxLength={200}
                                         className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     />
                                 </div>
@@ -1098,7 +1270,10 @@ function ProductsPageInner() {
                                         rows={3}
                                         value={reviewForm.body}
                                         onChange={(e) =>
-                                            setReviewForm({ ...reviewForm, body: e.target.value })
+                                            setReviewForm({
+                                                ...reviewForm,
+                                                body: e.target.value,
+                                            })
                                         }
                                         placeholder="Tell others what you think…"
                                         required
@@ -1109,20 +1284,31 @@ function ProductsPageInner() {
                                 <div className="flex justify-end">
                                     <button
                                         type="submit"
-                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                                        disabled={reviewSubmitting}
+                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-50"
                                     >
                                         <Send className="w-3.5 h-3.5" />
-                                        Post review
+                                        {reviewSubmitting ? 'Posting…' : 'Post review'}
                                     </button>
                                 </div>
                             </form>
 
                             <div className="space-y-3">
                                 <h3 className="text-sm font-bold text-slate-900">
-                                    All reviews ({reviewsForActiveProduct.length})
+                                    All reviews ({reviews.length})
                                 </h3>
 
-                                {reviewsForActiveProduct.map((review) => (
+                                {reviewsLoading && (
+                                    <p className="text-xs text-slate-500">Loading reviews…</p>
+                                )}
+
+                                {!reviewsLoading && reviews.length === 0 && (
+                                    <p className="text-xs text-slate-500">
+                                        No reviews yet. Be the first to review this product.
+                                    </p>
+                                )}
+
+                                {reviews.map((review) => (
                                     <div
                                         key={review.id}
                                         className="border border-slate-200 rounded-sm p-3 space-y-1.5"

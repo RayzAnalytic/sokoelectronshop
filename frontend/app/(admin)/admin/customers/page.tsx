@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Users,
   Search,
@@ -14,7 +14,6 @@ import {
   X,
   MoreVertical,
   ShieldAlert,
-  MessageSquare,
   Mail,
   MapPin,
   Edit3,
@@ -24,321 +23,50 @@ import {
   Heart,
   ShoppingCart,
   Star,
-  Ticket,
   Bell,
   Tag,
   TrendingUp,
-  Clock,
-  Package,
   Phone,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
+import { adminApi } from '@/lib/admin-api';
+import type {
+  AdminCustomerDetail,
+  AdminCustomerListResponse,
+  AdminCustomerSegment,
+  AdminMarketingConsent,
+  AdminCustomerFilters,
+} from '@/lib/admin-types';
 
-// --- TYPES ---
-type CustomerStatus = 'Active' | 'Blocked';
-type CustomerSegment = 'VIP' | 'Loyal' | 'New' | 'At Risk' | 'Churned' | 'Regular';
-type MarketingConsent = 'Subscribed' | 'Unsubscribed' | 'Pending';
-
-interface CustomerOrder {
-  id: string;
-  orderNumber: string;
-  date: string;
-  itemsCount: number;
-  total: number;
-  status: string;
-  paymentMethod: string;
+// ═════════════════════════════════════════════════════════════════════════════
+// WHATSAPP ICON
+//
+// Official WhatsApp glyph. Rendered inline so it inherits `currentColor`
+// and can be sized via the `className` prop just like a Lucide icon.
+// Used in the header button and in every channel badge where a
+// communication log entry has `channel === 'WhatsApp'`.
+// ═════════════════════════════════════════════════════════════════════════════
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
 }
 
-interface CustomerAddress {
-  id: string;
-  title: string;
-  address: string;
-  city: string;
-  isDefault: boolean;
-}
-
-interface CustomerNote {
-  id: string;
-  author: string;
-  date: string;
-  text: string;
-}
-
-interface WishlistItem {
-  id: string;
-  productName: string;
-  sku: string;
-  price: number;
-  addedDate: string;
-  image: string;
-}
-
-interface CartItem {
-  id: string;
-  productName: string;
-  sku: string;
-  price: number;
-  qty: number;
-  addedDate: string;
-  image: string;
-}
-
-interface Review {
-  id: string;
-  productName: string;
-  rating: number;
-  comment: string;
-  date: string;
-  status: 'Published' | 'Pending' | 'Hidden';
-}
-
-interface SupportTicket {
-  id: string;
-  subject: string;
-  status: 'Open' | 'In Progress' | 'Resolved' | 'Closed';
-  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  date: string;
-  lastUpdate: string;
-}
-
-interface CommunicationLog {
-  id: string;
-  channel: 'WhatsApp' | 'Email' | 'SMS' | 'Call';
-  direction: 'Inbound' | 'Outbound';
-  subject: string;
-  date: string;
-  agent: string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  avatar: string;
-  email: string;
-  phone: string;
-  location: string;
-  dateJoined: string;
-  ordersCount: number;
-  totalSpent: number;
-  lastOrderDate: string;
-  status: CustomerStatus;
-  segment: CustomerSegment;
-  mostPurchasedCategory: string;
-  preferredPayment: string;
-  marketingConsent: MarketingConsent;
-  orders: CustomerOrder[];
-  addresses: CustomerAddress[];
-  notes: CustomerNote[];
-  wishlist: WishlistItem[];
-  cart: CartItem[];
-  reviews: Review[];
-  supportTickets: SupportTicket[];
-  communicationLog: CommunicationLog[];
-}
-
-const INITIAL_CUSTOMERS: Customer[] = [
-  {
-    id: 'cust-1',
-    name: 'Isaac Mutinda',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    email: 'isaac.mutinda@gmail.com',
-    phone: '+254 712 345 678',
-    location: 'Nyeri, Kenya',
-    dateJoined: '2026-04-12',
-    ordersCount: 8,
-    totalSpent: 345000,
-    lastOrderDate: '2026-09-23',
-    status: 'Active',
-    segment: 'VIP',
-    mostPurchasedCategory: 'Laptops',
-    preferredPayment: 'M-Pesa',
-    marketingConsent: 'Subscribed',
-    orders: [
-      { id: 'ord-101', orderNumber: '#SKO-9842', date: '2026-09-23', itemsCount: 2, total: 157500, status: 'Processing', paymentMethod: 'M-Pesa' },
-      { id: 'ord-089', orderNumber: '#SKO-9120', date: '2026-08-14', itemsCount: 1, total: 145000, status: 'Delivered', paymentMethod: 'M-Pesa' },
-      { id: 'ord-042', orderNumber: '#SKO-8451', date: '2026-06-02', itemsCount: 3, total: 42500, status: 'Delivered', paymentMethod: 'M-Pesa' },
-    ],
-    addresses: [
-      { id: 'addr-1', title: 'Hostel Residence', address: 'Dedan Kimathi University, Dedan Kimathi Road', city: 'Nyeri', isDefault: true },
-      { id: 'addr-2', title: 'Family Home', address: 'Kitui Town Central, Kenyatta Road', city: 'Kitui', isDefault: false },
-    ],
-    notes: [
-      { id: 'n-1', author: 'Admin Isaac', date: '2026-08-15 10:22', text: 'VIP customer. Prefers M-Pesa STK push transactions.' },
-    ],
-    wishlist: [
-      { id: 'w-1', productName: 'Dell UltraSharp 27 4K Monitor', sku: 'DEL-U2723QE', price: 68000, addedDate: '2026-09-20', image: '/dellmonitor.jpeg' },
-      { id: 'w-2', productName: 'Logitech MX Keys S', sku: 'LOG-MXKS-BLK', price: 18500, addedDate: '2026-09-15', image: '/phone.jpeg' },
-    ],
-    cart: [
-      { id: 'c-1', productName: 'Samsung Galaxy Buds2 Pro', sku: 'SAM-BUDS2PRO', price: 22000, qty: 1, addedDate: '2026-09-23', image: '/phone.jpeg' },
-    ],
-    reviews: [
-      { id: 'r-1', productName: 'Lenovo ThinkPad X1 Carbon Gen 10', rating: 5, comment: 'Excellent build quality and battery life. Highly recommend for developers.', date: '2026-08-20', status: 'Published' },
-      { id: 'r-2', productName: 'Logitech MX Master 3S', rating: 4, comment: 'Great mouse, but slightly pricey.', date: '2026-06-15', status: 'Published' },
-    ],
-    supportTickets: [
-      { id: 't-1', subject: 'Delivery delay on #SKO-9120', status: 'Resolved', priority: 'Medium', date: '2026-08-15', lastUpdate: '2026-08-17' },
-    ],
-    communicationLog: [
-      { id: 'cl-1', channel: 'WhatsApp', direction: 'Outbound', subject: 'Order #SKO-9842 dispatched', date: '2026-09-23 14:00', agent: 'Admin Isaac' },
-      { id: 'cl-2', channel: 'Email', direction: 'Outbound', subject: 'Receipt for order #SKO-9120', date: '2026-08-14 16:00', agent: 'System' },
-      { id: 'cl-3', channel: 'Call', direction: 'Inbound', subject: 'Inquiry about delivery timing', date: '2026-08-13 10:30', agent: 'Support Grace' },
-    ],
-  },
-  {
-    id: 'cust-2',
-    name: 'Amina Mohamed',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-    email: 'amina.m@outlook.com',
-    phone: '+254 733 987 654',
-    location: 'Nairobi, Kenya',
-    dateJoined: '2026-05-20',
-    ordersCount: 4,
-    totalSpent: 182000,
-    lastOrderDate: '2026-09-22',
-    status: 'Active',
-    segment: 'Loyal',
-    mostPurchasedCategory: 'Monitors',
-    preferredPayment: 'M-Pesa',
-    marketingConsent: 'Subscribed',
-    orders: [
-      { id: 'ord-102', orderNumber: '#SKO-9843', date: '2026-09-22', itemsCount: 1, total: 68000, status: 'Shipped', paymentMethod: 'M-Pesa' },
-      { id: 'ord-077', orderNumber: '#SKO-8912', date: '2026-07-11', itemsCount: 2, total: 114000, status: 'Delivered', paymentMethod: 'M-Pesa' },
-    ],
-    addresses: [
-      { id: 'addr-3', title: 'Office Desk', address: 'Westlands Commercial Centre, Ring Road', city: 'Nairobi', isDefault: true },
-    ],
-    notes: [
-      { id: 'n-2', author: 'Support Admin', date: '2026-07-12 14:05', text: 'Always requests fragile handling on monitors.' },
-    ],
-    wishlist: [
-      { id: 'w-3', productName: 'Apple MacBook Pro 14 M3', sku: 'APL-MBP14-M3', price: 245000, addedDate: '2026-09-18', image: '/Lenovo.jpeg' },
-    ],
-    cart: [],
-    reviews: [
-      { id: 'r-3', productName: 'Dell UltraSharp 27 4K USB-C Monitor', rating: 5, comment: 'Perfect color accuracy for design work.', date: '2026-07-20', status: 'Published' },
-    ],
-    supportTickets: [],
-    communicationLog: [
-      { id: 'cl-4', channel: 'Email', direction: 'Outbound', subject: 'Shipping confirmation #SKO-9843', date: '2026-09-22 17:30', agent: 'System' },
-    ],
-  },
-  {
-    id: 'cust-3',
-    name: 'Kevin Otieno',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    email: 'kevin.otieno@yahoo.com',
-    phone: '+254 722 111 222',
-    location: 'Kisumu, Kenya',
-    dateJoined: '2026-08-01',
-    ordersCount: 1,
-    totalSpent: 185000,
-    lastOrderDate: '2026-09-23',
-    status: 'Active',
-    segment: 'New',
-    mostPurchasedCategory: 'Phones',
-    preferredPayment: 'M-Pesa',
-    marketingConsent: 'Pending',
-    orders: [
-      { id: 'ord-103', orderNumber: '#SKO-9844', date: '2026-09-23', itemsCount: 1, total: 185000, status: 'Pending', paymentMethod: 'M-Pesa' },
-    ],
-    addresses: [
-      { id: 'addr-4', title: 'Residence', address: 'Milimani Estate, Block 4', city: 'Kisumu', isDefault: true },
-    ],
-    notes: [],
-    wishlist: [],
-    cart: [],
-    reviews: [],
-    supportTickets: [
-      { id: 't-2', subject: 'Payment confirmation not received', status: 'Open', priority: 'High', date: '2026-09-23', lastUpdate: '2026-09-23' },
-    ],
-    communicationLog: [
-      { id: 'cl-5', channel: 'Call', direction: 'Inbound', subject: 'Query about payment status', date: '2026-09-23 12:30', agent: 'Support Grace' },
-    ],
-  },
-  {
-    id: 'cust-4',
-    name: 'Samantha Njeri',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    email: 'samantha.n@gmail.com',
-    phone: '+254 700 555 444',
-    location: 'Nairobi, Kenya',
-    dateJoined: '2026-02-15',
-    ordersCount: 12,
-    totalSpent: 96000,
-    lastOrderDate: '2026-09-19',
-    status: 'Blocked',
-    segment: 'At Risk',
-    mostPurchasedCategory: 'Accessories',
-    preferredPayment: 'M-Pesa',
-    marketingConsent: 'Unsubscribed',
-    orders: [
-      { id: 'ord-055', orderNumber: '#SKO-7621', date: '2026-09-19', itemsCount: 1, total: 12500, status: 'Delivered', paymentMethod: 'M-Pesa' },
-    ],
-    addresses: [
-      { id: 'addr-5', title: 'Apartment', address: 'Kilimani Heights, Argwings Kodhek Rd', city: 'Nairobi', isDefault: true },
-    ],
-    notes: [
-      { id: 'n-3', author: 'Security Lead', date: '2026-09-20 09:15', text: 'Blocked due to multiple chargeback disputes and fraudulent COD orders.' },
-    ],
-    wishlist: [
-      { id: 'w-4', productName: 'Anker 100W GaN Charger', sku: 'ANK-100W-GAN', price: 8500, addedDate: '2026-09-10', image: '/phone.jpeg' },
-    ],
-    cart: [
-      { id: 'c-2', productName: 'USB-C to HDMI Cable', sku: 'CBL-USBC-HDMI', price: 2500, qty: 2, addedDate: '2026-09-18', image: '/phone.jpeg' },
-    ],
-    reviews: [
-      { id: 'r-4', productName: 'Anker Power Bank 20000mAh', rating: 2, comment: 'Stopped working after a month.', date: '2026-09-01', status: 'Pending' },
-    ],
-    supportTickets: [
-      { id: 't-3', subject: 'Refund request for defective power bank', status: 'In Progress', priority: 'High', date: '2026-09-05', lastUpdate: '2026-09-15' },
-      { id: 't-4', subject: 'Account blocked appeal', status: 'Open', priority: 'Urgent', date: '2026-09-20', lastUpdate: '2026-09-20' },
-    ],
-    communicationLog: [
-      { id: 'cl-6', channel: 'Email', direction: 'Outbound', subject: 'Account suspension notice', date: '2026-09-20 09:30', agent: 'Security Lead' },
-      { id: 'cl-7', channel: 'WhatsApp', direction: 'Inbound', subject: 'Appeal against account block', date: '2026-09-21 11:00', agent: 'Support Grace' },
-    ],
-  },
-  {
-    id: 'cust-5',
-    name: 'Grace Wanjiku',
-    avatar: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=150',
-    email: 'grace.w@gmail.com',
-    phone: '+254 701 234 567',
-    location: 'Nairobi, Kenya',
-    dateJoined: '2026-06-10',
-    ordersCount: 3,
-    totalSpent: 245000,
-    lastOrderDate: '2026-09-21',
-    status: 'Active',
-    segment: 'VIP',
-    mostPurchasedCategory: 'Laptops',
-    preferredPayment: 'M-Pesa',
-    marketingConsent: 'Subscribed',
-    orders: [
-      { id: 'ord-104', orderNumber: '#SKO-9845', date: '2026-09-21', itemsCount: 2, total: 185500, status: 'Packed', paymentMethod: 'M-Pesa' },
-      { id: 'ord-082', orderNumber: '#SKO-9102', date: '2026-07-28', itemsCount: 1, total: 59500, status: 'Delivered', paymentMethod: 'M-Pesa' },
-    ],
-    addresses: [
-      { id: 'addr-6', title: 'Home', address: 'Karen Road, House 24', city: 'Nairobi', isDefault: true },
-    ],
-    notes: [
-      { id: 'n-4', author: 'Admin Grace', date: '2026-09-21 14:10', text: 'Gift wrapping requested. Deliver before 5pm.' },
-    ],
-    wishlist: [
-      { id: 'w-5', productName: 'Apple iPad Pro 12.9 M2', sku: 'APL-IPP129-M2', price: 155000, addedDate: '2026-09-19', image: '/phone.jpeg' },
-    ],
-    cart: [],
-    reviews: [
-      { id: 'r-5', productName: 'Samsung Galaxy S24 Ultra', rating: 5, comment: 'Best Android phone I have ever used.', date: '2026-09-22', status: 'Published' },
-    ],
-    supportTickets: [],
-    communicationLog: [
-      { id: 'cl-8', channel: 'WhatsApp', direction: 'Outbound', subject: 'Gift wrapping confirmed', date: '2026-09-21 15:00', agent: 'Admin Grace' },
-    ],
-  },
+// ═════════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═════════════════════════════════════════════════════════════════════════════
+const SEGMENTS: AdminCustomerSegment[] = [
+  'VIP', 'Loyal', 'New', 'At Risk', 'Churned', 'Regular',
 ];
-
-const SEGMENTS: CustomerSegment[] = ['VIP', 'Loyal', 'New', 'At Risk', 'Churned', 'Regular'];
 const ORDER_COUNT_OPTIONS = ['1', '2-5', '5+'];
 const SPENT_RANGE_OPTIONS = ['100k+', '50k-100k', '<50k'];
 const SPENT_LABELS: Record<string, string> = {
@@ -347,13 +75,19 @@ const SPENT_LABELS: Record<string, string> = {
   '<50k': 'Under KES 50k',
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// PAGE — switches between list and detail
+// ═════════════════════════════════════════════════════════════════════════════
 export default function CustomersPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
       {selectedCustomerId ? (
-        <CustomerDetailPage customerId={selectedCustomerId} onBack={() => setSelectedCustomerId(null)} />
+        <CustomerDetailPage
+          customerId={selectedCustomerId}
+          onBack={() => setSelectedCustomerId(null)}
+        />
       ) : (
         <CustomersListPage onSelectCustomer={setSelectedCustomerId} />
       )}
@@ -361,13 +95,20 @@ export default function CustomersPage() {
   );
 }
 
-/* ══════════════════════════════════════════
-   1. LIST VIEW
-   ══════════════════════════════════════════ */
-function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string) => void }) {
-  const [customers] = useState<Customer[]>(INITIAL_CUSTOMERS);
+// ═════════════════════════════════════════════════════════════════════════════
+// 1. LIST VIEW
+// ═════════════════════════════════════════════════════════════════════════════
+function CustomersListPage({
+  onSelectCustomer,
+}: {
+  onSelectCustomer: (id: string) => void;
+}) {
+  const [data, setData] = useState<AdminCustomerListResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [segmentFilter, setSegmentFilter] = useState<CustomerSegment | null>(null);
+  const [segmentFilter, setSegmentFilter] = useState<AdminCustomerSegment | null>(null);
   const [orderCountFilter, setOrderCountFilter] = useState<string | null>(null);
   const [spentRangeFilter, setSpentRangeFilter] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -380,49 +121,52 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
     }
   }, [toastMessage]);
 
-  const totalCustomers = customers.length;
-  const newThisMonth = customers.filter((c) => c.dateJoined.startsWith('2026-09')).length;
-  const repeatRate =
-    totalCustomers > 0
-      ? Math.round((customers.filter((c) => c.ordersCount > 1).length / totalCustomers) * 100)
-      : 0;
-  const totalRevenue = customers.reduce((a, c) => a + c.totalSpent, 0);
-  const totalOrders = customers.reduce((a, c) => a + c.ordersCount, 0);
-  const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const filters: AdminCustomerFilters = {};
+      if (searchQuery.trim()) filters.search = searchQuery.trim();
+      if (segmentFilter) filters.segment = segmentFilter;
+      if (orderCountFilter) filters.orders = orderCountFilter as '1' | '2-5' | '5+';
+      if (spentRangeFilter) filters.spent = spentRangeFilter as '100k+' | '50k-100k' | '<50k';
 
-  const segmentCounts: Record<string, number> = {};
-  SEGMENTS.forEach((s) => {
-    segmentCounts[s] = customers.filter((c) => c.segment === s).length;
-  });
-
-  const filtered = customers.filter((c) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const match =
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q);
-      if (!match) return false;
+      const res = await adminApi.customers.list(filters);
+      setData(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load customers.');
+    } finally {
+      setLoading(false);
     }
-    if (segmentFilter && c.segment !== segmentFilter) return false;
-    if (orderCountFilter === '1' && c.ordersCount !== 1) return false;
-    if (orderCountFilter === '2-5' && (c.ordersCount < 2 || c.ordersCount > 5)) return false;
-    if (orderCountFilter === '5+' && c.ordersCount <= 5) return false;
+  }, [searchQuery, segmentFilter, orderCountFilter, spentRangeFilter]);
 
-    if (spentRangeFilter === '100k+' && c.totalSpent < 100000) return false;
-    if (spentRangeFilter === '50k-100k' && (c.totalSpent < 50000 || c.totalSpent > 100000)) return false;
-    if (spentRangeFilter === '<50k' && c.totalSpent >= 50000) return false;
+  useEffect(() => {
+    const t = setTimeout(fetchCustomers, 250);
+    return () => clearTimeout(t);
+  }, [fetchCustomers]);
 
-    return true;
-  });
+  const customers = data?.results ?? [];
+  const stats = data?.stats;
+  const segmentCounts = data?.segment_counts ?? {};
 
-  const allSelected = filtered.length > 0 && selectedIds.length === filtered.length;
-  const toggleSelectAll = () => setSelectedIds(allSelected ? [] : filtered.map((c) => c.id));
+  const totalCustomers = stats?.total_customers ?? 0;
+  const newThisMonth = stats?.new_this_month ?? 0;
+  const repeatRate = stats?.repeat_rate ?? 0;
+  const avgOrderValue = stats?.avg_order_value ?? 0;
+
+  const allSelected =
+    customers.length > 0 && selectedIds.length === customers.length;
+  const toggleSelectAll = () =>
+    setSelectedIds(allSelected ? [] : customers.map((c) => c.id));
   const toggleRow = (id: string) =>
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
 
   const activeFilterCount =
-    (segmentFilter ? 1 : 0) + (orderCountFilter ? 1 : 0) + (spentRangeFilter ? 1 : 0);
+    (segmentFilter ? 1 : 0) +
+    (orderCountFilter ? 1 : 0) +
+    (spentRangeFilter ? 1 : 0);
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -431,7 +175,30 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
     setSpentRangeFilter(null);
   };
 
-  const segmentBadge = (s: CustomerSegment) =>
+  const handleExport = async () => {
+    setToastMessage('Exporting customers CSV…');
+    try {
+      const filters: AdminCustomerFilters = {};
+      if (searchQuery.trim()) filters.search = searchQuery.trim();
+      if (segmentFilter) filters.segment = segmentFilter;
+      if (orderCountFilter) filters.orders = orderCountFilter as '1' | '2-5' | '5+';
+      if (spentRangeFilter) filters.spent = spentRangeFilter as '100k+' | '50k-100k' | '<50k';
+
+      const { csv } = await adminApi.customers.export(filters);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToastMessage(`Exported ${customers.length} customers`);
+    } catch {
+      setToastMessage('Export failed');
+    }
+  };
+
+  const segmentBadge = (s: AdminCustomerSegment) =>
     s === 'VIP'
       ? 'bg-amber-50 text-amber-800 border-amber-100'
       : s === 'Loyal'
@@ -450,7 +217,10 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
         <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
+          <button
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-white"
+          >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -466,14 +236,14 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setToastMessage('Exporting customers CSV…')}
+              onClick={handleExport}
               className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Export</span>
             </button>
             <button
-              onClick={() => setToastMessage('Add customer modal opened')}
+              onClick={() => setToastMessage('Add customer is not supported yet')}
               className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -484,13 +254,13 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
       </header>
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-
-        {/* STATS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Total customers</p>
-              <p className="text-[15px] font-bold text-slate-900 mt-0.5">{totalCustomers}</p>
+              <p className="text-[15px] font-bold text-slate-900 mt-0.5">
+                {totalCustomers}
+              </p>
             </div>
             <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
               <Users className="w-4 h-4" />
@@ -499,7 +269,9 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
           <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">New this month</p>
-              <p className="text-[15px] font-bold text-slate-900 mt-0.5">{newThisMonth}</p>
+              <p className="text-[15px] font-bold text-slate-900 mt-0.5">
+                {newThisMonth}
+              </p>
             </div>
             <span className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
               <Calendar className="w-4 h-4" />
@@ -508,7 +280,9 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
           <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Repeat rate</p>
-              <p className="text-[15px] font-bold text-slate-900 mt-0.5">{repeatRate}%</p>
+              <p className="text-[15px] font-bold text-slate-900 mt-0.5">
+                {repeatRate}%
+              </p>
             </div>
             <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
               <ShoppingBag className="w-4 h-4" />
@@ -527,7 +301,6 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
           </div>
         </div>
 
-        {/* SEGMENT CHIPS */}
         <div className="bg-white border border-slate-200 rounded-sm p-2">
           <div className="flex items-center gap-1.5 overflow-x-auto">
             <span className="text-[13px] font-medium text-slate-500 shrink-0 inline-flex items-center gap-1 pr-1">
@@ -537,8 +310,8 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
             <button
               onClick={() => setSegmentFilter(null)}
               className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition shrink-0 ${segmentFilter === null
-                  ? 'bg-blue-950 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-blue-950 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
             >
               All ({totalCustomers})
@@ -548,17 +321,16 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
                 key={s}
                 onClick={() => setSegmentFilter(s)}
                 className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition shrink-0 ${segmentFilter === s
-                    ? 'bg-blue-950 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-blue-950 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
               >
-                {s} ({segmentCounts[s]})
+                {s} ({segmentCounts[s] ?? 0})
               </button>
             ))}
           </div>
         </div>
 
-        {/* FILTER BAR */}
         <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -598,10 +370,11 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
           </div>
         </div>
 
-        {/* BULK */}
         {selectedIds.length > 0 && (
           <div className="bg-blue-950 text-white rounded-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[13px] font-medium">{selectedIds.length} selected</span>
+            <span className="text-[13px] font-medium">
+              {selectedIds.length} selected
+            </span>
             <button
               onClick={() => {
                 setToastMessage('Exported selected customers');
@@ -614,7 +387,13 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
           </div>
         )}
 
-        {/* TABLE */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-center gap-2 text-[13px]">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
         <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
@@ -639,14 +418,21 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-slate-400 text-[13px]">
+                      <Loader2 className="w-4 h-4 animate-spin inline-block mr-2" />
+                      Loading customers…
+                    </td>
+                  </tr>
+                ) : customers.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-slate-400 text-[13px]">
                       No customers match your filters.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((c) => {
+                  customers.map((c) => {
                     const isSelected = selectedIds.includes(c.id);
                     return (
                       <tr
@@ -665,40 +451,50 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
                         </td>
                         <td className="py-2 px-3">
                           <div className="flex items-center gap-2">
-                            <img
-                              src={c.avatar}
-                              alt=""
-                              className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
-                            />
+                            <span className="w-8 h-8 rounded-full bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0 text-[12px] font-semibold">
+                              {c.name.slice(0, 1).toUpperCase()}
+                            </span>
                             <div className="min-w-0">
-                              <p className="font-medium text-slate-900 truncate">{c.name}</p>
-                              <p className="text-[13px] text-slate-400 truncate">{c.location}</p>
+                              <p className="font-medium text-slate-900 truncate">
+                                {c.name}
+                              </p>
+                              <p className="text-[13px] text-slate-400 truncate">
+                                {c.location || '—'}
+                              </p>
                             </div>
                           </div>
                         </td>
                         <td className="py-2 px-3">
-                          <p className="text-slate-600 truncate max-w-[180px]">{c.email}</p>
-                          <p className="font-mono text-[13px] text-slate-400">{c.phone}</p>
+                          <p className="text-slate-600 truncate max-w-[180px]">
+                            {c.email}
+                          </p>
+                          <p className="font-mono text-[13px] text-slate-400">
+                            {c.phone || '—'}
+                          </p>
                         </td>
                         <td className="py-2 px-3">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${segmentBadge(
-                              c.segment
+                              c.segment,
                             )}`}
                           >
                             {c.segment}
                           </span>
                         </td>
-                        <td className="py-2 px-3 text-center text-slate-700">{c.ordersCount}</td>
+                        <td className="py-2 px-3 text-center text-slate-700">
+                          {c.ordersCount}
+                        </td>
                         <td className="py-2 px-3 text-right font-medium text-slate-900">
                           {c.totalSpent.toLocaleString()}
                         </td>
-                        <td className="py-2 px-3 font-mono text-slate-400">{c.lastOrderDate}</td>
+                        <td className="py-2 px-3 font-mono text-slate-400">
+                          {c.lastOrderDate || '—'}
+                        </td>
                         <td className="py-2 px-3">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${c.status === 'Active'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                : 'bg-red-50 text-red-600 border-red-100'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                              : 'bg-red-50 text-red-600 border-red-100'
                               }`}
                           >
                             {c.status}
@@ -725,13 +521,19 @@ function CustomersListPage({ onSelectCustomer }: { onSelectCustomer: (id: string
   );
 }
 
-/* ══════════════════════════════════════════
-   2. DETAIL VIEW
-   ══════════════════════════════════════════ */
-function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack: () => void }) {
-  const [customer, setCustomer] = useState<Customer>(
-    () => INITIAL_CUSTOMERS.find((c) => c.id === customerId) || INITIAL_CUSTOMERS[0]
-  );
+// ═════════════════════════════════════════════════════════════════════════════
+// 2. DETAIL VIEW
+// ═════════════════════════════════════════════════════════════════════════════
+function CustomerDetailPage({
+  customerId,
+  onBack,
+}: {
+  customerId: string;
+  onBack: () => void;
+}) {
+  const [customer, setCustomer] = useState<AdminCustomerDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   type DetailTab =
     | 'Overview'
@@ -747,22 +549,26 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
-  const [whatsAppText, setWhatsAppText] = useState(
-    `Hello ${customer.name}, thank you for being a valued customer.`
-  );
+  const [whatsAppText, setWhatsAppText] = useState('');
+  const [whatsAppSending, setWhatsAppSending] = useState(false);
 
   const [emailOpen, setEmailOpen] = useState(false);
-  const [emailSubject, setEmailSubject] = useState('Important update regarding your account');
-  const [emailBody, setEmailBody] = useState(
-    `Dear ${customer.name},\n\nWe appreciate your continued trust in our services.`
+  const [emailSubject, setEmailSubject] = useState(
+    'Important update regarding your account',
   );
+  const [emailBody, setEmailBody] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
 
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
 
   const [newAddressTitle, setNewAddressTitle] = useState('');
   const [newAddressText, setNewAddressText] = useState('');
   const [newAddressCity, setNewAddressCity] = useState('Nairobi');
+  const [addressBusy, setAddressBusy] = useState(false);
+
   const [newNoteText, setNewNoteText] = useState('');
+  const [noteBusy, setNoteBusy] = useState(false);
 
   const anyModalOpen = whatsAppOpen || emailOpen || blockConfirmOpen;
 
@@ -790,64 +596,173 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
     };
   }, [anyModalOpen]);
 
-  const toggleBlock = () => {
-    const next = customer.status === 'Active' ? 'Blocked' : 'Active';
-    setCustomer((prev) => ({ ...prev, status: next }));
-    setBlockConfirmOpen(false);
-    setToastMessage(`Customer ${next.toLowerCase()}`);
+  const fetchDetail = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await adminApi.customers.detail(Number(customerId));
+      setCustomer(res);
+      setWhatsAppText(
+        `Hello ${res.name}, thank you for being a valued customer.`,
+      );
+      setEmailBody(
+        `Dear ${res.name},\n\nWe appreciate your continued trust in our services.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load customer.');
+    } finally {
+      setLoading(false);
+    }
+  }, [customerId]);
+
+  useEffect(() => {
+    void fetchDetail();
+  }, [fetchDetail]);
+
+  const toggleBlock = async () => {
+    if (!customer) return;
+    setBlockBusy(true);
+    try {
+      const nextBlocked = customer.status === 'Active';
+      await adminApi.customers.setBlocked(Number(customerId), nextBlocked);
+      setBlockConfirmOpen(false);
+      setToastMessage(`Customer ${nextBlocked ? 'blocked' : 'unblocked'}`);
+      await fetchDetail();
+    } catch {
+      setToastMessage('Failed to update status');
+    } finally {
+      setBlockBusy(false);
+    }
   };
 
-  const toggleMarketingConsent = () => {
-    const next: MarketingConsent =
+  const toggleMarketingConsent = async () => {
+    if (!customer) return;
+    const next: AdminMarketingConsent =
       customer.marketingConsent === 'Subscribed'
         ? 'Unsubscribed'
         : customer.marketingConsent === 'Unsubscribed'
           ? 'Pending'
           : 'Subscribed';
-    setCustomer((prev) => ({ ...prev, marketingConsent: next }));
-    setToastMessage(`Marketing consent: ${next}`);
+    try {
+      await adminApi.customers.setConsent(Number(customerId), next);
+      setToastMessage(`Marketing consent: ${next}`);
+      await fetchDetail();
+    } catch {
+      setToastMessage('Failed to update consent');
+    }
   };
 
-  const addAddress = (e: React.FormEvent) => {
+  const addAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAddressTitle.trim() || !newAddressText.trim()) return;
-    setCustomer((prev) => ({
-      ...prev,
-      addresses: [
-        ...prev.addresses,
-        { id: `addr-${Date.now()}`, title: newAddressTitle, address: newAddressText, city: newAddressCity, isDefault: false },
-      ],
-    }));
-    setNewAddressTitle('');
-    setNewAddressText('');
-    setToastMessage('Address added');
+    setAddressBusy(true);
+    try {
+      await adminApi.customers.addresses.create(Number(customerId), {
+        title: newAddressTitle,
+        address: newAddressText,
+        city: newAddressCity,
+      });
+      setNewAddressTitle('');
+      setNewAddressText('');
+      setToastMessage('Address added');
+      await fetchDetail();
+    } catch {
+      setToastMessage('Failed to add address');
+    } finally {
+      setAddressBusy(false);
+    }
   };
 
-  const deleteAddress = (id: string) => {
-    setCustomer((prev) => ({ ...prev, addresses: prev.addresses.filter((a) => a.id !== id) }));
-    setToastMessage('Address removed');
+  const deleteAddress = async (id: string) => {
+    try {
+      await adminApi.customers.addresses.remove(Number(customerId), Number(id));
+      setToastMessage('Address removed');
+      await fetchDetail();
+    } catch {
+      setToastMessage('Failed to remove address');
+    }
   };
 
-  const addNote = (e: React.FormEvent) => {
+  const addNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNoteText.trim()) return;
-    setCustomer((prev) => ({
-      ...prev,
-      notes: [
-        {
-          id: `note-${Date.now()}`,
-          author: 'Admin',
-          date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          text: newNoteText.trim(),
-        },
-        ...prev.notes,
-      ],
-    }));
-    setNewNoteText('');
-    setToastMessage('Note added');
+    setNoteBusy(true);
+    try {
+      await adminApi.customers.notes.create(Number(customerId), newNoteText.trim());
+      setNewNoteText('');
+      setToastMessage('Note added');
+      await fetchDetail();
+    } catch {
+      setToastMessage('Failed to add note');
+    } finally {
+      setNoteBusy(false);
+    }
   };
 
-  const segmentBadge = (s: CustomerSegment) =>
+  const sendWhatsApp = async () => {
+    if (!whatsAppText.trim()) return;
+    setWhatsAppSending(true);
+    try {
+      await adminApi.customers.whatsapp(Number(customerId), whatsAppText);
+      setWhatsAppOpen(false);
+      setToastMessage('WhatsApp message sent');
+      await fetchDetail();
+    } catch {
+      setToastMessage('Failed to send WhatsApp');
+    } finally {
+      setWhatsAppSending(false);
+    }
+  };
+
+  const sendEmail = async () => {
+    if (!emailSubject.trim() || !emailBody.trim()) return;
+    setEmailSending(true);
+    try {
+      await adminApi.customers.email(Number(customerId), emailSubject, emailBody);
+      setEmailOpen(false);
+      setToastMessage('Email dispatched');
+      await fetchDetail();
+    } catch {
+      setToastMessage('Failed to send email');
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-[13px] text-slate-500">
+        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+        Loading customer…
+      </div>
+    );
+  }
+
+  if (error || !customer) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-3">
+        <div className="bg-white border border-slate-200 rounded-sm p-6 max-w-md w-full text-center space-y-3">
+          <div className="w-12 h-12 bg-red-50 text-red-600 rounded-sm flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h1 className="text-[15px] font-semibold text-slate-900">
+            Customer not found
+          </h1>
+          <p className="text-[13px] text-slate-600">
+            {error || 'We could not load this customer.'}
+          </p>
+          <button
+            onClick={onBack}
+            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition"
+          >
+            Back to list
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const segmentBadge = (s: AdminCustomerSegment) =>
     s === 'VIP'
       ? 'bg-amber-50 text-amber-800 border-amber-100'
       : s === 'Loyal'
@@ -860,7 +775,7 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
               ? 'bg-slate-100 text-slate-600 border-slate-200'
               : 'bg-slate-50 text-slate-700 border-slate-200';
 
-  const ticketStatusBadge = (s: SupportTicket['status']) =>
+  const ticketStatusBadge = (s: string) =>
     s === 'Open'
       ? 'bg-amber-50 text-amber-700 border-amber-100'
       : s === 'In Progress'
@@ -869,7 +784,7 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
           ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
           : 'bg-slate-100 text-slate-600 border-slate-200';
 
-  const priorityBadge = (p: SupportTicket['priority']) =>
+  const priorityBadge = (p: string) =>
     p === 'Urgent'
       ? 'bg-red-50 text-red-600 border-red-100'
       : p === 'High'
@@ -878,7 +793,7 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
           ? 'bg-blue-50 text-blue-950 border-blue-100'
           : 'bg-slate-100 text-slate-600 border-slate-200';
 
-  const channelBadge = (c: CommunicationLog['channel']) =>
+  const channelBadge = (c: string) =>
     c === 'WhatsApp'
       ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
       : c === 'Email'
@@ -888,15 +803,29 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
           : 'bg-amber-50 text-amber-700 border-amber-100';
 
   const avgOrderValue =
-    customer.ordersCount > 0 ? Math.round(customer.totalSpent / customer.ordersCount) : 0;
+    customer.ordersCount > 0
+      ? Math.round(customer.totalSpent / customer.ordersCount)
+      : 0;
 
   const tabs: { key: DetailTab; label: string; count?: number }[] = [
     { key: 'Overview', label: 'Overview' },
     { key: 'Orders', label: 'Orders', count: customer.orders.length },
-    { key: 'Wishlist & Cart', label: 'Wishlist & Cart', count: customer.wishlist.length + customer.cart.length },
+    {
+      key: 'Wishlist & Cart',
+      label: 'Wishlist & Cart',
+      count: customer.wishlist.length + customer.cart.length,
+    },
     { key: 'Reviews', label: 'Reviews', count: customer.reviews.length },
-    { key: 'Support Tickets', label: 'Support', count: customer.supportTickets.length },
-    { key: 'Communication', label: 'Communication', count: customer.communicationLog.length },
+    {
+      key: 'Support Tickets',
+      label: 'Support',
+      count: customer.supportTickets.length,
+    },
+    {
+      key: 'Communication',
+      label: 'Communication',
+      count: customer.communicationLog.length,
+    },
     { key: 'Addresses', label: 'Addresses', count: customer.addresses.length },
     { key: 'Notes', label: 'Notes', count: customer.notes.length },
   ];
@@ -907,7 +836,10 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
         <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
+          <button
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-white"
+          >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -922,32 +854,33 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <img
-              src={customer.avatar}
-              alt=""
-              className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
-            />
+            <span className="w-10 h-10 rounded-full bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0 text-[15px] font-semibold">
+              {customer.name.slice(0, 1).toUpperCase()}
+            </span>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="text-[15px] font-semibold text-slate-900 truncate">{customer.name}</h1>
+                <h1 className="text-[15px] font-semibold text-slate-900 truncate">
+                  {customer.name}
+                </h1>
                 <span
                   className={`inline-block px-1.5 py-0.5 rounded-sm font-medium text-[13px] border ${segmentBadge(
-                    customer.segment
+                    customer.segment,
                   )}`}
                 >
                   {customer.segment}
                 </span>
                 <span
                   className={`inline-block px-2 py-0.5 rounded-sm font-medium text-[13px] border ${customer.status === 'Active'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                      : 'bg-red-50 text-red-600 border-red-100'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                    : 'bg-red-50 text-red-600 border-red-100'
                     }`}
                 >
                   {customer.status}
                 </span>
               </div>
               <p className="text-[13px] text-slate-500 font-mono truncate">
-                {customer.email} · {customer.phone} · {customer.location}
+                {customer.email} · {customer.phone || '—'} ·{' '}
+                {customer.location || '—'}
               </p>
             </div>
           </div>
@@ -957,7 +890,7 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
               onClick={() => setWhatsAppOpen(true)}
               className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
+              <WhatsAppIcon className="w-4 h-4" />
               <span className="hidden sm:inline">WhatsApp</span>
             </button>
             <button
@@ -970,8 +903,8 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
             <button
               onClick={() => setBlockConfirmOpen(true)}
               className={`inline-flex items-center gap-1.5 font-medium px-3 py-2 rounded-sm text-[13px] transition border ${customer.status === 'Active'
-                  ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
-                  : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
+                : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                 }`}
             >
               <ShieldAlert className="w-3.5 h-3.5" />
@@ -982,19 +915,22 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
           </div>
         </div>
 
-        {/* TABS */}
         <div className="max-w-[1600px] mx-auto px-3 pb-2 flex items-center gap-1 overflow-x-auto border-t border-slate-100 pt-2">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition shrink-0 ${activeTab === tab.key ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition shrink-0 ${activeTab === tab.key
+                ? 'bg-blue-950 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
                 }`}
             >
               {tab.label}
               {tab.count !== undefined && (
                 <span
-                  className={`text-[13px] px-1.5 rounded-sm ${activeTab === tab.key ? 'bg-blue-900 text-white' : 'bg-slate-200 text-slate-700'
+                  className={`text-[13px] px-1.5 rounded-sm ${activeTab === tab.key
+                    ? 'bg-blue-900 text-white'
+                    : 'bg-slate-200 text-slate-700'
                     }`}
                 >
                   {tab.count}
@@ -1006,7 +942,6 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
       </header>
 
       <main className="max-w-[1600px] mx-auto px-3 py-3">
-
         {/* OVERVIEW */}
         {activeTab === 'Overview' && (
           <div className="space-y-3">
@@ -1014,7 +949,9 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
               <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-slate-500">Total orders</p>
-                  <p className="text-[15px] font-bold text-slate-900 mt-0.5">{customer.ordersCount}</p>
+                  <p className="text-[15px] font-bold text-slate-900 mt-0.5">
+                    {customer.ordersCount}
+                  </p>
                 </div>
                 <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                   <ShoppingBag className="w-4 h-4" />
@@ -1046,7 +983,7 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-slate-500">Last order</p>
                   <p className="text-[15px] font-bold font-mono text-slate-900 mt-0.5 truncate">
-                    {customer.lastOrderDate}
+                    {customer.lastOrderDate || '—'}
                   </p>
                 </div>
                 <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
@@ -1055,7 +992,6 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
               </div>
             </div>
 
-            {/* CUSTOMER PROFILE CARD */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                 <p className="text-[13px] font-semibold text-slate-900">Customer profile</p>
@@ -1071,14 +1007,14 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                     <Phone className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-slate-500">Phone</p>
-                      <p className="text-slate-900 font-mono">{customer.phone}</p>
+                      <p className="text-slate-900 font-mono">{customer.phone || '—'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-slate-500">Location</p>
-                      <p className="text-slate-900">{customer.location}</p>
+                      <p className="text-slate-900">{customer.location || '—'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2 pt-2 border-t border-slate-100">
@@ -1098,7 +1034,7 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                     <span className="text-slate-500">Segment</span>
                     <span
                       className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${segmentBadge(
-                        customer.segment
+                        customer.segment,
                       )}`}
                     >
                       {customer.segment}
@@ -1106,11 +1042,15 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Top category</span>
-                    <span className="font-medium text-slate-900">{customer.mostPurchasedCategory}</span>
+                    <span className="font-medium text-slate-900">
+                      {customer.mostPurchasedCategory || '—'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Preferred payment</span>
-                    <span className="font-medium text-emerald-700">{customer.preferredPayment}</span>
+                    <span className="font-medium text-emerald-700">
+                      {customer.preferredPayment || '—'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                     <span className="text-slate-500 inline-flex items-center gap-1">
@@ -1120,10 +1060,10 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                     <button
                       onClick={toggleMarketingConsent}
                       className={`inline-block px-2 py-0.5 rounded-sm font-medium border transition ${customer.marketingConsent === 'Subscribed'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                          : customer.marketingConsent === 'Unsubscribed'
-                            ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
-                            : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        : customer.marketingConsent === 'Unsubscribed'
+                          ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
+                          : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
                         }`}
                     >
                       {customer.marketingConsent}
@@ -1137,8 +1077,12 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                 <div className="space-y-2 text-[13px] pt-2 border-t border-slate-100">
                   {customer.communicationLog.slice(0, 3).map((log) => (
                     <div key={log.id} className="flex items-start gap-2">
-                      <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 border ${channelBadge(log.channel)}`}>
-                        {log.channel === 'WhatsApp' && <MessageSquare className="w-3 h-3" />}
+                      <span
+                        className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 border ${channelBadge(
+                          log.channel,
+                        )}`}
+                      >
+                        {log.channel === 'WhatsApp' && <WhatsAppIcon className="w-3 h-3" />}
                         {log.channel === 'Email' && <Mail className="w-3 h-3" />}
                         {log.channel === 'SMS' && <Send className="w-3 h-3" />}
                         {log.channel === 'Call' && <Phone className="w-3 h-3" />}
@@ -1156,7 +1100,6 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
               </div>
             </div>
 
-            {/* RECENT ORDERS */}
             <div className="bg-white border border-slate-200 rounded-sm">
               <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
                 <p className="text-[13px] font-semibold text-slate-900">Recent orders</p>
@@ -1182,9 +1125,15 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                   <tbody className="divide-y divide-slate-100">
                     {customer.orders.slice(0, 3).map((ord) => (
                       <tr key={ord.id} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-mono font-medium text-blue-950">{ord.orderNumber}</td>
-                        <td className="py-2 px-3 font-mono text-slate-400">{ord.date}</td>
-                        <td className="py-2 px-3 text-center text-slate-700">{ord.itemsCount}</td>
+                        <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                          {ord.orderNumber}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-slate-400">
+                          {ord.date}
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-700">
+                          {ord.itemsCount}
+                        </td>
                         <td className="py-2 px-3 text-right font-medium text-slate-900">
                           {ord.total.toLocaleString()}
                         </td>
@@ -1200,6 +1149,13 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                         </td>
                       </tr>
                     ))}
+                    {customer.orders.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                          No orders yet.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1230,9 +1186,13 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                 <tbody className="divide-y divide-slate-100">
                   {customer.orders.map((ord) => (
                     <tr key={ord.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-3 font-mono font-medium text-blue-950">{ord.orderNumber}</td>
+                      <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                        {ord.orderNumber}
+                      </td>
                       <td className="py-2 px-3 font-mono text-slate-400">{ord.date}</td>
-                      <td className="py-2 px-3 text-center text-slate-700">{ord.itemsCount}</td>
+                      <td className="py-2 px-3 text-center text-slate-700">
+                        {ord.itemsCount}
+                      </td>
                       <td className="py-2 px-3 text-right font-medium text-slate-900">
                         {ord.total.toLocaleString()}
                       </td>
@@ -1277,11 +1237,15 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                       key={item.id}
                       className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center gap-2"
                     >
-                      <img
-                        src={item.image}
-                        alt=""
-                        className="w-10 h-10 rounded-sm object-cover border border-slate-200 shrink-0"
-                      />
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt=""
+                          className="w-10 h-10 rounded-sm object-cover border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <span className="w-10 h-10 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-slate-900 truncate">
                           {item.productName}
@@ -1319,11 +1283,15 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                       key={item.id}
                       className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center gap-2"
                     >
-                      <img
-                        src={item.image}
-                        alt=""
-                        className="w-10 h-10 rounded-sm object-cover border border-slate-200 shrink-0"
-                      />
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt=""
+                          className="w-10 h-10 rounded-sm object-cover border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <span className="w-10 h-10 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-slate-900 truncate">
                           {item.productName}
@@ -1372,8 +1340,8 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                             <Star
                               key={star}
                               className={`w-3 h-3 ${star <= rev.rating
-                                  ? 'text-amber-500 fill-amber-500'
-                                  : 'text-slate-300'
+                                ? 'text-amber-500 fill-amber-500'
+                                : 'text-slate-300'
                                 }`}
                             />
                           ))}
@@ -1385,15 +1353,17 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                       <div className="flex items-center gap-2 shrink-0">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-sm font-medium text-[13px] border ${rev.status === 'Published'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                              : rev.status === 'Pending'
-                                ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            : rev.status === 'Pending'
+                              ? 'bg-amber-50 text-amber-700 border-amber-100'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
                             }`}
                         >
                           {rev.status}
                         </span>
-                        <span className="text-[13px] font-mono text-slate-400">{rev.date}</span>
+                        <span className="text-[13px] font-mono text-slate-400">
+                          {rev.date}
+                        </span>
                       </div>
                     </div>
                     <p className="text-[13px] text-slate-600">{rev.comment}</p>
@@ -1433,11 +1403,13 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                   ) : (
                     customer.supportTickets.map((t) => (
                       <tr key={t.id} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-medium text-slate-900">{t.subject}</td>
+                        <td className="py-2 px-3 font-medium text-slate-900">
+                          {t.subject}
+                        </td>
                         <td className="py-2 px-3">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${priorityBadge(
-                              t.priority
+                              t.priority,
                             )}`}
                           >
                             {t.priority}
@@ -1446,14 +1418,16 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                         <td className="py-2 px-3">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${ticketStatusBadge(
-                              t.status
+                              t.status,
                             )}`}
                           >
                             {t.status}
                           </span>
                         </td>
                         <td className="py-2 px-3 font-mono text-slate-400">{t.date}</td>
-                        <td className="py-2 px-3 font-mono text-slate-400">{t.lastUpdate}</td>
+                        <td className="py-2 px-3 font-mono text-slate-400">
+                          {t.lastUpdate}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -1484,31 +1458,35 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                   >
                     <span
                       className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 border ${channelBadge(
-                        log.channel
+                        log.channel,
                       )}`}
                     >
-                      {log.channel === 'WhatsApp' && <MessageSquare className="w-4 h-4" />}
+                      {log.channel === 'WhatsApp' && <WhatsAppIcon className="w-4 h-4" />}
                       {log.channel === 'Email' && <Mail className="w-4 h-4" />}
                       {log.channel === 'SMS' && <Send className="w-4 h-4" />}
                       {log.channel === 'Call' && <Phone className="w-4 h-4" />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[13px] font-medium text-slate-900">{log.subject}</span>
+                        <span className="text-[13px] font-medium text-slate-900">
+                          {log.subject}
+                        </span>
                         <span
                           className={`inline-block px-1.5 py-0.5 rounded-sm font-medium text-[13px] border ${log.direction === 'Inbound'
-                              ? 'bg-blue-50 text-blue-950 border-blue-100'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            ? 'bg-blue-50 text-blue-950 border-blue-100'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100'
                             }`}
                         >
                           {log.direction}
                         </span>
                       </div>
                       <p className="text-[13px] text-slate-500 mt-0.5">
-                        {log.channel} · by {log.agent}
+                        {log.channel} · by {log.agent || 'System'}
                       </p>
                     </div>
-                    <span className="text-[13px] font-mono text-slate-400 shrink-0">{log.date}</span>
+                    <span className="text-[13px] font-mono text-slate-400 shrink-0">
+                      {log.date}
+                    </span>
                   </div>
                 ))
               )}
@@ -1520,51 +1498,63 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
         {activeTab === 'Addresses' && (
           <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {customer.addresses.map((addr) => (
-                <div
-                  key={addr.id}
-                  className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <MapPin className="w-3.5 h-3.5 text-blue-950 shrink-0" />
-                        <span className="text-[13px] font-medium text-slate-900 truncate">
-                          {addr.title}
-                        </span>
+              {customer.addresses.length === 0 ? (
+                <p className="text-[13px] text-slate-400 italic py-6 col-span-full text-center">
+                  No addresses on file.
+                </p>
+              ) : (
+                customer.addresses.map((addr) => (
+                  <div
+                    key={addr.id}
+                    className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <MapPin className="w-3.5 h-3.5 text-blue-950 shrink-0" />
+                          <span className="text-[13px] font-medium text-slate-900 truncate">
+                            {addr.title}
+                          </span>
+                        </div>
+                        {addr.isDefault && (
+                          <span className="bg-blue-50 text-blue-950 border border-blue-100 text-[13px] font-medium px-1.5 py-0.5 rounded-sm shrink-0">
+                            Default
+                          </span>
+                        )}
                       </div>
-                      {addr.isDefault && (
-                        <span className="bg-blue-50 text-blue-950 border border-blue-100 text-[13px] font-medium px-1.5 py-0.5 rounded-sm shrink-0">
-                          Default
-                        </span>
-                      )}
+                      <p className="text-[13px] text-slate-600 mt-1">
+                        {addr.address}
+                      </p>
+                      <p className="text-[13px] text-slate-400 mt-0.5">{addr.city}</p>
                     </div>
-                    <p className="text-[13px] text-slate-600 mt-1">{addr.address}</p>
-                    <p className="text-[13px] text-slate-400 mt-0.5">{addr.city}</p>
+                    <div className="flex justify-end gap-1 pt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => setToastMessage('Edit address not supported yet')}
+                        className="p-1.5 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteAddress(addr.id)}
+                        className="p-1.5 rounded-sm bg-red-50 hover:bg-red-100 text-red-600 transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex justify-end gap-1 pt-2 border-t border-slate-100">
-                    <button
-                      onClick={() => setToastMessage('Edit address mode enabled')}
-                      className="p-1.5 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => deleteAddress(addr.id)}
-                      className="p-1.5 rounded-sm bg-red-50 hover:bg-red-100 text-red-600 transition"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             <div className="bg-white border border-slate-200 rounded-sm p-2 max-w-xl space-y-2">
-              <p className="text-[13px] font-semibold text-slate-900">Add new address</p>
+              <p className="text-[13px] font-semibold text-slate-900">
+                Add new address
+              </p>
               <form onSubmit={addAddress} className="space-y-3 text-[13px]">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Label *</label>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Label *
+                  </label>
                   <input
                     type="text"
                     placeholder="e.g. Workspace"
@@ -1574,7 +1564,9 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                   />
                 </div>
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Street address *</label>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Street address *
+                  </label>
                   <input
                     type="text"
                     placeholder="Street, building, apartment"
@@ -1595,9 +1587,14 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    disabled={!newAddressTitle.trim() || !newAddressText.trim()}
-                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                    disabled={
+                      addressBusy ||
+                      !newAddressTitle.trim() ||
+                      !newAddressText.trim()
+                    }
+                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 inline-flex items-center gap-1.5"
                   >
+                    {addressBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Save address
                   </button>
                 </div>
@@ -1617,10 +1614,17 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
               ) : (
                 <div className="space-y-2">
                   {customer.notes.map((note) => (
-                    <div key={note.id} className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1">
+                    <div
+                      key={note.id}
+                      className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1"
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[13px] font-medium text-slate-800">{note.author}</span>
-                        <span className="text-[13px] font-mono text-slate-400">{note.date}</span>
+                        <span className="text-[13px] font-medium text-slate-800">
+                          {note.author}
+                        </span>
+                        <span className="text-[13px] font-mono text-slate-400">
+                          {note.date}
+                        </span>
                       </div>
                       <p className="text-[13px] text-slate-600">{note.text}</p>
                     </div>
@@ -1639,9 +1643,10 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    disabled={!newNoteText.trim()}
-                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                    disabled={noteBusy || !newNoteText.trim()}
+                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 inline-flex items-center gap-1.5"
                   >
+                    {noteBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Add note
                   </button>
                 </div>
@@ -1662,7 +1667,10 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p className="text-[15px] font-semibold text-slate-900">Send WhatsApp message</p>
+              <p className="text-[15px] font-semibold text-slate-900 inline-flex items-center gap-2">
+                <WhatsAppIcon className="w-4 h-4 text-emerald-600" />
+                Send WhatsApp message
+              </p>
               <button
                 onClick={() => setWhatsAppOpen(false)}
                 className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
@@ -1672,10 +1680,14 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
             </div>
 
             <div>
-              <p className="text-[13px] font-medium text-slate-500 mb-1">Live preview</p>
+              <p className="text-[13px] font-medium text-slate-500 mb-1">
+                Live preview
+              </p>
               <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-2 text-slate-800">
                 <p className="whitespace-pre-line">{whatsAppText}</p>
-                <p className="text-[13px] text-slate-400 text-right mt-1">Just now ✓✓</p>
+                <p className="text-[13px] text-slate-400 text-right mt-1">
+                  Just now ✓✓
+                </p>
               </div>
             </div>
 
@@ -1692,18 +1704,21 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setWhatsAppOpen(false)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                disabled={whatsAppSending}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  setWhatsAppOpen(false);
-                  setToastMessage('WhatsApp message sent');
-                }}
-                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                onClick={sendWhatsApp}
+                disabled={whatsAppSending || !whatsAppText.trim()}
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
               >
-                <Send className="w-3.5 h-3.5" />
+                {whatsAppSending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <WhatsAppIcon className="w-4 h-4" />
+                )}
                 Send
               </button>
             </div>
@@ -1754,18 +1769,21 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setEmailOpen(false)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                disabled={emailSending}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  setEmailOpen(false);
-                  setToastMessage('Email dispatched');
-                }}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                onClick={sendEmail}
+                disabled={emailSending || !emailSubject.trim() || !emailBody.trim()}
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
               >
-                <Mail className="w-3.5 h-3.5" />
+                {emailSending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Mail className="w-3.5 h-3.5" />
+                )}
                 Send
               </button>
             </div>
@@ -1785,8 +1803,8 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
           >
             <div
               className={`w-10 h-10 rounded-sm flex items-center justify-center mx-auto ${customer.status === 'Active'
-                  ? 'bg-red-50 text-red-600'
-                  : 'bg-emerald-50 text-emerald-700'
+                ? 'bg-red-50 text-red-600'
+                : 'bg-emerald-50 text-emerald-700'
                 }`}
             >
               <ShieldAlert className="w-5 h-5" />
@@ -1804,17 +1822,20 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
             <div className="flex justify-center gap-2 pt-1">
               <button
                 onClick={() => setBlockConfirmOpen(false)}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
+                disabled={blockBusy}
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={toggleBlock}
-                className={`flex-1 font-medium py-2 rounded-sm text-[13px] text-white ${customer.status === 'Active'
-                    ? 'bg-red-600 hover:bg-red-500'
-                    : 'bg-emerald-600 hover:bg-emerald-500'
+                disabled={blockBusy}
+                className={`flex-1 font-medium py-2 rounded-sm text-[13px] text-white disabled:opacity-50 inline-flex items-center justify-center gap-1.5 ${customer.status === 'Active'
+                  ? 'bg-red-600 hover:bg-red-500'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
                   }`}
               >
+                {blockBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Confirm
               </button>
             </div>
@@ -1825,9 +1846,9 @@ function CustomerDetailPage({ customerId, onBack }: { customerId: string; onBack
   );
 }
 
-/* ══════════════════════════════════════════
-   FilterDropdown
-   ══════════════════════════════════════════ */
+// ═════════════════════════════════════════════════════════════════════════════
+// FilterDropdown — unchanged
+// ═════════════════════════════════════════════════════════════════════════════
 function FilterDropdown({
   label,
   value,
@@ -1869,8 +1890,8 @@ function FilterDropdown({
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
-            ? 'bg-blue-50 border-blue-950 text-blue-950'
-            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+          ? 'bg-blue-50 border-blue-950 text-blue-950'
+          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}
       >
         {display}
@@ -1884,7 +1905,9 @@ function FilterDropdown({
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive
+              ? 'bg-blue-50 text-blue-950 font-medium'
+              : 'text-slate-700 hover:bg-slate-50'
               }`}
           >
             All {label.toLowerCase()}
@@ -1899,7 +1922,9 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${selected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${selected
+                  ? 'bg-blue-50 text-blue-950 font-medium'
+                  : 'text-slate-700 hover:bg-slate-50'
                   }`}
               >
                 <span className="truncate">{labels?.[opt] ?? opt}</span>

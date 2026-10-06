@@ -16,8 +16,7 @@ import {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 // Must match KENYAN_COUNTIES in the backend's config/settings.py.
-// If the backend list changes, this must change too. When a config endpoint
-// becomes available, fetch from checkoutApi.config() instead.
+// When a config endpoint becomes available, fetch from checkoutApi.config().
 const KENYAN_COUNTIES = [
     'Baringo', 'Bomet', 'Bungoma', 'Busia', 'Elgeyo-Marakwet', 'Embu',
     'Garissa', 'Homa Bay', 'Isiolo', 'Kajiado', 'Kakamega', 'Kericho',
@@ -90,6 +89,34 @@ export default function AddressesPage() {
         };
     }, []);
 
+    // ── Body scroll lock while any modal is open ──
+    const anyModalOpen = modalOpen || !!deleteTarget;
+
+    useEffect(() => {
+        if (!anyModalOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [anyModalOpen]);
+
+    // ── ESC key closes the topmost modal ──
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            if (saving || deleting) return;
+            if (modalOpen) {
+                setModalOpen(false);
+                setFormError('');
+            } else if (deleteTarget) {
+                setDeleteTarget(null);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [modalOpen, deleteTarget, saving, deleting]);
+
     // ── Open modals ──
     const openAdd = () => {
         setEditing(null);
@@ -123,7 +150,12 @@ export default function AddressesPage() {
     // ── Save (create or update) ──
     const handleSave = async () => {
         // Client-side required check — matches the backend serializer rules.
-        if (!form.full_name.trim() || !form.phone.trim() || !form.street.trim() || !form.town.trim()) {
+        if (
+            !form.full_name.trim() ||
+            !form.phone.trim() ||
+            !form.street.trim() ||
+            !form.town.trim()
+        ) {
             setFormError('Please fill in all required fields.');
             return;
         }
@@ -133,7 +165,10 @@ export default function AddressesPage() {
 
         try {
             if (editing) {
-                const updated = await accountApi.addresses.update(editing.id, form);
+                const updated = await accountApi.addresses.update(
+                    editing.id,
+                    form,
+                );
                 setAddresses((prev) =>
                     prev.map((a) => (a.id === editing.id ? updated : a)),
                 );
@@ -366,6 +401,8 @@ export default function AddressesPage() {
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/70 backdrop-blur-sm"
                     onClick={closeModal}
+                    role="dialog"
+                    aria-modal="true"
                 >
                     <div
                         className="bg-white w-full max-w-lg rounded-sm shadow-2xl border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col"
@@ -378,6 +415,7 @@ export default function AddressesPage() {
                             <button
                                 onClick={closeModal}
                                 className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500"
+                                aria-label="Close"
                             >
                                 <X className="h-4 w-4" />
                             </button>
@@ -393,7 +431,10 @@ export default function AddressesPage() {
                                     {['Home', 'Office', 'Other'].map((lbl) => (
                                         <button
                                             key={lbl}
-                                            onClick={() => setForm({ ...form, label: lbl })}
+                                            type="button"
+                                            onClick={() =>
+                                                setForm({ ...form, label: lbl })
+                                            }
                                             className={`px-3 py-1.5 rounded-sm text-xs font-medium border transition-colors ${form.label === lbl
                                                 ? 'bg-blue-950 text-white border-blue-950'
                                                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -409,12 +450,16 @@ export default function AddressesPage() {
                                 <Field
                                     label="Full name"
                                     value={form.full_name}
-                                    onChange={(v) => setForm({ ...form, full_name: v })}
+                                    onChange={(v) =>
+                                        setForm({ ...form, full_name: v })
+                                    }
                                 />
                                 <Field
                                     label="Phone"
                                     value={form.phone}
-                                    onChange={(v) => setForm({ ...form, phone: v })}
+                                    onChange={(v) =>
+                                        setForm({ ...form, phone: v })
+                                    }
                                     placeholder="+2547…"
                                 />
                             </div>
@@ -429,7 +474,9 @@ export default function AddressesPage() {
                                 <Field
                                     label="Town / City"
                                     value={form.town}
-                                    onChange={(v) => setForm({ ...form, town: v })}
+                                    onChange={(v) =>
+                                        setForm({ ...form, town: v })
+                                    }
                                 />
                                 <div>
                                     <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
@@ -438,7 +485,10 @@ export default function AddressesPage() {
                                     <select
                                         value={form.county}
                                         onChange={(e) =>
-                                            setForm({ ...form, county: e.target.value })
+                                            setForm({
+                                                ...form,
+                                                county: e.target.value,
+                                            })
                                         }
                                         className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     >
@@ -463,7 +513,10 @@ export default function AddressesPage() {
                                     type="checkbox"
                                     checked={!!form.is_default}
                                     onChange={(e) =>
-                                        setForm({ ...form, is_default: e.target.checked })
+                                        setForm({
+                                            ...form,
+                                            is_default: e.target.checked,
+                                        })
                                     }
                                     className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
                                 />
@@ -493,6 +546,7 @@ export default function AddressesPage() {
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
+                                aria-busy={saving}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-950 hover:bg-blue-900 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {saving ? (
@@ -516,6 +570,8 @@ export default function AddressesPage() {
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/70 backdrop-blur-sm"
                     onClick={() => !deleting && setDeleteTarget(null)}
+                    role="dialog"
+                    aria-modal="true"
                 >
                     <div
                         className="bg-white w-full max-w-sm rounded-sm shadow-2xl border border-slate-200 p-5"
@@ -546,6 +602,7 @@ export default function AddressesPage() {
                             <button
                                 onClick={confirmDelete}
                                 disabled={deleting}
+                                aria-busy={deleting}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {deleting ? (

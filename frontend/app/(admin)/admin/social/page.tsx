@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Share2,
   Plus,
@@ -19,6 +19,8 @@ import {
   MessageSquare,
   ArrowRight,
   BarChart3,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import {
   FaFacebookF,
@@ -26,7 +28,6 @@ import {
   FaTiktok,
   FaYoutube,
   FaXTwitter,
-  FaWhatsapp,
 } from 'react-icons/fa6';
 import {
   ResponsiveContainer,
@@ -41,9 +42,17 @@ import {
   Legend,
 } from 'recharts';
 
+import { adminApi } from '@/lib/admin-api';
+import type {
+  AdminSocialAccount,
+  AdminSocialEngagementPoint,
+  AdminSocialFollowerPoint,
+  AdminSocialPlatform,
+} from '@/lib/admin-types';
+
 // --- TYPES ---
 type SocialTab = 'Scheduled' | 'Published' | 'Analytics';
-type SocialPlatform = 'Facebook' | 'Instagram' | 'TikTok' | 'YouTube' | 'X' | 'WhatsApp';
+type SocialPlatform = AdminSocialPlatform;
 type MediaType = 'image' | 'video';
 
 interface ConnectedAccount {
@@ -55,13 +64,17 @@ interface ConnectedAccount {
 }
 
 interface MediaItem {
+  /** Local React key. */
   id: string;
+  /** Backend id returned by `media.upload()`. Undefined while uploading. */
+  serverId?: number;
   url: string;
   type: MediaType;
   name: string;
   size: number;
   uploading?: boolean;
   progress?: number;
+  error?: string;
 }
 
 interface ScheduledPost {
@@ -84,65 +97,6 @@ interface PublishedPost {
   reach: number;
 }
 
-const INITIAL_ACCOUNTS: ConnectedAccount[] = [
-  { id: 'Facebook', name: 'Facebook Page', handle: '@SokoFlowOfficial', connected: true, avatarBg: 'bg-[#1877F2]' },
-  { id: 'Instagram', name: 'Instagram Business', handle: '@sokoflow.ke', connected: true, avatarBg: 'bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF]' },
-  { id: 'TikTok', name: 'TikTok Creator', handle: '@sokoflow_store', connected: true, avatarBg: 'bg-black' },
-  { id: 'YouTube', name: 'YouTube Channel', handle: '@SokoFlowKE', connected: false, avatarBg: 'bg-[#FF0000]' },
-  { id: 'X', name: 'X (Twitter)', handle: '@SokoFlowHQ', connected: false, avatarBg: 'bg-black' },
-  { id: 'WhatsApp', name: 'WhatsApp Business', handle: '+254 712 345 678', connected: true, avatarBg: 'bg-[#25D366]' },
-];
-
-const INITIAL_SCHEDULED: ScheduledPost[] = [
-  {
-    id: 'sch-1',
-    platforms: ['Facebook', 'Instagram'],
-    caption: '🚀 Boost your small business with SokoFlow! Automate your WhatsApp orders and M-Pesa payments instantly.',
-    scheduledTime: 'Tomorrow, 10:00 AM',
-    productTag: 'SokoFlow Pro Subscription',
-  },
-  {
-    id: 'sch-2',
-    platforms: ['TikTok'],
-    caption: 'Watch how fast you can checkout using our automated WhatsApp cart! 🛒📱 #ecommerce #nairobi',
-    scheduledTime: 'Sep 26, 2:30 PM',
-    mediaUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=60',
-  },
-  {
-    id: 'sch-3',
-    platforms: ['WhatsApp'],
-    caption: 'Hi {{customer_name}}, your weekly VIP deals are here. Reply SHOP to browse 👇',
-    scheduledTime: 'Tomorrow, 9:00 AM',
-    productTag: 'VIP Weekly Deals',
-  },
-];
-
-const INITIAL_PUBLISHED: PublishedPost[] = [
-  { id: 'pub-1', platform: 'Instagram', caption: 'New stock alert! Premium wireless mechanical keyboards now available in Nairobi. ⌨️✨', publishedAt: '2 days ago', likes: 342, comments: 28, shares: 14, reach: 5200 },
-  { id: 'pub-2', platform: 'Facebook', caption: 'How to integrate M-Pesa STK push into your Django web app in 5 simple steps.', publishedAt: '4 days ago', likes: 189, comments: 45, shares: 32, reach: 4100 },
-  { id: 'pub-3', platform: 'TikTok', caption: 'Unboxing the UltraWide 29" Gaming Monitor! 🖥️🔥', publishedAt: '5 days ago', likes: 1250, comments: 94, shares: 180, reach: 18900 },
-  { id: 'pub-4', platform: 'YouTube', caption: 'Full walkthrough: Setting up SokoFlow with WhatsApp Business API and M-Pesa Daraja sandbox.', publishedAt: '6 days ago', likes: 412, comments: 67, shares: 41, reach: 8400 },
-  { id: 'pub-5', platform: 'X', caption: 'We are live at Dedan Kimathi Tech Week! Come check out our conversational commerce dashboard.', publishedAt: '1 week ago', likes: 95, comments: 12, shares: 24, reach: 2300 },
-  { id: 'pub-6', platform: 'WhatsApp', caption: 'Broadcast: October VIP early access preview — reply yes to unlock.', publishedAt: '3 days ago', likes: 0, comments: 84, shares: 0, reach: 1240 },
-];
-
-const ANALYTICS_FOLLOWER_DATA = [
-  { month: 'May', Facebook: 2100, Instagram: 3400, TikTok: 1200, YouTube: 600, X: 900, WhatsApp: 800 },
-  { month: 'Jun', Facebook: 2400, Instagram: 4100, TikTok: 2100, YouTube: 1100, X: 1100, WhatsApp: 1200 },
-  { month: 'Jul', Facebook: 2800, Instagram: 5200, TikTok: 3800, YouTube: 1900, X: 1400, WhatsApp: 1700 },
-  { month: 'Aug', Facebook: 3200, Instagram: 6700, TikTok: 5900, YouTube: 2900, X: 1700, WhatsApp: 2200 },
-  { month: 'Sep', Facebook: 3900, Instagram: 8500, TikTok: 9400, YouTube: 4200, X: 2200, WhatsApp: 3100 },
-];
-
-const PLATFORM_ENGAGEMENT_COMPARISON = [
-  { platform: 'Instagram', Reach: 8500, Engagement: 3400 },
-  { platform: 'TikTok', Reach: 14200, Engagement: 5100 },
-  { platform: 'Facebook', Reach: 4800, Engagement: 1600 },
-  { platform: 'YouTube', Reach: 9100, Engagement: 2800 },
-  { platform: 'WhatsApp', Reach: 3100, Engagement: 2050 },
-  { platform: 'X', Reach: 2900, Engagement: 850 },
-];
-
 const AVAILABLE_PRODUCTS = [
   'SokoFlow Pro Subscription',
   'Smart Home Wi-Fi Router AX3000',
@@ -151,7 +105,7 @@ const AVAILABLE_PRODUCTS = [
   'USB-C Multiport Hub 7-in-1',
 ];
 
-const PLATFORMS: SocialPlatform[] = ['Facebook', 'Instagram', 'TikTok', 'YouTube', 'X', 'WhatsApp'];
+const PLATFORMS: SocialPlatform[] = ['Facebook', 'Instagram', 'TikTok', 'YouTube', 'X'];
 const TABS: SocialTab[] = ['Scheduled', 'Published', 'Analytics'];
 
 const MAX_MEDIA_FILES = 5;
@@ -161,6 +115,43 @@ const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+/** ISO8601 → "Just now" / "2 days ago" / "12 Oct" */
+const relativeTime = (iso: string | null): string => {
+  if (!iso) return 'Publishing…';
+  const then = new Date(iso).getTime();
+  const diff = Date.now() - then;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'Just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min${min === 1 ? '' : 's'} ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+  const day = Math.floor(hr / 24);
+  if (day === 1) return 'Yesterday';
+  if (day < 7) return `${day} days ago`;
+  return new Date(iso).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
+};
+
+/** ISO8601 → "Tomorrow, 10:00 AM" / "26 Sep, 2:30 PM" */
+const formatScheduledTime = (iso: string): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const timeStr = d.toLocaleTimeString('en-KE', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  if (d.toDateString() === now.toDateString()) return `Today, ${timeStr}`;
+  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow, ${timeStr}`;
+  const dateStr = d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
+  return `${dateStr}, ${timeStr}`;
 };
 
 const PlatformIcon = ({ platform, className = 'w-3.5 h-3.5' }: { platform: SocialPlatform; className?: string }) => {
@@ -175,31 +166,43 @@ const PlatformIcon = ({ platform, className = 'w-3.5 h-3.5' }: { platform: Socia
       return <FaYoutube className={className} />;
     case 'X':
       return <FaXTwitter className={className} />;
-    case 'WhatsApp':
-      return <FaWhatsapp className={className} />;
   }
 };
 
 export default function SocialMediaPage() {
   const [activeTab, setActiveTab] = useState<SocialTab>('Scheduled');
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>(INITIAL_ACCOUNTS);
-  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>(INITIAL_SCHEDULED);
-  const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>(INITIAL_PUBLISHED);
+
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
+  const [publishedPosts, setPublishedPosts] = useState<PublishedPost[]>([]);
+  const [followerData, setFollowerData] = useState<AdminSocialFollowerPoint[]>([]);
+  const [engagementData, setEngagementData] = useState<AdminSocialEngagementPoint[]>([]);
+
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [scheduledLoading, setScheduledLoading] = useState(true);
+  const [publishedLoading, setPublishedLoading] = useState(true);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsLoaded, setAnalyticsLoaded] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<ConnectedAccount | null>(null);
+  const [disconnectInFlight, setDisconnectInFlight] = useState(false);
+  const [connectInFlight, setConnectInFlight] = useState<SocialPlatform | null>(null);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerCaption, setComposerCaption] = useState('');
-  const [composerPlatforms, setComposerPlatforms] = useState<SocialPlatform[]>(['Instagram', 'Facebook']);
+  const [composerPlatforms, setComposerPlatforms] = useState<SocialPlatform[]>([]);
   const [composerProductTag, setComposerProductTag] = useState('');
   const [composerScheduleTime, setComposerScheduleTime] = useState('');
   const [composerMedia, setComposerMedia] = useState<MediaItem[]>([]);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [composerSubmitting, setComposerSubmitting] = useState(false);
+
+  const toast = useCallback((msg: string) => setToastMessage(msg), []);
 
   useEffect(() => {
     if (toastMessage) {
-      const t = setTimeout(() => setToastMessage(null), 3000);
+      const t = setTimeout(() => setToastMessage(null), 3200);
       return () => clearTimeout(t);
     }
   }, [toastMessage]);
@@ -223,7 +226,97 @@ export default function SocialMediaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anyModalOpen, disconnectTarget, composerOpen]);
 
-  const toast = (msg: string) => setToastMessage(msg);
+  // ── Data loaders ────────────────────────────────────────────────────────
+
+  const loadAccounts = useCallback(async () => {
+    setAccountsLoading(true);
+    try {
+      const res = await adminApi.social.accounts.list();
+      setAccounts(res.map((a) => ({
+        id: a.id,
+        name: a.name,
+        handle: a.handle,
+        connected: a.connected,
+        avatarBg: a.avatarBg,
+      })));
+    } catch (e: any) {
+      toast(e?.message ?? 'Could not load accounts.');
+    } finally {
+      setAccountsLoading(false);
+    }
+  }, [toast]);
+
+  const loadScheduled = useCallback(async () => {
+    setScheduledLoading(true);
+    try {
+      const res = await adminApi.social.posts.listScheduled();
+      setScheduledPosts(res.map((p) => ({
+        id: String(p.id),
+        platforms: p.platforms,
+        caption: p.caption,
+        scheduledTime: formatScheduledTime(p.scheduledTime),
+        mediaUrl: p.mediaUrl ?? undefined,
+        productTag: p.productTag ?? undefined,
+      })));
+    } catch (e: any) {
+      toast(e?.message ?? 'Could not load scheduled posts.');
+    } finally {
+      setScheduledLoading(false);
+    }
+  }, [toast]);
+
+  const loadPublished = useCallback(async () => {
+    setPublishedLoading(true);
+    try {
+      const res = await adminApi.social.posts.listPublished();
+      setPublishedPosts(res.map((p) => ({
+        id: String(p.id),
+        platform: p.platform,
+        caption: p.caption,
+        publishedAt: relativeTime(p.publishedAt),
+        likes: p.likes,
+        comments: p.comments,
+        shares: p.shares,
+        reach: p.reach,
+      })));
+    } catch (e: any) {
+      toast(e?.message ?? 'Could not load published posts.');
+    } finally {
+      setPublishedLoading(false);
+    }
+  }, [toast]);
+
+  const loadAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const [followers, engagement] = await Promise.all([
+        adminApi.social.analytics.followers(5),
+        adminApi.social.analytics.engagement(),
+      ]);
+      setFollowerData(followers);
+      setEngagementData(engagement);
+      setAnalyticsLoaded(true);
+    } catch (e: any) {
+      toast(e?.message ?? 'Could not load analytics.');
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    void loadAccounts();
+    void loadScheduled();
+    void loadPublished();
+  }, [loadAccounts, loadScheduled, loadPublished]);
+
+  // Lazy-load analytics on first visit to that tab
+  useEffect(() => {
+    if (activeTab === 'Analytics' && !analyticsLoaded && !analyticsLoading) {
+      void loadAnalytics();
+    }
+  }, [activeTab, analyticsLoaded, analyticsLoading, loadAnalytics]);
+
+  // ── Composer lifecycle ──────────────────────────────────────────────────
 
   const openComposer = () => {
     setComposerCaption('');
@@ -231,6 +324,7 @@ export default function SocialMediaPage() {
     setComposerProductTag('');
     setComposerScheduleTime('');
     setIsScheduling(false);
+    setComposerSubmitting(false);
     composerMedia.forEach((m) => URL.revokeObjectURL(m.url));
     setComposerMedia([]);
     setComposerOpen(true);
@@ -244,88 +338,161 @@ export default function SocialMediaPage() {
     setComposerProductTag('');
     setComposerScheduleTime('');
     setIsScheduling(false);
+    setComposerSubmitting(false);
   };
 
-  const togglePlatformConnect = (account: ConnectedAccount) => {
+  // ── Connect / disconnect ────────────────────────────────────────────────
+
+  const togglePlatformConnect = async (account: ConnectedAccount) => {
     if (account.connected) {
       setDisconnectTarget(account);
-    } else {
-      setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, connected: true } : a)));
+      return;
+    }
+
+    setConnectInFlight(account.id);
+    try {
+      const res = await adminApi.social.accounts.connect(account.id);
+
+      // Live OAuth: backend tells us where to redirect
+      if ('authUrl' in res) {
+        window.location.href = res.authUrl;
+        return;
+      }
+
+      // Dry-run: backend already flipped the flag
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === account.id
+            ? { ...a, connected: res.connected, handle: res.handle || a.handle }
+            : a,
+        ),
+      );
       toast(`Connected to ${account.name}`);
+    } catch (e: any) {
+      toast(e?.message ?? 'Could not connect.');
+    } finally {
+      setConnectInFlight(null);
     }
   };
 
-  const confirmDisconnect = () => {
-    if (!disconnectTarget) return;
-    setAccounts((prev) =>
-      prev.map((a) => (a.id === disconnectTarget.id ? { ...a, connected: false } : a))
-    );
-    setComposerPlatforms((prev) => prev.filter((p) => p !== disconnectTarget.id));
-    toast(`Disconnected from ${disconnectTarget.name}`);
-    setDisconnectTarget(null);
+  const confirmDisconnect = async () => {
+    if (!disconnectTarget || disconnectInFlight) return;
+    setDisconnectInFlight(true);
+    try {
+      const res = await adminApi.social.accounts.disconnect(disconnectTarget.id);
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === disconnectTarget.id
+            ? { ...a, connected: res.connected, handle: res.handle || '' }
+            : a,
+        ),
+      );
+      setComposerPlatforms((prev) => prev.filter((p) => p !== disconnectTarget.id));
+      toast(`Disconnected from ${disconnectTarget.name}`);
+      setDisconnectTarget(null);
+    } catch (e: any) {
+      toast(e?.message ?? 'Disconnect failed.');
+    } finally {
+      setDisconnectInFlight(false);
+    }
   };
 
-  const publishOrSchedule = (e: React.FormEvent) => {
+  // ── Publish / schedule ──────────────────────────────────────────────────
+
+  const publishOrSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (composerSubmitting) return;
     if (!composerCaption.trim() || composerPlatforms.length === 0) return;
 
-    if (isScheduling && composerScheduleTime) {
-      const newSch: ScheduledPost = {
-        id: `sch-${Date.now()}`,
-        platforms: composerPlatforms,
-        caption: composerCaption,
-        scheduledTime: composerScheduleTime,
-        productTag: composerProductTag || undefined,
-        mediaUrl: composerMedia[0]?.url,
-      };
-      setScheduledPosts([newSch, ...scheduledPosts]);
-      toast('Post scheduled');
-      setActiveTab('Scheduled');
-    } else {
-      composerPlatforms.forEach((plat) => {
-        const newPub: PublishedPost = {
-          id: `pub-${Date.now()}-${plat}`,
-          platform: plat,
-          caption: composerCaption,
-          publishedAt: 'Just now',
-          likes: Math.floor(Math.random() * 50) + 10,
-          comments: Math.floor(Math.random() * 10) + 2,
-          shares: Math.floor(Math.random() * 5) + 1,
-          reach: Math.floor(Math.random() * 500) + 100,
-        };
-        setPublishedPosts((prev) => [newPub, ...prev]);
-      });
-      toast(`Published to ${composerPlatforms.join(', ')}`);
-      setActiveTab('Published');
+    // Guard: media uploads must be finished and free of errors before submit
+    const stillUploading = composerMedia.some((m) => m.uploading);
+    if (stillUploading) {
+      toast('Wait for uploads to finish.');
+      return;
+    }
+    const uploadErrors = composerMedia.filter((m) => m.error);
+    if (uploadErrors.length > 0) {
+      toast('Remove failed uploads before posting.');
+      return;
     }
 
-    closeComposer();
+    let scheduleAt: string | null = null;
+    if (isScheduling) {
+      if (!composerScheduleTime.trim()) {
+        toast('Pick a time for the scheduled post');
+        return;
+      }
+      const dt = new Date(composerScheduleTime);
+      if (Number.isNaN(dt.getTime()) || dt <= new Date()) {
+        toast('Scheduled time must be in the future.');
+        return;
+      }
+      scheduleAt = dt.toISOString();
+    }
+
+    setComposerSubmitting(true);
+    try {
+      const mediaIds = composerMedia
+        .filter((m) => m.serverId !== undefined)
+        .map((m) => m.serverId as number);
+
+      await adminApi.social.posts.create({
+        caption: composerCaption,
+        platforms: composerPlatforms,
+        ...(composerProductTag ? { productTag: composerProductTag } : {}),
+        ...(mediaIds.length > 0 ? { mediaIds } : {}),
+        ...(scheduleAt ? { scheduleAt } : {}),
+      });
+
+      if (scheduleAt) {
+        toast('Post scheduled');
+        setActiveTab('Scheduled');
+        await loadScheduled();
+      } else {
+        toast(`Publishing to ${composerPlatforms.join(', ')}…`);
+        setActiveTab('Published');
+        // The backend fans out asynchronously; poll a couple of times
+        // to catch the row appearing in the published list.
+        await loadPublished();
+        setTimeout(() => void loadPublished(), 2000);
+        setTimeout(() => void loadPublished(), 5000);
+      }
+
+      closeComposer();
+    } catch (e: any) {
+      toast(e?.message ?? 'Could not submit the post.');
+    } finally {
+      setComposerSubmitting(false);
+    }
   };
 
-  const deleteScheduled = (id: string) => {
-    setScheduledPosts((prev) => prev.filter((p) => p.id !== id));
-    toast('Scheduled post deleted');
+  const deleteScheduled = async (id: string) => {
+    // Optimistic removal
+    const prev = scheduledPosts;
+    setScheduledPosts((p) => p.filter((x) => x.id !== id));
+    try {
+      await adminApi.social.posts.remove(id);
+      toast('Scheduled post deleted');
+    } catch (e: any) {
+      setScheduledPosts(prev);
+      toast(e?.message ?? 'Could not delete.');
+    }
   };
 
-  const postNowFromScheduled = (post: ScheduledPost) => {
-    deleteScheduled(post.id);
-    post.platforms.forEach((plat) => {
-      setPublishedPosts((prev) => [
-        {
-          id: `pub-${Date.now()}-${plat}`,
-          platform: plat,
-          caption: post.caption,
-          publishedAt: 'Just now',
-          likes: 12,
-          comments: 2,
-          shares: 1,
-          reach: 150,
-        },
-        ...prev,
-      ]);
-    });
-    toast('Published immediately');
-    setActiveTab('Published');
+  const postNowFromScheduled = async (post: ScheduledPost) => {
+    const prev = scheduledPosts;
+    setScheduledPosts((p) => p.filter((x) => x.id !== post.id));
+    try {
+      await adminApi.social.posts.publishNow(post.id);
+      toast('Publishing…');
+      setActiveTab('Published');
+      await loadPublished();
+      setTimeout(() => void loadPublished(), 2000);
+      setTimeout(() => void loadPublished(), 5000);
+    } catch (e: any) {
+      setScheduledPosts(prev);
+      toast(e?.message ?? 'Could not publish.');
+    }
   };
 
   const platformBadge = (p: SocialPlatform) =>
@@ -337,9 +504,7 @@ export default function SocialMediaPage() {
           ? 'bg-slate-100 text-slate-800 border-slate-200'
           : p === 'YouTube'
             ? 'bg-red-50 text-[#FF0000] border-red-100'
-            : p === 'WhatsApp'
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-              : 'bg-slate-100 text-slate-800 border-slate-200';
+            : 'bg-slate-100 text-slate-800 border-slate-200';
 
   const connectedAccounts = accounts.filter((a) => a.connected);
 
@@ -350,7 +515,11 @@ export default function SocialMediaPage() {
         <div className="fixed bottom-3 right-3 z-[120] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
+          <button
+            onClick={() => setToastMessage(null)}
+            aria-label="Dismiss notification"
+            className="text-slate-400 hover:text-white"
+          >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -419,49 +588,86 @@ export default function SocialMediaPage() {
               <Share2 className="w-3.5 h-3.5 text-blue-950" />
               Connected accounts
             </p>
-            <span className="text-[13px] text-slate-500">
-              {connectedAccounts.length} of {accounts.length} connected
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] text-slate-500">
+                {connectedAccounts.length} of {accounts.length} connected
+              </span>
+              <button
+                onClick={() => void loadAccounts()}
+                disabled={accountsLoading}
+                aria-label="Refresh accounts"
+                className="p-1 rounded-sm hover:bg-slate-100 text-slate-500 disabled:opacity-40"
+              >
+                {accountsLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {accounts.map((acc) => (
-              <div
-                key={acc.id}
-                className={`bg-white border rounded-sm p-2 flex items-center justify-between gap-2 ${acc.connected ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-200'
-                  }`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`w-9 h-9 rounded-sm ${acc.avatarBg} text-white font-semibold text-[13px] flex items-center justify-center shrink-0`}
+          {accountsLoading && accounts.length === 0 ? (
+            <div className="py-12 flex items-center justify-center text-slate-400">
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              <span className="text-[13px]">Loading accounts…</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {accounts.map((acc) => {
+                const isConnecting = connectInFlight === acc.id;
+                return (
+                  <div
+                    key={acc.id}
+                    className={`bg-white border rounded-sm p-2 flex items-center justify-between gap-2 ${acc.connected
+                        ? 'border-emerald-200 ring-1 ring-emerald-100'
+                        : 'border-slate-200'
+                      }`}
                   >
-                    <PlatformIcon platform={acc.id} className="w-4 h-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-slate-900 truncate">{acc.name}</p>
-                    <p className="text-[13px] text-slate-500 font-mono truncate">{acc.handle}</p>
-                    <span
-                      className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-sm text-[13px] font-medium border ${acc.connected
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`w-9 h-9 rounded-sm ${acc.avatarBg} text-white font-semibold text-[13px] flex items-center justify-center shrink-0`}
+                      >
+                        <PlatformIcon platform={acc.id} className="w-4 h-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-medium text-slate-900 truncate">
+                          {acc.name}
+                        </p>
+                        <p className="text-[13px] text-slate-500 font-mono truncate">
+                          {acc.handle || '—'}
+                        </p>
+                        <span
+                          className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-sm text-[13px] font-medium border ${acc.connected
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                        >
+                          {acc.connected ? 'Connected' : 'Disconnected'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void togglePlatformConnect(acc)}
+                      disabled={isConnecting}
+                      className={`px-2.5 py-2 rounded-sm font-medium text-[13px] transition shrink-0 border disabled:opacity-50 ${acc.connected
+                          ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          : 'bg-blue-950 border-blue-950 text-white hover:bg-blue-900'
                         }`}
                     >
-                      {acc.connected ? 'Connected' : 'Disconnected'}
-                    </span>
+                      {isConnecting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : acc.connected ? (
+                        'Disconnect'
+                      ) : (
+                        'Connect'
+                      )}
+                    </button>
                   </div>
-                </div>
-                <button
-                  onClick={() => togglePlatformConnect(acc)}
-                  className={`px-2.5 py-2 rounded-sm font-medium text-[13px] transition shrink-0 border ${acc.connected
-                      ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                      : 'bg-blue-950 border-blue-950 text-white hover:bg-blue-900'
-                    }`}
-                >
-                  {acc.connected ? 'Disconnect' : 'Connect'}
-                </button>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* TABS */}
@@ -485,13 +691,27 @@ export default function SocialMediaPage() {
               <p className="text-[13px] font-medium text-slate-700">
                 Upcoming scheduled posts · {scheduledPosts.length}
               </p>
-              <button
-                onClick={openComposer}
-                className="text-[13px] font-medium text-blue-950 hover:underline inline-flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" />
-                New post
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void loadScheduled()}
+                  disabled={scheduledLoading}
+                  aria-label="Refresh scheduled posts"
+                  className="p-1 rounded-sm hover:bg-slate-100 text-slate-500 disabled:opacity-40"
+                >
+                  {scheduledLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <button
+                  onClick={openComposer}
+                  className="text-[13px] font-medium text-blue-950 hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  New post
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
@@ -505,10 +725,20 @@ export default function SocialMediaPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {scheduledPosts.length === 0 ? (
+                  {scheduledLoading && scheduledPosts.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-slate-400 text-[13px]">
-                        No scheduled posts yet. Click <span className="font-medium text-slate-600">Create post</span> to add one.
+                        <div className="inline-flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading scheduled posts…
+                        </div>
+                      </td>
+                    </tr>
+                  ) : scheduledPosts.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400 text-[13px]">
+                        No scheduled posts yet. Click{' '}
+                        <span className="font-medium text-slate-600">Create post</span> to add one.
                       </td>
                     </tr>
                   ) : (
@@ -519,9 +749,7 @@ export default function SocialMediaPage() {
                             {post.platforms.map((p) => (
                               <span
                                 key={p}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border text-[13px] ${platformBadge(
-                                  p
-                                )}`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border text-[13px] ${platformBadge(p)}`}
                               >
                                 <PlatformIcon platform={p} className="w-3 h-3" />
                                 {p}
@@ -542,15 +770,15 @@ export default function SocialMediaPage() {
                         <td className="py-2 px-3">
                           <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => postNowFromScheduled(post)}
+                              onClick={() => void postNowFromScheduled(post)}
                               className="px-2.5 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px]"
                             >
                               Post now
                             </button>
                             <button
-                              onClick={() => deleteScheduled(post.id)}
+                              onClick={() => void deleteScheduled(post.id)}
+                              aria-label="Delete scheduled post"
                               className="p-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 transition"
-                              title="Delete"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -574,33 +802,56 @@ export default function SocialMediaPage() {
                 Platform engagement comparison
               </p>
               <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={PLATFORM_ENGAGEMENT_COMPARISON}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="platform" stroke="#94a3b8" fontSize={13} />
-                    <YAxis stroke="#94a3b8" fontSize={13} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '2px',
-                        color: '#0f172a',
-                        fontSize: '13px',
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="Reach" fill="#172554" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="Engagement" fill="#10b981" radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {analyticsLoading && engagementData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span className="text-[13px]">Loading chart…</span>
+                  </div>
+                ) : engagementData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-[13px]">
+                    No engagement data yet.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={engagementData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="platform" stroke="#94a3b8" fontSize={13} />
+                      <YAxis stroke="#94a3b8" fontSize={13} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '2px',
+                          color: '#0f172a',
+                          fontSize: '13px',
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="Reach" fill="#172554" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="Engagement" fill="#10b981" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-              <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+              <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <p className="text-[13px] font-medium text-slate-700">
-                  Published posts & analytics · {publishedPosts.length}
+                  Published posts &amp; analytics · {publishedPosts.length}
                 </p>
+                <button
+                  onClick={() => void loadPublished()}
+                  disabled={publishedLoading}
+                  aria-label="Refresh published posts"
+                  className="p-1 rounded-sm hover:bg-slate-100 text-slate-500 disabled:opacity-40"
+                >
+                  {publishedLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                </button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-[13px]">
@@ -616,32 +867,47 @@ export default function SocialMediaPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {publishedPosts.map((pub) => (
-                      <tr key={pub.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-2 px-3">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border text-[13px] ${platformBadge(
-                              pub.platform
-                            )}`}
-                          >
-                            <PlatformIcon platform={pub.platform} className="w-3 h-3" />
-                            {pub.platform}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-slate-700 truncate max-w-xs">
-                          {pub.caption}
-                        </td>
-                        <td className="py-2 px-3 text-slate-400">{pub.publishedAt}</td>
-                        <td className="py-2 px-3 text-center font-medium text-slate-900">
-                          {pub.likes}
-                        </td>
-                        <td className="py-2 px-3 text-center text-slate-700">{pub.comments}</td>
-                        <td className="py-2 px-3 text-center text-slate-700">{pub.shares}</td>
-                        <td className="py-2 px-3 text-right font-mono text-blue-950">
-                          {pub.reach.toLocaleString()}
+                    {publishedLoading && publishedPosts.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400 text-[13px]">
+                          <div className="inline-flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading published posts…
+                          </div>
                         </td>
                       </tr>
-                    ))}
+                    ) : publishedPosts.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400 text-[13px]">
+                          No published posts yet. Posts you publish from the composer will appear here.
+                        </td>
+                      </tr>
+                    ) : (
+                      publishedPosts.map((pub) => (
+                        <tr key={pub.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 px-3">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border text-[13px] ${platformBadge(pub.platform)}`}
+                            >
+                              <PlatformIcon platform={pub.platform} className="w-3 h-3" />
+                              {pub.platform}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-700 truncate max-w-xs">
+                            {pub.caption}
+                          </td>
+                          <td className="py-2 px-3 text-slate-400">{pub.publishedAt}</td>
+                          <td className="py-2 px-3 text-center font-medium text-slate-900">
+                            {pub.likes}
+                          </td>
+                          <td className="py-2 px-3 text-center text-slate-700">{pub.comments}</td>
+                          <td className="py-2 px-3 text-center text-slate-700">{pub.shares}</td>
+                          <td className="py-2 px-3 text-right font-mono text-blue-950">
+                            {pub.reach.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -658,29 +924,39 @@ export default function SocialMediaPage() {
                 Follower growth over time
               </p>
               <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={ANALYTICS_FOLLOWER_DATA}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={13} />
-                    <YAxis stroke="#94a3b8" fontSize={13} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '2px',
-                        color: '#0f172a',
-                        fontSize: '13px',
-                      }}
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="Instagram" stroke="#db2777" strokeWidth={2} />
-                    <Line type="monotone" dataKey="TikTok" stroke="#0f172a" strokeWidth={2} />
-                    <Line type="monotone" dataKey="Facebook" stroke="#1877F2" strokeWidth={2} />
-                    <Line type="monotone" dataKey="YouTube" stroke="#dc2626" strokeWidth={2} />
-                    <Line type="monotone" dataKey="WhatsApp" stroke="#25D366" strokeWidth={2} />
-                    <Line type="monotone" dataKey="X" stroke="#0ea5e9" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
+                {analyticsLoading && followerData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span className="text-[13px]">Loading chart…</span>
+                  </div>
+                ) : followerData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-[13px]">
+                    No follower snapshots yet.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={followerData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="month" stroke="#94a3b8" fontSize={13} />
+                      <YAxis stroke="#94a3b8" fontSize={13} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '2px',
+                          color: '#0f172a',
+                          fontSize: '13px',
+                        }}
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="Instagram" stroke="#db2777" strokeWidth={2} />
+                      <Line type="monotone" dataKey="TikTok" stroke="#0f172a" strokeWidth={2} />
+                      <Line type="monotone" dataKey="Facebook" stroke="#1877F2" strokeWidth={2} />
+                      <Line type="monotone" dataKey="YouTube" stroke="#dc2626" strokeWidth={2} />
+                      <Line type="monotone" dataKey="X" stroke="#0ea5e9" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
@@ -690,24 +966,35 @@ export default function SocialMediaPage() {
                 Engagement by platform
               </p>
               <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={PLATFORM_ENGAGEMENT_COMPARISON}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="platform" stroke="#94a3b8" fontSize={13} />
-                    <YAxis stroke="#94a3b8" fontSize={13} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '2px',
-                        color: '#0f172a',
-                        fontSize: '13px',
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="Engagement" fill="#10b981" radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {analyticsLoading && engagementData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <span className="text-[13px]">Loading chart…</span>
+                  </div>
+                ) : engagementData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-[13px]">
+                    No engagement data yet.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={engagementData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="platform" stroke="#94a3b8" fontSize={13} />
+                      <YAxis stroke="#94a3b8" fontSize={13} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '2px',
+                          color: '#0f172a',
+                          fontSize: '13px',
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="Engagement" fill="#10b981" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
@@ -743,6 +1030,7 @@ export default function SocialMediaPage() {
               </div>
               <button
                 onClick={closeComposer}
+                aria-label="Close composer"
                 className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
               >
                 <X className="w-4 h-4" />
@@ -760,7 +1048,7 @@ export default function SocialMediaPage() {
                   <div>
                     <label className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1">
                       <ImageIcon className="w-3 h-3" />
-                      Media (images & videos)
+                      Media (images &amp; videos)
                     </label>
                     <MediaUploader media={composerMedia} setMedia={setComposerMedia} onToast={toast} />
                   </div>
@@ -860,9 +1148,9 @@ export default function SocialMediaPage() {
 
                     {isScheduling && (
                       <input
-                        type="text"
-                        placeholder="e.g. Tomorrow at 10:00 AM"
+                        type="datetime-local"
                         value={composerScheduleTime}
+                        min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
                         onChange={(e) => setComposerScheduleTime(e.target.value)}
                         className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                       />
@@ -900,11 +1188,7 @@ export default function SocialMediaPage() {
                             {plat} preview
                           </span>
                           <span className="text-slate-400">
-                            {plat === 'YouTube'
-                              ? 'Video'
-                              : plat === 'WhatsApp'
-                                ? 'Broadcast'
-                                : 'Feed'}
+                            {plat === 'YouTube' ? 'Video' : 'Feed'}
                           </span>
                         </div>
 
@@ -970,25 +1254,43 @@ export default function SocialMediaPage() {
             {/* Footer */}
             <div className="px-3 py-2 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
               <p className="text-[13px] text-slate-500 truncate">
-                {composerMedia.length > 0 ? `${composerMedia.length} media file(s) attached` : 'No media attached'}
-                {composerPlatforms.length > 0 ? ` · ${composerPlatforms.length} channel(s)` : ''}
+                {composerMedia.length > 0
+                  ? `${composerMedia.length} media file(s) attached`
+                  : 'No media attached'}
+                {composerPlatforms.length > 0
+                  ? ` · ${composerPlatforms.length} channel(s)`
+                  : ''}
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={closeComposer}
-                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                  disabled={composerSubmitting}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   form="composer-form"
-                  disabled={!composerCaption.trim() || composerPlatforms.length === 0}
+                  disabled={
+                    composerSubmitting ||
+                    !composerCaption.trim() ||
+                    composerPlatforms.length === 0 ||
+                    composerMedia.some((m) => m.uploading || m.error)
+                  }
                   className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  {isScheduling ? 'Schedule post' : 'Publish now'}
+                  {composerSubmitting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  {composerSubmitting
+                    ? 'Submitting…'
+                    : isScheduling
+                      ? 'Schedule post'
+                      : 'Publish now'}
                 </button>
               </div>
             </div>
@@ -1000,7 +1302,7 @@ export default function SocialMediaPage() {
       {disconnectTarget && (
         <div
           className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
-          onClick={() => setDisconnectTarget(null)}
+          onClick={() => !disconnectInFlight && setDisconnectTarget(null)}
         >
           <div
             className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl text-center space-y-3 text-[13px]"
@@ -1022,14 +1324,17 @@ export default function SocialMediaPage() {
             <div className="flex justify-center gap-2 pt-1">
               <button
                 onClick={() => setDisconnectTarget(null)}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
+                disabled={disconnectInFlight}
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={confirmDisconnect}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded-sm text-[13px]"
+                onClick={() => void confirmDisconnect()}
+                disabled={disconnectInFlight}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded-sm text-[13px] disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
               >
+                {disconnectInFlight && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Disconnect
               </button>
             </div>
@@ -1041,7 +1346,8 @@ export default function SocialMediaPage() {
 }
 
 /* ══════════════════════════════════════════
-   Media uploader
+   Media uploader — uploads to the backend
+   on add, tracks progress, exposes server id
    ══════════════════════════════════════════ */
 function MediaUploader({
   media,
@@ -1055,7 +1361,7 @@ function MediaUploader({
   const fileRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const addFiles = (files: FileList | null) => {
+  const addFiles = async (files: FileList | null) => {
     if (!files) return;
 
     const remainingSlots = MAX_MEDIA_FILES - media.length;
@@ -1065,7 +1371,7 @@ function MediaUploader({
     }
 
     const incoming = Array.from(files).slice(0, remainingSlots);
-    const accepted: MediaItem[] = [];
+    const accepted: Array<{ item: MediaItem; file: File }> = [];
     let rejected = 0;
 
     incoming.forEach((file) => {
@@ -1084,43 +1390,55 @@ function MediaUploader({
       const url = URL.createObjectURL(file);
 
       accepted.push({
-        id,
-        url,
-        type: isVideo ? 'video' : 'image',
-        name: file.name,
-        size: file.size,
-        uploading: true,
-        progress: 0,
+        item: {
+          id,
+          url,
+          type: isVideo ? 'video' : 'image',
+          name: file.name,
+          size: file.size,
+          uploading: true,
+          progress: 0,
+        },
+        file,
       });
     });
 
-    if (accepted.length > 0) {
-      setMedia((prev) => [...prev, ...accepted]);
-      onToast(
-        `${accepted.length} file${accepted.length > 1 ? 's' : ''} added${rejected ? ` · ${rejected} rejected` : ''
-        }`
-      );
-
-      accepted.forEach((item) => {
-        let progress = 0;
-        const interval = setInterval(() => {
-          progress += Math.random() * 25 + 10;
-          if (progress >= 100) {
-            progress = 100;
-            clearInterval(interval);
-            setMedia((prev) =>
-              prev.map((m) => (m.id === item.id ? { ...m, uploading: false, progress: 100 } : m))
-            );
-          } else {
-            setMedia((prev) =>
-              prev.map((m) => (m.id === item.id ? { ...m, progress } : m))
-            );
-          }
-        }, 180);
-      });
-    } else if (rejected > 0) {
-      onToast(`File not supported or too large (max ${MAX_FILE_SIZE_MB}MB)`);
+    if (accepted.length === 0) {
+      if (rejected > 0) onToast(`File not supported or too large (max ${MAX_FILE_SIZE_MB}MB)`);
+      return;
     }
+
+    // Insert placeholders immediately
+    setMedia((prev) => [...prev, ...accepted.map((a) => a.item)]);
+    onToast(
+      `Uploading ${accepted.length} file${accepted.length > 1 ? 's' : ''}…${rejected ? ` · ${rejected} rejected` : ''
+      }`
+    );
+
+    // Upload in parallel
+    await Promise.all(
+      accepted.map(async ({ item, file }) => {
+        try {
+          const result = await adminApi.social.media.upload(file);
+          setMedia((prev) =>
+            prev.map((m) =>
+              m.id === item.id
+                ? { ...m, serverId: result.id, uploading: false, progress: 100 }
+                : m
+            )
+          );
+        } catch (err: any) {
+          setMedia((prev) =>
+            prev.map((m) =>
+              m.id === item.id
+                ? { ...m, uploading: false, error: err?.message ?? 'Upload failed' }
+                : m
+            )
+          );
+          onToast(`Failed to upload ${file.name}`);
+        }
+      })
+    );
   };
 
   const removeFile = (id: string) => {
@@ -1135,7 +1453,7 @@ function MediaUploader({
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    addFiles(e.dataTransfer.files);
+    void addFiles(e.dataTransfer.files);
   };
 
   return (
@@ -1160,7 +1478,7 @@ function MediaUploader({
           multiple
           className="hidden"
           onChange={(e) => {
-            addFiles(e.target.files);
+            void addFiles(e.target.files);
             if (fileRef.current) fileRef.current.value = '';
           }}
         />
@@ -1169,7 +1487,7 @@ function MediaUploader({
           {isDragging ? 'Drop files here' : 'Drag & drop or click to upload'}
         </p>
         <p className="text-[13px] text-slate-500 mt-0.5">
-          Images & videos · max {MAX_FILE_SIZE_MB}MB · up to {MAX_MEDIA_FILES} files
+          Images &amp; videos · max {MAX_FILE_SIZE_MB}MB · up to {MAX_MEDIA_FILES} files
           {media.length > 0 && ` · ${media.length}/${MAX_MEDIA_FILES} used`}
         </p>
       </div>
@@ -1179,7 +1497,8 @@ function MediaUploader({
           {media.map((m) => (
             <div
               key={m.id}
-              className="relative aspect-square rounded-sm overflow-hidden border border-slate-200 bg-slate-100 group"
+              className={`relative aspect-square rounded-sm overflow-hidden border bg-slate-100 group ${m.error ? 'border-red-300' : 'border-slate-200'
+                }`}
             >
               {m.type === 'video' ? (
                 <>
@@ -1216,8 +1535,14 @@ function MediaUploader({
                     style={{ width: `${m.progress ?? 0}%` }}
                   />
                   <p className="text-[13px] text-center py-0.5">
-                    {Math.round(m.progress ?? 0)}%
+                    Uploading…
                   </p>
+                </div>
+              )}
+
+              {m.error && (
+                <div className="absolute inset-x-0 bottom-0 bg-red-600 text-white">
+                  <p className="text-[13px] text-center py-0.5">Failed</p>
                 </div>
               )}
 
@@ -1227,8 +1552,8 @@ function MediaUploader({
                   e.stopPropagation();
                   removeFile(m.id);
                 }}
+                aria-label={`Remove ${m.name}`}
                 className="absolute top-1 right-1 h-5 w-5 rounded-sm bg-white/90 hover:bg-white text-red-600 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Remove"
               >
                 <X className="w-3 h-3" />
               </button>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Plus,
   Search,
@@ -25,9 +25,17 @@ import {
   ArrowDownRight,
   Star,
   BarChart3,
+  Loader2,
+  Check,
 } from 'lucide-react';
 import AddBrandModal from '@/components/admin/AddBrandModal';
+import { adminApi } from '@/lib/admin-api';
+import { ApiError } from '@/lib/api';
+import type { AdminBrand } from '@/lib/admin-types';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 type BrandStatus = 'Active' | 'Inactive';
 type ViewMode = 'grid' | 'list';
 
@@ -47,9 +55,8 @@ interface Brand {
   status: BrandStatus;
   description?: string;
   websiteUrl?: string;
-  // NEW
   salesTotal: number;
-  salesGrowth: number; // percent, can be negative
+  salesGrowth: number;
   customersCount: number;
   featured: boolean;
   seo: SEOMetadata;
@@ -62,129 +69,86 @@ const DEFAULT_SEO: SEOMetadata = {
   canonicalUrl: '',
 };
 
-const INITIAL_BRANDS: Brand[] = [
-  {
-    id: 'brand-1',
-    name: 'Lenovo',
-    slug: 'lenovo',
-    logo: '/Lenovo.jpeg',
-    productsCount: 24,
-    status: 'Active',
-    description: 'Global technology leader in PCs, laptops, and smart infrastructure.',
-    websiteUrl: 'https://www.lenovo.com',
-    salesTotal: 1250000,
-    salesGrowth: 12.4,
-    customersCount: 342,
-    featured: true,
-    seo: {
-      metaTitle: 'Lenovo Laptops & PCs — Official Store',
-      metaDescription: 'Shop Lenovo ThinkPad, IdeaPad, and Legion laptops with official warranty and fast delivery in Kenya.',
-      metaKeywords: 'lenovo, thinkpad, ideapad, legion, laptops, PCs',
-      canonicalUrl: '/brands/lenovo',
-    },
-  },
-  {
-    id: 'brand-2',
-    name: 'Dell Technologies',
-    slug: 'dell-technologies',
-    logo: '/dellmonitor.jpeg',
-    productsCount: 19,
-    status: 'Active',
-    description: 'Enterprise workstations, monitors, and cloud computing hardware.',
-    websiteUrl: 'https://www.dell.com',
-    salesTotal: 980000,
-    salesGrowth: 8.7,
-    customersCount: 218,
-    featured: false,
-    seo: {
-      metaTitle: 'Dell Monitors, Laptops & Workstations',
-      metaDescription: 'Explore Dell UltraSharp monitors, XPS laptops, and Precision workstations.',
-      metaKeywords: 'dell, ultrasharp, xps, precision, monitors, workstations',
-      canonicalUrl: '/brands/dell-technologies',
-    },
-  },
-  {
-    id: 'brand-3',
-    name: 'Apple',
-    slug: 'apple',
-    logo: '/phone.jpeg',
-    productsCount: 35,
-    status: 'Active',
-    description: 'Premium consumer electronics and professional silicon devices.',
-    websiteUrl: 'https://www.apple.com',
-    salesTotal: 3200000,
-    salesGrowth: 18.9,
-    customersCount: 890,
-    featured: true,
-    seo: {
-      metaTitle: 'Apple iPhone, MacBook & iPad — Official Reseller',
-      metaDescription: 'Buy the latest iPhone, MacBook, iPad, and Apple accessories with warranty and M-Pesa checkout.',
-      metaKeywords: 'apple, iphone, macbook, ipad, airpods, apple watch',
-      canonicalUrl: '/brands/apple',
-    },
-  },
-  {
-    id: 'brand-4',
-    name: 'Samsung',
-    slug: 'samsung',
-    logo: '/phone.jpeg',
-    productsCount: 127,
-    status: 'Active',
-    description: 'Global leader in mobile displays, memory hardware, and home appliances.',
-    websiteUrl: 'https://www.samsung.com',
-    salesTotal: 4800000,
-    salesGrowth: 22.1,
-    customersCount: 1240,
-    featured: true,
-    seo: {
-      metaTitle: 'Samsung Galaxy Phones, TVs & Appliances',
-      metaDescription: 'Shop Samsung Galaxy smartphones, QLED TVs, and home appliances at the best prices in Kenya.',
-      metaKeywords: 'samsung, galaxy, qled, tv, refrigerator, smartphone',
-      canonicalUrl: '/brands/samsung',
-    },
-  },
-  {
-    id: 'brand-5',
-    name: 'Logitech',
-    slug: 'logitech',
-    logo: '/phone.jpeg',
-    productsCount: 14,
-    status: 'Active',
-    description: 'Peripherals for productivity, gaming, and collaboration.',
-    websiteUrl: 'https://www.logitech.com',
-    salesTotal: 420000,
-    salesGrowth: -3.2,
-    customersCount: 156,
-    featured: false,
-    seo: {
-      metaTitle: 'Logitech Keyboards, Mice & Webcams',
-      metaDescription: 'Discover Logitech MX, G-series gaming, and productivity peripherals.',
-      metaKeywords: 'logitech, mx master, g-series, keyboard, mouse, webcam',
-      canonicalUrl: '/brands/logitech',
-    },
-  },
-  {
-    id: 'brand-6',
-    name: 'Legacy Hardware Co.',
-    slug: 'legacy-hardware',
-    logo: '/Lenovo.jpeg',
-    productsCount: 3,
-    status: 'Inactive',
-    description: 'Archived legacy accessories and deprecated component lines.',
-    websiteUrl: 'https://legacy-hardware-example.com',
-    salesTotal: 45000,
-    salesGrowth: -18.4,
-    customersCount: 12,
-    featured: false,
-    seo: DEFAULT_SEO,
-  },
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapping helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function apiToBrand(api: AdminBrand): Brand {
+  return {
+    id: String(api.id),
+    name: api.name,
+    slug: api.slug,
+    logo: api.logo || '/placeholder.jpeg',
+    productsCount: api.productsCount ?? 0,
+    status: api.is_active ? 'Active' : 'Inactive',
+    description: api.description || '',
+    websiteUrl: api.websiteUrl || '',
+    salesTotal: api.salesTotal ?? 0,
+    salesGrowth: api.salesGrowth ?? 0,
+    customersCount: api.customersCount ?? 0,
+    featured: api.featured,
+    seo: api.seo || DEFAULT_SEO,
+  };
+}
+
+interface BrandWritePayload {
+  name?: string;
+  slug?: string;
+  logo?: string | null;      // ← ADDED
+  description?: string;
+  websiteUrl?: string;
+  featured?: boolean;
+  is_active?: boolean;
+  status?: 'Active' | 'Inactive';
+  seo?: Partial<SEOMetadata>;
+}
+
+function brandToApi(brand: Partial<Brand>): BrandWritePayload {
+  const payload: BrandWritePayload = {};
+
+  if (brand.name !== undefined) payload.name = brand.name;
+  if (brand.slug !== undefined) payload.slug = brand.slug;
+
+  // Send the logo only when it changed. The base64 data URL can be
+  // several MB, so if it's the same placeholder we skip it.
+  if (brand.logo !== undefined && brand.logo !== '/placeholder.jpeg') {
+    payload.logo = brand.logo || null;
+  }
+
+  if (brand.description !== undefined) payload.description = brand.description;
+  if (brand.websiteUrl !== undefined) payload.websiteUrl = brand.websiteUrl;
+  if (brand.featured !== undefined) payload.featured = brand.featured;
+  if (brand.status !== undefined) {
+    payload.status = brand.status;
+    payload.is_active = brand.status === 'Active';
+  }
+  if (brand.seo !== undefined) {
+    payload.seo = {
+      metaTitle: brand.seo.metaTitle || '',
+      metaDescription: brand.seo.metaDescription || '',
+      metaKeywords: brand.seo.metaKeywords || '',
+      canonicalUrl: brand.seo.canonicalUrl || '',
+    };
+  }
+
+  return payload;
+}
 
 const formatKES = (n: number) =>
-  new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    maximumFractionDigits: 0,
+  }).format(n);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────────
 export default function BrandsPage() {
-  const [brands, setBrands] = useState<Brand[]>(INITIAL_BRANDS);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortBy, setSortBy] = useState<'name' | 'products' | 'sales'>('sales');
@@ -195,6 +159,33 @@ export default function BrandsPage() {
   const [deleteBrandId, setDeleteBrandId] = useState<string | null>(null);
   const [detailBrand, setDetailBrand] = useState<Brand | null>(null);
   const [seoDrawer, setSeoDrawer] = useState<Brand | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const flash = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }, []);
+
+  // ── Refresh ──
+  const refresh = useCallback(async () => {
+    try {
+      const rows = await adminApi.brands.list();
+      setBrands(rows.map(apiToBrand));
+      setLoadError('');
+    } catch (err) {
+      setLoadError(
+        err instanceof ApiError
+          ? err.message || 'Could not load brands.'
+          : 'Could not load brands.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   // Close kebab on outside click
   useEffect(() => {
@@ -203,51 +194,133 @@ export default function BrandsPage() {
     return () => document.removeEventListener('click', onDoc);
   }, [openKebabId]);
 
-  const handleSave = (data: Omit<Brand, 'id' | 'productsCount'> & { id?: string }) => {
-    if (data.id) {
-      setBrands((prev) =>
-        prev.map((b) => (b.id === data.id ? ({ ...b, ...data, id: data.id } as Brand) : b))
+  // ── Create / update ──
+  const handleSave = async (
+    data: Omit<Brand, 'id' | 'productsCount'> & { id?: string },
+  ) => {
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      const payload = brandToApi(data);
+
+      if (data.id) {
+        await adminApi.brands.update(data.id, payload);
+        flash('Brand updated.');
+      } else {
+        await adminApi.brands.create(payload);
+        flash('Brand created.');
+      }
+
+      await refresh();
+      setAddOpen(false);
+      setEditingBrand(null);
+    } catch (err) {
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not save brand.'
+          : 'Could not save brand.',
       );
-    } else {
-      const newBrand: Brand = {
-        id: `brand-${Date.now()}`,
-        ...data,
-        productsCount: 0,
-        seo: data.seo || DEFAULT_SEO,
-        salesTotal: data.salesTotal ?? 0,
-        salesGrowth: data.salesGrowth ?? 0,
-        customersCount: data.customersCount ?? 0,
-        featured: data.featured ?? false,
-      } as Brand;
-      setBrands((prev) => [newBrand, ...prev]);
+      throw err; // let the modal show the error
+    } finally {
+      setSaving(false);
     }
   };
 
-  const confirmDelete = () => {
+  // ── Delete ──
+  const confirmDelete = async () => {
     if (!deleteBrandId) return;
-    setBrands((prev) => prev.filter((b) => b.id !== deleteBrandId));
+    const id = deleteBrandId;
     setDeleteBrandId(null);
-  };
 
-  const toggleStatus = (id: string) => {
-    setBrands((prev) =>
-      prev.map((b) =>
-        b.id === id ? ({ ...b, status: b.status === 'Active' ? 'Inactive' : 'Active' } as Brand) : b
-      )
-    );
-  };
+    const previous = brands;
+    setBrands((prev) => prev.filter((b) => b.id !== id));
 
-  const toggleFeatured = (id: string) => {
-    setBrands((prev) => prev.map((b) => (b.id === id ? { ...b, featured: !b.featured } : b)));
-  };
-
-  const updateSeo = (id: string, seo: SEOMetadata) => {
-    setBrands((prev) => prev.map((b) => (b.id === id ? { ...b, seo } : b)));
-    if (seoDrawer && seoDrawer.id === id) {
-      setSeoDrawer({ ...seoDrawer, seo });
+    try {
+      await adminApi.brands.remove(id);
+      flash('Brand deleted.');
+    } catch (err) {
+      setBrands(previous);
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not delete brand.'
+          : 'Could not delete brand.',
+      );
     }
   };
 
+  // ── Toggle status ──
+  const toggleStatus = async (id: string) => {
+    const brand = brands.find((b) => b.id === id);
+    if (!brand) return;
+
+    const nextStatus: BrandStatus =
+      brand.status === 'Active' ? 'Inactive' : 'Active';
+
+    const previous = brands;
+    setBrands((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, status: nextStatus } : b)),
+    );
+
+    try {
+      await adminApi.brands.update(id, {
+        is_active: nextStatus === 'Active',
+        status: nextStatus,
+      });
+    } catch (err) {
+      setBrands(previous);
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not update status.'
+          : 'Could not update status.',
+      );
+    }
+  };
+
+  // ── Toggle featured ──
+  const toggleFeatured = async (id: string) => {
+    const brand = brands.find((b) => b.id === id);
+    if (!brand) return;
+
+    const nextFeatured = !brand.featured;
+    const previous = brands;
+
+    setBrands((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, featured: nextFeatured } : b)),
+    );
+
+    try {
+      await adminApi.brands.update(id, { featured: nextFeatured });
+    } catch (err) {
+      setBrands(previous);
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not update featured flag.'
+          : 'Could not update featured flag.',
+      );
+    }
+  };
+
+  // ── Save SEO ──
+  const updateSeo = async (id: string, seo: SEOMetadata) => {
+    setSaving(true);
+    try {
+      await adminApi.brands.update(id, { seo });
+      await refresh();
+      setSeoDrawer(null);
+      flash('SEO saved.');
+    } catch (err) {
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not save SEO.'
+          : 'Could not save SEO.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Filter + sort ──
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return brands
@@ -266,14 +339,20 @@ export default function BrandsPage() {
       });
   }, [brands, searchQuery, sortBy]);
 
-  // Summary metrics
+  // ── Summary metrics ──
   const totalSales = brands.reduce((a, b) => a + b.salesTotal, 0);
   const totalProducts = brands.reduce((a, b) => a + b.productsCount, 0);
-  const totalCustomers = brands.reduce((a, b) => a + b.customersCount, 0);
   const activeBrands = brands.filter((b) => b.status === 'Active').length;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
+      {/* TOAST */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[120] bg-slate-900 text-white text-[13px] px-4 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+          <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          <span className="leading-relaxed">{toast}</span>
+        </div>
+      )}
 
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
@@ -281,7 +360,9 @@ export default function BrandsPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Brands</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Manage manufacturer partnerships · {brands.length} brands
+              {isLoading
+                ? 'Loading…'
+                : `Manage manufacturer partnerships · ${brands.length} brands`}
             </p>
           </div>
           <button
@@ -289,7 +370,8 @@ export default function BrandsPage() {
               setEditingBrand(null);
               setAddOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add brand</span>
@@ -298,6 +380,13 @@ export default function BrandsPage() {
       </header>
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+        {/* LOAD ERROR */}
+        {loadError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-[13px] flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {loadError}
+          </div>
+        )}
 
         {/* SUMMARY CARDS */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -339,8 +428,8 @@ export default function BrandsPage() {
                 key={opt}
                 onClick={() => setSortBy(opt)}
                 className={`px-2.5 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${sortBy === opt
-                    ? 'bg-blue-50 border border-blue-950 text-blue-950'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-blue-50 border border-blue-950 text-blue-950'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
               >
                 {opt === 'sales' ? 'Sales' : opt === 'products' ? 'Products' : 'Name'}
@@ -366,8 +455,14 @@ export default function BrandsPage() {
           </div>
         </div>
 
-        {/* EMPTY STATE */}
-        {filtered.length === 0 ? (
+        {/* LOADING */}
+        {isLoading ? (
+          <div className="bg-white border border-slate-200 rounded-sm py-16 text-center">
+            <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400 mb-2" />
+            <p className="text-[13px] text-slate-500">Loading brands…</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          /* EMPTY STATE */
           <div className="bg-white border border-slate-200 rounded-sm py-16 px-6 text-center">
             <div className="flex flex-col items-center gap-2">
               <span className="w-12 h-12 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
@@ -403,7 +498,6 @@ export default function BrandsPage() {
                   key={brand.id}
                   className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col gap-2 relative"
                 >
-                  {/* Top row: logo + kebab */}
                   <div className="flex items-start justify-between gap-2">
                     <button
                       onClick={() => setDetailBrand(brand)}
@@ -429,7 +523,7 @@ export default function BrandsPage() {
                             setEditingBrand(brand);
                           }}
                           onEditSeo={() => {
-                            setOpenKebabOpenSafe(setOpenKebabId, null);
+                            setOpenKebabId(null);
                             setSeoDrawer(brand);
                           }}
                           onDelete={() => {
@@ -441,7 +535,6 @@ export default function BrandsPage() {
                     </div>
                   </div>
 
-                  {/* Info */}
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
                       <button
@@ -459,7 +552,6 @@ export default function BrandsPage() {
                     </p>
                   </div>
 
-                  {/* Metrics row — the "Samsung → 127 products → KES 4.8M sales" pattern */}
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
                     <div className="flex flex-col">
                       <span className="text-[13px] text-slate-400">Products</span>
@@ -477,12 +569,11 @@ export default function BrandsPage() {
                     </div>
                   </div>
 
-                  {/* Footer: growth + status + actions */}
                   <div className="flex items-center justify-between gap-2 pt-1">
                     <span
                       className={`inline-flex items-center gap-0.5 text-[13px] font-medium px-2 py-0.5 rounded-sm ${brand.salesGrowth >= 0
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-red-50 text-red-600'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-red-50 text-red-600'
                         }`}
                     >
                       {brand.salesGrowth >= 0 ? (
@@ -498,8 +589,8 @@ export default function BrandsPage() {
                       <button
                         onClick={() => setSeoDrawer(brand)}
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] border transition ${seoFilled
-                            ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
-                            : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
+                          ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
+                          : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
                           }`}
                         title={seoFilled ? 'SEO complete' : 'SEO missing'}
                       >
@@ -509,8 +600,8 @@ export default function BrandsPage() {
                       <button
                         onClick={() => toggleStatus(brand.id)}
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] border transition ${brand.status === 'Active'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                           }`}
                       >
                         {brand.status === 'Active' ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
@@ -614,8 +705,8 @@ export default function BrandsPage() {
                           <button
                             onClick={() => setSeoDrawer(brand)}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] border transition ${seoFilled
-                                ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
-                                : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
+                              ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
+                              : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
                               }`}
                           >
                             <Globe className="w-3 h-3" />
@@ -626,8 +717,8 @@ export default function BrandsPage() {
                           <button
                             onClick={() => toggleStatus(brand.id)}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${brand.status === 'Active'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                               }`}
                           >
                             {brand.status === 'Active' ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
@@ -676,6 +767,7 @@ export default function BrandsPage() {
         open={addOpen || editingBrand !== null}
         initial={editingBrand}
         onClose={() => {
+          if (saving) return;
           setAddOpen(false);
           setEditingBrand(null);
         }}
@@ -691,8 +783,8 @@ export default function BrandsPage() {
             setSeoDrawer(detailBrand);
             setDetailBrand(null);
           }}
-          onToggleFeatured={() => {
-            toggleFeatured(detailBrand.id);
+          onToggleFeatured={async () => {
+            await toggleFeatured(detailBrand.id);
             setDetailBrand({ ...detailBrand, featured: !detailBrand.featured });
           }}
         />
@@ -702,11 +794,8 @@ export default function BrandsPage() {
       {seoDrawer && (
         <SEODrawer
           brand={seoDrawer}
-          onClose={() => setSeoDrawer(null)}
-          onSave={(seo) => {
-            updateSeo(seoDrawer.id, seo);
-            setSeoDrawer(null);
-          }}
+          onClose={() => !saving && setSeoDrawer(null)}
+          onSave={(seo) => updateSeo(seoDrawer.id, seo)}
         />
       )}
 
@@ -750,11 +839,6 @@ export default function BrandsPage() {
   );
 }
 
-/* Helper to safely close kebab */
-function setOpenKebabOpenSafe(setter: (v: string | null) => void, value: string | null) {
-  setter(value);
-}
-
 /* ─────────────────────────── Brand Detail Drawer ─────────────────────────── */
 function BrandDetailDrawer({
   brand,
@@ -765,7 +849,7 @@ function BrandDetailDrawer({
   brand: Brand;
   onClose: () => void;
   onOpenSeo: () => void;
-  onToggleFeatured: () => void;
+  onToggleFeatured: () => void | Promise<void>;
 }) {
   const seoFilled = !!(brand.seo.metaTitle && brand.seo.metaDescription);
 
@@ -778,7 +862,6 @@ function BrandDetailDrawer({
         onClick={(e) => e.stopPropagation()}
         className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto shadow-xl flex flex-col"
       >
-        {/* Header */}
         <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <img
@@ -805,25 +888,23 @@ function BrandDetailDrawer({
         </div>
 
         <div className="p-3 space-y-3">
-          {/* The Samsung → 127 products → KES 4.8M sales drill-down */}
           <div className="grid grid-cols-3 gap-2">
             <Stat label="Products" value={brand.productsCount.toLocaleString()} icon={<Package className="w-3 h-3 text-slate-400" />} />
             <Stat label="Sales" value={formatKES(brand.salesTotal)} icon={<DollarSign className="w-3 h-3 text-slate-400" />} />
             <Stat label="Customers" value={brand.customersCount.toLocaleString()} icon={<Users className="w-3 h-3 text-slate-400" />} />
           </div>
 
-          {/* Growth panel */}
           <div
             className={`rounded-sm p-2 flex items-center justify-between gap-2 ${brand.salesGrowth >= 0
-                ? 'bg-emerald-50 border border-emerald-100'
-                : 'bg-red-50 border border-red-100'
+              ? 'bg-emerald-50 border border-emerald-100'
+              : 'bg-red-50 border border-red-100'
               }`}
           >
             <div className="flex items-center gap-2">
               <span
                 className={`w-8 h-8 rounded-sm flex items-center justify-center ${brand.salesGrowth >= 0
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-red-100 text-red-600'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-red-100 text-red-600'
                   }`}
               >
                 <TrendingUp className="w-4 h-4" />
@@ -852,7 +933,6 @@ function BrandDetailDrawer({
             </span>
           </div>
 
-          {/* Description */}
           {brand.description && (
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
@@ -863,7 +943,6 @@ function BrandDetailDrawer({
             </div>
           )}
 
-          {/* Website */}
           {brand.websiteUrl && (
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
@@ -882,13 +961,12 @@ function BrandDetailDrawer({
             </div>
           )}
 
-          {/* Quick actions */}
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               onClick={onOpenSeo}
               className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium border transition ${seoFilled
-                  ? 'bg-blue-50 border-blue-100 text-blue-950 hover:bg-blue-100'
-                  : 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100'
+                ? 'bg-blue-50 border-blue-100 text-blue-950 hover:bg-blue-100'
+                : 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100'
                 }`}
             >
               <Globe className="w-3.5 h-3.5" />
@@ -897,8 +975,8 @@ function BrandDetailDrawer({
             <button
               onClick={onToggleFeatured}
               className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium border transition ${brand.featured
-                  ? 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                ? 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                 }`}
             >
               <Star className={`w-3.5 h-3.5 ${brand.featured ? 'fill-amber-700' : ''}`} />
@@ -906,7 +984,6 @@ function BrandDetailDrawer({
             </button>
           </div>
 
-          {/* SEO snapshot */}
           <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
               <Globe className="w-3.5 h-3.5" />
@@ -927,7 +1004,6 @@ function BrandDetailDrawer({
             )}
           </div>
 
-          {/* Performance bar */}
           <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
               <BarChart3 className="w-3.5 h-3.5" />
@@ -935,12 +1011,7 @@ function BrandDetailDrawer({
             </div>
             <div className="space-y-2">
               <MetricBar label="Products" value={brand.productsCount} max={150} color="#172554" />
-              <MetricBar
-                label="Customers"
-                value={brand.customersCount}
-                max={1500}
-                color="#10b981"
-              />
+              <MetricBar label="Customers" value={brand.customersCount} max={1500} color="#10b981" />
               <MetricBar
                 label="Sales (KES)"
                 value={brand.salesTotal / 1000}
@@ -964,7 +1035,7 @@ function SEODrawer({
 }: {
   brand: Brand;
   onClose: () => void;
-  onSave: (seo: SEOMetadata) => void;
+  onSave: (seo: SEOMetadata) => void | Promise<void>;
 }) {
   const [seo, setSeo] = useState<SEOMetadata>(brand.seo || DEFAULT_SEO);
 
@@ -987,7 +1058,6 @@ function SEODrawer({
         onClick={(e) => e.stopPropagation()}
         className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto shadow-xl flex flex-col"
       >
-        {/* Header */}
         <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
@@ -1007,7 +1077,6 @@ function SEODrawer({
         </div>
 
         <div className="p-3 space-y-3">
-          {/* Meta Title */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[13px] font-medium text-slate-700">Meta Title</label>
@@ -1027,7 +1096,6 @@ function SEODrawer({
             </p>
           </div>
 
-          {/* Meta Description */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[13px] font-medium text-slate-700">Meta Description</label>
@@ -1047,7 +1115,6 @@ function SEODrawer({
             </p>
           </div>
 
-          {/* Keywords */}
           <div>
             <label className="block text-[13px] font-medium text-slate-700 mb-1">Meta Keywords</label>
             <input
@@ -1059,7 +1126,6 @@ function SEODrawer({
             />
           </div>
 
-          {/* Canonical URL */}
           <div>
             <label className="block text-[13px] font-medium text-slate-700 mb-1">Canonical URL</label>
             <input
@@ -1071,7 +1137,6 @@ function SEODrawer({
             />
           </div>
 
-          {/* Search preview */}
           <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1">
             <div className="flex items-center gap-1.5 text-[13px] text-slate-500">
               <Search className="w-3 h-3" />
@@ -1087,7 +1152,6 @@ function SEODrawer({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-3 py-3 border-t border-slate-200 sticky bottom-0 bg-white flex items-center justify-end gap-2">
           <button
             onClick={onClose}

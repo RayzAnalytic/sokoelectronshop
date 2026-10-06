@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
     ArrowRight,
@@ -10,7 +10,7 @@ import {
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react';
-import { type Banner, activeHeroSlides } from '@/lib/bannerStore';
+import { type Banner, bannersApi } from '@/lib/api';
 
 const guarantees = [
     { icon: Truck, label: 'Fast Delivery', sub: 'Free over KES 5,000' },
@@ -22,17 +22,41 @@ const SLIDE_INTERVAL_MS = 3500;
 
 export default function Hero() {
     const [slides, setSlides] = useState<Banner[]>([]);
-    const [hydrated, setHydrated] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
 
-    // Load slides from the store on mount
+    // Deduplicate impression pings per slide id — the carousel rotates
+    // back to the same slide, but the impression counter should bump
+    // once per real user visit. Re-mounting (page refresh) resets this.
+    const seenImpressions = useRef<Set<number>>(new Set());
+
+    // ── Load slides from the API on mount ─────────────────────────────────
     useEffect(() => {
-        setSlides(activeHeroSlides());
-        setHydrated(true);
+        const ctrl = new AbortController();
+        let cancelled = false;
+
+        bannersApi
+            .hero(ctrl.signal)
+            .then((rows) => {
+                if (!cancelled) setSlides(rows);
+            })
+            .catch(() => {
+                // Silent — a broken hero shouldn't take down the whole page.
+                // The section simply renders nothing (see `if (!slides.length)`).
+                if (!cancelled) setSlides([]);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+            ctrl.abort();
+        };
     }, []);
 
-    // Auto-advance
+    // ── Auto-advance ──────────────────────────────────────────────────────
     useEffect(() => {
         if (isPaused || slides.length < 2) return;
         const t = setInterval(() => {
@@ -41,18 +65,36 @@ export default function Hero() {
         return () => clearInterval(t);
     }, [isPaused, slides.length]);
 
-    // Keep index in range when slides change
+    // ── Keep index in range when slides change ────────────────────────────
     useEffect(() => {
         if (currentIndex >= slides.length) setCurrentIndex(0);
     }, [slides.length, currentIndex]);
+
+    // ── Fire impression ping on slide rotation (fire-and-forget) ──────────
+    useEffect(() => {
+        const slide = slides[currentIndex];
+        if (!slide) return;
+        if (seenImpressions.current.has(slide.id)) return;
+        seenImpressions.current.add(slide.id);
+        // Never await; a dropped ping must never surface to the customer.
+        bannersApi.track(slide.id, 'impression').catch(() => { });
+    }, [currentIndex, slides]);
 
     const handlePrev = () =>
         setCurrentIndex((i) => (i - 1 + slides.length) % slides.length);
     const handleNext = () =>
         setCurrentIndex((i) => (i + 1) % slides.length);
 
-    // Skeleton before hydration / when no active banners
-    if (!hydrated) {
+    // ── CTA click tracking ────────────────────────────────────────────────
+    const handleCtaClick = useCallback(
+        (slideId: number) => {
+            bannersApi.track(slideId, 'click').catch(() => { });
+        },
+        [],
+    );
+
+    // ── Skeleton while loading, or when no active banners ─────────────────
+    if (loading) {
         return (
             <section className="bg-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -100,8 +142,8 @@ export default function Hero() {
                             <div
                                 key={slide.id}
                                 className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${currentIndex === index
-                                        ? 'opacity-100 scale-100'
-                                        : 'opacity-0 scale-105 pointer-events-none'
+                                    ? 'opacity-100 scale-100'
+                                    : 'opacity-0 scale-105 pointer-events-none'
                                     }`}
                             >
                                 <picture>
@@ -144,8 +186,8 @@ export default function Hero() {
                                 {currentSlide.badge && (
                                     <span
                                         className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-sm ${isLight
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-white text-slate-900'
+                                            ? 'bg-slate-900 text-white'
+                                            : 'bg-white text-slate-900'
                                             }`}
                                     >
                                         {currentSlide.badge}
@@ -171,6 +213,7 @@ export default function Hero() {
                                     {currentSlide.primary_cta_text && (
                                         <Link
                                             href={currentSlide.primary_cta_href || '#'}
+                                            onClick={() => handleCtaClick(currentSlide.id)}
                                             className="group inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-semibold py-2.5 px-5 rounded-sm text-[13px] transition-colors"
                                         >
                                             <span>{currentSlide.primary_cta_text}</span>
@@ -180,6 +223,7 @@ export default function Hero() {
                                     {currentSlide.secondary_cta_text && (
                                         <Link
                                             href={currentSlide.secondary_cta_href || '#'}
+                                            onClick={() => handleCtaClick(currentSlide.id)}
                                             className="inline-flex items-center justify-center bg-transparent hover:bg-white/10 text-white font-medium py-2.5 px-5 rounded-sm text-[13px] border border-white/30 hover:border-white/60 transition-colors"
                                         >
                                             {currentSlide.secondary_cta_text}
@@ -221,8 +265,8 @@ export default function Hero() {
                                         type="button"
                                         onClick={() => setCurrentIndex(index)}
                                         className={`h-1.5 rounded-full transition-all duration-300 ${currentIndex === index
-                                                ? 'w-7 bg-white'
-                                                : 'w-2.5 bg-white/40 hover:bg-white/70'
+                                            ? 'w-7 bg-white'
+                                            : 'w-2.5 bg-white/40 hover:bg-white/70'
                                             }`}
                                         aria-label={`Go to slide ${index + 1}`}
                                     />

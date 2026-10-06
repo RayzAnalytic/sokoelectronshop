@@ -40,7 +40,7 @@ export default function Footer() {
     ];
 
     return (
-        <footer className="bg-white border-t border-slate-200 text-slate-600 text-[13px]">
+        <footer className="bg-blue-950 text-slate-300 text-[13px]">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
 
                 {/* Top: Brand + Link Columns */}
@@ -49,24 +49,24 @@ export default function Footer() {
                     {/* Brand */}
                     <div className="col-span-2 md:col-span-1 space-y-3">
                         <Link href="/" className="flex items-center gap-2">
-                            <div className="flex items-center justify-center w-8 h-8 bg-blue-950 text-white rounded-lg font-bold text-sm shadow-sm">
+                            <div className="flex items-center justify-center w-8 h-8 bg-white text-blue-950 rounded-lg font-bold text-sm shadow-sm">
                                 N
                             </div>
-                            <span className="font-bold text-slate-900 text-sm tracking-tight">
+                            <span className="font-bold text-white text-sm tracking-tight">
                                 NordicStore
                             </span>
                         </Link>
-                        <p className="text-slate-600 leading-relaxed max-w-xs text-[12px]">
+                        <p className="text-slate-300 leading-relaxed max-w-xs text-[12px]">
                             Premium electronics and certified hardware, backed by comprehensive warranties.
                         </p>
-                        <p className="text-[12px] text-slate-500 pt-1">
+                        <p className="text-[12px] text-slate-400 pt-1">
                             support@nordicstore.example
                         </p>
                     </div>
 
                     {/* Shop */}
                     <div>
-                        <h3 className="font-semibold text-slate-900 uppercase tracking-wider mb-3 text-[11px]">
+                        <h3 className="font-semibold text-white uppercase tracking-wider mb-3 text-[11px]">
                             Shop
                         </h3>
                         <ul className="space-y-2">
@@ -74,7 +74,7 @@ export default function Footer() {
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="hover:text-blue-950 transition-colors"
+                                        className="text-slate-300 hover:text-white transition-colors"
                                     >
                                         {link.name}
                                     </Link>
@@ -85,7 +85,7 @@ export default function Footer() {
 
                     {/* Support */}
                     <div>
-                        <h3 className="font-semibold text-slate-900 uppercase tracking-wider mb-3 text-[11px]">
+                        <h3 className="font-semibold text-white uppercase tracking-wider mb-3 text-[11px]">
                             Support
                         </h3>
                         <ul className="space-y-2">
@@ -93,7 +93,7 @@ export default function Footer() {
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="hover:text-blue-950 transition-colors"
+                                        className="text-slate-300 hover:text-white transition-colors"
                                     >
                                         {link.name}
                                     </Link>
@@ -104,7 +104,7 @@ export default function Footer() {
 
                     {/* Account */}
                     <div>
-                        <h3 className="font-semibold text-slate-900 uppercase tracking-wider mb-3 text-[11px]">
+                        <h3 className="font-semibold text-white uppercase tracking-wider mb-3 text-[11px]">
                             Account
                         </h3>
                         <ul className="space-y-2">
@@ -112,7 +112,7 @@ export default function Footer() {
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="hover:text-blue-950 transition-colors"
+                                        className="text-slate-300 hover:text-white transition-colors"
                                     >
                                         {link.name}
                                     </Link>
@@ -124,9 +124,9 @@ export default function Footer() {
                 </div>
 
                 {/* Bottom Bar */}
-                <div className="mt-8 pt-5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="mt-8 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
 
-                    <p className="text-slate-500 text-[12px] order-2 sm:order-1">
+                    <p className="text-slate-400 text-[12px] order-2 sm:order-1">
                         &copy; {currentYear} NordicStore Inc.
                     </p>
 
@@ -135,19 +135,19 @@ export default function Footer() {
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className="hover:text-blue-950 transition-colors"
+                                className="text-slate-300 hover:text-white transition-colors"
                             >
                                 {link.name}
                             </Link>
                         ))}
-                        <span className="hidden sm:inline text-slate-300">|</span>
+                        <span className="hidden sm:inline text-white/20">|</span>
                         {socialLinks.map((social) => (
                             <a
                                 key={social.name}
                                 href={social.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="hover:text-blue-950 transition-colors"
+                                className="text-slate-300 hover:text-white transition-colors"
                             >
                                 {social.name}
                             </a>

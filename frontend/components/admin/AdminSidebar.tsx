@@ -2,9 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
-import { TbSettingsAutomation, TbRobot, TbBolt, TbUserCheck } from "react-icons/tb";
+import { TbSettingsAutomation } from "react-icons/tb";
 import {
   LayoutDashboard,
   BarChart3,
@@ -13,16 +13,15 @@ import {
   FolderTree,
   Tag,
   Warehouse,
+  Building2,
   Percent,
   Star,
   ShoppingBag,
   Receipt,
-  CreditCard,
   Truck,
   Users,
   UserCog,
   Bell,
-  MessageCircle,
   Share2,
   Settings,
   Store,
@@ -33,18 +32,42 @@ import {
   X,
   Menu,
 } from "lucide-react";
-import { useAdminShell } from "./AdminShellContext";
-import { HiReceiptRefund } from "react-icons/hi2";
-import { HiArrowUpRight } from "react-icons/hi2";
+import { HiReceiptRefund, HiArrowUpRight } from "react-icons/hi2";
 import { FaWhatsapp } from "react-icons/fa";
+
+import { useAdminShell } from "./AdminShellContext";
+import { adminApi } from "@/lib/admin-api";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 type NavItem = {
   label: string;
   href: string;
-  icon: any;
-  badge?: number;
+  icon: React.ComponentType<{ className?: string }>;
+  /** Badge key — resolved at render time from the live counts map. */
+  badgeKey?: keyof NavBadges;
   section: string;
 };
 
+export interface NavBadges {
+  products: number;
+  inventory_low: number;
+  reviews_pending: number;
+  orders_pending: number;
+  whatsapp_unread: number;
+}
+
+export interface CurrentUser {
+  id: string;
+  name: string;
+  email: string;
+  initials: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nav catalogue
+// ─────────────────────────────────────────────────────────────────────────────
 export const navItems: NavItem[] = [
   // Main
   { label: "Overview", href: "/admin", icon: LayoutDashboard, section: "Main" },
@@ -52,15 +75,16 @@ export const navItems: NavItem[] = [
   { label: "Reports", href: "/admin/reports", icon: FileText, section: "Main" },
 
   // Catalog
-  { label: "Products", href: "/admin/products", icon: Package, badge: 124, section: "Catalog" },
+  { label: "Products", href: "/admin/products", icon: Package, badgeKey: "products", section: "Catalog" },
   { label: "Categories", href: "/admin/categories", icon: FolderTree, section: "Catalog" },
   { label: "Brands", href: "/admin/brands", icon: Tag, section: "Catalog" },
-  { label: "Inventory", href: "/admin/inventory", icon: Warehouse, badge: 8, section: "Catalog" },
+  { label: "Inventory", href: "/admin/inventory", icon: Warehouse, badgeKey: "inventory_low", section: "Catalog" },
+  { label: "Suppliers", href: "/admin/suppliers", icon: Building2, section: "Catalog" },
   { label: "Discounts", href: "/admin/discounts", icon: Percent, section: "Catalog" },
-  { label: "Reviews", href: "/admin/reviews", icon: Star, badge: 5, section: "Catalog" },
+  { label: "Reviews", href: "/admin/reviews", icon: Star, badgeKey: "reviews_pending", section: "Catalog" },
 
   // Sales
-  { label: "Orders", href: "/admin/orders", icon: ShoppingBag, badge: 12, section: "Sales" },
+  { label: "Orders", href: "/admin/orders", icon: ShoppingBag, badgeKey: "orders_pending", section: "Sales" },
   { label: "Transactions", href: "/admin/transactions", icon: Receipt, section: "Sales" },
   { label: "Shipping", href: "/admin/shipping", icon: Truck, section: "Sales" },
   { label: "Returns & Refunds", href: "/admin/returnsrefunds", icon: HiReceiptRefund, section: "Sales" },
@@ -72,10 +96,11 @@ export const navItems: NavItem[] = [
 
   // Marketing
   { label: "Social", href: "/admin/social", icon: Share2, section: "Marketing" },
-  { label: "TikTok Shop", href: "/admin/tiktok", icon: ShoppingBag, section: "Marketing" },
-  { label: "WhatsApp", href: "/admin/whatsapp", icon: FaWhatsapp, badge: 4, section: "Marketing" },
+  { label: "Social Shop", href: "/admin/tiktok", icon: ShoppingBag, section: "Marketing" },
+  { label: "WhatsApp", href: "/admin/whatsapp", icon: FaWhatsapp, badgeKey: "whatsapp_unread", section: "Marketing" },
   { label: "Banner", href: "/admin/banner", icon: HiArrowUpRight, section: "Marketing" },
   { label: "AI & Automation", href: "/admin/aiatomation", icon: TbSettingsAutomation, section: "Marketing" },
+
   // System
   { label: "Settings", href: "/admin/settings", icon: Settings, section: "System" },
 ];
@@ -87,41 +112,189 @@ const SECTION_ORDER = [
   "Customers",
   "Marketing",
   "System",
-];
+] as const;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Live badge counts
+//
+// Pulled from the admin endpoints you already have. Each call is
+// wrapped in `.catch(() => 0)` so a single broken endpoint (or an
+// empty table) doesn't blank the whole sidebar — the badge just shows
+// no number.
+// ─────────────────────────────────────────────────────────────────────────────
+function useNavBadges(): NavBadges {
+  const [badges, setBadges] = React.useState<NavBadges>({
+    products: 0,
+    inventory_low: 0,
+    reviews_pending: 0,
+    orders_pending: 0,
+    whatsapp_unread: 0,
+  });
+
+  React.useEffect(() => {
+    const ac = new AbortController();
+
+    (async () => {
+      const [
+        products,
+        inventory,
+        reviews,
+        orderTabCounts,
+        conversations,
+      ] = await Promise.all([
+        adminApi.products.list(ac.signal).catch(() => []),
+        adminApi.inventory.list(ac.signal).catch(() => []),
+        adminApi.reviews.stats(ac.signal).catch(() => null),
+        adminApi.orders.tabCounts(ac.signal).catch(() => null),
+        adminApi.whatsapp.inbox
+          .listConversations({ tab: "unassigned" }, ac.signal)
+          .catch(() => []),
+      ]);
+
+      if (ac.signal.aborted) return;
+
+      setBadges({
+        products: Array.isArray(products) ? products.length : 0,
+        inventory_low: Array.isArray(inventory)
+          ? inventory.filter((i) => i.status === "Low Stock").length
+          : 0,
+        reviews_pending: reviews?.pending ?? 0,
+        orders_pending: orderTabCounts?.pending ?? 0,
+        whatsapp_unread: Array.isArray(conversations) ? conversations.length : 0,
+      });
+    })();
+
+    return () => ac.abort();
+  }, []);
+
+  return badges;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Current user
+//
+// Reads the authenticated user from the same session the admin pages
+// use. Falls back to "—" if the call fails (never blanks the sidebar).
+//
+// The backend's /me/ response can come in several shapes depending on
+// which serializer builds it:
+//   { name }                                  ← preferred
+//   { full_name }
+//   { first_name, last_name }                 ← current shape
+//   { username }
+// All four are handled; the first non-empty wins.
+// ─────────────────────────────────────────────────────────────────────────────
+function useCurrentUser(): CurrentUser {
+  const [user, setUser] = React.useState<CurrentUser>({
+    id: "",
+    name: "—",
+    email: "",
+    initials: "—",
+  });
+
+  React.useEffect(() => {
+    const ac = new AbortController();
+
+    fetch("/api/v1/auth/me/", { credentials: "include", signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (ac.signal.aborted || !data) return;
+
+        const composed =
+          [data.first_name, data.last_name].filter(Boolean).join(" ") || "";
+
+        const name: string =
+          data.name ||
+          data.full_name ||
+          composed ||
+          data.username ||
+          "—";
+
+        const email: string = data.email || "";
+
+        const initials =
+          name
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((w: string) => w[0]?.toUpperCase() ?? "")
+            .join("") || "—";
+
+        setUser({ id: String(data.id ?? ""), name, email, initials });
+      })
+      .catch(() => {
+        /* non-fatal — sidebar keeps the placeholder */
+      });
+
+    return () => ac.abort();
+  }, []);
+
+  return user;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar
+// ─────────────────────────────────────────────────────────────────────────────
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const activePath = pathname || "/admin";
   const { collapsed, toggle } = useAdminShell();
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  // Close mobile sidebar when route changes
+  const badges = useNavBadges();
+  const user = useCurrentUser();
+
+  // Close mobile sidebar on route change
   React.useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
   // Lock body scroll when mobile sidebar is open
   React.useEffect(() => {
-    if (mobileOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [mobileOpen]);
 
-  const grouped = navItems.reduce((acc, item) => {
-    if (!acc[item.section]) acc[item.section] = [];
-    acc[item.section].push(item);
-    return acc;
-  }, {} as Record<string, NavItem[]>);
+  const grouped = React.useMemo(() => {
+    return navItems.reduce((acc, item) => {
+      if (!acc[item.section]) acc[item.section] = [];
+      acc[item.section].push(item);
+      return acc;
+    }, {} as Record<string, NavItem[]>);
+  }, []);
 
   const isItemActive = (href: string) => {
     if (href === "/admin") return activePath === "/admin";
     return activePath === href || activePath.startsWith(href + "/");
   };
+
+  const resolveBadge = (item: NavItem): number | undefined => {
+    if (!item.badgeKey) return undefined;
+    const count = badges[item.badgeKey];
+    return count > 0 ? count : undefined;
+  };
+
+  const handleLogout = React.useCallback(async () => {
+    try {
+      await fetch("/api/v1/auth/logout/", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken":
+            document.cookie
+              .split("; ")
+              .find((c) => c.startsWith("csrftoken="))
+              ?.split("=")[1] ?? "",
+        },
+      });
+    } catch {
+      /* proceed to redirect anyway */
+    }
+    router.push("/auth/login");
+  }, [router]);
 
   const sidebarContent = (
     <>
@@ -142,7 +315,6 @@ export default function AdminSidebar() {
             )}
           </Link>
 
-          {/* Desktop collapse toggle */}
           {!collapsed && (
             <button
               type="button"
@@ -154,7 +326,6 @@ export default function AdminSidebar() {
             </button>
           )}
 
-          {/* Mobile close button */}
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
@@ -200,6 +371,7 @@ export default function AdminSidebar() {
                   {items.map((item) => {
                     const Icon = item.icon;
                     const isActive = isItemActive(item.href);
+                    const badge = resolveBadge(item);
 
                     const linkContent = (
                       <Link
@@ -227,7 +399,7 @@ export default function AdminSidebar() {
                           {!collapsed && <span className="truncate">{item.label}</span>}
                         </div>
 
-                        {!collapsed && item.badge !== undefined && (
+                        {!collapsed && badge !== undefined && (
                           <span
                             className={`ml-2 px-1.5 py-0.5 rounded-sm text-[11px] font-semibold leading-none ${
                               isActive
@@ -235,11 +407,11 @@ export default function AdminSidebar() {
                                 : "bg-slate-100 text-slate-600 group-hover:bg-slate-200 group-hover:text-slate-800"
                             }`}
                           >
-                            {item.badge}
+                            {badge}
                           </span>
                         )}
 
-                        {collapsed && item.badge !== undefined && (
+                        {collapsed && badge !== undefined && (
                           <span
                             className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ${
                               isActive ? "bg-white" : "bg-blue-950"
@@ -257,8 +429,8 @@ export default function AdminSidebar() {
                           className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 whitespace-nowrap rounded-sm bg-slate-900 text-white px-2 py-1 text-[13px] font-medium opacity-0 group-hover/tip:opacity-100 transition-opacity"
                         >
                           {item.label}
-                          {item.badge !== undefined && (
-                            <span className="ml-2 text-slate-400">{item.badge}</span>
+                          {badge !== undefined && (
+                            <span className="ml-2 text-slate-400">{badge}</span>
                           )}
                         </span>
                       </div>
@@ -277,18 +449,18 @@ export default function AdminSidebar() {
       <div className="p-2 border-t border-slate-200 shrink-0 space-y-1">
         {collapsed ? (
           <>
-            <button
-              type="button"
+            <Link
+              href="/admin/settings?tab=security#password"
               className="w-full flex items-center justify-center p-2 rounded-sm hover:bg-slate-100 transition-colors"
-              aria-label="Account"
+              aria-label="Account settings"
             >
               <div className="h-7 w-7 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold">
-                AD
+                {user.initials}
               </div>
-            </button>
+            </Link>
             <button
               type="button"
-              onClick={() => console.log("Logging out...")}
+              onClick={handleLogout}
               className="w-full flex items-center justify-center p-2 rounded-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
               aria-label="Logout"
             >
@@ -297,26 +469,29 @@ export default function AdminSidebar() {
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between px-3 py-2 rounded-sm hover:bg-slate-100 transition-colors cursor-pointer group">
+            <Link
+              href="/admin/settings?tab=security#password"
+              className="flex items-center justify-between px-3 py-2 rounded-sm hover:bg-slate-100 transition-colors cursor-pointer group"
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <div className="h-7 w-7 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
-                  AD
+                  {user.initials}
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-[13px] font-medium text-slate-900 truncate">
-                    Alex Doe
+                    {user.name}
                   </span>
                   <span className="text-[13px] text-slate-500 truncate">
-                    alex@admin.com
+                    {user.email || "—"}
                   </span>
                 </div>
               </div>
               <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-700 shrink-0" />
-            </div>
+            </Link>
 
             <button
               type="button"
-              onClick={() => console.log("Logging out...")}
+              onClick={handleLogout}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-sm text-[13px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
             >
               <LogOut className="h-4 w-4 shrink-0" />

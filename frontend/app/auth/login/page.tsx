@@ -4,7 +4,8 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { api, ApiError } from '@/lib/api';
+import { CheckCircle2, Loader2 } from 'lucide-react';
+import { api, ApiError, type Me } from '@/lib/api';
 
 const ERROR_MESSAGES: Record<string, string> = {
   google: 'Google sign-in was cancelled.',
@@ -16,18 +17,57 @@ const ERROR_MESSAGES: Record<string, string> = {
     'This email is registered as an admin. Please sign in via the admin page.',
 };
 
+/**
+ * Reduce a `next` query param to a safe same-origin path.
+ *
+ * Returns `null` for anything that could be used as an open redirect:
+ *   * absolute URLs (`https://evil.com`)
+ *   * protocol-relative URLs (`//evil.com`)
+ *   * anything that doesn't start with a single `/`
+ *
+ * The backend applies the same guard to the Google OAuth `next`
+ * parameter, but email-based login never routes `next` through the
+ * backend — the customer's browser handles the final navigation on its
+ * own. Without this check, a crafted link like
+ *
+ *     /auth/login?next=https://evil.com
+ *
+ * would redirect a legitimate customer to an attacker-controlled page
+ * immediately after a real, successful sign-in.
+ */
+function sanitizeNext(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('/')) return null;
+  if (trimmed.startsWith('//')) return null;
+  if (trimmed.includes('://')) return null;
+  return trimmed;
+}
+
 export default function CustomerLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const errorCode = searchParams.get('error');
 
-  const [identifier, setIdentifier] = useState('');
+  const errorCode = searchParams.get('error');
+  // Sanitized against open-redirect — see the helper's docstring.
+  const nextPath = sanitizeNext(searchParams.get('next'));
+  const emailParam = searchParams.get('email') ?? '';
+
+  const [identifier, setIdentifier] = useState(emailParam);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+
+  // Non-null when a session already exists on this device. We show a
+  // "Continue as …" card instead of the login form — no auto-redirect.
+  // The previous version called `router.replace(nextPath)` the moment
+  // it detected a session, which yanked the customer back to their
+  // destination before they saw anything. That's the "bouncing" bug.
+  const [signedInUser, setSignedInUser] = useState<Me | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const [error, setError] = useState<string>(
     errorCode ? ERROR_MESSAGES[errorCode] ?? 'Sign-in failed.' : '',
@@ -37,20 +77,19 @@ export default function CustomerLoginPage() {
     password?: string;
   }>({});
 
-  const isBusy = loading || googleLoading;
+  const isBusy = loading || googleLoading || loggingOut;
 
-  // Already signed in? Bounce by role.
+  // On mount, check whether we're already signed in. If yes, show the
+  // continue card. If no, show the form. Never redirect — see the
+  // `signedInUser` comment above.
   useEffect(() => {
     let cancelled = false;
     api
       .me()
       .then((u) => {
         if (cancelled) return;
-        if (u) {
-          router.replace(u.redirect_to);
-        } else {
-          setChecking(false);
-        }
+        if (u) setSignedInUser(u);
+        setChecking(false);
       })
       .catch(() => {
         // Real error (network, 500). Let the user retry via the form.
@@ -59,7 +98,14 @@ export default function CustomerLoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
+
+  // Keep the identifier in sync if the URL's `email` param changes
+  // after mount. Doesn't clobber a value the customer has already typed.
+  useEffect(() => {
+    if (!emailParam) return;
+    setIdentifier((prev) => prev || emailParam);
+  }, [emailParam]);
 
   const validateForm = () => {
     const errors: { identifier?: string; password?: string } = {};
@@ -91,9 +137,17 @@ export default function CustomerLoginPage() {
         password,
         rememberMe,
       );
-      router.replace(redirect_to);
+      // `next` (sanitized) wins over the server's default redirect.
+      // This is how a customer who was mid-checkout or on the
+      // order-success page lands back where they were, instead of
+      // the account overview.
+      router.replace(nextPath || redirect_to);
     } catch (err) {
       if (err instanceof ApiError) {
+        // The login serializer returns a single generic message for
+        // any auth failure (bad credentials, suspended account) as
+        // `{ detail: "..." }`. There are no field-level errors to map
+        // — the whole form is treated as one input.
         const detail =
           typeof err.data === 'object' && err.data && 'detail' in err.data
             ? String((err.data as { detail: unknown }).detail)
@@ -111,8 +165,28 @@ export default function CustomerLoginPage() {
     setError('');
     setFieldErrors({});
     setGoogleLoading(true);
-    // Full-page navigation — OAuth cannot be done via fetch.
-    window.location.href = api.googleLoginUrl();
+    const base = api.googleLoginUrl();
+    // Only forward `next` if it survived sanitization. The backend
+    // applies the same guard on the OAuth callback, but sending a
+    // value we know is bad would just be wasted work.
+    const url = nextPath
+      ? `${base}?next=${encodeURIComponent(nextPath)}`
+      : base;
+    window.location.href = url;
+  };
+
+  // Log out and drop back to the form. Used by the "Sign in as a
+  // different account" link on the already-signed-in card.
+  const handleSwitchAccount = async () => {
+    setLoggingOut(true);
+    try {
+      await api.logout();
+    } catch {
+      /* swallow — user is switching anyway */
+    } finally {
+      setSignedInUser(null);
+      setLoggingOut(false);
+    }
   };
 
   if (checking) {
@@ -141,10 +215,69 @@ export default function CustomerLoginPage() {
     );
   }
 
+  // ── ALREADY SIGNED IN — show a "Continue" card, not the form ─────
+  if (signedInUser) {
+    const continueHref = nextPath || signedInUser.redirect_to;
+
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
+        <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
+          <header className="text-center space-y-2 pt-2">
+            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <h1 className="text-[18px] font-semibold text-slate-900">
+              You&apos;re already signed in
+            </h1>
+            <p className="text-[13px] text-slate-500">
+              Signed in as{' '}
+              <span className="font-medium text-slate-700">
+                {signedInUser.email}
+              </span>
+            </p>
+          </header>
+
+          <div className="space-y-2 pt-1">
+            <Link
+              href={continueHref}
+              className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition"
+            >
+              Continue
+            </Link>
+            <button
+              type="button"
+              onClick={handleSwitchAccount}
+              disabled={loggingOut}
+              className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loggingOut ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Signing out…
+                </>
+              ) : (
+                'Sign in as a different account'
+              )}
+            </button>
+          </div>
+
+          <div className="text-center pt-1">
+            <Link
+              href="/pages/products"
+              className="text-[13px] text-slate-500 hover:text-slate-800"
+            >
+              Continue shopping
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── NOT SIGNED IN — show the login form ──────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
       <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
-        {/* Brand */}
         <header className="text-center space-y-2 pt-2">
           <h1 className="text-[18px] font-semibold text-slate-900">
             Welcome back
@@ -154,14 +287,12 @@ export default function CustomerLoginPage() {
           </p>
         </header>
 
-        {/* Global error */}
         {error && (
           <div className="bg-rose-50 border border-rose-200 rounded-sm px-3 py-2 text-[12px] text-rose-700">
             {error}
           </div>
         )}
 
-        {/* Google */}
         <button
           type="button"
           onClick={handleGoogleSignIn}
@@ -199,7 +330,6 @@ export default function CustomerLoginPage() {
           )}
         </button>
 
-        {/* Divider */}
         <div className="flex items-center gap-3">
           <span className="flex-1 h-px bg-slate-200" />
           <span className="text-[12px] text-slate-400 font-medium">
@@ -208,7 +338,6 @@ export default function CustomerLoginPage() {
           <span className="flex-1 h-px bg-slate-200" />
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-3" noValidate>
           <Field
             label="Email address"
@@ -221,7 +350,6 @@ export default function CustomerLoginPage() {
             error={fieldErrors.identifier}
           />
 
-          {/* Password */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="block text-[12px] font-medium text-slate-700">
@@ -264,7 +392,6 @@ export default function CustomerLoginPage() {
             )}
           </div>
 
-          {/* Remember me */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -276,7 +403,6 @@ export default function CustomerLoginPage() {
             <span className="text-[13px] text-slate-700">Remember me</span>
           </label>
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={isBusy}
@@ -311,11 +437,17 @@ export default function CustomerLoginPage() {
           </button>
         </form>
 
-        {/* Register link */}
         <div className="text-center text-[13px] text-slate-600 pt-1">
           Don&apos;t have an account?{' '}
           <Link
-            href="/auth/register"
+            href={
+              nextPath
+                ? `/auth/register?next=${encodeURIComponent(nextPath)}${identifier
+                  ? `&email=${encodeURIComponent(identifier)}`
+                  : ''
+                }`
+                : '/auth/register'
+            }
             className="font-medium text-blue-950 hover:underline"
           >
             Register now

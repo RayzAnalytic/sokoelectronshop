@@ -1,70 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { products, categorySlug, toSummary } from '@/data/products';
+
+/**
+ * Proxy for the legacy `/api/products/` URL.
+ *
+ * The storefront now talks to Django directly at `/api/catalog/products/`
+ * via `catalogApi.products.list()` in `lib/api.ts`. This route exists only
+ * to keep any legacy callers of `/api/products/` working during the
+ * transition. It forwards query params verbatim and passes the backend's
+ * DRF envelope (`{ count, next, previous, results }`) straight through.
+ *
+ * Delete this file once no caller hits `/api/products/`.
+ *
+ * NOTE: This proxy does NOT strip the Next.js origin's cookies, so
+ * session-authenticated requests pass through. Django's CORS still
+ * applies on the backend side because the browser sees the request to
+ * the Next.js origin, and Next.js initiates a server-to-server fetch —
+ * which Django accepts as a same-origin call only if you allow it.
+ * Since the catalog endpoint is public, this is a non-issue today.
+ */
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
-
-    const categoryParam = searchParams.get('category');
-    const q = (searchParams.get('q') ?? '').toLowerCase().trim();
-    const stock = searchParams.get('stock') ?? 'all';
-    const sort = searchParams.get('sort') ?? 'featured';
-    const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
-    const limit = Math.max(1, parseInt(searchParams.get('limit') ?? '24', 10));
-    const full = searchParams.get('full') === '1';
-
-    // Filter
-    let result = [...products];
-
-    if (categoryParam) {
-        result = result.filter((p) => categorySlug(p.category) === categoryParam);
-    }
-
-    if (q) {
-        result = result.filter(
-            (p) =>
-                p.name.toLowerCase().includes(q) ||
-                p.brand.toLowerCase().includes(q) ||
-                p.category.toLowerCase().includes(q)
+    if (!API_BASE) {
+        return NextResponse.json(
+            {
+                detail:
+                    'NEXT_PUBLIC_API_BASE_URL is not set. Either configure it ' +
+                    'or delete this proxy route.',
+            },
+            { status: 500 },
         );
     }
 
-    if (stock === 'in-stock') {
-        result = result.filter((p) => p.stock === 'In Stock');
-    } else if (stock === 'low-stock') {
-        result = result.filter((p) => p.stock === 'Low Stock');
-    }
-
-    // Sort
-    switch (sort) {
-        case 'price-low': result.sort((a, b) => a.price - b.price); break;
-        case 'price-high': result.sort((a, b) => b.price - a.price); break;
-        case 'newest':
-            result.sort(
-                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-            break;
-        case 'rating': result.sort((a, b) => b.rating - a.rating); break;
-        default: break;
-    }
-
-    // Paginate
-    const total = result.length;
-    const pages = Math.max(1, Math.ceil(total / limit));
-    const start = (page - 1) * limit;
-    const slice = result.slice(start, start + limit);
-
-    // Shape response
-    const items = full ? slice : slice.map(toSummary);
-    const categoryName = categoryParam
-        ? products.find((p) => categorySlug(p.category) === categoryParam)?.category ?? null
-        : null;
-
-    return NextResponse.json({
-        products: items,
-        total,
-        page,
-        pages,
-        limit,
-        category: categoryName ? { name: categoryName } : null,
+    // Preserve every query param the caller sent, including `full=1`
+    // and the page/limit/sort/stock/q combination.
+    const searchParams = new URL(req.url).searchParams;
+    const target = new URL(`${API_BASE}/api/catalog/products/`);
+    searchParams.forEach((value, key) => {
+        target.searchParams.set(key, value);
     });
+
+    try {
+        const upstream = await fetch(target.toString(), {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            // Pass through the incoming abort signal so the client cancelling
+            // doesn't leave the upstream request dangling.
+            signal: req.signal,
+        });
+
+        // 204 has no body
+        if (upstream.status === 204) {
+            return new NextResponse(null, { status: 204 });
+        }
+
+        const contentType = upstream.headers.get('content-type') ?? '';
+        if (contentType.includes('application/json')) {
+            const data = await upstream.json().catch(() => null);
+            return NextResponse.json(data, { status: upstream.status });
+        }
+
+        // Non-JSON (error page, plain text, etc.) — pass through as text
+        const text = await upstream.text();
+        return new NextResponse(text, {
+            status: upstream.status,
+            headers: { 'Content-Type': contentType || 'text/plain' },
+        });
+    } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+            return new NextResponse(null, { status: 499 });
+        }
+        return NextResponse.json(
+            {
+                detail: 'Upstream catalog service is unreachable.',
+                error: err instanceof Error ? err.message : String(err),
+            },
+            { status: 502 },
+        );
+    }
 }

@@ -1,44 +1,88 @@
+// components/newslettersection/NewsletterSection.tsx
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { newsletterApi } from '@/lib/api';
 
-export default function NewsletterSection() {
+interface NewsletterSectionProps {
+    /** Where the signup originated. Defaults to 'Footer Popup'. */
+    source?: 'Footer Popup' | 'Checkout' | 'WhatsApp Opt-in';
+    /** Optional heading override. */
+    heading?: string;
+    /** Optional supporting copy override. */
+    subheading?: string;
+}
+
+export default function NewsletterSection({
+    source = 'Footer Popup',
+    heading = 'Subscribe to Our Newsletter',
+    subheading = 'Receive weekly updates on new electronics arrivals, exclusive price drops, and tech buying guides. Unsubscribe at any time.',
+}: NewsletterSectionProps) {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
-    const [error, setError] = useState('');
+    const [success, setSuccess] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [fieldError, setFieldError] = useState('');
 
-    const handleSubscribe = (e :any) => {
-        e.preventDefault();
-        setError('');
-        setFieldError('');
-        setSuccess(false);
+    const clearFeedback = () => {
+        if (success) setSuccess(null);
+        if (error) setError(null);
+        if (fieldError) setFieldError('');
+    };
 
-        if (!email.trim()) {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setEmail(e.target.value);
+        clearFeedback();
+    };
+
+    const handleSubscribe = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setError(null);
+        setFieldError('');
+        setSuccess(null);
+
+        const trimmed = email.trim();
+
+        if (!trimmed) {
             setFieldError('Email address is required.');
             return;
-        } else if (!/\S+@\S+\.\S+/.test(email)) {
+        }
+        if (!/\S+@\S+\.\S+/.test(trimmed)) {
             setFieldError('Please enter a valid email address.');
             return;
         }
 
         setLoading(true);
+        try {
+            const res = await newsletterApi.subscribe({
+                email: trimmed,
+                source,
+            });
 
-        // Actual API subscription submission simulation to backend database/mailing service
-        setTimeout(() => {
-            setLoading(false);
-
-            // Simulate backend validation check (e.g. email already subscribed)
-            if (email === 'already@example.com') {
-                setError('This email address is already subscribed to our newsletter.');
+            if (res.status === 'already_subscribed') {
+                // Treat as a soft warning, not an error banner that
+                // implies something broke — the address is fine, it's
+                // just already on the list.
+                setError(res.detail);
             } else {
-                setSuccess(true);
+                // 'subscribed' | 'reactivated'
+                setSuccess(res.detail);
                 setEmail('');
             }
-        }, 1000);
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Something went wrong. Please try again.',
+            );
+        } finally {
+            setLoading(false);
+        }
     };
+
+    const inputId = 'newsletter-email';
+    const fieldErrorId = 'newsletter-email-error';
 
     return (
         <section className="bg-slate-50 py-6 lg:py-8 border-b border-slate-200">
@@ -50,39 +94,61 @@ export default function NewsletterSection() {
                     </div>
 
                     <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                        Subscribe to Our Newsletter
+                        {heading}
                     </h2>
                     <p className="text-[13px] text-slate-600 mt-1 max-w-md mx-auto mb-6">
-                        Receive weekly updates on new electronics arrivals, exclusive price drops, and tech buying guides. Unsubscribe at any time.
+                        {subheading}
                     </p>
 
                     {/* Success State */}
                     {success && (
-                        <div className="mb-6 p-3 bg-emerald-50 border border-emerald-200 rounded text-[13px] text-emerald-700 flex items-center justify-center space-x-2">
+                        <div
+                            role="status"
+                            aria-live="polite"
+                            className="mb-6 p-3 bg-emerald-50 border border-emerald-200 rounded text-[13px] text-emerald-700 flex items-center justify-center space-x-2"
+                        >
                             <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                            <span>You have successfully subscribed to our newsletter!</span>
+                            <span>{success}</span>
                         </div>
                     )}
 
                     {/* Error State */}
                     {error && (
-                        <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded text-[13px] text-red-700 flex items-center justify-center space-x-2">
+                        <div
+                            role="alert"
+                            aria-live="assertive"
+                            className="mb-6 p-3 bg-red-50 border border-red-200 rounded text-[13px] text-red-700 flex items-center justify-center space-x-2"
+                        >
                             <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                             <span>{error}</span>
                         </div>
                     )}
 
                     {/* Subscription Form */}
-                    <form onSubmit={handleSubscribe} className="max-w-md mx-auto" noValidate>
+                    <form
+                        onSubmit={handleSubscribe}
+                        className="max-w-md mx-auto"
+                        noValidate
+                    >
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-2">
                             <div className="flex-1">
+                                <label htmlFor={inputId} className="sr-only">
+                                    Email address
+                                </label>
                                 <input
+                                    id={inputId}
                                     type="email"
+                                    inputMode="email"
+                                    autoComplete="email"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={handleChange}
                                     disabled={loading}
                                     placeholder="Enter your email address"
-                                    className={`w-full px-3 py-2 text-[13px] bg-white border ${fieldError ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 focus:border-blue-950 focus:ring-blue-950'
+                                    aria-invalid={fieldError ? true : undefined}
+                                    aria-describedby={fieldError ? fieldErrorId : undefined}
+                                    className={`w-full px-3 py-2 text-[13px] bg-white border ${fieldError
+                                            ? 'border-red-500 focus:ring-red-500'
+                                            : 'border-slate-300 focus:border-blue-950 focus:ring-blue-950'
                                         } rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 disabled:bg-slate-100 disabled:text-slate-500`}
                                 />
                             </div>
@@ -93,10 +159,7 @@ export default function NewsletterSection() {
                             >
                                 {loading ? (
                                     <>
-                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
+                                        <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
                                         Subscribing...
                                     </>
                                 ) : (
@@ -105,7 +168,13 @@ export default function NewsletterSection() {
                             </button>
                         </div>
                         {fieldError && (
-                            <p className="text-[13px] text-red-600 mt-1.5 text-left">{fieldError}</p>
+                            <p
+                                id={fieldErrorId}
+                                role="alert"
+                                className="text-[13px] text-red-600 mt-1.5 text-left"
+                            >
+                                {fieldError}
+                            </p>
                         )}
                     </form>
 

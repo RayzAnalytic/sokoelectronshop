@@ -4,6 +4,47 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { api, ApiError } from '@/lib/api';
+
+// Must match `AUTH_PASSWORD_VALIDATORS`'s MinimumLengthValidator on the
+// backend. The register page uses the same constant. Changing one
+// without the other means a password that passes here fails there.
+const MIN_PASSWORD_LENGTH = 10;
+
+/**
+ * Extract DRF field errors from a reset-password error response.
+ *
+ * The backend returns validation failures as:
+ *
+ *     {
+ *       "detail": "This password is too common.",
+ *       "errors": { "new_password": ["This password is too common."] }
+ *     }
+ *
+ * Mapping these onto the form's field errors highlights the password
+ * input instead of dumping a generic banner.
+ */
+function extractFieldErrors(
+  data: unknown,
+): { password?: string; confirmPassword?: string } {
+  if (!data || typeof data !== 'object') return {};
+  const errors = (data as { errors?: unknown }).errors;
+  if (!errors || typeof errors !== 'object') return {};
+
+  const map: Record<string, string[]> = {};
+  for (const [key, value] of Object.entries(errors as Record<string, unknown>)) {
+    if (Array.isArray(value) && value.length > 0) {
+      map[key] = value.map(String);
+    } else if (typeof value === 'string') {
+      map[key] = [value];
+    }
+  }
+
+  return {
+    password: map['new_password']?.[0],
+    confirmPassword: map['confirm_password']?.[0],
+  };
+}
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -21,7 +62,13 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // ── Simulated token validation (frontend only) ──
+  // ── Token validation ──
+  // Runs once on mount. Two failure paths:
+  //   * No token in the URL — immediately shows the expired screen.
+  //   * Token is invalid/expired — the backend's verify endpoint
+  //     returns 400, and we show the same expired screen.
+  // The verify call is idempotent (it doesn't consume the token) so
+  // the customer can safely reload the page.
   useEffect(() => {
     if (!token) {
       setValidatingToken(false);
@@ -29,26 +76,43 @@ function ResetPasswordForm() {
       return;
     }
 
-    const t = setTimeout(() => {
-      // For demo: any token with "expired" in it is treated as invalid.
-      // Replace with real validation once backend is wired.
-      if (token.toLowerCase().includes('expired')) {
-        setTokenError(true);
-      }
-      setValidatingToken(false);
-    }, 500);
+    let cancelled = false;
 
-    return () => clearTimeout(t);
+    (async () => {
+      try {
+        await api.verifyResetToken(token);
+        if (cancelled) return;
+        setValidatingToken(false);
+      } catch (err) {
+        if (cancelled) return;
+        // 400 is the documented "invalid or expired" response. Any
+        // other status (5xx, network) is a real error and shouldn't
+        // show the "expired" screen — but the customer's only path
+        // forward from here is to request a new link anyway, so we
+        // treat it the same.
+        setTokenError(true);
+        if (err instanceof ApiError && err.status !== 400) {
+          setError('Something went wrong. Please request a new link.');
+        }
+        setValidatingToken(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   const validateForm = () => {
     const errors: Record<string, string> = {};
     if (!newPassword) {
       errors.password = 'New password is required.';
-    } else if (newPassword.length < 8) {
-      errors.password = 'Password must be at least 8 characters long.';
+    } else if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`;
     }
-    if (newPassword !== confirmPassword) {
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your new password.';
+    } else if (newPassword !== confirmPassword) {
       errors.confirmPassword = 'Passwords do not match.';
     }
     setFieldErrors(errors);
@@ -68,11 +132,54 @@ function ResetPasswordForm() {
 
     setLoading(true);
 
-    // Simulate a request
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // The backend consumes the token on success — `used_at` is
+      // stamped and any other pending tokens for the same user are
+      // invalidated. A second submission with the same token returns
+      // 410 Gone, which we treat as "expired" below.
+      await api.resetPassword(token, newPassword, confirmPassword);
       setSuccess(true);
-    }, 600);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        // 400 — either the token was never valid (shouldn't happen
+        //       after the mount check) or the new password failed
+        //       Django's validators.
+        // 410 — token was consumed between the mount check and this
+        //       submit. Same expired screen.
+        if (err.status === 410) {
+          setTokenError(true);
+          return;
+        }
+
+        if (err.status === 400) {
+          const mapped = extractFieldErrors(err.data);
+          if (Object.keys(mapped).length > 0) {
+            setFieldErrors(mapped);
+          }
+          const detail =
+            typeof err.data === 'object' && err.data && 'detail' in err.data
+              ? String((err.data as { detail: unknown }).detail)
+              : null;
+          if (detail) setError(detail);
+          else if (Object.keys(mapped).length === 0) {
+            setError('Please check your password and try again.');
+          }
+          return;
+        }
+
+        const detail =
+          typeof err.data === 'object' && err.data && 'detail' in err.data
+            ? String((err.data as { detail: unknown }).detail)
+            : null;
+        setError(
+          detail ?? 'Could not reset your password. Please try again.',
+        );
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Token validation in progress ──
@@ -213,11 +320,10 @@ function ResetPasswordForm() {
                 disabled={loading}
                 autoComplete="new-password"
                 placeholder="••••••••"
-                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
-                  fieldErrors.password
+                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.password
                     ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                     : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
-                }`}
+                  }`}
               />
               <button
                 type="button"
@@ -230,7 +336,7 @@ function ResetPasswordForm() {
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Must be at least 8 characters long.
+              Must be at least {MIN_PASSWORD_LENGTH} characters long.
             </p>
             {fieldErrors.password && (
               <p className="text-[11px] text-rose-600">
@@ -252,11 +358,10 @@ function ResetPasswordForm() {
                 disabled={loading}
                 autoComplete="new-password"
                 placeholder="••••••••"
-                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
-                  fieldErrors.confirmPassword
+                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.confirmPassword
                     ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                     : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
-                }`}
+                  }`}
               />
               <button
                 type="button"

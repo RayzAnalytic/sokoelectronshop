@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { api, ApiError } from '@/lib/api';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -32,11 +33,45 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
 
-    // Simulate a short request so the loading state is visible
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Backend always returns 200 with a generic message, whether or
+      // not the email exists — this prevents account enumeration. The
+      // only non-200 responses are:
+      //   * 429 — rate limit (3/hour per IP, from `PasswordResetThrottle`)
+      //   * 5xx — server error
+      //   * 400 — malformed email (already caught by client validation)
+      await api.forgotPassword(email.trim());
       setSuccess(true);
-    }, 600);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 429) {
+          setError(
+            'Too many reset requests from this device. Please try again later.',
+          );
+        } else {
+          const detail =
+            typeof err.data === 'object' && err.data && 'detail' in err.data
+              ? String((err.data as { detail: unknown }).detail)
+              : null;
+          setError(
+            detail ??
+            'Could not send reset instructions. Please try again.',
+          );
+        }
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset the form so the customer can try a different email. Called
+  // by the "Use a different email" link that appears after success.
+  const handleTryAgain = () => {
+    setSuccess(false);
+    setError('');
+    setEmail('');
   };
 
   return (
@@ -64,7 +99,8 @@ export default function ForgotPasswordPage() {
         {success && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-sm px-3 py-2 text-[12px] text-emerald-700">
             If an account exists for {email}, you will receive a password reset
-            link shortly.
+            link shortly. Check your spam folder if you don&apos;t see it within
+            a few minutes.
           </div>
         )}
 
@@ -81,11 +117,10 @@ export default function ForgotPasswordPage() {
               disabled={loading || success}
               autoComplete="email"
               placeholder="name@example.com"
-              className={`w-full bg-white border rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
-                fieldError
+              className={`w-full bg-white border rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldError
                   ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                   : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
-              }`}
+                }`}
             />
             {fieldError && (
               <p className="text-[11px] text-rose-600">{fieldError}</p>
@@ -125,6 +160,20 @@ export default function ForgotPasswordPage() {
             )}
           </button>
         </form>
+
+        {/* Post-success helper — lets the customer try a different
+            email without needing to reload the page or navigate away. */}
+        {success && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={handleTryAgain}
+              className="text-[12px] font-medium text-blue-950 hover:underline"
+            >
+              Use a different email
+            </button>
+          </div>
+        )}
 
         {/* Sign in link */}
         <div className="text-center text-[13px] text-slate-600 pt-1">

@@ -15,15 +15,26 @@ import {
     CheckCircle2,
     AlertCircle,
     Trash2,
-    Package,
     ArrowRight,
     RefreshCw,
 } from "lucide-react";
+import type { AdminBrandRef, AdminCategoryRef } from "@/lib/admin-types";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Props and public types
+//
+// `brands` and `categories` come from the parent page. The modal needs
+// the real lists because it validates each CSV row against them — an
+// unknown brand becomes a warning, not a silent fallback to "Other".
+// The hardcoded lists that used to live here were placeholder data and
+// did not match the store's actual catalog.
+// ─────────────────────────────────────────────────────────────────────────────
 type Props = {
     open: boolean;
     onClose: () => void;
     onSave?: (products: ImportedProduct[]) => void;
+    brands: AdminBrandRef[];
+    categories: AdminCategoryRef[];
 };
 
 export type ImportedProduct = {
@@ -35,6 +46,7 @@ export type ImportedProduct = {
     stock: string;
     sku: string;
     shortDescription: string;
+    image: string;
     status: "published" | "draft";
 };
 
@@ -45,64 +57,66 @@ type ParsedRow = {
     warnings: string[];
 };
 
-const CATEGORIES = [
-    "Smartphones",
-    "Laptops",
-    "Audio",
-    "Accessories",
-    "TVs",
-    "Gaming",
-    "Cameras",
-    "Networking",
-];
-
-const BRANDS = [
-    "Apex",
-    "Zenith",
-    "SonicWave",
-    "Vizion",
-    "Nexus",
-    "Pulse",
-    "Quantum",
-    "Aero",
-    "Samsung",
-    "HP",
-    "Apple",
-    "Sony",
-    "JBL",
-    "TP-Link",
-    "Xiaomi",
-    "Other",
-];
-
+// ─────────────────────────────────────────────────────────────────────────────
+// File limits
+// ─────────────────────────────────────────────────────────────────────────────
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_ROWS = 500;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Header aliases
+//
+// Maps every variation a spreadsheet might use for a column header to
+// the canonical `ImportedProduct` key. Matching is case-insensitive
+// and normalizes underscores/dashes/spaces. Add new aliases here when
+// you find a header format the parser doesn't recognize.
+// ─────────────────────────────────────────────────────────────────────────────
 const HEADER_ALIASES: Record<string, keyof ImportedProduct> = {
     name: "name",
     "product name": "name",
     productname: "name",
     title: "name",
+
     category: "category",
+    "product category": "category",
+
     brand: "brand",
+
     price: "price",
     "price (kes)": "price",
     "price kes": "price",
+
     saleprice: "salePrice",
     "sale price": "salePrice",
+    "sale price (kes)": "salePrice",
     sale_price: "salePrice",
+
     stock: "stock",
     quantity: "stock",
     qty: "stock",
+    "stock quantity": "stock",
+
     sku: "sku",
+
     shortdescription: "shortDescription",
     "short description": "shortDescription",
     description: "shortDescription",
+
+    image: "image",
+    "image url": "image",
+    imageurl: "image",
+    "image_url": "image",
+    photo: "image",
+    "photo url": "image",
+
     status: "status",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CSV parsing
+// CSV parser
+//
+// RFC 4180-style, with quote escaping and BOM stripping. Handles
+// \r\n, \n, and lone \r line endings. Blank trailing rows are dropped.
 // ─────────────────────────────────────────────────────────────────────────────
 function parseCsv(text: string): string[][] {
     const rows: string[][] = [];
@@ -111,7 +125,7 @@ function parseCsv(text: string): string[][] {
     let inQuotes = false;
     let i = 0;
 
-    // Strip BOM
+    // Strip BOM — Excel writes one on Windows.
     if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
 
     while (i < text.length) {
@@ -173,9 +187,36 @@ function normalizeHeader(h: string): string {
         .trim();
 }
 
-function parseRows(raw: string[][]): { rows: ParsedRow[]; error?: string } {
+// ─────────────────────────────────────────────────────────────────────────────
+// Case-insensitive name lookup
+//
+// Returns the canonical spelling from the list when the input matches
+// ignoring case. Used to validate against the real brands/categories
+// without requiring the CSV to match the exact capitalization.
+// ─────────────────────────────────────────────────────────────────────────────
+function matchName(input: string, list: string[]): string | null {
+    const needle = input.trim().toLowerCase();
+    if (!needle) return null;
+    for (const candidate of list) {
+        if (candidate.toLowerCase() === needle) return candidate;
+    }
+    return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Row parser
+// ─────────────────────────────────────────────────────────────────────────────
+function parseRows(
+    raw: string[][],
+    brandNames: string[],
+    categoryNames: string[],
+): { rows: ParsedRow[]; error?: string } {
     if (raw.length < 2) {
-        return { rows: [], error: "File must include a header row and at least one product." };
+        return {
+            rows: [],
+            error:
+                "File must include a header row and at least one product.",
+        };
     }
 
     const headerRow = raw[0].map(normalizeHeader);
@@ -189,56 +230,108 @@ function parseRows(raw: string[][]): { rows: ParsedRow[]; error?: string } {
     if (columnMap.name === undefined) {
         return {
             rows: [],
-            error: "Header row must include a 'Name' column. Download the template for reference.",
+            error:
+                "Header row must include a 'Name' column. " +
+                "Download the template for reference.",
         };
     }
 
     const dataRows = raw.slice(1).slice(0, MAX_ROWS);
+
     const rows: ParsedRow[] = dataRows.map((cells, i) => {
-        const get = (key: keyof ImportedProduct) => {
+        const get = (key: keyof ImportedProduct): string => {
             const idx = columnMap[key];
             if (idx === undefined) return "";
             return (cells[idx] ?? "").trim();
         };
 
+        // ── Name ──
         const name = get("name");
+
+        // ── Prices: strip currency symbols, commas, spaces ──
         const price = get("price").replace(/[^\d.]/g, "");
         const salePrice = get("salePrice").replace(/[^\d.]/g, "");
+
+        // ── Stock: digits only, default "0" ──
         const stockRaw = get("stock").replace(/[^\d]/g, "");
         const stock = stockRaw || "0";
-        const category = get("category") || "Accessories";
-        const brand = get("brand") || "Other";
+
+        // ── Category / brand: match against real lists, case-insensitive ──
+        const rawCategory = get("category");
+        const rawBrand = get("brand");
+
+        const matchedCategory = matchName(rawCategory, categoryNames);
+        const matchedBrand = matchName(rawBrand, brandNames);
+
+        const fallbackCategory = categoryNames[0] ?? "";
+        const fallbackBrand = brandNames[0] ?? "";
+
+        const category = matchedCategory ?? fallbackCategory;
+        const brand = matchedBrand ?? fallbackBrand;
+
+        // ── Status ──
         const statusRaw = (get("status") || "published").toLowerCase();
         const status: "published" | "draft" =
             statusRaw === "draft" ? "draft" : "published";
 
+        // ── Image ──
+        const image = get("image");
+
+        // ── SKU and description ──
+        const sku = get("sku");
+        const shortDescription = get("shortDescription").slice(0, 160);
+
+        // ── Validation ──
         const errors: string[] = [];
         const warnings: string[] = [];
 
         if (!name) errors.push("Name is required");
-        if (!price) errors.push("Price is required");
-        else if (Number(price) <= 0) errors.push("Price must be greater than 0");
-        if (salePrice && Number(salePrice) >= Number(price)) {
-            warnings.push("Sale price is not lower than price");
+        if (!price) {
+            errors.push("Price is required");
+        } else if (Number(price) <= 0) {
+            errors.push("Price must be greater than 0");
         }
-        if (!CATEGORIES.includes(category)) {
-            warnings.push(`Unknown category "${category}" — will use Accessories`);
+
+        if (salePrice) {
+            if (Number(salePrice) <= 0) {
+                warnings.push("Sale price must be greater than 0");
+            } else if (
+                price &&
+                Number(salePrice) >= Number(price)
+            ) {
+                warnings.push("Sale price is not lower than price");
+            }
         }
-        if (!BRANDS.includes(brand)) {
-            warnings.push(`Unknown brand "${brand}" — will use Other`);
+
+        if (rawCategory && !matchedCategory) {
+            warnings.push(
+                `Unknown category "${rawCategory}" — will use ${fallbackCategory || "—"}`,
+            );
+        }
+        if (rawBrand && !matchedBrand) {
+            warnings.push(
+                `Unknown brand "${rawBrand}" — will use ${fallbackBrand || "—"}`,
+            );
+        }
+
+        if (image && !/^https?:\/\//i.test(image) && !image.startsWith("/")) {
+            warnings.push(
+                "Image URL should start with https:// or a leading /",
+            );
         }
 
         return {
-            index: i + 2, // +2 because header is row 1
+            index: i + 2, // +2 — row 1 is the header
             data: {
                 name,
-                category: CATEGORIES.includes(category) ? category : "Accessories",
-                brand: BRANDS.includes(brand) ? brand : "Other",
+                category,
+                brand,
                 price,
                 salePrice,
                 stock,
-                sku: get("sku"),
-                shortDescription: get("shortDescription").slice(0, 160),
+                sku,
+                shortDescription,
+                image,
                 status,
             },
             errors,
@@ -250,7 +343,10 @@ function parseRows(raw: string[][]): { rows: ParsedRow[]; error?: string } {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Template
+// Template download
+//
+// The header row matches the parser's aliases. The example row shows a
+// realistic product so the user knows what a filled sheet looks like.
 // ─────────────────────────────────────────────────────────────────────────────
 function downloadTemplate() {
     const headers = [
@@ -262,6 +358,7 @@ function downloadTemplate() {
         "stock",
         "sku",
         "shortDescription",
+        "image",
         "status",
     ];
     const example = [
@@ -273,11 +370,14 @@ function downloadTemplate() {
         "10",
         "APX-X1-5G",
         "Flagship 5G smartphone with 120Hz display.",
+        "https://example.com/images/apex-x1.jpg",
         "published",
     ];
     const csv =
-        headers.join(",") + "\n" +
-        example.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",") + "\n";
+        headers.join(",") +
+        "\n" +
+        example.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",") +
+        "\n";
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -293,7 +393,13 @@ function downloadTemplate() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
-export default function BulkUploadModal({ open, onClose, onSave }: Props) {
+export default function BulkUploadModal({
+    open,
+    onClose,
+    onSave,
+    brands,
+    categories,
+}: Props) {
     const [fileName, setFileName] = useState("");
     const [rows, setRows] = useState<ParsedRow[]>([]);
     const [parseError, setParseError] = useState("");
@@ -301,6 +407,13 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
     const [busy, setBusy] = useState(false);
     const [onlyErrors, setOnlyErrors] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // The real lists, as plain strings, for the parser.
+    const brandNames = useMemo(() => brands.map((b) => b.name), [brands]);
+    const categoryNames = useMemo(
+        () => categories.map((c) => c.name),
+        [categories],
+    );
 
     // Reset when opened
     useEffect(() => {
@@ -312,7 +425,7 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
         }
     }, [open]);
 
-    // Lock body scroll
+    // Lock body scroll while open
     useEffect(() => {
         if (!open) return;
         const original = document.body.style.overflow;
@@ -322,7 +435,7 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
         };
     }, [open]);
 
-    // ESC to close
+    // ESC closes
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
@@ -332,37 +445,60 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
         return () => window.removeEventListener("keydown", onKey);
     }, [open, onClose]);
 
-    const handleFile = useCallback(async (file: File | null | undefined) => {
-        setParseError("");
-        if (!file) return;
-        if (file.size > MAX_FILE_SIZE) {
-            setParseError("File is too large. Maximum size is 5 MB.");
-            return;
-        }
-        if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") {
-            setParseError("Please upload a .csv file. Download the template for reference.");
-            return;
-        }
+    const handleFile = useCallback(
+        async (file: File | null | undefined) => {
+            setParseError("");
+            if (!file) return;
 
-        setBusy(true);
-        try {
-            const text = await file.text();
-            const raw = parseCsv(text);
-            const result = parseRows(raw);
-            if (result.error) {
-                setParseError(result.error);
-                setRows([]);
-                setFileName("");
-            } else {
-                setRows(result.rows);
-                setFileName(file.name);
+            if (file.size > MAX_FILE_SIZE) {
+                setParseError("File is too large. Maximum size is 5 MB.");
+                return;
             }
-        } catch {
-            setParseError("Could not read that file. Try again or re-export from Excel.");
-        } finally {
-            setBusy(false);
-        }
-    }, []);
+            if (
+                !/\.csv$/i.test(file.name) &&
+                file.type !== "text/csv"
+            ) {
+                setParseError(
+                    "Please upload a .csv file. Download the template for reference.",
+                );
+                return;
+            }
+
+            // Guard: the parser needs real lists to validate against.
+            if (brandNames.length === 0 || categoryNames.length === 0) {
+                setParseError(
+                    "Brands and categories are still loading. Try again in a moment.",
+                );
+                return;
+            }
+
+            setBusy(true);
+            try {
+                const text = await file.text();
+                const raw = parseCsv(text);
+                const result = parseRows(
+                    raw,
+                    brandNames,
+                    categoryNames,
+                );
+                if (result.error) {
+                    setParseError(result.error);
+                    setRows([]);
+                    setFileName("");
+                } else {
+                    setRows(result.rows);
+                    setFileName(file.name);
+                }
+            } catch {
+                setParseError(
+                    "Could not read that file. Try again or re-export from Excel.",
+                );
+            } finally {
+                setBusy(false);
+            }
+        },
+        [brandNames, categoryNames],
+    );
 
     const onDrop = (e: React.DragEvent<HTMLLabelElement>) => {
         e.preventDefault();
@@ -418,7 +554,7 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                 className="bg-white border border-slate-200 rounded-md w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* ── Header ──────────────────────────────────────────────── */}
+                {/* ── Header ─────────────────────────────────────────────── */}
                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
                     <div className="flex items-center gap-2">
                         <span className="h-7 w-7 rounded bg-blue-950 text-white flex items-center justify-center">
@@ -443,10 +579,10 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                     </button>
                 </div>
 
-                {/* ── Body ────────────────────────────────────────────────── */}
+                {/* ── Body ─────────────────────────────────────────────────── */}
                 <div className="flex-1 overflow-y-auto p-3">
                     {rows.length === 0 ? (
-                        // ─── Empty state: dropzone ─────────────────────────────
+                        // ─── Empty state: dropzone ─────────────────────────
                         <div className="space-y-3">
                             <label
                                 onDragOver={(e) => {
@@ -465,7 +601,11 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                     type="file"
                                     accept=".csv,text/csv"
                                     className="hidden"
-                                    onChange={(e) => void handleFile(e.target.files?.[0])}
+                                    onChange={(e) =>
+                                        void handleFile(
+                                            e.target.files?.[0],
+                                        )
+                                    }
                                 />
 
                                 <span className="h-14 w-14 rounded-full bg-slate-100 flex items-center justify-center mb-3">
@@ -477,7 +617,9 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                 </span>
 
                                 <p className="text-[14px] font-medium text-slate-900">
-                                    {busy ? "Reading file…" : "Click to upload or drag & drop"}
+                                    {busy
+                                        ? "Reading file…"
+                                        : "Click to upload or drag & drop"}
                                 </p>
                                 <p className="text-[13px] text-slate-500 mt-1">
                                     CSV only · up to 5 MB · max 500 products
@@ -486,7 +628,9 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                 {parseError && (
                                     <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-md px-3 py-2 text-left max-w-md">
                                         <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                                        <p className="text-[13px] text-red-700">{parseError}</p>
+                                        <p className="text-[13px] text-red-700">
+                                            {parseError}
+                                        </p>
                                     </div>
                                 )}
                             </label>
@@ -499,7 +643,8 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                             Don&apos;t have a CSV yet?
                                         </p>
                                         <p className="text-[13px] text-slate-500">
-                                            Download the template with the correct column names.
+                                            Download the template with the
+                                            correct column names.
                                         </p>
                                     </div>
                                 </div>
@@ -514,7 +659,7 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                             </div>
                         </div>
                     ) : (
-                        // ─── Preview state ─────────────────────────────────────
+                        // ─── Preview state ─────────────────────────────────
                         <div className="space-y-3">
                             {/* File bar */}
                             <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-md px-3 py-2.5">
@@ -525,7 +670,8 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                             {fileName}
                                         </p>
                                         <p className="text-[13px] text-slate-500">
-                                            {stats.total} row{stats.total === 1 ? "" : "s"} detected
+                                            {stats.total} row
+                                            {stats.total === 1 ? "" : "s"} detected
                                         </p>
                                     </div>
                                 </div>
@@ -551,7 +697,10 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
 
                             {/* Stats */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                <SummaryCard label="Total rows" value={stats.total.toString()} />
+                                <SummaryCard
+                                    label="Total rows"
+                                    value={stats.total.toString()}
+                                />
                                 <SummaryCard
                                     label="Ready to import"
                                     value={stats.valid.toString()}
@@ -560,12 +709,20 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                 <SummaryCard
                                     label="With errors"
                                     value={stats.withErrors.toString()}
-                                    tone={stats.withErrors > 0 ? "danger" : "muted"}
+                                    tone={
+                                        stats.withErrors > 0
+                                            ? "danger"
+                                            : "muted"
+                                    }
                                 />
                                 <SummaryCard
                                     label="With warnings"
                                     value={stats.withWarnings.toString()}
-                                    tone={stats.withWarnings > 0 ? "warning" : "muted"}
+                                    tone={
+                                        stats.withWarnings > 0
+                                            ? "warning"
+                                            : "muted"
+                                    }
                                 />
                             </div>
 
@@ -601,21 +758,38 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                     <table className="w-full text-[13px]">
                                         <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                             <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                                <th className="font-medium px-3 py-2 w-12">Row</th>
+                                                <th className="font-medium px-3 py-2 w-12">
+                                                    Row
+                                                </th>
                                                 <th className="font-medium px-3 py-2 w-10"></th>
-                                                <th className="font-medium px-3 py-2">Product</th>
-                                                <th className="font-medium px-3 py-2">Category</th>
-                                                <th className="font-medium px-3 py-2">Brand</th>
-                                                <th className="font-medium px-3 py-2 text-right">Price</th>
-                                                <th className="font-medium px-3 py-2 text-right">Stock</th>
-                                                <th className="font-medium px-3 py-2">Status</th>
+                                                <th className="font-medium px-3 py-2">
+                                                    Product
+                                                </th>
+                                                <th className="font-medium px-3 py-2">
+                                                    Category
+                                                </th>
+                                                <th className="font-medium px-3 py-2">
+                                                    Brand
+                                                </th>
+                                                <th className="font-medium px-3 py-2 text-right">
+                                                    Price
+                                                </th>
+                                                <th className="font-medium px-3 py-2 text-right">
+                                                    Stock
+                                                </th>
+                                                <th className="font-medium px-3 py-2">
+                                                    Status
+                                                </th>
                                                 <th className="font-medium px-3 py-2 w-10"></th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {visibleRows.map((row) => {
-                                                const hasError = row.errors.length > 0;
-                                                const hasWarning = !hasError && row.warnings.length > 0;
+                                                const hasError =
+                                                    row.errors.length > 0;
+                                                const hasWarning =
+                                                    !hasError &&
+                                                    row.warnings.length > 0;
                                                 return (
                                                     <tr
                                                         key={row.index}
@@ -648,24 +822,30 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                                             </div>
                                                             {hasError && (
                                                                 <p className="text-[11px] text-red-600 mt-0.5">
-                                                                    {row.errors.join(" · ")}
+                                                                    {row.errors.join(
+                                                                        " · ",
+                                                                    )}
                                                                 </p>
                                                             )}
                                                             {hasWarning && (
                                                                 <p className="text-[11px] text-amber-700 mt-0.5">
-                                                                    {row.warnings.join(" · ")}
+                                                                    {row.warnings.join(
+                                                                        " · ",
+                                                                    )}
                                                                 </p>
                                                             )}
                                                         </td>
                                                         <td className="px-3 py-2 text-slate-600">
-                                                            {row.data.category}
+                                                            {row.data.category || "—"}
                                                         </td>
                                                         <td className="px-3 py-2 text-slate-600">
-                                                            {row.data.brand}
+                                                            {row.data.brand || "—"}
                                                         </td>
                                                         <td className="px-3 py-2 text-right tabular-nums text-slate-700">
                                                             {row.data.price
-                                                                ? `KES ${Number(row.data.price).toLocaleString()}`
+                                                                ? `KES ${Number(
+                                                                    row.data.price,
+                                                                ).toLocaleString()}`
                                                                 : "—"}
                                                         </td>
                                                         <td className="px-3 py-2 text-right tabular-nums text-slate-700">
@@ -673,12 +853,14 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                                         </td>
                                                         <td className="px-3 py-2">
                                                             <span
-                                                                className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded ${row.data.status === "published"
+                                                                className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded ${row.data.status ===
+                                                                        "published"
                                                                         ? "bg-emerald-50 text-emerald-700"
                                                                         : "bg-amber-50 text-amber-700"
                                                                     }`}
                                                             >
-                                                                {row.data.status === "published"
+                                                                {row.data.status ===
+                                                                    "published"
                                                                     ? "Published"
                                                                     : "Draft"}
                                                             </span>
@@ -686,7 +868,11 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                                                         <td className="px-3 py-2">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => removeRow(row.index)}
+                                                                onClick={() =>
+                                                                    removeRow(
+                                                                        row.index,
+                                                                    )
+                                                                }
                                                                 aria-label="Remove row"
                                                                 className="h-7 w-7 rounded-md hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-600 transition-colors"
                                                             >
@@ -714,8 +900,9 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                             {stats.withErrors > 0 && (
                                 <p className="text-[13px] text-slate-500 flex items-center gap-1.5">
                                     <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-                                    Rows with errors will be skipped. Fix them in your CSV and
-                                    re-upload, or import the rest now.
+                                    Rows with errors will be skipped. Fix them in
+                                    your CSV and re-upload, or import the rest
+                                    now.
                                 </p>
                             )}
                         </div>
@@ -745,7 +932,9 @@ export default function BulkUploadModal({ open, onClose, onSave }: Props) {
                         >
                             Import {stats.valid > 0 ? stats.valid : ""} product
                             {stats.valid === 1 ? "" : "s"}
-                            {canImport && <ArrowRight className="h-3.5 w-3.5" />}
+                            {canImport && (
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            )}
                         </button>
                     </div>
                 </div>
@@ -777,7 +966,9 @@ function SummaryCard({
     return (
         <div className={`border rounded-md p-2.5 ${toneCls}`}>
             <p className="text-[13px] font-medium opacity-80">{label}</p>
-            <p className="text-[18px] font-bold tabular-nums mt-0.5">{value}</p>
+            <p className="text-[18px] font-bold tabular-nums mt-0.5">
+                {value}
+            </p>
         </div>
     );
 }

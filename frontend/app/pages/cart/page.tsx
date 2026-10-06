@@ -1,7 +1,7 @@
 // app/pages/cart/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -19,7 +19,6 @@ import {
   X,
   Store,
   Zap,
-  CreditCard,
   Smartphone,
   RotateCcw,
   CheckSquare,
@@ -27,23 +26,125 @@ import {
   AlertTriangle,
   StickyNote,
   Banknote,
+  Loader2,
 } from 'lucide-react';
 import Header from '@/components/homepage/Navbar';
 import Footer from '@/components/homepage/Footer';
-import { useCart, type CartItem } from '@/lib/store/cart';
-
-type DeliveryMethod = 'standard' | 'express' | 'pickup';
+import { useCart, type CartItem as LocalCartItem } from '@/lib/store/cart';
+import {
+  api,
+  cartApi,
+  checkoutApi,
+  whatsappApi,
+  ApiError,
+  type Cart as ServerCart,
+  type CartItem as ServerCartItem,
+  type DeliveryMethod,
+} from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Money constants — must mirror config/settings.py on the backend.
+// Pricing config
+//
+// Sourced from `GET /api/v1/checkout/config/`. The endpoint returns
+// BOTH express rates so the frontend can show the correct one based on
+// auth state — plus `your_express_fee`, which is precomputed for the
+// current caller.
+//
+// Tax shape
+// ---------
+// The API returns tax NESTED:
+//   { tax: { enabled, rate, prices_include_tax } }
+//
+// The rate comes as a STRING percentage ("16"), not a decimal. This
+// file normalises to a decimal (0.16) once, at parse time, so the rest
+// of the math is in decimal form.
 // ─────────────────────────────────────────────────────────────────────────────
-const FREE_DELIVERY_THRESHOLD = 5000;      // KES
-const DELIVERY_FEES: Record<DeliveryMethod, number> = {
-  standard: 300,
-  express: 500,
-  pickup: 0,
+interface CartConfig {
+  deliveryFees: Record<DeliveryMethod, number>;
+  freeDeliveryThreshold: number;
+  taxEnabled: boolean;
+  taxRate: number;              // decimal, e.g. 0.16
+  pricesIncludeTax: boolean;
+}
+
+const DEFAULT_CONFIG: CartConfig = {
+  deliveryFees: {
+    express: 500, // guest rate
+    standard: 300,
+    pickup: 0,
+  },
+  freeDeliveryThreshold: 5000,
+  taxEnabled: true,
+  taxRate: 0.16,
+  pricesIncludeTax: true,
 };
-const TAX_RATE = 0.16;                     // Kenya VAT
+
+function parseFeesFromConfig(raw: {
+  delivery_fees?: {
+    express_guest?: string;
+    express_member?: string;
+    standard?: string;
+    pickup?: string;
+  };
+  your_express_fee?: string;
+  free_delivery_threshold?: string;
+  tax?: {
+    enabled?: boolean;
+    rate?: string | number;
+    prices_include_tax?: boolean;
+  };
+  /** Legacy flat shape — supported for backward compatibility. */
+  tax_rate?: string | number;
+}): CartConfig {
+  const parseNum = (s: string | number | undefined, fallback: number) => {
+    if (s === undefined) return fallback;
+    const n = typeof s === 'number' ? s : parseFloat(s);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  // ── Tax — try nested first, fall back to legacy flat ──
+  let taxEnabled = DEFAULT_CONFIG.taxEnabled;
+  let taxRate = DEFAULT_CONFIG.taxRate;
+  let pricesIncludeTax = DEFAULT_CONFIG.pricesIncludeTax;
+
+  if (raw.tax && (raw.tax.rate !== undefined || raw.tax.enabled !== undefined)) {
+    taxEnabled = raw.tax.enabled ?? true;
+    const rawRate = parseNum(raw.tax.rate, 16);
+    // Normalise to decimal: "16" → 0.16. If the API ever returns a
+    // decimal ("0.16"), leave it alone — anything > 1 is a percentage.
+    taxRate = rawRate > 1 ? rawRate / 100 : rawRate;
+    pricesIncludeTax = raw.tax.prices_include_tax ?? false;
+  } else if (raw.tax_rate !== undefined) {
+    const rawRate = parseNum(raw.tax_rate, 16);
+    taxRate = rawRate > 1 ? rawRate / 100 : rawRate;
+    pricesIncludeTax = false; // legacy shape assumed exclusive
+  }
+
+  return {
+    deliveryFees: {
+      // `your_express_fee` accounts for the caller's auth state.
+      express: parseNum(
+        raw.your_express_fee,
+        DEFAULT_CONFIG.deliveryFees.express,
+      ),
+      standard: parseNum(
+        raw.delivery_fees?.standard,
+        DEFAULT_CONFIG.deliveryFees.standard,
+      ),
+      pickup: parseNum(
+        raw.delivery_fees?.pickup,
+        DEFAULT_CONFIG.deliveryFees.pickup,
+      ),
+    },
+    freeDeliveryThreshold: parseNum(
+      raw.free_delivery_threshold,
+      DEFAULT_CONFIG.freeDeliveryThreshold,
+    ),
+    taxEnabled,
+    taxRate,
+    pricesIncludeTax,
+  };
+}
 
 function formatKES(amount: number): string {
   if (!Number.isFinite(amount)) return 'KES 0';
@@ -53,39 +154,272 @@ function formatKES(amount: number): string {
   })}`;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified view model
+// ─────────────────────────────────────────────────────────────────────────────
+interface ViewItem {
+  id: string;                    // local string id, or String(server id)
+  productId: string;
+  name: string;
+  brand: string;
+  image: string;
+  unitPrice: number;
+  compareAtPrice: number | null;
+  quantity: number;
+  stock: string;
+  stockCount: number;
+}
+
+function fromLocal(item: LocalCartItem): ViewItem {
+  return {
+    id: item.id,
+    productId: item.productId,
+    name: item.name,
+    brand: item.brand ?? '',
+    image: item.image,
+    unitPrice: item.unitPrice,
+    compareAtPrice: item.compareAtPrice ?? null,
+    quantity: item.quantity,
+    stock: item.stock ?? '',
+    stockCount: item.stockCount ?? 0,
+  };
+}
+
+function fromServer(item: ServerCartItem): ViewItem {
+  return {
+    id: String(item.id),
+    productId: item.productId,
+    name: item.name,
+    brand: item.brand ?? '',
+    image: item.image,
+    unitPrice: Number.parseFloat(item.unitPrice) || 0,
+    compareAtPrice: item.compareAtPrice
+      ? Number.parseFloat(item.compareAtPrice)
+      : null,
+    quantity: item.quantity,
+    stock: item.stock ?? '',
+    stockCount: item.stockCount ?? 0,
+  };
+}
+
 export default function CartPage() {
   const router = useRouter();
 
-  const items = useCart((s) => s.items);
-  const updateQty = useCart((s) => s.updateQty);
-  const removeItem = useCart((s) => s.removeItem);
-  const clearCart = useCart((s) => s.clear);
+  // ── Local (anonymous) source ──
+  const localItems = useCart((s) => s.items);
+  const localUpdateQty = useCart((s) => s.updateQty);
+  const localRemoveItem = useCart((s) => s.removeItem);
+  const localClear = useCart((s) => s.clear);
 
-  // Selection is UI-only, so it lives locally. Items not in this set are selected.
+  // ── Auth state ──
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  // ── Pricing config ──
+  const [cartConfig, setCartConfig] = useState<CartConfig>(DEFAULT_CONFIG);
+  const [configResolved, setConfigResolved] = useState(false);
+
+  // ── Server cart state ──
+  const [serverCart, setServerCart] = useState<ServerCart | null>(null);
+
+  // ── UI state ──
   const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
-
   const [couponCode, setCouponCode] = useState<string>('');
   const [appliedCoupon, setAppliedCoupon] = useState<string>('');
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [couponMessage, setCouponMessage] = useState<string>('');
+  const [couponValidating, setCouponValidating] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('standard');
   const [orderNotes, setOrderNotes] = useState<string>('');
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
+  const [busyAll, setBusyAll] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // ── WhatsApp handoff state ──
+  const [whatsappBusy, setWhatsappBusy] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState<{
+    kind: 'info' | 'success' | 'error';
+    text: string;
+  } | null>(null);
+
+  // ── Fetch pricing config ──
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const cfg = await checkoutApi.config();
+        if (cancelled) return;
+        setCartConfig(parseFeesFromConfig(cfg));
+      } catch {
+        // Keep defaults.
+      } finally {
+        if (!cancelled) setConfigResolved(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ── Auth + initial server cart ──
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const me = await api.me();
+        if (cancelled) return;
+
+        const authed = !!me;
+        setIsAuthed(authed);
+
+        if (!authed) {
+          setAuthChecked(true);
+          return;
+        }
+
+        const localSnapshot = useCart.getState().items;
+
+        try {
+          const merged =
+            localSnapshot.length > 0
+              ? await cartApi.merge(
+                localSnapshot.map((i) => ({
+                  productId: i.productId,
+                  name: i.name,
+                  brand: i.brand,
+                  image: i.image,
+                  unitPrice: i.unitPrice,
+                  compareAtPrice: i.compareAtPrice ?? null,
+                  quantity: i.quantity,
+                  stock: i.stock,
+                  stockCount: i.stockCount,
+                })),
+              )
+              : await cartApi.get();
+
+          if (cancelled) return;
+          setServerCart(merged);
+
+          if (localSnapshot.length > 0) {
+            useCart.getState().clear();
+          }
+        } catch (err) {
+          console.error('Cart sync failed:', err);
+          if (!cancelled) setLoadError(true);
+        }
+      } catch {
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setAuthChecked(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ── Unified items for the UI ──
+  const items: ViewItem[] = useMemo(() => {
+    if (!authChecked) return [];
+    if (isAuthed) {
+      return serverCart ? serverCart.items.map(fromServer) : [];
+    }
+    return localItems.map(fromLocal);
+  }, [authChecked, isAuthed, serverCart, localItems]);
+
+  const isInitialLoading =
+    !authChecked || (isAuthed && serverCart === null && !loadError);
+
+  // ── Selection ──
   const isSelected = (id: string) => !deselectedIds.has(id);
   const selectedItems = items.filter((i) => isSelected(i.id));
   const allSelected = items.length > 0 && selectedItems.length === items.length;
 
-  const handleUpdateQuantity = (item: CartItem, newQty: number): void => {
+  // ── Mutations ──
+  const updateQty = useCallback(
+    async (id: string, qty: number) => {
+      if (qty < 1) return;
+      setErrorMessage(null);
+
+      if (isAuthed) {
+        setBusyItemId(id);
+        try {
+          const updated = await cartApi.updateQty(Number(id), qty);
+          setServerCart(updated);
+        } catch {
+          setErrorMessage('Could not update quantity. Please try again.');
+        } finally {
+          setBusyItemId(null);
+        }
+      } else {
+        localUpdateQty(id, qty);
+      }
+    },
+    [isAuthed, localUpdateQty],
+  );
+
+  const removeItem = useCallback(
+    async (id: string) => {
+      setErrorMessage(null);
+
+      if (isAuthed) {
+        setBusyItemId(id);
+        try {
+          const updated = await cartApi.removeItem(Number(id));
+          setServerCart(updated);
+        } catch {
+          setErrorMessage('Could not remove item. Please try again.');
+        } finally {
+          setBusyItemId(null);
+        }
+      } else {
+        localRemoveItem(id);
+      }
+    },
+    [isAuthed, localRemoveItem],
+  );
+
+  const clearCart = useCallback(async () => {
+    setErrorMessage(null);
+
+    if (isAuthed) {
+      setBusyAll(true);
+      try {
+        await cartApi.clear();
+        setServerCart((prev) =>
+          prev
+            ? { ...prev, items: [], itemCount: 0, totalUnits: 0, subtotal: '0.00' }
+            : null,
+        );
+      } catch {
+        setErrorMessage('Could not clear cart. Please try again.');
+      } finally {
+        setBusyAll(false);
+      }
+    } else {
+      localClear();
+    }
+  }, [isAuthed, localClear]);
+
+  // ── UI event handlers ──
+  const handleUpdateQuantity = (item: ViewItem, newQty: number): void => {
     if (newQty < 1) return;
     if (item.stockCount && newQty > item.stockCount) {
-      alert(`Cannot add more. Maximum available stock for this item is ${item.stockCount}.`);
+      alert(
+        `Cannot add more. Maximum available stock for this item is ${item.stockCount}.`,
+      );
       return;
     }
-    updateQty(item.id, newQty);
+    void updateQty(item.id, newQty);
   };
 
   const handleRemoveItem = (id: string): void => {
-    removeItem(id);
+    void removeItem(id);
     setDeselectedIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -111,13 +445,13 @@ export default function CartPage() {
   };
 
   const handleRemoveSelected = (): void => {
-    selectedItems.forEach((i) => removeItem(i.id));
+    void Promise.all(selectedItems.map((i) => removeItem(i.id)));
     setDeselectedIds(new Set());
   };
 
   const handleClearCart = (): void => {
     if (confirm('Remove all items from your cart?')) {
-      clearCart();
+      void clearCart();
       setDeselectedIds(new Set());
       setAppliedCoupon('');
       setAppliedDiscount(0);
@@ -125,21 +459,42 @@ export default function CartPage() {
     }
   };
 
-  const handleApplyCoupon = (e: React.FormEvent<HTMLFormElement>): void => {
+  // ── Coupon validation ──
+  const handleApplyCoupon = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     e.preventDefault();
+
     const code = couponCode.trim().toUpperCase();
-    if (code === 'SPRING10') {
-      setAppliedDiscount(0.1);
-      setAppliedCoupon(code);
-      setCouponMessage('10% discount applied to your order.');
-    } else if (code === 'WELCOME20') {
-      setAppliedDiscount(0.2);
-      setAppliedCoupon(code);
-      setCouponMessage('20% discount applied to your order.');
-    } else {
+    if (!code) return;
+
+    const currentSubtotal = selectedItems.reduce(
+      (acc, item) => acc + item.unitPrice * item.quantity,
+      0,
+    );
+
+    setCouponValidating(true);
+    setCouponMessage('');
+
+    try {
+      const result = await checkoutApi.validateCoupon(code, currentSubtotal);
+
+      if (result.valid) {
+        const pct = parseFloat(result.percent_off ?? '0');
+        setAppliedDiscount(Number.isFinite(pct) ? pct : 0);
+        setAppliedCoupon(result.code ?? code);
+        setCouponMessage(result.message || 'Discount applied.');
+      } else {
+        setAppliedCoupon('');
+        setAppliedDiscount(0);
+        setCouponMessage(result.message || 'Invalid coupon code.');
+      }
+    } catch {
       setAppliedCoupon('');
       setAppliedDiscount(0);
-      setCouponMessage('Invalid coupon code. Try "SPRING10" or "WELCOME20".');
+      setCouponMessage('Could not validate the coupon. Please try again.');
+    } finally {
+      setCouponValidating(false);
     }
   };
 
@@ -150,7 +505,7 @@ export default function CartPage() {
     setCouponMessage('');
   };
 
-  // Calculations — only over SELECTED items
+  // ── Totals ──
   const subtotal = selectedItems.reduce<number>(
     (acc, item) => acc + item.unitPrice * item.quantity,
     0,
@@ -161,17 +516,46 @@ export default function CartPage() {
   const shippingFee = (() => {
     if (deliveryMethod === 'pickup') return 0;
     if (subtotal === 0) return 0;
-    if (subtotal >= FREE_DELIVERY_THRESHOLD) return 0;
-    return DELIVERY_FEES[deliveryMethod];
+    if (subtotal >= cartConfig.freeDeliveryThreshold) return 0;
+    return cartConfig.deliveryFees[deliveryMethod];
   })();
 
-  const taxAmount = (subtotal - discountAmount) * TAX_RATE;
-  const total = subtotal - discountAmount + shippingFee + taxAmount;
+  // ── Tax + total — respecting prices_include_tax ──
+  const { taxAmount, total } = useMemo(() => {
+    const taxable = subtotal - discountAmount;
+    let tax = 0;
+    let tot = taxable + shippingFee;
 
-  const remainingForFreeShipping = Math.max(0, FREE_DELIVERY_THRESHOLD - subtotal);
+    if (cartConfig.taxEnabled) {
+      if (cartConfig.pricesIncludeTax) {
+        // Extract VAT from the subtotal — total unchanged.
+        tax = taxable * cartConfig.taxRate / (1 + cartConfig.taxRate);
+      } else {
+        // Add VAT on top.
+        tax = taxable * cartConfig.taxRate;
+        tot += tax;
+      }
+    }
+
+    // NaN guard — if config was malformed, fall back to a safe total.
+    if (!Number.isFinite(tot)) {
+      // eslint-disable-next-line no-console
+      console.error('Cart totals produced NaN — check config:', cartConfig);
+      tot = taxable + shippingFee;
+    }
+
+    return { taxAmount: tax, total: tot };
+  }, [subtotal, discountAmount, shippingFee, cartConfig]);
+
+  const taxPercent = Math.round(cartConfig.taxRate * 100);
+
+  const remainingForFreeShipping = Math.max(
+    0,
+    cartConfig.freeDeliveryThreshold - subtotal,
+  );
   const freeShippingProgress = Math.min(
     100,
-    (subtotal / FREE_DELIVERY_THRESHOLD) * 100,
+    (subtotal / cartConfig.freeDeliveryThreshold) * 100,
   );
 
   const estimatedDelivery = (() => {
@@ -201,30 +585,122 @@ export default function CartPage() {
     router.push(`/pages/checkout?${params.toString()}`);
   };
 
-  const handleWhatsAppOrder = () => {
+  // ── WhatsApp handoff ──
+  const handleWhatsAppOrder = async (): Promise<void> => {
     if (selectedItems.length === 0) {
       alert('Please select at least one item to send via WhatsApp.');
       return;
     }
-    const itemsText = selectedItems
-      .map(
-        (item) =>
-          `• ${item.name} (x${item.quantity}) - ${formatKES(item.unitPrice * item.quantity)}`,
-      )
-      .join('%0A');
 
-    const shippingText =
-      shippingFee === 0 ? 'FREE' : formatKES(shippingFee);
+    setWhatsappMessage(null);
 
-    const message = `Hello! I would like to place an order:%0A%0A${itemsText}%0A%0ASubtotal: ${formatKES(
-      subtotal,
-    )}%0ADiscount: -${formatKES(discountAmount)}%0AShipping (${deliveryMethod}): ${shippingText}%0AVAT (16%): ${formatKES(
-      taxAmount,
-    )}%0A%0A*Total: ${formatKES(total)}*${orderNotes ? `%0A%0ANotes: ${encodeURIComponent(orderNotes)}` : ''
-      }`;
+    // ── Anonymous fallback ──
+    if (!isAuthed) {
+      const itemsText = selectedItems
+        .map(
+          (item) =>
+            `• ${item.name} (x${item.quantity}) - ${formatKES(item.unitPrice * item.quantity)}`,
+        )
+        .join('%0A');
 
-    const phoneNumber = '254712345678';
-    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+      const shippingText = shippingFee === 0 ? 'FREE' : formatKES(shippingFee);
+
+      const message = `Hello! I would like to place an order:%0A%0A${itemsText}%0A%0ASubtotal: ${formatKES(
+        subtotal,
+      )}%0ADiscount: -${formatKES(discountAmount)}%0AShipping (${deliveryMethod}): ${shippingText}%0AVAT (${taxPercent}%): ${formatKES(
+        taxAmount,
+      )}%0A%0A*Total: ${formatKES(total)}*${orderNotes ? `%0A%0ANotes: ${encodeURIComponent(orderNotes)}` : ''
+        }`;
+
+      window.open(`https://wa.me/254712345678?text=${message}`, '_blank');
+      return;
+    }
+
+    // ── Authenticated handoff ──
+    setWhatsappBusy(true);
+
+    try {
+      const result = await whatsappApi.cartHandoff({
+        items: selectedItems.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+        })),
+        delivery: deliveryMethod,
+        coupon: appliedCoupon || null,
+        notes: orderNotes.trim() || null,
+      });
+
+      switch (result.status) {
+        case 'sent':
+          setWhatsappMessage({
+            kind: 'success',
+            text:
+              result.message ||
+              'Cart sent to your WhatsApp. Tap the link there to continue.',
+          });
+          break;
+
+        case 'fallback':
+          if (result.checkout_url) {
+            window.open(result.checkout_url, '_blank', 'noopener,noreferrer');
+          }
+          setWhatsappMessage({
+            kind: 'info',
+            text:
+              result.message ||
+              'Opening secure web checkout to complete your order…',
+          });
+          break;
+
+        case 'unverified':
+          setWhatsappMessage({
+            kind: 'error',
+            text:
+              result.message ||
+              'Verify your WhatsApp number in account settings to continue.',
+          });
+          break;
+
+        case 'disabled':
+          setWhatsappMessage({
+            kind: 'error',
+            text:
+              result.message ||
+              'WhatsApp checkout is currently unavailable. Please use web checkout.',
+          });
+          break;
+
+        default:
+          setWhatsappMessage({
+            kind: 'info',
+            text: result.message || 'WhatsApp handoff completed.',
+          });
+      }
+    } catch (err) {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.code === 'UNVERIFIED'
+      ) {
+        setWhatsappMessage({
+          kind: 'error',
+          text:
+            'Verify your WhatsApp number in account settings to continue.',
+        });
+      } else if (err instanceof ApiError && err.status === 401) {
+        setWhatsappMessage({
+          kind: 'error',
+          text: 'Please sign in again to use WhatsApp checkout.',
+        });
+      } else {
+        setWhatsappMessage({
+          kind: 'error',
+          text: 'Could not start WhatsApp checkout. Please try again.',
+        });
+      }
+    } finally {
+      setWhatsappBusy(false);
+    }
   };
 
   const totalUnits = items.reduce((acc, item) => acc + item.quantity, 0);
@@ -256,7 +732,8 @@ export default function CartPage() {
             {items.length > 0 && (
               <button
                 onClick={handleClearCart}
-                className="text-[13px] font-medium text-red-600 hover:underline inline-flex items-center gap-1"
+                disabled={busyAll}
+                className="text-[13px] font-medium text-red-600 hover:underline inline-flex items-center gap-1 disabled:opacity-50"
               >
                 <Trash2 className="w-3 h-3" />
                 Clear cart
@@ -268,7 +745,26 @@ export default function CartPage() {
           </div>
         </div>
 
-        {items.length > 0 ? (
+        {/* Error banner */}
+        {errorMessage && (
+          <div className="bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-center justify-between gap-2">
+            <span className="text-[13px] text-red-700">{errorMessage}</span>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-red-500 hover:text-red-700"
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {isInitialLoading ? (
+          <div className="bg-white border border-slate-200 rounded-sm py-16 flex flex-col items-center gap-2">
+            <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+            <p className="text-[13px] text-slate-500">Loading your cart…</p>
+          </div>
+        ) : items.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
             {/* LEFT — items, promo, delivery */}
             <div className="lg:col-span-8 space-y-3">
@@ -333,12 +829,13 @@ export default function CartPage() {
               {/* Items list */}
               <div className="bg-white border border-slate-200 rounded-sm divide-y divide-slate-100">
                 {items.map((item) => {
-                  const isLowStock =
-                    item.stockCount !== undefined && item.stockCount <= 3;
+                  const isLowStock = item.stockCount > 0 && item.stockCount <= 3;
+                  const isBusy = busyItemId === item.id;
                   return (
                     <div
                       key={item.id}
-                      className="p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
+                      className={`p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors ${isBusy ? 'opacity-50' : 'hover:bg-slate-50/50'
+                        }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <button
@@ -380,8 +877,7 @@ export default function CartPage() {
                             >
                               {isLowStock && <AlertTriangle className="w-3 h-3" />}
                               {item.stock}
-                              {item.stockCount !== undefined &&
-                                ` • Max ${item.stockCount}`}
+                              {item.stockCount > 0 && ` • Max ${item.stockCount}`}
                             </p>
                           )}
                           <div className="flex items-baseline gap-2 pt-0.5">
@@ -398,13 +894,13 @@ export default function CartPage() {
                       </div>
 
                       <div className="flex items-center justify-between w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 gap-3">
-                        {/* Save for later */}
                         <button
                           onClick={() => {
                             handleRemoveItem(item.id);
                             alert(`"${item.name}" saved to your wishlist.`);
                           }}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-sm hover:bg-rose-50 transition"
+                          disabled={isBusy}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-sm hover:bg-rose-50 transition disabled:opacity-50"
                           title="Save for later"
                         >
                           <Heart className="w-4 h-4" />
@@ -415,7 +911,8 @@ export default function CartPage() {
                             onClick={() =>
                               handleUpdateQuantity(item, item.quantity - 1)
                             }
-                            className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
+                            disabled={isBusy || item.quantity <= 1}
+                            className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 transition disabled:opacity-50"
                             aria-label="Decrease quantity"
                           >
                             <Minus className="w-3 h-3" />
@@ -427,7 +924,12 @@ export default function CartPage() {
                             onClick={() =>
                               handleUpdateQuantity(item, item.quantity + 1)
                             }
-                            className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
+                            disabled={
+                              isBusy ||
+                              (item.stockCount > 0 &&
+                                item.quantity >= item.stockCount)
+                            }
+                            className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 transition disabled:opacity-50"
                             aria-label="Increase quantity"
                           >
                             <Plus className="w-3 h-3" />
@@ -442,7 +944,8 @@ export default function CartPage() {
 
                         <button
                           onClick={() => handleRemoveItem(item.id)}
-                          className="text-slate-400 hover:text-red-600 p-1.5 rounded-sm hover:bg-red-50 transition"
+                          disabled={isBusy}
+                          className="text-slate-400 hover:text-red-600 p-1.5 rounded-sm hover:bg-red-50 transition disabled:opacity-50"
                           aria-label="Remove item"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -471,7 +974,7 @@ export default function CartPage() {
                 {appliedCoupon ? (
                   <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1.5">
                     <span className="text-[13px] font-medium text-emerald-700">
-                      {appliedCoupon} applied — {appliedDiscount * 100}% off
+                      {appliedCoupon} applied — {Math.round(appliedDiscount * 100)}% off
                     </span>
                     <button
                       onClick={handleRemoveCoupon}
@@ -490,14 +993,23 @@ export default function CartPage() {
                       type="text"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value)}
-                      placeholder="Enter coupon (e.g. SPRING10)"
-                      className="flex-1 bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                      placeholder="Enter coupon code"
+                      disabled={couponValidating}
+                      className="flex-1 bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
                     />
                     <button
                       type="submit"
-                      className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                      disabled={couponValidating || !couponCode.trim()}
+                      className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                     >
-                      Apply
+                      {couponValidating ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Checking…
+                        </>
+                      ) : (
+                        'Apply'
+                      )}
                     </button>
                   </form>
                 )}
@@ -510,11 +1022,6 @@ export default function CartPage() {
                     {couponMessage}
                   </p>
                 )}
-
-                <p className="text-[13px] text-slate-400">
-                  Try <span className="font-mono">SPRING10</span> or{' '}
-                  <span className="font-mono">WELCOME20</span>
-                </p>
               </div>
 
               {/* Delivery method */}
@@ -530,21 +1037,21 @@ export default function CartPage() {
                         id: 'standard' as const,
                         label: 'Standard',
                         sub: '3–5 days',
-                        price: DELIVERY_FEES.standard,
+                        price: cartConfig.deliveryFees.standard,
                         icon: Truck,
                       },
                       {
                         id: 'express' as const,
                         label: 'Express',
                         sub: '24–48 hours',
-                        price: DELIVERY_FEES.express,
+                        price: cartConfig.deliveryFees.express,
                         icon: Zap,
                       },
                       {
                         id: 'pickup' as const,
                         label: 'Store pickup',
                         sub: 'Ready in 1h',
-                        price: DELIVERY_FEES.pickup,
+                        price: cartConfig.deliveryFees.pickup,
                         icon: Store,
                       },
                     ]
@@ -553,7 +1060,7 @@ export default function CartPage() {
                     const freeForOrder =
                       id !== 'pickup' &&
                       subtotal > 0 &&
-                      subtotal >= FREE_DELIVERY_THRESHOLD;
+                      subtotal >= cartConfig.freeDeliveryThreshold;
 
                     return (
                       <button
@@ -561,8 +1068,8 @@ export default function CartPage() {
                         type="button"
                         onClick={() => setDeliveryMethod(id)}
                         className={`p-2 rounded-sm border text-left transition flex items-start gap-2 ${active
-                            ? 'border-blue-950 bg-blue-50'
-                            : 'border-slate-200 hover:bg-slate-50'
+                          ? 'border-blue-950 bg-blue-50'
+                          : 'border-slate-200 hover:bg-slate-50'
                           }`}
                       >
                         <Icon
@@ -595,10 +1102,9 @@ export default function CartPage() {
                     {estimatedDelivery}
                   </span>
                 </p>
-                {subtotal > 0 && subtotal < FREE_DELIVERY_THRESHOLD && (
+                {subtotal > 0 && subtotal < cartConfig.freeDeliveryThreshold && (
                   <p className="text-[13px] text-slate-400">
-                    Free delivery on orders over{' '}
-                    {formatKES(FREE_DELIVERY_THRESHOLD)}
+                    Free delivery on orders over {formatKES(cartConfig.freeDeliveryThreshold)}
                   </p>
                 )}
               </div>
@@ -638,7 +1144,7 @@ export default function CartPage() {
                   </div>
                   {appliedDiscount > 0 && (
                     <div className="flex justify-between text-emerald-600 font-medium">
-                      <span>Discount ({appliedDiscount * 100}%)</span>
+                      <span>Discount ({Math.round(appliedDiscount * 100)}%)</span>
                       <span>- {formatKES(discountAmount)}</span>
                     </div>
                   )}
@@ -648,12 +1154,17 @@ export default function CartPage() {
                       {shippingFee === 0 ? 'Free' : formatKES(shippingFee)}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>VAT (16%)</span>
-                    <span className="font-medium text-slate-900">
-                      {formatKES(taxAmount)}
-                    </span>
-                  </div>
+                  {cartConfig.taxEnabled && (
+                    <div className="flex justify-between">
+                      <span>
+                        VAT ({taxPercent}%
+                        {cartConfig.pricesIncludeTax ? ' included' : ''})
+                      </span>
+                      <span className="font-medium text-slate-900">
+                        {formatKES(taxAmount)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -687,23 +1198,58 @@ export default function CartPage() {
                   />
                 </div>
 
-                {/* WhatsApp */}
+                {/* WhatsApp handoff */}
                 <button
                   type="button"
-                  onClick={handleWhatsAppOrder}
-                  disabled={selectedItems.length === 0}
+                  onClick={() => {
+                    void handleWhatsAppOrder();
+                  }}
+                  disabled={selectedItems.length === 0 || whatsappBusy}
                   className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-medium py-2 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="w-4 h-4"
-                  >
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                  </svg>
-                  <span>Continue with WhatsApp</span>
+                  {whatsappBusy ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending…</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="w-4 h-4"
+                      >
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                      <span>Continue with WhatsApp</span>
+                    </>
+                  )}
                 </button>
+
+                {/* WhatsApp handoff feedback */}
+                {whatsappMessage && (
+                  <div
+                    className={`flex items-start justify-between gap-2 rounded-sm border px-2 py-1.5 ${whatsappMessage.kind === 'success'
+                      ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                      : whatsappMessage.kind === 'error'
+                        ? 'bg-red-50 border-red-100 text-red-700'
+                        : 'bg-blue-50 border-blue-100 text-blue-800'
+                      }`}
+                  >
+                    <span className="text-[13px] leading-snug">
+                      {whatsappMessage.text}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setWhatsappMessage(null)}
+                      className="shrink-0 opacity-70 hover:opacity-100"
+                      aria-label="Dismiss"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
 
                 {/* Trust row */}
                 <div className="flex flex-col items-center gap-1.5 pt-1">

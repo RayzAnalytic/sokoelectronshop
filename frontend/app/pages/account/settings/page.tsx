@@ -12,6 +12,7 @@ import {
     type Address,
     type AddressInput,
 } from '@/lib/api';
+import { refreshAuth } from '@/lib/hooks/use-auth';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -53,11 +54,22 @@ const emptyAddressDraft = (): AddressInput => ({
 function extractFieldErrors(data: unknown): Record<string, string> {
     if (!data || typeof data !== 'object') return {};
     const out: Record<string, string> = {};
+
     for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
         if (Array.isArray(value) && value.length > 0) {
-            out[key] = String(value[0]);
+            const first = value[0];
+            if (typeof first === 'string') {
+                out[key] = first;
+            } else if (first && typeof first === 'object') {
+                const firstInner = Object.values(first as Record<string, unknown>)[0];
+                out[key] = Array.isArray(firstInner)
+                    ? String(firstInner[0])
+                    : String(firstInner);
+            }
         } else if (typeof value === 'string') {
             out[key] = value;
+        } else if (value && typeof value === 'object') {
+            out[key] = String(value);
         }
     }
     return out;
@@ -189,6 +201,10 @@ export default function SettingsPage() {
                 email: updated.email,
                 phone: updated.phone,
             });
+            // Keep the auth cache in sync — the header, checkout page,
+            // and any other component reading `useAuth().me` picks up
+            // the new name/phone without a full page reload.
+            void refreshAuth();
             flash('Profile updated.');
         } catch (err) {
             flash(
@@ -253,12 +269,21 @@ export default function SettingsPage() {
             flash('Password updated.');
         } catch (err) {
             if (err instanceof ApiError && err.status === 400) {
-                // Backend returns { current_password: [...], new_password: [...] }
                 const fields = extractFieldErrors(err.data);
                 const mapped: Record<string, string> = {};
+
                 if (fields.current_password) mapped.current = fields.current_password;
                 if (fields.new_password) mapped.next = fields.new_password;
-                setPasswordErrors(mapped);
+                if (fields.new_password2) mapped.confirm = fields.new_password2;
+                if (fields.non_field_errors && !mapped.next) {
+                    mapped.next = fields.non_field_errors;
+                }
+
+                if (Object.keys(mapped).length === 0) {
+                    flash(err.message || 'Could not update password.');
+                } else {
+                    setPasswordErrors(mapped);
+                }
             } else {
                 flash(
                     err instanceof ApiError
@@ -324,7 +349,6 @@ export default function SettingsPage() {
     const saveAddress = async () => {
         if (!addressModal) return;
 
-        // Client-side required check — matches the backend serializer.
         const errors: Record<string, string> = {};
         if (!addressModal.draft.label.trim()) errors.label = 'Label is required';
         if (!addressModal.draft.full_name.trim())
@@ -385,7 +409,6 @@ export default function SettingsPage() {
         if (!deleteAddressTarget) return;
         const target = deleteAddressTarget;
 
-        // Optimistic remove.
         const previous = addresses;
         setAddresses((prev) => prev.filter((a) => a.id !== target.id));
         setDeleteAddressTarget(null);
@@ -394,12 +417,8 @@ export default function SettingsPage() {
             await accountApi.addresses.remove(target.id);
             flash('Address removed.');
 
-            // If we removed the default, the backend promotes another.
-            // Refetch to sync.
-            if (target.is_default) {
-                const list = await accountApi.addresses.list();
-                setAddresses(list);
-            }
+            const list = await accountApi.addresses.list();
+            setAddresses(list);
         } catch (err) {
             setAddresses(previous);
             flash(
@@ -418,10 +437,11 @@ export default function SettingsPage() {
         setDeleteAccountBusy(true);
         try {
             await accountApi.profile.delete();
-            // Backend logs us out server-side. Force the browser to the home page.
             window.location.href = '/';
         } catch (err) {
             setDeleteAccountBusy(false);
+            setDeleteAccountOpen(false);
+            setDeleteAccountConfirm('');
             flash(
                 err instanceof ApiError
                     ? err.message || 'Could not delete account.'
@@ -454,7 +474,7 @@ export default function SettingsPage() {
             if (e.key !== 'Escape') return;
             if (addressModal) closeAddressModal();
             else if (deleteAddressTarget) setDeleteAddressTarget(null);
-            else if (deleteAccountOpen) {
+            else if (deleteAccountOpen && !deleteAccountBusy) {
                 setDeleteAccountOpen(false);
                 setDeleteAccountConfirm('');
             }
@@ -462,7 +482,7 @@ export default function SettingsPage() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [addressModal, deleteAddressTarget, deleteAccountOpen, addressSaving]);
+    }, [addressModal, deleteAddressTarget, deleteAccountOpen, addressSaving, deleteAccountBusy]);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Loading state
@@ -546,10 +566,9 @@ export default function SettingsPage() {
                             <Field
                                 label="Email"
                                 value={profile.email}
-                                onChange={() => { }}
                                 icon={<Mail className="h-3.5 w-3.5" />}
                                 type="email"
-                                readOnly
+                                disabled
                                 hint="Contact support to change your email address."
                             />
                             <Field
@@ -567,6 +586,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={saveProfile}
                                 disabled={profileSaving}
+                                aria-busy={profileSaving}
                                 className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {profileSaving ? (
@@ -644,6 +664,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={updatePassword}
                                 disabled={passwordSaving}
+                                aria-busy={passwordSaving}
                                 className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {passwordSaving ? (
@@ -782,6 +803,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={savePreferences}
                                 disabled={prefsSaving}
+                                aria-busy={prefsSaving}
                                 className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {prefsSaving ? (
@@ -828,9 +850,9 @@ export default function SettingsPage() {
 
             {/* Toast */}
             {savedMsg && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-center gap-2">
-                    <Check className="h-4 w-4 text-emerald-400" />
-                    {savedMsg}
+                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{savedMsg}</span>
                 </div>
             )}
 
@@ -946,6 +968,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={saveAddress}
                                 disabled={addressSaving}
+                                aria-busy={addressSaving}
                                 className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {addressSaving ? (
@@ -1063,6 +1086,7 @@ export default function SettingsPage() {
                                     deleteAccountConfirm !== 'DELETE' ||
                                     deleteAccountBusy
                                 }
+                                aria-busy={deleteAccountBusy}
                                 className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 {deleteAccountBusy ? (
@@ -1172,19 +1196,24 @@ function Field({
     icon,
     placeholder,
     error,
-    readOnly,
+    disabled,
     hint,
 }: {
     label: string;
     value: string;
-    onChange: (v: string) => void;
+    onChange?: (v: string) => void;
     type?: string;
     icon?: React.ReactNode;
     placeholder?: string;
     error?: string;
-    readOnly?: boolean;
+    disabled?: boolean;
     hint?: string;
 }) {
+    // A missing `onChange` makes the field implicitly read-only. This
+    // replaces the old `readOnly` prop — a disabled input is visually
+    // and interactively distinct, and doesn't get tabbed into.
+    const isReadOnly = !onChange;
+
     return (
         <label className="block">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
@@ -1199,14 +1228,14 @@ function Field({
                 <input
                     type={type}
                     value={value}
-                    onChange={(e) => onChange(e.target.value)}
+                    onChange={(e) => onChange?.(e.target.value)}
                     placeholder={placeholder}
-                    readOnly={readOnly}
+                    disabled={disabled || isReadOnly}
                     className={`w-full bg-slate-50 border rounded-sm py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 ${icon ? 'pl-9 pr-3' : 'px-3'
                         } ${error
                             ? 'border-red-400 focus:ring-red-600'
                             : 'border-slate-200 focus:ring-blue-950'
-                        } ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                        } ${disabled || isReadOnly ? 'cursor-not-allowed opacity-60' : ''}`}
                 />
             </div>
             {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}

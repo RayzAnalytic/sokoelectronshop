@@ -23,18 +23,102 @@ import {
 } from 'lucide-react';
 import {
     type Banner,
-    type Placement,
-    type Status,
-    type Alignment,
-    type Overlay,
-    SEED_BANNERS,
-    loadBanners,
-    saveBanners,
-    resetBanners,
-    ctr,
-    fmt,
-    fmtDate,
-} from '@/lib/bannerStore';
+    type BannerPlacement as Placement,
+    type BannerStatus as Status,
+    type BannerAlignment as Alignment,
+    type BannerOverlay as Overlay,
+    type BannerWriteInput,
+    type BannerStats,
+    ApiError,
+} from '@/lib/api';
+import { adminApi } from '@/lib/admin-api';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Local helpers (mirror the old bannerStore's fmt/fmtDate)
+// ─────────────────────────────────────────────────────────────────────────────
+function fmt(n: number): string {
+    return n.toLocaleString('en-KE');
+}
+
+function fmtDate(iso: string | null): string {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-KE', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    });
+}
+
+/** ISO → `YYYY-MM-DDTHH:mm` for <input type="datetime-local">. */
+function isoToLocalInput(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return (
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+        `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    );
+}
+
+/** `YYYY-MM-DDTHH:mm` (local) → ISO string, or null if empty. */
+function localInputToIso(local: string): string | null {
+    if (!local) return null;
+    const d = new Date(local);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Strip read-only fields before hitting the API. */
+function toWriteInput(b: Banner | BannerWriteInput): BannerWriteInput {
+    if (!('impressions' in b)) return b as BannerWriteInput;
+    const {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        impressions, clicks, conversions, ctr, cvr,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        created_at, updated_at,
+        ...write
+    } = b as Banner;
+    // Only forward `id` when it's a real persisted id.
+    return write.id ? write : (({ id: _ignored, ...rest }) => rest)(write);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Banner image upload — multipart to /api/v1/admin/banners/uploads/
+// ─────────────────────────────────────────────────────────────────────────────
+async function uploadBannerImage(
+    file: File,
+    kind: 'desktop' | 'tablet' | 'mobile',
+    signal?: AbortSignal,
+): Promise<string> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('kind', kind);
+
+    const csrf = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('csrftoken='))
+        ?.split('=')[1] ?? '';
+
+    const res = await fetch('/api/v1/admin/banners/uploads/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-CSRFToken': csrf },
+        body: form,
+        signal,
+    });
+
+    if (!res.ok) {
+        let detail = `Upload failed (${res.status})`;
+        try {
+            const data = (await res.json()) as { detail?: string };
+            if (data?.detail) detail = data.detail;
+        } catch { /* not JSON */ }
+        throw new Error(detail);
+    }
+
+    const data = (await res.json()) as { url: string };
+    return data.url;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -63,7 +147,9 @@ const selectCls =
 // ─────────────────────────────────────────────────────────────────────────────
 export default function BannersPage() {
     const [banners, setBanners] = useState<Banner[]>([]);
-    const [hydrated, setHydrated] = useState(false);
+    const [stats, setStats] = useState<BannerStats | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     const [view, setView] = useState<'grid' | 'table'>('grid');
     const [query, setQuery] = useState('');
@@ -75,16 +161,43 @@ export default function BannersPage() {
     const [previewing, setPreviewing] = useState<Banner | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<Banner | null>(null);
     const [toast, setToast] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [resetting, setResetting] = useState(false);
 
+    // ── Load ──────────────────────────────────────────────────────────────
     useEffect(() => {
-        setBanners(loadBanners());
-        setHydrated(true);
+        const ctrl = new AbortController();
+        let cancelled = false;
+
+        (async () => {
+            setLoading(true);
+            setError('');
+            try {
+                const [list, s] = await Promise.all([
+                    adminApi.banners.list({}, ctrl.signal),
+                    adminApi.banners.stats(ctrl.signal),
+                ]);
+                if (cancelled) return;
+                setBanners(list);
+                setStats(s);
+            } catch (err) {
+                if (cancelled) return;
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                setError(
+                    err instanceof Error ? err.message : 'Could not load banners.',
+                );
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            ctrl.abort();
+        };
     }, []);
 
-    useEffect(() => {
-        if (hydrated) saveBanners(banners);
-    }, [banners, hydrated]);
-
+    // ── Derived list ──────────────────────────────────────────────────────
     const filtered = useMemo(() => {
         let list = [...banners];
         if (query.trim()) {
@@ -107,7 +220,7 @@ export default function BannersPage() {
                 list.sort((a, b) => a.name.localeCompare(b.name));
                 break;
             case 'ctr':
-                list.sort((a, b) => ctr(b) - ctr(a));
+                list.sort((a, b) => b.ctr - a.ctr);
                 break;
             default:
                 list.sort((a, b) => a.order - b.order);
@@ -120,52 +233,117 @@ export default function BannersPage() {
         setTimeout(() => setToast(''), 2200);
     }
 
-    function save(draft: Banner) {
-        setBanners((prev) => {
-            const exists = prev.some((b) => b.id === draft.id);
-            return exists
-                ? prev.map((b) => (b.id === draft.id ? draft : b))
-                : [...prev, { ...draft, id: Math.max(0, ...prev.map((p) => p.id)) + 1 }];
-        });
-        setEditing(null);
-        flash('Banner saved');
+    async function refreshStats() {
+        try {
+            const s = await adminApi.banners.stats();
+            setStats(s);
+        } catch {
+            /* swallow — the list is still valid */
+        }
     }
 
-    function duplicate(b: Banner) {
-        const copy: Banner = {
-            ...b,
-            id: Math.max(0, ...banners.map((p) => p.id)) + 1,
-            name: `${b.name} (copy)`,
-            status: 'DRAFT',
-            impressions: 0,
-            clicks: 0,
-            conversions: 0,
-            updated_at: new Date().toISOString(),
-        };
-        setBanners((prev) => [...prev, copy]);
-        flash('Banner duplicated');
+    async function refreshAll() {
+        const [list, s] = await Promise.all([
+            adminApi.banners.list(),
+            adminApi.banners.stats(),
+        ]);
+        setBanners(list);
+        setStats(s);
     }
 
-    function toggle(b: Banner) {
-        setBanners((prev) =>
-            prev.map((p) =>
-                p.id === b.id
-                    ? { ...p, status: p.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE' }
-                    : p,
-            ),
-        );
-        flash(b.status === 'ACTIVE' ? 'Deactivated' : 'Activated');
+    // ── Mutations ─────────────────────────────────────────────────────────
+    async function save(draft: Banner) {
+        setSaving(true);
+        try {
+            const payload = toWriteInput(draft);
+            const saved = draft.id
+                ? await adminApi.banners.update(draft.id, payload)
+                : await adminApi.banners.create(payload);
+
+            setBanners((prev) => {
+                const exists = prev.some((b) => b.id === saved.id);
+                return exists
+                    ? prev.map((b) => (b.id === saved.id ? saved : b))
+                    : [...prev, saved];
+            });
+
+            setEditing(null);
+            flash('Banner saved');
+            void refreshStats();
+        } catch (err) {
+            if (err instanceof ApiError) {
+                alert(err.message);
+            } else {
+                alert(err instanceof Error ? err.message : 'Could not save banner.');
+            }
+        } finally {
+            setSaving(false);
+        }
     }
 
-    function remove(b: Banner) {
-        setBanners((prev) => prev.filter((p) => p.id !== b.id));
-        setConfirmDelete(null);
-        flash('Banner deleted');
+    async function duplicate(b: Banner) {
+        try {
+            const copy = await adminApi.banners.duplicate(b.id);
+            setBanners((prev) => [...prev, copy]);
+            flash('Banner duplicated');
+            void refreshStats();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Could not duplicate banner.');
+        }
     }
 
+    async function toggle(b: Banner) {
+        try {
+            const updated = await adminApi.banners.toggle(b.id);
+            setBanners((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            flash(
+                b.status === 'ACTIVE'
+                    ? 'Deactivated'
+                    : 'Activated',
+            );
+            void refreshStats();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Could not toggle banner.');
+        }
+    }
+
+    async function remove(b: Banner) {
+        try {
+            await adminApi.banners.remove(b.id);
+            setBanners((prev) => prev.filter((p) => p.id !== b.id));
+            setConfirmDelete(null);
+            flash('Banner deleted');
+            void refreshStats();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Could not delete banner.');
+        }
+    }
+
+    async function handleReset() {
+        if (
+            !confirm(
+                'Reset all banners to the demo seed? Your uploads will be lost.',
+            )
+        ) {
+            return;
+        }
+        setResetting(true);
+        try {
+            await adminApi.banners.reset();
+            await refreshAll();
+            flash('Reset to seed');
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Reset failed.');
+        } finally {
+            setResetting(false);
+        }
+    }
+
+    // ── Blank new-banner draft ────────────────────────────────────────────
     function blank(): Banner {
+        const now = new Date().toISOString();
         return {
-            id: 0,
+            id: 0, // sentinel — 0 means "not yet persisted"
             name: '',
             placement: 'HOME_HERO',
             order: banners.length + 1,
@@ -183,24 +361,20 @@ export default function BannersPage() {
             overlay_style: 'GRADIENT',
             overlay_opacity: 80,
             status: 'DRAFT',
-            start_at: '',
-            end_at: '',
+            start_at: null,
+            end_at: null,
             impressions: 0,
             clicks: 0,
             conversions: 0,
-            updated_at: new Date().toISOString(),
+            ctr: 0,
+            cvr: 0,
+            created_at: now,
+            updated_at: now,
         };
     }
 
-    const stats = useMemo(() => {
-        const active = banners.filter((b) => b.status === 'ACTIVE').length;
-        const totalImpr = banners.reduce((s, b) => s + b.impressions, 0);
-        const totalClicks = banners.reduce((s, b) => s + b.clicks, 0);
-        const totalConv = banners.reduce((s, b) => s + b.conversions, 0);
-        return { active, totalImpr, totalClicks, totalConv };
-    }, [banners]);
-
-    if (!hydrated) {
+    // ── Loading / error ───────────────────────────────────────────────────
+    if (loading) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
                 <svg
@@ -226,6 +400,28 @@ export default function BannersPage() {
         );
     }
 
+    if (error) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+                <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-6 text-center">
+                    <div className="w-12 h-12 mx-auto rounded-sm bg-rose-50 text-rose-600 flex items-center justify-center">
+                        <X className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-[15px] font-semibold text-slate-900 mt-3">
+                        Could not load banners
+                    </h3>
+                    <p className="text-[13px] text-slate-500 mt-1">{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="mt-4 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
 
@@ -240,20 +436,11 @@ export default function BannersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => {
-                                if (
-                                    confirm(
-                                        'Reset all banners to the demo seed? Your uploads will be lost.',
-                                    )
-                                ) {
-                                    resetBanners();
-                                    setBanners(SEED_BANNERS);
-                                    flash('Reset to seed');
-                                }
-                            }}
-                            className="text-[13px] text-slate-500 hover:text-slate-800 px-2 py-2 hidden sm:inline"
+                            onClick={handleReset}
+                            disabled={resetting}
+                            className="text-[13px] text-slate-500 hover:text-slate-800 px-2 py-2 hidden sm:inline disabled:opacity-50"
                         >
-                            Reset demo
+                            {resetting ? 'Resetting…' : 'Reset demo'}
                         </button>
                         <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200">
                             <button
@@ -287,10 +474,10 @@ export default function BannersPage() {
                 {/* ── Summary cards ──────────────────────────────────────── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                        { label: 'Active banners', value: stats.active.toString(), icon: Power, color: 'text-emerald-700 bg-emerald-50' },
-                        { label: 'Impressions', value: fmt(stats.totalImpr), icon: Eye, color: 'text-blue-950 bg-blue-50' },
-                        { label: 'Clicks', value: fmt(stats.totalClicks), icon: ArrowRight, color: 'text-indigo-700 bg-indigo-50' },
-                        { label: 'Conversions', value: fmt(stats.totalConv), icon: Copy, color: 'text-amber-700 bg-amber-50' },
+                        { label: 'Active banners', value: (stats?.active ?? 0).toString(), icon: Power, color: 'text-emerald-700 bg-emerald-50' },
+                        { label: 'Impressions', value: fmt(stats?.impressions ?? 0), icon: Eye, color: 'text-blue-950 bg-blue-50' },
+                        { label: 'Clicks', value: fmt(stats?.clicks ?? 0), icon: ArrowRight, color: 'text-indigo-700 bg-indigo-50' },
+                        { label: 'Conversions', value: fmt(stats?.conversions ?? 0), icon: Copy, color: 'text-amber-700 bg-amber-50' },
                     ].map((s) => (
                         <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
                             <div className="flex items-center gap-1.5">
@@ -364,8 +551,8 @@ export default function BannersPage() {
                                 banner={b}
                                 onEdit={() => setEditing(b)}
                                 onPreview={() => setPreviewing(b)}
-                                onDuplicate={() => duplicate(b)}
-                                onToggle={() => toggle(b)}
+                                onDuplicate={() => void duplicate(b)}
+                                onToggle={() => void toggle(b)}
                                 onDelete={() => setConfirmDelete(b)}
                             />
                         ))}
@@ -375,8 +562,8 @@ export default function BannersPage() {
                         banners={filtered}
                         onEdit={setEditing}
                         onPreview={setPreviewing}
-                        onDuplicate={duplicate}
-                        onToggle={toggle}
+                        onDuplicate={(b) => void duplicate(b)}
+                        onToggle={(b) => void toggle(b)}
                         onDelete={setConfirmDelete}
                     />
                 )}
@@ -386,6 +573,7 @@ export default function BannersPage() {
             {editing && (
                 <BannerEditor
                     initial={editing}
+                    saving={saving}
                     onSave={save}
                     onClose={() => setEditing(null)}
                 />
@@ -423,7 +611,7 @@ export default function BannersPage() {
                                 Cancel
                             </button>
                             <button
-                                onClick={() => remove(confirmDelete)}
+                                onClick={() => void remove(confirmDelete)}
                                 className="bg-red-600 hover:bg-red-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
                             >
                                 Delete
@@ -491,7 +679,7 @@ function BannerCard({
             {/* Mini stats */}
             <div className="grid grid-cols-3 gap-1 pt-2 border-t border-slate-100">
                 <MiniStat label="Impr." value={fmt(banner.impressions)} />
-                <MiniStat label="CTR" value={`${ctr(banner).toFixed(1)}%`} />
+                <MiniStat label="CTR" value={`${banner.ctr.toFixed(1)}%`} />
                 <MiniStat label="Conv." value={fmt(banner.conversions)} />
             </div>
 
@@ -633,7 +821,7 @@ function BannerTable({
                                     {fmt(b.impressions)}
                                 </td>
                                 <td className="py-2 px-3 text-right text-slate-700 tabular-nums">
-                                    {ctr(b).toFixed(1)}%
+                                    {b.ctr.toFixed(1)}%
                                 </td>
                                 <td className="py-2 px-3 text-right text-slate-700 tabular-nums">
                                     {fmt(b.conversions)}
@@ -866,7 +1054,7 @@ function PreviewModal({
 
                 <div className="grid grid-cols-3 divide-x divide-slate-200 border-t border-slate-200 shrink-0">
                     <PreviewStat label="Impressions" value={fmt(banner.impressions)} />
-                    <PreviewStat label="CTR" value={`${ctr(banner).toFixed(2)}%`} />
+                    <PreviewStat label="CTR" value={`${banner.ctr.toFixed(2)}%`} />
                     <PreviewStat label="Conversions" value={fmt(banner.conversions)} />
                 </div>
             </div>
@@ -892,11 +1080,13 @@ function PreviewStat({ label, value }: { label: string; value: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function BannerEditor({
     initial,
+    saving,
     onSave,
     onClose,
 }: {
     initial: Banner;
-    onSave: (b: Banner) => void;
+    saving: boolean;
+    onSave: (b: Banner) => void | Promise<void>;
     onClose: () => void;
 }) {
     const [draft, setDraft] = useState<Banner>(initial);
@@ -917,7 +1107,7 @@ function BannerEditor({
             alert('Please upload a desktop image.');
             return;
         }
-        onSave({ ...draft, updated_at: new Date().toISOString() });
+        void onSave({ ...draft, updated_at: new Date().toISOString() });
     }
 
     return (
@@ -1075,7 +1265,7 @@ function BannerEditor({
                                 hint="Recommended 1920×840. Drag & drop or click."
                                 value={draft.desktop_image}
                                 onChange={(v) => update('desktop_image', v)}
-                                maxWidth={1920}
+                                uploadKind="desktop"
                                 aspect="16 / 7"
                             />
 
@@ -1084,7 +1274,7 @@ function BannerEditor({
                                 hint="Falls back to desktop if empty."
                                 value={draft.tablet_image}
                                 onChange={(v) => update('tablet_image', v)}
-                                maxWidth={1280}
+                                uploadKind="tablet"
                                 aspect="16 / 7"
                             />
 
@@ -1093,7 +1283,7 @@ function BannerEditor({
                                 hint="Falls back to desktop if empty."
                                 value={draft.mobile_image}
                                 onChange={(v) => update('mobile_image', v)}
-                                maxWidth={828}
+                                uploadKind="mobile"
                                 aspect="4 / 5"
                             />
 
@@ -1183,16 +1373,20 @@ function BannerEditor({
                                 <Field label="Start date & time">
                                     <input
                                         type="datetime-local"
-                                        value={draft.start_at}
-                                        onChange={(e) => update('start_at', e.target.value)}
+                                        value={isoToLocalInput(draft.start_at)}
+                                        onChange={(e) =>
+                                            update('start_at', localInputToIso(e.target.value))
+                                        }
                                         className={inputCls}
                                     />
                                 </Field>
                                 <Field label="End date & time">
                                     <input
                                         type="datetime-local"
-                                        value={draft.end_at}
-                                        onChange={(e) => update('end_at', e.target.value)}
+                                        value={isoToLocalInput(draft.end_at)}
+                                        onChange={(e) =>
+                                            update('end_at', localInputToIso(e.target.value))
+                                        }
                                         className={inputCls}
                                     />
                                 </Field>
@@ -1216,22 +1410,24 @@ function BannerEditor({
                     </button>
                     <div className="flex items-center gap-2">
                         <button
+                            disabled={saving}
                             onClick={() =>
-                                onSave({
+                                void onSave({
                                     ...draft,
                                     status: 'DRAFT',
                                     updated_at: new Date().toISOString(),
                                 })
                             }
-                            className="text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-sm transition"
+                            className="text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-sm transition disabled:opacity-50"
                         >
                             Save as draft
                         </button>
                         <button
+                            disabled={saving}
                             onClick={submit}
-                            className="text-[13px] font-medium text-white bg-blue-950 hover:bg-blue-900 px-3 py-2 rounded-sm transition"
+                            className="text-[13px] font-medium text-white bg-blue-950 hover:bg-blue-900 px-3 py-2 rounded-sm transition disabled:opacity-50"
                         >
-                            Save banner
+                            {saving ? 'Saving…' : 'Save banner'}
                         </button>
                     </div>
                 </div>
@@ -1243,53 +1439,19 @@ function BannerEditor({
 // ─────────────────────────────────────────────────────────────────────────────
 // Image drop
 // ─────────────────────────────────────────────────────────────────────────────
-async function fileToDataUrl(file: File, maxWidth: number): Promise<string> {
-    const raw = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
-    });
-
-    if (
-        !file.type.startsWith('image/') ||
-        file.type === 'image/svg+xml'
-    ) {
-        return raw;
-    }
-
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const el = new Image();
-        el.onload = () => resolve(el);
-        el.onerror = () => reject(new Error('Could not read image'));
-        el.src = raw;
-    });
-
-    if (img.width <= maxWidth) return raw;
-
-    const scale = maxWidth / img.width;
-    const canvas = document.createElement('canvas');
-    canvas.width = maxWidth;
-    canvas.height = Math.round(img.height * scale);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return raw;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.88);
-}
-
 function ImageDrop({
     label,
     hint,
     value,
     onChange,
-    maxWidth,
+    uploadKind,
     aspect,
 }: {
     label: string;
     hint?: string;
     value: string;
-    onChange: (dataUrl: string) => void;
-    maxWidth: number;
+    onChange: (url: string) => void;
+    uploadKind: 'desktop' | 'tablet' | 'mobile';
     aspect?: string;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -1312,15 +1474,17 @@ function ImageDrop({
             }
             setBusy(true);
             try {
-                const dataUrl = await fileToDataUrl(file, maxWidth);
-                onChange(dataUrl);
-            } catch {
-                setError('Could not read that image. Try another file.');
+                const url = await uploadBannerImage(file, uploadKind);
+                onChange(url);
+            } catch (err) {
+                setError(
+                    err instanceof Error ? err.message : 'Upload failed. Try another file.',
+                );
             } finally {
                 setBusy(false);
             }
         },
-        [maxWidth, onChange],
+        [uploadKind, onChange],
     );
 
     return (
@@ -1406,7 +1570,7 @@ function ImageDrop({
                             </svg>
                         )}
                         <p className="text-[13px] text-slate-600 font-medium">
-                            {busy ? 'Processing…' : 'Click to upload or drag & drop'}
+                            {busy ? 'Uploading…' : 'Click to upload or drag & drop'}
                         </p>
                         {hint && (
                             <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>

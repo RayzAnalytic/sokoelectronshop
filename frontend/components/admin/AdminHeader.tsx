@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Bell,
@@ -19,13 +21,17 @@ import {
   Users,
   CreditCard,
   X,
+  Loader2,
 } from "lucide-react";
+
 import { useAdminShell } from "./AdminShellContext";
+import { adminApi } from "@/lib/admin-api";
 import AddProductModal from "./AddProductModal";
 
 // ============================================================
-// MOCK DATA
+// TYPES
 // ============================================================
+
 interface SearchResult {
   id: string;
   label: string;
@@ -34,18 +40,6 @@ interface SearchResult {
   href: string;
 }
 
-const SEARCH_INDEX: SearchResult[] = [
-  { id: "p1", label: "Samsung Galaxy A55 5G", type: "Product", hint: "SKU ELEC-SAM-A55 · Stock 342", href: "/admin/products/p1" },
-  { id: "p2", label: "HP Pavilion 15 Core i5", type: "Product", hint: "SKU ELEC-HP-PAV15 · Stock 88", href: "/admin/products/p2" },
-  { id: "p3", label: "Sony WH-1000XM5 Headphones", type: "Product", hint: "SKU ELEC-SNY-XM5 · Out of stock", href: "/admin/products/p3" },
-  { id: "o1", label: "#ORD-8942", type: "Order", hint: "Amina Mwangi · KES 9,899 · Delivered", href: "/admin/orders/o1" },
-  { id: "o2", label: "#ORD-8941", type: "Order", hint: "Brian Kiprono · KES 1,499 · Processing", href: "/admin/orders/o2" },
-  { id: "c1", label: "Brian Kipkorir", type: "Customer", hint: "brian@merchant.co.ke · 12 orders", href: "/admin/customers/c1" },
-  { id: "c2", label: "Brenda Akinyi", type: "Customer", hint: "brenda@shop.co.ke · 9 orders", href: "/admin/customers/c2" },
-  { id: "t1", label: "TXN-8842", type: "Transaction", hint: "M-Pesa · KES 9,899 · Success", href: "/admin/transactions/t1" },
-  { id: "t2", label: "TXN-8841", type: "Transaction", hint: "M-Pesa · KES 1,499 · Success", href: "/admin/transactions/t2" },
-];
-
 interface NotificationItem {
   id: string;
   title: string;
@@ -53,39 +47,341 @@ interface NotificationItem {
   time: string;
   read: boolean;
   kind: "order" | "stock" | "customer" | "payment";
+  href?: string;
 }
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  { id: "n1", title: "New order received", message: "#ORD-8942 · Amina Mwangi · KES 9,899", time: "2 mins ago", read: false, kind: "order" },
-  { id: "n2", title: "M-Pesa payment received", message: "KES 31,500 for #SOKO-9921", time: "18 mins ago", read: false, kind: "payment" },
-  { id: "n3", title: "Low stock alert", message: "Sony WH-1000XM5 is out of stock", time: "1 hour ago", read: false, kind: "stock" },
-  { id: "n4", title: "New customer registered", message: "Faith Njeri · +254 720 998 877", time: "3 hours ago", read: true, kind: "customer" },
-  { id: "n5", title: "Order shipped", message: "#ORD-8940 · Wanjiru Kamau", time: "Yesterday", read: true, kind: "order" },
-];
+interface CurrentUser {
+  id: string;
+  name: string;
+  email: string;
+  initials: string;
+}
+
+// ============================================================
+// HOOKS
+// ============================================================
+
+/**
+ * Debounced global search across products, orders, customers,
+ * and transactions. Fires four parallel requests once the query
+ * has settled for 250 ms. Each request is individually caught so
+ * one failing endpoint doesn't blank the dropdown.
+ */
+function useGlobalSearch(query: string, enabled: boolean): {
+  results: SearchResult[];
+  loading: boolean;
+} {
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!enabled || q.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const ac = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const [products, orders, customers, transactions] = await Promise.all([
+          adminApi.products.list(ac.signal).catch(() => []),
+          adminApi.orders.list({ search: q }, ac.signal).catch(() => ({ results: [] })),
+          adminApi.customers.list({ search: q }, ac.signal).catch(() => ({ results: [] })),
+          adminApi.transactions.list({ q }, ac.signal).catch(() => []),
+        ]);
+
+        if (ac.signal.aborted) return;
+
+        const lower = q.toLowerCase();
+
+        const productHits: SearchResult[] = (Array.isArray(products) ? products : [])
+          .filter(
+            (p) =>
+              p.name.toLowerCase().includes(lower) ||
+              p.slug.toLowerCase().includes(lower),
+          )
+          .slice(0, 4)
+          .map((p) => ({
+            id: `p-${p.id}`,
+            label: p.name,
+            type: "Product" as const,
+            hint: `${p.brand?.name ?? ""} · KES ${p.price}`,
+            href: `/admin/products/${p.id}`,
+          }));
+
+        const orderHits: SearchResult[] = (orders.results ?? [])
+          .slice(0, 4)
+          .map((o) => ({
+            id: `o-${o.id}`,
+            label: o.reference,
+            type: "Order" as const,
+            hint: `${o.customer_name} · ${o.total} · ${o.status}`,
+            href: `/admin/orders/${o.reference}`,
+          }));
+
+        const customerHits: SearchResult[] = (customers.results ?? [])
+          .slice(0, 4)
+          .map((c) => ({
+            id: `c-${c.id}`,
+            label: c.name,
+            type: "Customer" as const,
+            hint: `${c.email} · ${c.ordersCount} orders`,
+            href: `/admin/customers/${c.id}`,
+          }));
+
+        const txnHits: SearchResult[] = (Array.isArray(transactions) ? transactions : [])
+          .filter(
+            (t) =>
+              t.ref.toLowerCase().includes(lower) ||
+              t.orderNumber.toLowerCase().includes(lower),
+          )
+          .slice(0, 3)
+          .map((t) => ({
+            id: `t-${t.id}`,
+            label: t.ref,
+            type: "Transaction" as const,
+            hint: `${t.method} · ${t.amount} · ${t.status}`,
+            href: `/admin/transactions/${t.id}`,
+          }));
+
+        setResults([
+          ...productHits,
+          ...orderHits,
+          ...customerHits,
+          ...txnHits,
+        ]);
+      } finally {
+        if (!ac.signal.aborted) setLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      ac.abort();
+    };
+  }, [query, enabled]);
+
+  return { results, loading };
+}
+
+/**
+ * Aggregates real notifications from pending orders, low-stock
+ * inventory, and pending reviews. Polls every 60 s while the tab
+ * is visible.
+ */
+function useNotifications(): {
+  items: NotificationItem[];
+  unreadCount: number;
+  markAllRead: () => void;
+  markOneRead: (id: string) => void;
+  remove: (id: string) => void;
+} {
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (document.hidden) return;
+
+      const [ordersRes, inventory, reviews] = await Promise.all([
+        adminApi.orders.list({ tab: "pending" }).catch(() => ({ results: [] })),
+        adminApi.inventory.list().catch(() => []),
+        adminApi.reviews.stats().catch(() => null),
+      ]);
+
+      if (cancelled) return;
+
+      const next: NotificationItem[] = [];
+
+      // Pending orders → one notification per order (top 5)
+      (ordersRes.results ?? []).slice(0, 5).forEach((o) => {
+        next.push({
+          id: `order-${o.id}`,
+          title: "New order pending",
+          message: `${o.reference} · ${o.customer_name} · ${o.total}`,
+          time: new Date(o.date).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          read: false,
+          kind: "order",
+          href: `/admin/orders/${o.reference}`,
+        });
+      });
+
+      // Low-stock inventory → aggregate into one line
+      const lowStock = Array.isArray(inventory)
+        ? inventory.filter((i) => i.status === "Low Stock" || i.status === "Out of Stock")
+        : [];
+      if (lowStock.length > 0) {
+        next.push({
+          id: "stock-summary",
+          title: `${lowStock.length} product${lowStock.length === 1 ? "" : "s"} low on stock`,
+          message: lowStock
+            .slice(0, 3)
+            .map((i) => i.name)
+            .join(", ") + (lowStock.length > 3 ? `, +${lowStock.length - 3} more` : ""),
+          time: "now",
+          read: false,
+          kind: "stock",
+          href: "/admin/inventory",
+        });
+      }
+
+      // Pending reviews
+      if (reviews && reviews.pending > 0) {
+        next.push({
+          id: "reviews-pending",
+          title: `${reviews.pending} review${reviews.pending === 1 ? "" : "s"} awaiting moderation`,
+          message: "Open the Reviews page to approve or reject.",
+          time: "now",
+          read: false,
+          kind: "customer",
+          href: "/admin/reviews",
+        });
+      }
+
+      setItems(next);
+    };
+
+    load();
+    const interval = setInterval(load, 60_000);
+    const onVisible = () => {
+      if (!document.hidden) load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
+  const visible = useMemo(
+    () => items.filter((i) => !dismissed.has(i.id)),
+    [items, dismissed],
+  );
+
+  return {
+    items: visible,
+    unreadCount: visible.filter((i) => !i.read).length,
+    markAllRead: () =>
+      setItems((prev) => prev.map((i) => ({ ...i, read: true }))),
+    markOneRead: (id) =>
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, read: true } : i))),
+    remove: (id) => setDismissed((prev) => new Set(prev).add(id)),
+  };
+}
+
+/**
+ * Reads the authenticated user from the session. Same endpoint the
+ * sidebar uses, so the two stay in sync.
+ */
+function useCurrentUser(): CurrentUser {
+  const [user, setUser] = useState<CurrentUser>({
+    id: "",
+    name: "—",
+    email: "",
+    initials: "—",
+  });
+
+  useEffect(() => {
+    const ac = new AbortController();
+
+    fetch("/api/v1/auth/me/", { credentials: "include", signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (ac.signal.aborted || !data) return;
+        const name: string = data.name || data.full_name || data.username || "—";
+        const email: string = data.email || "";
+        const initials =
+          name
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((w: string) => w[0]?.toUpperCase() ?? "")
+            .join("") || "—";
+        setUser({ id: String(data.id ?? ""), name, email, initials });
+      })
+      .catch(() => {
+        /* non-fatal */
+      });
+
+    return () => ac.abort();
+  }, []);
+
+  return user;
+}
+
+/**
+ * Persists the theme to localStorage and toggles a `dark` class on
+ * <html>. Tailwind's darkMode: 'class' strategy reads from there.
+ * If your project uses a different strategy, adjust the class name.
+ */
+function useTheme(): { theme: "light" | "dark"; toggle: () => void } {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("admin-theme");
+    const initial = stored === "dark" ? "dark" : "light";
+    setTheme(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+  }, []);
+
+  const toggle = () => {
+    setTheme((t) => {
+      const next = t === "light" ? "dark" : "light";
+      document.documentElement.classList.toggle("dark", next === "dark");
+      window.localStorage.setItem("admin-theme", next);
+      return next;
+    });
+  };
+
+  return { theme, toggle };
+}
 
 // ============================================================
 // COMPONENT
 // ============================================================
+
 export default function AdminHeader() {
   const { collapsed, toggle } = useAdminShell();
+  const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
 
   // Search
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchRef = useRef<HTMLDivElement>(null);
+  const { results: searchResults, loading: searchLoading } = useGlobalSearch(
+    searchQuery,
+    searchOpen,
+  );
 
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const notifRef = useRef<HTMLDivElement>(null);
+  const {
+    items: notifications,
+    unreadCount,
+    markAllRead,
+    markOneRead,
+    remove: removeNotification,
+  } = useNotifications();
 
   // Profile
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const user = useCurrentUser();
 
   // Theme
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const { theme, toggle: toggleTheme } = useTheme();
 
   // ── Close popovers on outside click ──
   useEffect(() => {
@@ -105,7 +401,7 @@ export default function AdminHeader() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  // ── Keyboard shortcut: ⌘K / Ctrl+K to focus search ──
+  // ── ⌘K / Ctrl+K focuses search; Esc closes everything ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -124,30 +420,23 @@ export default function AdminHeader() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const searchResults = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
-    return SEARCH_INDEX.filter(
-      (r) => r.label.toLowerCase().includes(q) || r.hint.toLowerCase().includes(q)
-    ).slice(0, 8);
-  }, [searchQuery]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markOneRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  };
-
-  const removeNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
-  const toggleTheme = () => {
-    setTheme((t) => (t === "light" ? "dark" : "light"));
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/v1/auth/logout/", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken":
+            document.cookie
+              .split("; ")
+              .find((c) => c.startsWith("csrftoken="))
+              ?.split("=")[1] ?? "",
+        },
+      });
+    } catch {
+      /* proceed to redirect anyway */
+    }
+    router.push("/auth/login");
   };
 
   const notifIcon = (kind: NotificationItem["kind"]) => {
@@ -232,9 +521,14 @@ export default function AdminHeader() {
           </div>
 
           {/* Search results dropdown */}
-          {searchOpen && searchQuery && (
+          {searchOpen && searchQuery.trim().length >= 2 && (
             <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-sm shadow-lg z-50 max-h-[420px] overflow-y-auto">
-              {searchResults.length === 0 ? (
+              {searchLoading ? (
+                <p className="p-4 flex items-center justify-center gap-2 text-[13px] text-slate-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Searching…
+                </p>
+              ) : searchResults.length === 0 ? (
                 <p className="p-3 text-center text-[13px] text-slate-400">
                   No matches for “{searchQuery}”
                 </p>
@@ -242,8 +536,8 @@ export default function AdminHeader() {
                 <ul className="divide-y divide-slate-100">
                   {searchResults.map((r) => (
                     <li key={r.id}>
-                      <button
-                        type="button"
+                      <Link
+                        href={r.href}
                         onClick={() => {
                           setSearchOpen(false);
                           setSearchQuery("");
@@ -257,7 +551,7 @@ export default function AdminHeader() {
                           <p className="text-[13px] font-medium text-slate-900 truncate">{r.label}</p>
                           <p className="text-[13px] text-slate-500 truncate mt-0.5">{r.hint}</p>
                         </div>
-                      </button>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -376,13 +670,13 @@ export default function AdminHeader() {
                 </div>
 
                 <div className="px-3 py-2 border-t border-slate-200 shrink-0">
-                  <button
-                    type="button"
+                  <Link
+                    href="/admin/orders?tab=pending"
                     onClick={() => setNotifOpen(false)}
-                    className="w-full text-[13px] font-medium text-blue-950 hover:underline"
+                    className="block text-center text-[13px] font-medium text-blue-950 hover:underline"
                   >
-                    View all notifications
-                  </button>
+                    View pending orders
+                  </Link>
                 </div>
               </div>
             )}
@@ -409,7 +703,7 @@ export default function AdminHeader() {
               }`}
             >
               <div className="h-7 w-7 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold">
-                AD
+                {user.initials}
               </div>
               <ChevronDown
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform ${
@@ -422,40 +716,34 @@ export default function AdminHeader() {
               <div className="absolute top-full mt-1 right-0 w-64 bg-white border border-slate-200 rounded-sm shadow-lg z-50 overflow-hidden">
                 <div className="p-3 border-b border-slate-100 flex items-center gap-2">
                   <div className="h-9 w-9 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
-                    AD
+                    {user.initials}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-slate-900 truncate">Alex Doe</p>
-                    <p className="text-[13px] text-slate-500 truncate">alex@admin.com</p>
+                    <p className="text-[13px] font-medium text-slate-900 truncate">{user.name}</p>
+                    <p className="text-[13px] text-slate-500 truncate">{user.email || "—"}</p>
                   </div>
                 </div>
 
                 <ul className="py-1">
                   <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileOpen(false);
-                        // Navigate to profile page in real app
-                      }}
+                    <Link
+                      href="/admin/users"
+                      onClick={() => setProfileOpen(false)}
                       className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       <User className="w-3.5 h-3.5 text-slate-400" />
                       My profile
-                    </button>
+                    </Link>
                   </li>
                   <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileOpen(false);
-                        // Navigate to settings
-                      }}
+                    <Link
+                      href="/admin/settings?tab=general"
+                      onClick={() => setProfileOpen(false)}
                       className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       <Settings className="w-3.5 h-3.5 text-slate-400" />
                       Account settings
-                    </button>
+                    </Link>
                   </li>
                 </ul>
 
@@ -464,9 +752,7 @@ export default function AdminHeader() {
                     type="button"
                     onClick={() => {
                       setProfileOpen(false);
-                      // Perform logout
-                      // eslint-disable-next-line no-console
-                      console.log("Logging out...");
+                      handleLogout();
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 hover:bg-red-50 transition-colors"
                   >

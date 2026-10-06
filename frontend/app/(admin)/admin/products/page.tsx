@@ -1,41 +1,24 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Plus,
-  Search,
-  MoreVertical,
-  Edit,
-  Copy,
-  ExternalLink,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  X,
-  AlertTriangle,
-  Check,
-  LayoutGrid,
-  List as ListIcon,
-  ArrowUpDown,
-  Package,
-  Tag,
-  Layers,
-  Palette,
-  Ruler,
-  DollarSign,
-  Warehouse,
-  Percent,
-  FileText,
-  Image as ImageIcon,
-  Video,
-  Star,
-  Box,
-  Upload,
+  Plus, Search, MoreVertical, Edit, Copy, ExternalLink, Trash2,
+  ChevronDown, X, AlertTriangle, Check, LayoutGrid, List as ListIcon,
+  ArrowUpDown, Package, Tag, Layers, Palette, Ruler, DollarSign, Warehouse,
+  FileText, Image as ImageIcon, Video, Star, Box, Upload, Loader2,
 } from 'lucide-react';
 import AddProductModal from '@/components/admin/AddProductModal';
 import BulkUploadModal, {
   type ImportedProduct,
 } from '@/components/admin/BulkUploadModal';
+import { adminApi } from '@/lib/admin-api';
+import { ApiError } from '@/lib/api';
+import type {
+  AdminBrandRef,
+  AdminCategoryRef,
+  AdminProduct,
+  AdminProductWrite,
+} from '@/lib/admin-types';
 
 // --- TYPES ---
 type ProductStatus = 'Published' | 'Draft' | 'Archived';
@@ -76,273 +59,105 @@ interface Product {
   variantOptions: { name: string; values: string[] }[];
 }
 
-const INITIAL_PRODUCTS: Product[] = [
-  {
-    id: 'p1',
-    name: 'Apex Ultra X1 Pro Smartphone 5G',
-    sku: 'APX-X1-5G',
-    description: 'Flagship 5G smartphone with 6.7" AMOLED display, 108MP camera, and 5,000mAh battery.',
-    shortDescription: 'Flagship 5G smartphone',
-    category: 'Smartphones',
-    brand: 'Apex',
-    tags: ['5G', 'Flagship', 'AMOLED'],
-    price: 89999,
-    salePrice: 84999,
-    costPrice: 68000,
-    tax: 16,
-    discount: 5,
-    stock: 14,
-    lowStockThreshold: 10,
-    inventoryStatus: 'In Stock',
-    status: 'Published',
-    image: '/phone.jpeg',
-    featured: true,
-    variantOptions: [
-      { name: 'Color', values: ['Black', 'White', 'Blue'] },
-      { name: 'Storage', values: ['128GB', '256GB', '512GB'] },
-    ],
-    variants: [
-      { id: 'v1', options: [{ name: 'Color', value: 'Black' }, { name: 'Storage', value: '128GB' }], sku: 'APX-X1-5G-BLK-128', price: 89999, stock: 4 },
-      { id: 'v2', options: [{ name: 'Color', value: 'Black' }, { name: 'Storage', value: '256GB' }], sku: 'APX-X1-5G-BLK-256', price: 99999, stock: 3 },
-      { id: 'v3', options: [{ name: 'Color', value: 'Black' }, { name: 'Storage', value: '512GB' }], sku: 'APX-X1-5G-BLK-512', price: 119999, stock: 2 },
-      { id: 'v4', options: [{ name: 'Color', value: 'White' }, { name: 'Storage', value: '128GB' }], sku: 'APX-X1-5G-WHT-128', price: 89999, stock: 2 },
-      { id: 'v5', options: [{ name: 'Color', value: 'White' }, { name: 'Storage', value: '256GB' }], sku: 'APX-X1-5G-WHT-256', price: 99999, stock: 1 },
-      { id: 'v6', options: [{ name: 'Color', value: 'White' }, { name: 'Storage', value: '512GB' }], sku: 'APX-X1-5G-WHT-512', price: 119999, stock: 1 },
-      { id: 'v7', options: [{ name: 'Color', value: 'Blue' }, { name: 'Storage', value: '128GB' }], sku: 'APX-X1-5G-BLU-128', price: 89999, stock: 1 },
-      { id: 'v8', options: [{ name: 'Color', value: 'Blue' }, { name: 'Storage', value: '256GB' }], sku: 'APX-X1-5G-BLU-256', price: 99999, stock: 0 },
-    ],
-  },
-  {
-    id: 'p2',
-    name: 'Zenith StudioBook Pro 16 Laptop',
-    sku: 'ZNT-SB16-L',
-    description: '16-inch creator laptop with M3 Max chip, 32GB RAM, 1TB SSD.',
-    shortDescription: 'Creator-grade 16" laptop',
-    category: 'Laptops',
-    brand: 'Zenith',
-    tags: ['Creator', 'M3 Max', '16-inch'],
-    price: 149999,
-    costPrice: 118000,
-    tax: 16,
-    discount: 0,
-    stock: 3,
-    lowStockThreshold: 5,
-    inventoryStatus: 'Low Stock',
-    status: 'Published',
-    image: '/Lenovo.jpeg',
-    featured: true,
-    variantOptions: [
-      { name: 'RAM', values: ['16GB', '32GB', '64GB'] },
-      { name: 'Storage', values: ['512GB', '1TB', '2TB'] },
-    ],
-    variants: [
-      { id: 'v1', options: [{ name: 'RAM', value: '16GB' }, { name: 'Storage', value: '512GB' }], sku: 'ZNT-SB16-16-512', price: 129999, stock: 1 },
-      { id: 'v2', options: [{ name: 'RAM', value: '16GB' }, { name: 'Storage', value: '1TB' }], sku: 'ZNT-SB16-16-1T', price: 139999, stock: 1 },
-      { id: 'v3', options: [{ name: 'RAM', value: '32GB' }, { name: 'Storage', value: '1TB' }], sku: 'ZNT-SB16-32-1T', price: 149999, stock: 1 },
-      { id: 'v4', options: [{ name: 'RAM', value: '32GB' }, { name: 'Storage', value: '2TB' }], sku: 'ZNT-SB16-32-2T', price: 169999, stock: 0 },
-      { id: 'v5', options: [{ name: 'RAM', value: '64GB' }, { name: 'Storage', value: '2TB' }], sku: 'ZNT-SB16-64-2T', price: 199999, stock: 0 },
-    ],
-  },
-  {
-    id: 'p3',
-    name: 'Dell UltraSharp 27" 4K Hub Monitor',
-    sku: 'DLL-U27-4K',
-    description: '27-inch 4K IPS monitor with USB-C hub, 99% sRGB.',
-    shortDescription: '27" 4K USB-C monitor',
-    category: 'Displays',
-    brand: 'Dell',
-    tags: ['4K', 'USB-C', 'IPS'],
-    price: 45000,
-    salePrice: 42000,
-    costPrice: 34000,
-    tax: 16,
-    discount: 7,
-    stock: 5,
-    lowStockThreshold: 5,
-    inventoryStatus: 'Low Stock',
-    status: 'Published',
-    image: '/dellmonitor.jpeg',
-    featured: false,
-    variantOptions: [],
-    variants: [],
-  },
-  {
-    id: 'p4',
-    name: 'Wireless Mechanical Keyboard K2',
-    sku: 'MCH-K2-WL',
-    description: '75% wireless mechanical keyboard with hot-swappable switches.',
-    shortDescription: '75% wireless mechanical keyboard',
-    category: 'Accessories',
-    brand: 'Keychron',
-    tags: ['Mechanical', 'Wireless', '75%'],
-    price: 12999,
-    costPrice: 8500,
-    tax: 16,
-    discount: 0,
-    stock: 24,
-    lowStockThreshold: 10,
-    inventoryStatus: 'In Stock',
-    status: 'Published',
-    image: '/phone.jpeg',
-    featured: false,
-    variantOptions: [
-      { name: 'Switch', values: ['Brown', 'Red', 'Blue'] },
-      { name: 'Layout', values: ['US', 'UK', 'DE'] },
-    ],
-    variants: [
-      { id: 'v1', options: [{ name: 'Switch', value: 'Brown' }, { name: 'Layout', value: 'US' }], sku: 'MCH-K2-WL-BR-US', price: 12999, stock: 8 },
-      { id: 'v2', options: [{ name: 'Switch', value: 'Brown' }, { name: 'Layout', value: 'UK' }], sku: 'MCH-K2-WL-BR-UK', price: 12999, stock: 3 },
-      { id: 'v3', options: [{ name: 'Switch', value: 'Red' }, { name: 'Layout', value: 'US' }], sku: 'MCH-K2-WL-RD-US', price: 12999, stock: 6 },
-      { id: 'v4', options: [{ name: 'Switch', value: 'Blue' }, { name: 'Layout', value: 'US' }], sku: 'MCH-K2-WL-BL-US', price: 13999, stock: 4 },
-      { id: 'v5', options: [{ name: 'Switch', value: 'Red' }, { name: 'Layout', value: 'DE' }], sku: 'MCH-K2-WL-RD-DE', price: 12999, stock: 3 },
-    ],
-  },
-  {
-    id: 'p5',
-    name: 'Ergonomic Office Chair Executive',
-    sku: 'ERG-CHR-01',
-    description: 'Premium ergonomic office chair with lumbar support and headrest.',
-    shortDescription: 'Premium ergonomic office chair',
-    category: 'Furniture',
-    brand: 'ErgoFlex',
-    tags: ['Ergonomic', 'Executive', 'Lumbar'],
-    price: 34999,
-    costPrice: 26000,
-    tax: 16,
-    discount: 0,
-    stock: 0,
-    lowStockThreshold: 3,
-    inventoryStatus: 'Out of Stock',
-    status: 'Draft',
-    image: '/Lenovo.jpeg',
-    featured: false,
-    variantOptions: [
-      { name: 'Color', values: ['Black', 'Grey'] },
-    ],
-    variants: [
-      { id: 'v1', options: [{ name: 'Color', value: 'Black' }], sku: 'ERG-CHR-01-BLK', price: 34999, stock: 0 },
-      { id: 'v2', options: [{ name: 'Color', value: 'Grey' }], sku: 'ERG-CHR-01-GRY', price: 34999, stock: 0 },
-    ],
-  },
-  {
-    id: 'p6',
-    name: 'Logitech MX Master 3S Wireless Mouse',
-    sku: 'LOG-MX3S-M',
-    description: 'Advanced wireless mouse with 8K DPI and quiet clicks.',
-    shortDescription: 'Advanced wireless mouse',
-    category: 'Accessories',
-    brand: 'Logitech',
-    tags: ['Wireless', '8K DPI', 'Quiet'],
-    price: 14500,
-    costPrice: 10500,
-    tax: 16,
-    discount: 0,
-    stock: 8,
-    lowStockThreshold: 5,
-    inventoryStatus: 'Low Stock',
-    status: 'Published',
-    image: '/phone.jpeg',
-    featured: false,
-    variantOptions: [],
-    variants: [],
-  },
-  {
-    id: 'p7',
-    name: 'Sony WH-1000XM5 Noise Cancelling',
-    sku: 'SNY-WH5-BLK',
-    description: 'Industry-leading noise cancelling headphones with 30-hour battery.',
-    shortDescription: 'Premium noise cancelling headphones',
-    category: 'Audio',
-    brand: 'Sony',
-    tags: ['Noise Cancelling', '30h Battery', 'Premium'],
-    price: 42000,
-    salePrice: 38999,
-    costPrice: 31000,
-    tax: 16,
-    discount: 7,
-    stock: 1,
-    lowStockThreshold: 5,
-    inventoryStatus: 'Low Stock',
-    status: 'Published',
-    image: '/phone.jpeg',
-    featured: true,
-    variantOptions: [
-      { name: 'Color', values: ['Black', 'Silver'] },
-    ],
-    variants: [
-      { id: 'v1', options: [{ name: 'Color', value: 'Black' }], sku: 'SNY-WH5-BLK', price: 42000, stock: 1 },
-      { id: 'v2', options: [{ name: 'Color', value: 'Silver' }], sku: 'SNY-WH5-SLV', price: 42000, stock: 0 },
-    ],
-  },
-  {
-    id: 'p8',
-    name: 'Anker Prime 24,000mAh Power Bank',
-    sku: 'ANK-P24K-PB',
-    description: '24,000mAh power bank with 140W output and smart display.',
-    shortDescription: 'High-capacity power bank',
-    category: 'Accessories',
-    brand: 'Anker',
-    tags: ['Power Bank', '140W', 'Smart Display'],
-    price: 18500,
-    costPrice: 13500,
-    tax: 16,
-    discount: 0,
-    stock: 35,
-    lowStockThreshold: 10,
-    inventoryStatus: 'In Stock',
-    status: 'Archived',
-    image: '/phone.jpeg',
-    featured: false,
-    variantOptions: [],
-    variants: [],
-  },
-];
-
-const CATEGORIES = ['Smartphones', 'Laptops', 'Displays', 'Accessories', 'Furniture', 'Audio'];
-const BRANDS = ['Apex', 'Zenith', 'Dell', 'Keychron', 'ErgoFlex', 'Logitech', 'Sony', 'Anker'];
 const STATUSES: ProductStatus[] = ['Published', 'Draft', 'Archived'];
-const INVENTORY_STATUSES: InventoryStatus[] = ['In Stock', 'Low Stock', 'Out of Stock', 'Backorder'];
 
 const formatKES = (n: number) =>
-  new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    maximumFractionDigits: 0,
+  }).format(n);
 
-/** Convert a row from the bulk importer into a full Product. */
-function importedToProduct(row: ImportedProduct): Product {
-  const stock = Number(row.stock) || 0;
-  const price = Number(row.price) || 0;
-  const salePrice = row.salePrice ? Number(row.salePrice) : undefined;
+// ═══════════════════════════════════════════════════════════════════════════
+// Mapping helpers — the only place the price semantics flip
+// ═══════════════════════════════════════════════════════════════════════════
+function computeInventoryStatus(
+  qty: number,
+  threshold: number,
+): InventoryStatus {
+  if (qty === 0) return 'Out of Stock';
+  if (qty <= threshold) return 'Low Stock';
+  return 'In Stock';
+}
+
+function apiToProduct(p: AdminProduct): Product {
+  const priceNum = parseFloat(p.price);
+  const compareNum = p.compare_at_price ? parseFloat(p.compare_at_price) : null;
+
+  // Backend: price = selling price, compare_at_price = crossed-out price.
+  // Frontend: price = crossed-out price, salePrice = selling price.
+  const displayPrice = compareNum ?? priceNum;
+  const displaySale = compareNum && compareNum > priceNum ? priceNum : undefined;
 
   return {
-    id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: row.name || 'Untitled',
-    sku: row.sku || `SKU-${Math.floor(Math.random() * 900000)}`,
-    description: row.shortDescription || '',
-    shortDescription: row.shortDescription || '',
-    category: row.category || 'Accessories',
-    brand: row.brand || 'Other',
+    id: p.id,
+    name: p.name,
+    sku: p.id, // backend has no SKU — use the product id as a stable label
+    description: p.description,
+    shortDescription: p.description,
+    category: p.category.name,
+    brand: p.brand.name,
     tags: [],
-    price,
-    salePrice,
+    price: displayPrice,
+    salePrice: displaySale,
     costPrice: undefined,
     tax: 16,
-    discount:
-      salePrice && price > salePrice
-        ? Math.round(((price - salePrice) / price) * 100)
-        : 0,
-    stock,
-    lowStockThreshold: 10,
-    inventoryStatus:
-      stock === 0 ? 'Out of Stock' : stock <= 10 ? 'Low Stock' : 'In Stock',
-    status: row.status === 'draft' ? 'Draft' : 'Published',
-    image: '/phone.jpeg', // placeholder until images are added
-    featured: false,
+    discount: displaySale
+      ? Math.round(((displayPrice - displaySale) / displayPrice) * 100)
+      : 0,
+    stock: p.stock_quantity,
+    lowStockThreshold: p.low_stock_threshold,
+    inventoryStatus: computeInventoryStatus(
+      p.stock_quantity,
+      p.low_stock_threshold,
+    ),
+    status: p.is_active ? 'Published' : 'Draft',
+    image: p.images[0]?.url || '/placeholder.png',
+    featured: p.featured,
     variantOptions: [],
     variants: [],
   };
 }
 
+function productToApi(
+  p: Partial<Product>,
+  brandId: number,
+  categoryId: number,
+): AdminProductWrite {
+  const price = p.salePrice ?? p.price ?? 0;
+  const compare = p.salePrice ? (p.price ?? null) : null;
+
+  return {
+    name: p.name ?? '',
+    description: p.description ?? '',
+    brand_id: brandId,
+    category_id: categoryId,
+    price: String(price),
+    compare_at_price: compare !== null ? String(compare) : null,
+    stock_quantity: p.stock ?? 0,
+    low_stock_threshold: p.lowStockThreshold ?? 5,
+    featured: p.featured ?? false,
+    best_seller: false,
+    sales_volume: '',
+    is_active: p.status !== 'Draft' && p.status !== 'Archived',
+    images: p.image
+      ? [{ url: p.image, is_primary: true, sort_order: 0 }]
+      : [],
+    features: [],
+    specs: {},
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Page
+// ═══════════════════════════════════════════════════════════════════════════
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [brands, setBrands] = useState<AdminBrandRef[]>([]);
+  const [categories, setCategories] = useState<AdminCategoryRef[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -354,7 +169,6 @@ export default function ProductsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openKebabId, setOpenKebabId] = useState<string | null>(null);
 
-  // Modals
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
@@ -363,10 +177,43 @@ export default function ProductsPage() {
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null);
   const [variantsProduct, setVariantsProduct] = useState<Product | null>(null);
   const [toast, setToast] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const anyModalOpen =
     addOpen || bulkOpen || deleteProductId !== null || editProduct !== null ||
     viewProduct !== null || duplicateProduct !== null || variantsProduct !== null;
+
+  const flash = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2500);
+  }, []);
+
+  // ── Initial load ──
+  const refresh = useCallback(async () => {
+    try {
+      const [rows, brandList, categoryList] = await Promise.all([
+        adminApi.products.list(),
+        adminApi.brands.list(),
+        adminApi.categories.list(),
+      ]);
+      setProducts(rows.map(apiToProduct));
+      setBrands(brandList);
+      setCategories(categoryList);
+      setLoadError('');
+    } catch (err) {
+      setLoadError(
+        err instanceof ApiError
+          ? err.message || 'Could not load products.'
+          : 'Could not load products.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   // Close kebab when clicking elsewhere
   useEffect(() => {
@@ -375,73 +222,263 @@ export default function ProductsPage() {
     return () => document.removeEventListener('click', onDoc);
   }, [openKebabId]);
 
-  function flash(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(''), 2500);
-  }
+  // ── Helpers for save flows ──
+  const resolveBrandId = (name: string): number => {
+    const hit = brands.find((b) => b.name === name);
+    if (hit) return hit.id;
+    // Fallback: if the modal sent a name we don't know, use the first brand.
+    return brands[0]?.id ?? 0;
+  };
 
-  // Filter + sort
-  const filtered = products
-    .filter((p) => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
-      const matchesCat = !selectedCategory || p.category === selectedCategory;
-      const matchesBrand = !selectedBrand || p.brand === selectedBrand;
-      const matchesStatus = !selectedStatus || p.status === selectedStatus;
-      let matchesStock = true;
-      if (selectedStock === 'In stock') matchesStock = p.stock > 10;
-      else if (selectedStock === 'Low') matchesStock = p.stock >= 1 && p.stock <= 10;
-      else if (selectedStock === 'Out') matchesStock = p.stock === 0;
-      return matchesSearch && matchesCat && matchesBrand && matchesStatus && matchesStock;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'price-low') return a.price - b.price;
-      if (sortBy === 'price-high') return b.price - a.price;
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'stock') return b.stock - a.stock;
-      return 0;
-    });
+  const resolveCategoryId = (name: string): number => {
+    const hit = categories.find((c) => c.name === name);
+    if (hit) return hit.id;
+    return categories[0]?.id ?? 0;
+  };
+
+  // ── Filter + sort ──
+  const filtered = useMemo(() => {
+    return products
+      .filter((p) => {
+        const q = searchQuery.toLowerCase();
+        const matchesSearch =
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q);
+        const matchesCat = !selectedCategory || p.category === selectedCategory;
+        const matchesBrand = !selectedBrand || p.brand === selectedBrand;
+        const matchesStatus = !selectedStatus || p.status === selectedStatus;
+        let matchesStock = true;
+        if (selectedStock === 'In stock') matchesStock = p.stock > 10;
+        else if (selectedStock === 'Low') matchesStock = p.stock >= 1 && p.stock <= 10;
+        else if (selectedStock === 'Out') matchesStock = p.stock === 0;
+        return matchesSearch && matchesCat && matchesBrand && matchesStatus && matchesStock;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'price-low') return a.price - b.price;
+        if (sortBy === 'price-high') return b.price - a.price;
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        if (sortBy === 'stock') return b.stock - a.stock;
+        return 0;
+      });
+  }, [products, searchQuery, selectedCategory, selectedBrand, selectedStatus, selectedStock, sortBy]);
 
   const allSelected = filtered.length > 0 && selectedIds.length === filtered.length;
-  const toggleSelectAll = () => setSelectedIds(allSelected ? [] : filtered.map((p) => p.id));
+  const toggleSelectAll = () =>
+    setSelectedIds(allSelected ? [] : filtered.map((p) => p.id));
   const toggleRow = (id: string) =>
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
-
-  const confirmDelete = () => {
-    if (!deleteProductId) return;
-    setProducts((prev) => prev.filter((p) => p.id !== deleteProductId));
-    setDeleteProductId(null);
-  };
-
-  const confirmBulkDelete = () => {
-    setProducts((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
-    setSelectedIds([]);
-  };
-
-  const confirmDuplicate = () => {
-    if (!duplicateProduct) return;
-    const dup: Product = {
-      ...duplicateProduct,
-      id: `p-${Date.now()}`,
-      name: `${duplicateProduct.name} (Copy)`,
-      sku: `${duplicateProduct.sku}-DUP`,
-      status: 'Draft',
-      variants: duplicateProduct.variants.map((v, i) => ({
-        ...v,
-        id: `v-${Date.now()}-${i}`,
-        sku: `${v.sku}-DUP`,
-      })),
-    };
-    setProducts((prev) => [dup, ...prev]);
-    setDuplicateProduct(null);
-  };
-
-  const handleBulkImport = (rows: ImportedProduct[]) => {
-    const created = rows.map(importedToProduct);
-    setProducts((prev) => [...created, ...prev]);
-    flash(
-      `Imported ${created.length} product${created.length === 1 ? '' : 's'}`,
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
+
+  // ── Delete ──
+  const confirmDelete = async () => {
+    if (!deleteProductId) return;
+    const id = deleteProductId;
+    setDeleteProductId(null);
+
+    // Optimistic.
+    const previous = products;
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+
+    try {
+      await adminApi.products.remove(id);
+      flash('Product deleted.');
+    } catch (err) {
+      setProducts(previous);
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not delete product.'
+          : 'Could not delete product.',
+      );
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+
+    const previous = products;
+    setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
+    setSelectedIds([]);
+
+    try {
+      await Promise.all(ids.map((id) => adminApi.products.remove(id)));
+      flash(`Deleted ${ids.length} product${ids.length > 1 ? 's' : ''}.`);
+    } catch {
+      setProducts(previous);
+      flash('Could not delete all products. Refresh and try again.');
+    }
+  };
+
+  // ── Duplicate ──
+  const confirmDuplicate = async () => {
+    if (!duplicateProduct) return;
+    const source = duplicateProduct;
+    setDuplicateProduct(null);
+    setSaving(true);
+
+    try {
+      const brandId = resolveBrandId(source.brand);
+      const categoryId = resolveCategoryId(source.category);
+      const payload = productToApi(
+        {
+          ...source,
+          name: `${source.name} (Copy)`,
+          status: 'Draft',
+        },
+        brandId,
+        categoryId,
+      );
+
+      const created = await adminApi.products.create(payload);
+      setProducts((prev) => [apiToProduct(created), ...prev]);
+      flash('Product duplicated.');
+    } catch (err) {
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not duplicate product.'
+          : 'Could not duplicate product.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Create (Add Product modal) ──
+  const handleCreate = async (data: any) => {
+    setSaving(true);
+    try {
+      const brandId = resolveBrandId(data.brand || '');
+      const categoryId = resolveCategoryId(data.category || '');
+
+      const payload = productToApi(
+        {
+          name: data.name || 'Untitled',
+          description: data.description || '',
+          shortDescription: data.shortDescription || '',
+          category: data.category || '',
+          brand: data.brand || '',
+          price: Number(data.price) || 0,
+          salePrice: data.salePrice ? Number(data.salePrice) : undefined,
+          stock: Number(data.stock) || 0,
+          lowStockThreshold: Number(data.lowStockThreshold) || 10,
+          status: data.status === 'draft' ? 'Draft' : 'Published',
+          image: data.images?.[0] || '/placeholder.png',
+          featured: !!data.featured,
+        },
+        brandId,
+        categoryId,
+      );
+
+      const created = await adminApi.products.create(payload);
+      setProducts((prev) => [apiToProduct(created), ...prev]);
+      setAddOpen(false);
+      flash('Product created.');
+    } catch (err) {
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not create product.'
+          : 'Could not create product.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Update (quick edit) ──
+  const handleUpdate = async () => {
+    if (!editProduct) return;
+    const product = editProduct;
+    setSaving(true);
+
+    try {
+      const brandId = resolveBrandId(product.brand);
+      const categoryId = resolveCategoryId(product.category);
+      const payload = productToApi(product, brandId, categoryId);
+
+      const updated = await adminApi.products.update(product.id, payload);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? apiToProduct(updated) : p)),
+      );
+      setEditProduct(null);
+      flash('Product updated.');
+    } catch (err) {
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not update product.'
+          : 'Could not update product.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Bulk import ──
+  const handleBulkImport = async (rows: ImportedProduct[]) => {
+    if (rows.length === 0) return;
+    setSaving(true);
+
+    try {
+      const payloads = rows.map((row) => {
+        const stock = Number(row.stock) || 0;
+        const price = Number(row.price) || 0;
+        const salePrice = row.salePrice ? Number(row.salePrice) : undefined;
+
+        const brandId = resolveBrandId(row.brand || '');
+        const categoryId = resolveCategoryId(row.category || '');
+
+        const apiPrice = salePrice ?? price;
+        const apiCompare = salePrice ? price : null;
+
+        // Use the row's image when present, fall back to the placeholder
+        // otherwise. The modal validates the URL format (must start with
+        // https:// or /) before the row is importable.
+        const imageUrl = row.image && row.image.trim()
+          ? row.image.trim()
+          : '/placeholder.png';
+
+        return {
+          name: row.name || 'Untitled',
+          description: row.shortDescription || '',
+          brand_id: brandId,
+          category_id: categoryId,
+          price: String(apiPrice),
+          compare_at_price: apiCompare !== null ? String(apiCompare) : null,
+          stock_quantity: stock,
+          low_stock_threshold: 10,
+          featured: false,
+          best_seller: false,
+          is_active: row.status !== 'draft',
+          images: [{ url: imageUrl, is_primary: true, sort_order: 0 }],
+          features: [],
+          specs: {},
+        } as AdminProductWrite;
+      });
+
+      const result = await adminApi.products.bulk(payloads);
+      setProducts((prev) => [
+        ...result.created.map(apiToProduct),
+        ...prev,
+      ]);
+      setBulkOpen(false);
+
+      const n = result.created.length;
+      const failed = result.errors.length;
+      flash(
+        failed === 0
+          ? `Imported ${n} product${n === 1 ? '' : 's'}.`
+          : `Imported ${n}; ${failed} failed.`,
+      );
+    } catch (err) {
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Bulk import failed.'
+          : 'Bulk import failed.',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const activeFilterCount =
@@ -458,22 +495,28 @@ export default function ProductsPage() {
     setSortBy('featured');
   };
 
+  const brandNames = brands.map((b) => b.name);
+  const categoryNames = categories.map((c) => c.name);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-
       {/* PAGE HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Products</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">Manage your product catalog · {products.length} products</p>
+            <p className="text-[13px] text-slate-500 mt-0.5">
+              {isLoading
+                ? 'Loading…'
+                : `Manage your product catalog · ${products.length} products`}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Bulk upload */}
             <button
               onClick={() => setBulkOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
             >
               <Upload className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Bulk upload</span>
@@ -499,7 +542,8 @@ export default function ProductsPage() {
 
             <button
               onClick={() => setAddOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add product</span>
@@ -509,6 +553,13 @@ export default function ProductsPage() {
       </header>
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+        {/* LOAD ERROR */}
+        {loadError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-[13px] flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {loadError}
+          </div>
+        )}
 
         {/* FILTER BAR */}
         <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
@@ -527,13 +578,13 @@ export default function ProductsPage() {
             <FilterDropdown
               label="Category"
               value={selectedCategory}
-              options={CATEGORIES}
+              options={categoryNames}
               onChange={setSelectedCategory}
             />
             <FilterDropdown
               label="Brand"
               value={selectedBrand}
-              options={BRANDS}
+              options={brandNames}
               onChange={setSelectedBrand}
             />
             <FilterDropdown
@@ -556,8 +607,8 @@ export default function ProductsPage() {
               labels={{
                 'price-low': 'Price: Low to High',
                 'price-high': 'Price: High to Low',
-                'name': 'Name A–Z',
-                'stock': 'Most stock',
+                name: 'Name A–Z',
+                stock: 'Most stock',
               }}
               onChange={(v) => setSortBy(v ?? 'featured')}
               align="end"
@@ -577,24 +628,26 @@ export default function ProductsPage() {
         {selectedIds.length > 0 && (
           <div className="bg-blue-950 text-white rounded-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-[13px]">
-              <span className="bg-blue-900 font-medium px-2 py-0.5 rounded-sm">{selectedIds.length} selected</span>
+              <span className="bg-blue-900 font-medium px-2 py-0.5 rounded-sm">
+                {selectedIds.length} selected
+              </span>
               <span className="text-blue-200 hidden sm:inline">Bulk actions</span>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
-                onClick={() => alert('Change status for selected')}
+                onClick={() => flash('Change status: coming soon.')}
                 className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
               >
                 Change status
               </button>
               <button
-                onClick={() => alert('Update prices for selected')}
+                onClick={() => flash('Bulk price update: coming soon.')}
                 className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
               >
                 Update price
               </button>
               <button
-                onClick={() => alert('Export selected as CSV')}
+                onClick={() => flash('Export CSV: coming soon.')}
                 className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
               >
                 Export CSV
@@ -610,8 +663,13 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* TABLE / CARDS */}
-        {viewMode === 'table' ? (
+        {/* LOADING */}
+        {isLoading ? (
+          <div className="bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-500 text-[13px]">
+            <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
+            Loading products…
+          </div>
+        ) : viewMode === 'table' ? (
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
@@ -627,11 +685,10 @@ export default function ProductsPage() {
                     </th>
                     <th className="py-2 px-2 font-medium">Image</th>
                     <th className="py-2 px-3 font-medium">Product</th>
-                    <th className="py-2 px-3 font-medium">SKU</th>
+                    <th className="py-2 px-3 font-medium">ID</th>
                     <th className="py-2 px-3 font-medium">Category</th>
                     <th className="py-2 px-3 font-medium text-right">Price</th>
                     <th className="py-2 px-3 font-medium text-center">Stock</th>
-                    <th className="py-2 px-3 font-medium text-center">Variants</th>
                     <th className="py-2 px-3 font-medium">Status</th>
                     <th className="py-2 px-3 w-12"></th>
                   </tr>
@@ -639,8 +696,13 @@ export default function ProductsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400 text-[13px]">
-                        No products match your filters.
+                      <td
+                        colSpan={9}
+                        className="py-12 text-center text-slate-400 text-[13px]"
+                      >
+                        {products.length === 0
+                          ? 'No products yet. Add one to get started.'
+                          : 'No products match your filters.'}
                       </td>
                     </tr>
                   ) : (
@@ -660,7 +722,10 @@ export default function ProductsPage() {
                       const isKebabOpen = openKebabId === p.id;
 
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                        <tr
+                          key={p.id}
+                          className="hover:bg-slate-50 transition-colors"
+                        >
                           <td className="py-2 px-3">
                             <input
                               type="checkbox"
@@ -678,47 +743,41 @@ export default function ProductsPage() {
                           </td>
                           <td className="py-2 px-3 max-w-[280px]">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-slate-900 truncate">{p.name}</span>
-                              {p.featured && <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />}
+                              <span className="font-medium text-slate-900 truncate">
+                                {p.name}
+                              </span>
+                              {p.featured && (
+                                <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+                              )}
                             </div>
-                            {p.tags.length > 0 && (
-                              <div className="flex items-center gap-1 mt-0.5">
-                                {p.tags.slice(0, 2).map((t) => (
-                                  <span key={t} className="text-[11px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-sm">
-                                    {t}
-                                  </span>
-                                ))}
+                          </td>
+                          <td className="py-2 px-3 text-slate-500 font-mono">
+                            {p.id}
+                          </td>
+                          <td className="py-2 px-3 text-slate-600">
+                            {p.category}
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <div className="font-semibold text-slate-900">
+                              {formatKES(p.salePrice ?? p.price)}
+                            </div>
+                            {p.salePrice && (
+                              <div className="text-[13px] text-slate-400 line-through">
+                                {formatKES(p.price)}
                               </div>
                             )}
                           </td>
-                          <td className="py-2 px-3 text-slate-500 font-mono">{p.sku}</td>
-                          <td className="py-2 px-3 text-slate-600">{p.category}</td>
-                          <td className="py-2 px-3 text-right">
-                            <div className="font-semibold text-slate-900">{formatKES(p.salePrice ?? p.price)}</div>
-                            {p.salePrice && (
-                              <div className="text-[13px] text-slate-400 line-through">{formatKES(p.price)}</div>
-                            )}
-                          </td>
                           <td className="py-2 px-3 text-center">
-                            <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${stockBadge}`}>
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${stockBadge}`}
+                            >
                               {p.stock}
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-center">
-                            {p.variants.length > 0 ? (
-                              <button
-                                onClick={() => setVariantsProduct(p)}
-                                className="inline-flex items-center gap-1 text-[13px] font-medium text-blue-950 hover:underline"
-                              >
-                                <Layers className="w-3 h-3" />
-                                {p.variants.length}
-                              </button>
-                            ) : (
-                              <span className="text-[13px] text-slate-400">—</span>
-                            )}
-                          </td>
                           <td className="py-2 px-3">
-                            <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge}`}>
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge}`}
+                            >
                               {p.status}
                             </span>
                           </td>
@@ -779,7 +838,11 @@ export default function ProductsPage() {
                   className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 relative"
                 >
                   <div className="relative aspect-[4/3] rounded-sm overflow-hidden bg-slate-100 border border-slate-200">
-                    <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                    <img
+                      src={p.image}
+                      alt={p.name}
+                      className="w-full h-full object-cover"
+                    />
                     <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm">
                       {p.status}
                     </span>
@@ -830,27 +893,28 @@ export default function ProductsPage() {
                       </div>
                     </div>
 
-                    <h3 className="text-[13px] font-medium text-slate-900 line-clamp-2">{p.name}</h3>
-                    <p className="text-[13px] text-slate-400 font-mono">SKU: {p.sku}</p>
-                    {p.variants.length > 0 && (
-                      <button
-                        onClick={() => setVariantsProduct(p)}
-                        className="text-[13px] text-blue-950 hover:underline inline-flex items-center gap-1"
-                      >
-                        <Layers className="w-3 h-3" />
-                        {p.variants.length} variants
-                      </button>
-                    )}
+                    <h3 className="text-[13px] font-medium text-slate-900 line-clamp-2">
+                      {p.name}
+                    </h3>
+                    <p className="text-[13px] text-slate-400 font-mono">
+                      {p.id}
+                    </p>
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                     <div>
-                      <span className="text-[13px] font-bold text-slate-900">{formatKES(p.salePrice ?? p.price)}</span>
+                      <span className="text-[13px] font-bold text-slate-900">
+                        {formatKES(p.salePrice ?? p.price)}
+                      </span>
                       {p.salePrice && (
-                        <span className="text-[13px] text-slate-400 line-through ml-1">{formatKES(p.price)}</span>
+                        <span className="text-[13px] text-slate-400 line-through ml-1">
+                          {formatKES(p.price)}
+                        </span>
                       )}
                     </div>
-                    <span className={`px-2 py-0.5 rounded-sm font-medium text-[13px] border ${stockBadge}`}>
+                    <span
+                      className={`px-2 py-0.5 rounded-sm font-medium text-[13px] border ${stockBadge}`}
+                    >
                       {p.stock} left
                     </span>
                   </div>
@@ -861,57 +925,35 @@ export default function ProductsPage() {
         )}
       </main>
 
-      {/* ---- ADD PRODUCT MODAL ---- */}
+      {/* ADD PRODUCT MODAL */}
       <AddProductModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSave={(data: any) => {
-          const newProduct: Product = {
-            id: `p-${Date.now()}`,
-            name: data.name || 'Untitled',
-            sku: data.sku || `SKU-${Math.floor(Math.random() * 90000)}`,
-            description: data.description || '',
-            shortDescription: data.shortDescription || '',
-            category: data.category || 'Accessories',
-            brand: data.brand || 'Generic',
-            tags: data.tags || [],
-            price: Number(data.price) || 0,
-            salePrice: data.salePrice ? Number(data.salePrice) : undefined,
-            costPrice: data.costPrice ? Number(data.costPrice) : undefined,
-            tax: Number(data.tax) || 16,
-            discount: Number(data.discount) || 0,
-            stock: Number(data.stock) || 0,
-            lowStockThreshold: Number(data.lowStockThreshold) || 10,
-            inventoryStatus: data.stock === 0 ? 'Out of Stock' : 'In Stock',
-            status: data.status === 'draft' ? 'Draft' : 'Published',
-            image: data.images?.[0] || '/phone.jpeg',
-            video: data.video || undefined,
-            featured: !!data.featured,
-            variantOptions: data.variantOptions || [],
-            variants: data.variants || [],
-          };
-          setProducts((prev) => [newProduct, ...prev]);
-        }}
+        onSave={handleCreate}
       />
 
-      {/* ---- BULK UPLOAD MODAL ---- */}
+      {/* BULK UPLOAD MODAL */}
       <BulkUploadModal
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
         onSave={handleBulkImport}
+        brands={brands}
+        categories={categories}
       />
 
-      {/* ---- DELETE CONFIRM ---- */}
+      {/* DELETE CONFIRM */}
       {deleteProductId && (
         <Popup onClose={() => setDeleteProductId(null)}>
           <div className="flex items-center gap-2">
             <span className="w-9 h-9 rounded-sm bg-red-50 text-red-600 flex items-center justify-center">
               <AlertTriangle className="w-4 h-4" />
             </span>
-            <h3 className="text-[15px] font-semibold text-slate-900">Delete product?</h3>
+            <h3 className="text-[15px] font-semibold text-slate-900">
+              Delete product?
+            </h3>
           </div>
           <p className="text-[13px] text-slate-500 mt-2">
-            This cannot be undone. The product and all its variants will be permanently removed.
+            This cannot be undone. The product will be permanently removed.
           </p>
           <div className="flex justify-end gap-2 mt-3">
             <button
@@ -930,12 +972,17 @@ export default function ProductsPage() {
         </Popup>
       )}
 
-      {/* ---- QUICK EDIT ---- */}
+      {/* QUICK EDIT */}
       {editProduct && (
         <Popup onClose={() => setEditProduct(null)}>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[15px] font-semibold text-slate-900">Quick edit</h3>
-            <button onClick={() => setEditProduct(null)} className="text-slate-400 hover:text-slate-900 p-1">
+            <h3 className="text-[15px] font-semibold text-slate-900">
+              Quick edit
+            </h3>
+            <button
+              onClick={() => setEditProduct(null)}
+              className="text-slate-400 hover:text-slate-900 p-1"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -945,27 +992,45 @@ export default function ProductsPage() {
               <span className="block font-medium text-slate-700 mb-1">Name</span>
               <input
                 value={editProduct.name}
-                onChange={(e) => setEditProduct({ ...editProduct, name: e.target.value })}
+                onChange={(e) =>
+                  setEditProduct({ ...editProduct, name: e.target.value })
+                }
                 className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </label>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="block font-medium text-slate-700 mb-1">Price (KES)</span>
+                <span className="block font-medium text-slate-700 mb-1">
+                  List price (KES)
+                </span>
                 <input
                   type="number"
                   value={editProduct.price}
-                  onChange={(e) => setEditProduct({ ...editProduct, price: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setEditProduct({
+                      ...editProduct,
+                      price: Number(e.target.value),
+                    })
+                  }
                   className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
               <label className="block">
-                <span className="block font-medium text-slate-700 mb-1">Sale Price (KES)</span>
+                <span className="block font-medium text-slate-700 mb-1">
+                  Sale price (KES)
+                </span>
                 <input
                   type="number"
                   value={editProduct.salePrice ?? ''}
-                  onChange={(e) => setEditProduct({ ...editProduct, salePrice: e.target.value ? Number(e.target.value) : undefined })}
+                  onChange={(e) =>
+                    setEditProduct({
+                      ...editProduct,
+                      salePrice: e.target.value
+                        ? Number(e.target.value)
+                        : undefined,
+                    })
+                  }
                   className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
@@ -973,100 +1038,108 @@ export default function ProductsPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="block font-medium text-slate-700 mb-1">Stock</span>
+                <span className="block font-medium text-slate-700 mb-1">
+                  Stock
+                </span>
                 <input
                   type="number"
                   value={editProduct.stock}
-                  onChange={(e) => setEditProduct({ ...editProduct, stock: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setEditProduct({
+                      ...editProduct,
+                      stock: Number(e.target.value),
+                    })
+                  }
                   className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
               <label className="block">
-                <span className="block font-medium text-slate-700 mb-1">Low-stock threshold</span>
+                <span className="block font-medium text-slate-700 mb-1">
+                  Low-stock threshold
+                </span>
                 <input
                   type="number"
                   value={editProduct.lowStockThreshold}
-                  onChange={(e) => setEditProduct({ ...editProduct, lowStockThreshold: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setEditProduct({
+                      ...editProduct,
+                      lowStockThreshold: Number(e.target.value),
+                    })
+                  }
                   className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
             </div>
 
             <label className="block">
-              <span className="block font-medium text-slate-700 mb-1">Status</span>
+              <span className="block font-medium text-slate-700 mb-1">
+                Status
+              </span>
               <select
                 value={editProduct.status}
-                onChange={(e) => setEditProduct({ ...editProduct, status: e.target.value as ProductStatus })}
+                onChange={(e) =>
+                  setEditProduct({
+                    ...editProduct,
+                    status: e.target.value as ProductStatus,
+                  })
+                }
                 className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
               >
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </label>
-
-            {editProduct.variants.length > 0 && (
-              <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 text-[13px]">
-                <div className="flex items-center gap-1.5 text-blue-950 font-medium">
-                  <Layers className="w-3.5 h-3.5" />
-                  {editProduct.variants.length} variants
-                </div>
-                <p className="text-slate-600 mt-0.5">
-                  Edit variants separately from the variants drawer.
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end gap-2 mt-3">
             <button
               onClick={() => setEditProduct(null)}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+              disabled={saving}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
             >
               Cancel
             </button>
             <button
-              onClick={() => {
-                setProducts((prev) => prev.map((x) => (x.id === editProduct.id ? editProduct : x)));
-                setEditProduct(null);
-              }}
-              className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+              onClick={handleUpdate}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
             >
-              Save
+              {saving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                'Save'
+              )}
             </button>
           </div>
         </Popup>
       )}
 
-      {/* ---- VIEW PRODUCT DRAWER ---- */}
+      {/* VIEW PRODUCT DRAWER */}
       {viewProduct && (
         <ProductDrawer
           product={viewProduct}
           onClose={() => setViewProduct(null)}
-          onOpenVariants={() => {
-            setVariantsProduct(viewProduct);
-            setViewProduct(null);
-          }}
         />
       )}
 
-      {/* ---- VARIANTS DRAWER ---- */}
-      {variantsProduct && (
-        <VariantsDrawer
-          product={variantsProduct}
-          onClose={() => setVariantsProduct(null)}
-          onUpdate={(updated) => {
-            setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-            setVariantsProduct(updated);
-          }}
-        />
-      )}
-
-      {/* ---- DUPLICATE ---- */}
+      {/* DUPLICATE */}
       {duplicateProduct && (
         <Popup onClose={() => setDuplicateProduct(null)}>
-          <h3 className="text-[15px] font-semibold text-slate-900">Duplicate product?</h3>
+          <h3 className="text-[15px] font-semibold text-slate-900">
+            Duplicate product?
+          </h3>
           <p className="text-[13px] text-slate-500 mt-2">
-            Create a copy of <span className="font-medium text-slate-900">{duplicateProduct.name}</span> with a new SKU.
-            The copy will be saved as Draft.
+            Create a copy of{' '}
+            <span className="font-medium text-slate-900">
+              {duplicateProduct.name}
+            </span>
+            . The copy will be saved as Draft.
           </p>
           <div className="flex justify-end gap-2 mt-3">
             <button
@@ -1077,16 +1150,26 @@ export default function ProductsPage() {
             </button>
             <button
               onClick={confirmDuplicate}
-              className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
             >
-              Duplicate
+              {saving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Duplicating…
+                </>
+              ) : (
+                'Duplicate'
+              )}
             </button>
           </div>
         </Popup>
       )}
 
       {/* Backdrop when any modal is open */}
-      {anyModalOpen && <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm" />}
+      {anyModalOpen && (
+        <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm pointer-events-none" />
+      )}
 
       {/* Toast */}
       {toast && (
@@ -1102,11 +1185,9 @@ export default function ProductsPage() {
 function ProductDrawer({
   product,
   onClose,
-  onOpenVariants,
 }: {
   product: Product;
   onClose: () => void;
-  onOpenVariants: () => void;
 }) {
   return (
     <div
@@ -1123,218 +1204,11 @@ function ProductDrawer({
               <Package className="w-4 h-4" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-[13px] font-semibold text-slate-900 truncate">Product Details</h3>
-              <p className="text-[13px] text-slate-500 truncate">SKU: {product.sku}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-3 space-y-3">
-          <div className="aspect-[16/9] rounded-sm overflow-hidden bg-slate-100 border border-slate-200">
-            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{product.category}</span>
-              <span className="text-slate-300">·</span>
-              <span className="text-[13px] text-slate-500">{product.brand}</span>
-              {product.featured && (
-                <span className="text-[13px] font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
-                  <Star className="w-3 h-3 fill-amber-700" /> Featured
-                </span>
-              )}
-            </div>
-            <h2 className="text-[15px] font-bold text-slate-900">{product.name}</h2>
-            {product.shortDescription && (
-              <p className="text-[13px] text-slate-500">{product.shortDescription}</p>
-            )}
-          </div>
-
-          {product.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {product.tags.map((t) => (
-                <span key={t} className="text-[13px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
-                  <Tag className="w-3 h-3" />
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
-            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
-              <DollarSign className="w-3.5 h-3.5" />
-              Pricing
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[13px]">
-              <Stat label="Regular" value={formatKES(product.price)} />
-              <Stat label="Sale" value={product.salePrice ? formatKES(product.salePrice) : '—'} />
-              <Stat label="Cost" value={product.costPrice ? formatKES(product.costPrice) : '—'} />
-              <Stat label="Tax" value={`${product.tax}%`} />
-              <Stat label="Discount" value={`${product.discount}%`} />
-              {product.salePrice && (
-                <Stat
-                  label="Margin"
-                  value={`${Math.round(((product.salePrice - (product.costPrice || 0)) / product.salePrice) * 100)}%`}
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
-            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
-              <Warehouse className="w-3.5 h-3.5" />
-              Inventory
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[13px]">
-              <Stat label="Stock" value={`${product.stock} units`} />
-              <Stat label="Low-stock threshold" value={`${product.lowStockThreshold} units`} />
-              <Stat label="Inventory status" value={product.inventoryStatus} />
-            </div>
-          </div>
-
-          {product.description && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
-                <FileText className="w-3.5 h-3.5" />
-                Description
-              </div>
-              <p className="text-[13px] text-slate-600 leading-relaxed">{product.description}</p>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
-              <ImageIcon className="w-3.5 h-3.5" />
-              Media
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="aspect-square rounded-sm overflow-hidden border border-slate-200 bg-slate-100">
-                <img src={product.image} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="aspect-square rounded-sm border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-slate-400 text-[13px]">
-                <ImageIcon className="w-4 h-4" />
-                <span className="mt-1">Image 2</span>
-              </div>
-              <div className="aspect-square rounded-sm border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-slate-400 text-[13px]">
-                <Video className="w-4 h-4" />
-                <span className="mt-1">Video</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
-                <Layers className="w-3.5 h-3.5" />
-                Variants
-              </div>
-              {product.variants.length > 0 && (
-                <button
-                  onClick={onOpenVariants}
-                  className="text-[13px] text-blue-950 hover:underline font-medium"
-                >
-                  Manage
-                </button>
-              )}
-            </div>
-
-            {product.variantOptions.length === 0 ? (
-              <p className="text-[13px] text-slate-400">This product has no variants.</p>
-            ) : (
-              <div className="space-y-2">
-                {product.variantOptions.map((opt) => (
-                  <div key={opt.name} className="text-[13px]">
-                    <div className="flex items-center gap-1.5 text-slate-600 mb-1">
-                      {opt.name === 'Color' ? <Palette className="w-3 h-3" /> :
-                        opt.name === 'Size' ? <Ruler className="w-3 h-3" /> :
-                          <Box className="w-3 h-3" />}
-                      <span className="font-medium">{opt.name}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {opt.values.map((v) => (
-                        <span key={v} className="text-[13px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-sm">
-                          {v}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <div className="pt-1 border-t border-slate-100">
-                  <button
-                    onClick={onOpenVariants}
-                    className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium py-2 rounded-sm text-[13px] inline-flex items-center justify-center gap-1.5"
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    View all {product.variants.length} variants
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────── Variants Drawer ─────────────────────────── */
-function VariantsDrawer({
-  product,
-  onClose,
-  onUpdate,
-}: {
-  product: Product;
-  onClose: () => void;
-  onUpdate: (p: Product) => void;
-}) {
-  const groupedByFirstOption = useMemo(() => {
-    if (product.variantOptions.length === 0) return [];
-    const first = product.variantOptions[0].name;
-    const map = new Map<string, ProductVariant[]>();
-    product.variants.forEach((v) => {
-      const key = v.options.find((o) => o.name === first)?.value || '—';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(v);
-    });
-    return Array.from(map.entries());
-  }, [product]);
-
-  const updateVariant = (id: string, patch: Partial<ProductVariant>) => {
-    const next: Product = {
-      ...product,
-      variants: product.variants.map((v) => (v.id === id ? { ...v, ...patch } : v)),
-    };
-    onUpdate(next);
-  };
-
-  const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex justify-end"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white border-l border-slate-200 w-full max-w-3xl h-full overflow-y-auto shadow-xl flex flex-col"
-      >
-        <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
-              <Layers className="w-4 h-4" />
-            </span>
-            <div className="min-w-0">
-              <h3 className="text-[13px] font-semibold text-slate-900 truncate">Variants — {product.name}</h3>
-              <p className="text-[13px] text-slate-500">
-                {product.variants.length} variants · {totalStock} total stock
+              <h3 className="text-[13px] font-semibold text-slate-900 truncate">
+                Product Details
+              </h3>
+              <p className="text-[13px] text-slate-500 truncate font-mono">
+                {product.id}
               </p>
             </div>
           </div>
@@ -1347,122 +1221,98 @@ function VariantsDrawer({
         </div>
 
         <div className="p-3 space-y-3">
-          {product.variantOptions.length > 0 && (
-            <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
-              <div className="text-[13px] font-medium text-slate-700">Option groups</div>
-              {product.variantOptions.map((opt) => (
-                <div key={opt.name} className="text-[13px]">
-                  <div className="flex items-center gap-1.5 text-slate-600 mb-1">
-                    {opt.name === 'Color' ? <Palette className="w-3 h-3" /> :
-                      opt.name === 'Size' ? <Ruler className="w-3 h-3" /> :
-                        <Box className="w-3 h-3" />}
-                    <span className="font-medium">{opt.name}</span>
-                    <span className="text-slate-400">({opt.values.length})</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {opt.values.map((v) => (
-                      <span key={v} className="text-[13px] bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-sm">
-                        {v}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
+          <div className="aspect-[16/9] rounded-sm overflow-hidden bg-slate-100 border border-slate-200">
+            <img
+              src={product.image}
+              alt={product.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">
+                {product.category}
+              </span>
+              <span className="text-slate-300">·</span>
+              <span className="text-[13px] text-slate-500">
+                {product.brand}
+              </span>
+              {product.featured && (
+                <span className="text-[13px] font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-amber-700" /> Featured
+                </span>
+              )}
+            </div>
+            <h2 className="text-[15px] font-bold text-slate-900">
+              {product.name}
+            </h2>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+              <DollarSign className="w-3.5 h-3.5" />
+              Pricing
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[13px]">
+              <Stat label="List price" value={formatKES(product.price)} />
+              <Stat
+                label="Sale price"
+                value={
+                  product.salePrice ? formatKES(product.salePrice) : '—'
+                }
+              />
+              <Stat
+                label="Discount"
+                value={product.discount ? `${product.discount}%` : '—'}
+              />
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+              <Warehouse className="w-3.5 h-3.5" />
+              Inventory
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[13px]">
+              <Stat label="Stock" value={`${product.stock} units`} />
+              <Stat
+                label="Low-stock threshold"
+                value={`${product.lowStockThreshold} units`}
+              />
+              <Stat
+                label="Inventory status"
+                value={product.inventoryStatus}
+              />
+            </div>
+          </div>
+
+          {product.description && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+                <FileText className="w-3.5 h-3.5" />
+                Description
+              </div>
+              <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">
+                {product.description}
+              </p>
             </div>
           )}
 
-          <div className="space-y-3">
-            {groupedByFirstOption.map(([groupName, variants]) => (
-              <div key={groupName} className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                  {product.variantOptions[0]?.name === 'Color' ? <Palette className="w-3.5 h-3.5 text-slate-500" /> :
-                    product.variantOptions[0]?.name === 'Size' ? <Ruler className="w-3.5 h-3.5 text-slate-500" /> :
-                      <Box className="w-3.5 h-3.5 text-slate-500" />}
-                  <span className="text-[13px] font-medium text-slate-700">
-                    {product.variantOptions[0]?.name}: {groupName}
-                  </span>
-                  <span className="text-[13px] text-slate-400">({variants.length})</span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[13px] border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500">
-                        <th className="py-2 px-3 font-medium">Variant</th>
-                        <th className="py-2 px-3 font-medium">SKU</th>
-                        <th className="py-2 px-3 font-medium text-right">Price</th>
-                        <th className="py-2 px-3 font-medium text-right">Stock</th>
-                        <th className="py-2 px-3 font-medium text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {variants.map((v) => {
-                        const remaining = v.options.slice(1);
-                        const label = remaining.length > 0 ? remaining.map((o) => o.value).join(' / ') : 'Default';
-                        const stockBadge =
-                          v.stock === 0
-                            ? 'bg-red-50 text-red-600 border-red-200'
-                            : v.stock <= 3
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200';
-
-                        return (
-                          <tr key={v.id} className="hover:bg-slate-50 transition">
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
-                                  <Box className="w-3.5 h-3.5" />
-                                </div>
-                                <span className="font-medium text-slate-900">{label}</span>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                value={v.sku}
-                                onChange={(e) => updateVariant(v.id, { sku: e.target.value })}
-                                className="w-full max-w-[180px] bg-white border border-slate-200 rounded-sm px-2 py-1 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
-                              />
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              <input
-                                type="number"
-                                value={v.price}
-                                onChange={(e) => updateVariant(v.id, { price: Number(e.target.value) })}
-                                className="w-24 bg-white border border-slate-200 rounded-sm px-2 py-1 text-[13px] text-right focus:outline-none focus:ring-1 focus:ring-blue-950"
-                              />
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              <input
-                                type="number"
-                                value={v.stock}
-                                onChange={(e) => updateVariant(v.id, { stock: Number(e.target.value) })}
-                                className="w-20 bg-white border border-slate-200 rounded-sm px-2 py-1 text-[13px] text-right focus:outline-none focus:ring-1 focus:ring-blue-950"
-                              />
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${stockBadge}`}>
-                                {v.stock === 0 ? 'Out' : v.stock <= 3 ? 'Low' : 'In Stock'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-blue-50 border border-blue-100 rounded-sm p-2 text-[13px] text-blue-900">
-            <div className="flex items-center gap-1.5 font-medium">
-              <Layers className="w-3.5 h-3.5" />
-              Example matrix
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
+              <ImageIcon className="w-3.5 h-3.5" />
+              Media
             </div>
-            <p className="mt-1 text-slate-600">
-              T-Shirt → Black / S, Black / M, Black / L, White / S, White / M, White / L.
-              Each combination is tracked with its own SKU, price, and stock.
-            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="aspect-square rounded-sm overflow-hidden border border-slate-200 bg-slate-100">
+                <img
+                  src={product.image}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1493,7 +1343,8 @@ function FilterDropdown({
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -1522,7 +1373,9 @@ function FilterDropdown({
       >
         {icon}
         {display}
-        <ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {open && (
@@ -1535,7 +1388,9 @@ function FilterDropdown({
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive
+              ? 'bg-blue-50 text-blue-950 font-medium'
+              : 'text-slate-700 hover:bg-slate-50'
               }`}
           >
             All {label.toLowerCase()}
@@ -1550,7 +1405,9 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${isSelected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${isSelected
+                  ? 'bg-blue-50 text-blue-950 font-medium'
+                  : 'text-slate-700 hover:bg-slate-50'
                   }`}
               >
                 <span>{labels?.[opt] ?? opt}</span>
@@ -1584,11 +1441,28 @@ function KebabMenu({
       className={`absolute top-full mt-1 w-44 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1 ${align === 'right' ? 'right-0' : 'left-0'
         }`}
     >
-      <MenuItem icon={<Edit className="w-3.5 h-3.5" />} label="Edit" onClick={onEdit} />
-      <MenuItem icon={<Copy className="w-3.5 h-3.5" />} label="Duplicate" onClick={onDuplicate} />
-      <MenuItem icon={<ExternalLink className="w-3.5 h-3.5" />} label="View on store" onClick={onView} />
+      <MenuItem
+        icon={<Edit className="w-3.5 h-3.5" />}
+        label="Edit"
+        onClick={onEdit}
+      />
+      <MenuItem
+        icon={<Copy className="w-3.5 h-3.5" />}
+        label="Duplicate"
+        onClick={onDuplicate}
+      />
+      <MenuItem
+        icon={<ExternalLink className="w-3.5 h-3.5" />}
+        label="View"
+        onClick={onView}
+      />
       <div className="border-t border-slate-100 my-1" />
-      <MenuItem icon={<Trash2 className="w-3.5 h-3.5" />} label="Delete" onClick={onDelete} danger />
+      <MenuItem
+        icon={<Trash2 className="w-3.5 h-3.5" />}
+        label="Delete"
+        onClick={onDelete}
+        danger
+      />
     </div>
   );
 }
@@ -1607,17 +1481,27 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'
+      className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${danger
+        ? 'text-red-600 hover:bg-red-50'
+        : 'text-slate-700 hover:bg-slate-50'
         }`}
     >
-      <span className={danger ? 'text-red-500' : 'text-slate-400'}>{icon}</span>
+      <span className={danger ? 'text-red-500' : 'text-slate-400'}>
+        {icon}
+      </span>
       {label}
     </button>
   );
 }
 
 /* ─────────────────────────── Popup wrapper ─────────────────────────── */
-function Popup({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function Popup({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3"
@@ -1638,7 +1522,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white border border-slate-200 rounded-sm p-2">
       <p className="text-[13px] font-medium text-slate-500">{label}</p>
-      <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{value}</p>
+      <p className="text-[13px] font-semibold text-slate-900 mt-0.5">
+        {value}
+      </p>
     </div>
   );
 }

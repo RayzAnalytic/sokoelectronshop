@@ -1,20 +1,10 @@
 'use client';
-import { TbMessageChatbot } from "react-icons/tb";
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+
+import { TbMessageChatbot } from 'react-icons/tb';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import {
-    LuSparkles,
-    LuX,
-    LuSend,
-    LuSearch,
-    LuShoppingBag,
-    LuTruck,
-    LuCreditCard,
-    LuStore,
-    LuLightbulb,
-    LuBot,
-} from 'react-icons/lu';
-import { products as allProducts, type ProductFull } from '@/data/products';
+import { LuX, LuSend, LuSearch, LuBot } from 'react-icons/lu';
+import { aiApi, ApiError, type AIChatProduct } from '@/lib/api';
 
 interface AIAssistantButtonProps {
     shopName?: string;
@@ -26,148 +16,20 @@ interface Message {
     id: string;
     role: 'user' | 'assistant';
     text: string;
-    /** Optional product suggestions attached to an assistant reply. */
-    products?: ProductFull[];
-    /** Optional follow-up suggestion chips. */
+    /** Product cards returned by the AI endpoint, rendered inline. */
+    products?: AIChatProduct[];
+    /** Suggested follow-up questions. */
     chips?: string[];
 }
 
-const formatKES = (n: number) => `KES ${n.toLocaleString()}`;
-
-// ─────────────────────────────────────────────────────────────────
-// Rule-based reply engine — grounded in the real catalog + policies
-// Replace `respond()` with a real API call when the backend is ready.
-// ─────────────────────────────────────────────────────────────────
-function respond(query: string): Omit<Message, 'id' | 'role'> {
-    const q = query.toLowerCase().trim();
-
-    // Greetings
-    if (/^(hi|hello|hey|habari|jambo|good (morning|afternoon|evening))/.test(q)) {
-        return {
-            text: "Hi! 👋 I'm your shopping assistant. What are you looking for today?",
-            chips: ['Show me laptops', 'Best sellers', 'Delivery info'],
-        };
-    }
-
-    // Delivery
-    if (/\b(deliver|delivery|shipping|ship|how long)\b/.test(q)) {
-        return {
-            text: 'We deliver countrywide. Nairobi orders arrive in 1–2 days, other regions in 2–4 days. Delivery is free on orders over KES 5,000.',
-            chips: ['Payment via M-Pesa', 'Return policy'],
-        };
-    }
-
-    // Payment — M-Pesa only
-    if (/\b(pay|payment|mpesa|m-?pesa|checkout|lipa)\b/.test(q)) {
-        return {
-            text: "We accept M-Pesa only. At checkout you'll get a payment prompt on your phone — enter your M-Pesa PIN to confirm the order. No card details needed.",
-            chips: ['Delivery info', 'Return policy'],
-        };
-    }
-
-    // Return policy
-    if (/\b(return|refund|exchange|warranty)\b/.test(q)) {
-        return {
-            text: 'You have 30 days to return any item in its original condition. Refunds land back in 3–5 working days. Every product carries the official manufacturer warranty.',
-            chips: ['Delivery info', 'Payment via M-Pesa'],
-        };
-    }
-
-    // Store info
-    if (/\b(store|shop|location|address|hours|open|contact|reach)\b/.test(q)) {
-        return {
-            text: 'Our main store is in Westlands, Nairobi — open 7 days a week, 9am–7pm. You can also reach us on WhatsApp for instant help.',
-            chips: ['Show me products', 'Delivery info'],
-        };
-    }
-
-    // Recommendations
-    if (/\b(recommend|suggest|best|top|popular|favourite|favorite)\b/.test(q)) {
-        const top = [...allProducts]
-            .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-            .slice(0, 3);
-        return {
-            text: 'Here are our highest-rated products right now:',
-            products: top,
-            chips: ['Best sellers', 'Show me deals'],
-        };
-    }
-
-    // Price under X
-    const under = q.match(/under\s+(?:kes\s*)?(\d[\d,]*)/);
-    if (under) {
-        const max = Number(under[1].replace(/,/g, ''));
-        const matches = allProducts
-            .filter((p) => p.price <= max)
-            .sort((a, b) => b.price - a.price)
-            .slice(0, 3);
-        if (matches.length) {
-            return {
-                text: `Here's what we have under ${formatKES(max)}:`,
-                products: matches,
-                chips: ['Show more options', 'Delivery info'],
-            };
-        }
-    }
-
-    // Category
-    const matchedCategory = allProducts.find((p) =>
-        q.includes(p.category.toLowerCase()),
-    );
-    if (matchedCategory) {
-        const matches = allProducts
-            .filter((p) => p.category === matchedCategory.category)
-            .slice(0, 3);
-        return {
-            text: `Here are some ${matchedCategory.category.toLowerCase()} we have:`,
-            products: matches,
-            chips: ['Show more', 'Delivery info'],
-        };
-    }
-
-    // Keyword search
-    const keywords = q
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .split(/\s+/)
-        .filter((w) => w.length > 2);
-
-    if (keywords.length) {
-        const scored = allProducts
-            .map((p) => {
-                let score = 0;
-                for (const kw of keywords) {
-                    if (p.name.toLowerCase().includes(kw)) score += 3;
-                    if (p.brand.toLowerCase().includes(kw)) score += 2;
-                    if (p.category.toLowerCase().includes(kw)) score += 2;
-                    if (p.description.toLowerCase().includes(kw)) score += 1;
-                }
-                return { p, score };
-            })
-            .filter((x) => x.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 3)
-            .map((x) => x.p);
-
-        if (scored.length) {
-            return {
-                text: `Here's what I found for "${query}":`,
-                products: scored,
-                chips: ['Show more', 'Delivery info', 'Payment via M-Pesa'],
-            };
-        }
-    }
-
-    // Fallback
-    return {
-        text: "I can help you find products, check delivery and M-Pesa payment info, and answer questions about our store. Try one of these:",
-        chips: [
-            'Show me laptops',
-            "What's on sale?",
-            'Delivery info',
-            'Payment via M-Pesa',
-        ],
-    };
-}
+/**
+ * Accepts DRF decimals as strings. `formatKES("78500.00")` → "KES 78,500".
+ */
+const formatKES = (value: number | string): string => {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    return `KES ${n.toLocaleString('en-KE')}`;
+};
 
 export default function AIAssistantButton({
     shopName = 'MyShop',
@@ -177,16 +39,18 @@ export default function AIAssistantButton({
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState('');
     const [typing, setTyping] = useState(false);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+
     const [messages, setMessages] = useState<Message[]>(() => [
         {
             id: 'greeting',
             role: 'assistant',
             text: `Hi! 👋 I'm your shopping assistant for ${shopName}. I can help you find products, compare options, check availability, and answer questions about our store.`,
             chips: [
-                'Search products',
+                'Show me laptops',
                 'Delivery info',
                 'Payment via M-Pesa',
-                'Product recommendations',
+                "What's on sale?",
             ],
         },
     ]);
@@ -194,6 +58,7 @@ export default function AIAssistantButton({
     const scrollRef = useRef<HTMLDivElement | null>(null);
     const closeBtnRef = useRef<HTMLButtonElement | null>(null);
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const abortRef = useRef<AbortController | null>(null);
 
     // Auto-scroll to latest
     useEffect(() => {
@@ -216,27 +81,82 @@ export default function AIAssistantButton({
         };
     }, [open]);
 
-    const send = (raw: string) => {
-        const text = raw.trim();
-        if (!text) return;
-        const userMsg: Message = {
-            id: `u-${Date.now()}`,
-            role: 'user',
-            text,
+    // Abort any in-flight request when the component unmounts
+    useEffect(() => {
+        return () => {
+            abortRef.current?.abort();
         };
-        setMessages((m) => [...m, userMsg]);
+    }, []);
+
+    // ─────────────────────────────────────────────────────────────────
+    // Send a message to the backend AI endpoint
+    // ─────────────────────────────────────────────────────────────────
+    const send = async (raw: string) => {
+        const text = raw.trim();
+        if (!text || typing) return;
+
+        setMessages((m) => [...m, { id: `u-${Date.now()}`, role: 'user', text }]);
         setInput('');
         setTyping(true);
 
-        // Simulate a short "thinking" pause for a natural feel
-        setTimeout(() => {
-            const reply = respond(text);
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+
+        try {
+            const data = await aiApi.chat(
+                { message: text, session_id: sessionId },
+                ctrl.signal,
+            );
+
+            setSessionId(data.session_id);
+
             setMessages((m) => [
                 ...m,
-                { id: `a-${Date.now()}`, role: 'assistant', ...reply },
+                {
+                    id: `a-${Date.now()}`,
+                    role: 'assistant',
+                    text: data.message,
+                    products: data.products,
+                    chips: data.chips,
+                },
             ]);
+        } catch (err) {
+            // If the request was aborted (unmount, close), stay silent
+            if (err instanceof DOMException && err.name === 'AbortError') return;
+
+            let reply =
+                "Sorry, I couldn't reach the assistant right now. Please try again in a moment.";
+
+            if (err instanceof ApiError) {
+                if (err.status === 404) {
+                    // Backend route `/api/ai/chat/` isn't registered yet.
+                    reply =
+                        "The AI assistant isn't available on this store yet. Please try again later.";
+                } else if (err.status === 503) {
+                    reply =
+                        "The AI assistant isn't configured yet. Please contact support.";
+                } else if (err.status === 429) {
+                    reply =
+                        "I'm receiving too many requests right now. Please wait a moment and try again.";
+                } else if (err.status === 502) {
+                    reply =
+                        'The assistant is temporarily unavailable. Please try again shortly.';
+                }
+            }
+
+            setMessages((m) => [
+                ...m,
+                {
+                    id: `a-err-${Date.now()}`,
+                    role: 'assistant',
+                    text: reply,
+                    chips: ['Try again'],
+                },
+            ]);
+        } finally {
             setTyping(false);
-        }, 350);
+            abortRef.current = null;
+        }
     };
 
     const onSubmit = (e: React.FormEvent) => {
@@ -244,24 +164,19 @@ export default function AIAssistantButton({
         send(input);
     };
 
-    // Compute total in-stock count once for a small dynamic hint
-    const inStockCount = useMemo(
-        () => allProducts.filter((p) => p.stock !== 'Out of Stock').length,
-        [],
-    );
-
     if (hidden) return null;
 
     return (
         <>
-            {/* ── Panel ───────────────────────────────────────────────── */}
+            {/* ── Panel ─────────────────────────────────────────────── */}
             <div
+                id="ai-panel"
                 role="dialog"
                 aria-label="AI shopping assistant"
                 aria-hidden={!open}
                 className={`fixed z-40 bottom-[5.5rem] right-4 left-4 sm:left-auto sm:right-6 sm:w-[380px] origin-bottom-right transition-all duration-200 ease-out ${open
-                        ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
-                        : 'opacity-0 translate-y-2 scale-95 pointer-events-none'
+                    ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+                    : 'opacity-0 translate-y-2 scale-95 pointer-events-none'
                     } ${className}`}
             >
                 <div className="bg-white border border-slate-200 rounded-sm shadow-xl overflow-hidden flex flex-col h-[520px] max-h-[calc(100vh-7rem)]">
@@ -320,7 +235,7 @@ export default function AIAssistantButton({
                             </div>
                             <button
                                 type="submit"
-                                disabled={!input.trim()}
+                                disabled={!input.trim() || typing}
                                 aria-label="Send message"
                                 className="h-9 w-9 shrink-0 rounded-sm bg-blue-950 hover:bg-blue-900 text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-950/40"
                             >
@@ -328,13 +243,13 @@ export default function AIAssistantButton({
                             </button>
                         </div>
                         <p className="text-[10px] text-slate-400 text-center mt-1.5">
-                            {inStockCount} products in stock · prices update live
+                            Prices and stock update live from our catalog
                         </p>
                     </form>
                 </div>
             </div>
 
-            {/* ── Floating toggle ─────────────────────────────────────── */}
+            {/* ── Floating toggle ───────────────────────────────────── */}
             <div className="fixed z-40 bottom-[5.5rem] right-5 sm:bottom-[6.5rem] sm:right-6">
                 <button
                     type="button"
@@ -342,16 +257,15 @@ export default function AIAssistantButton({
                     aria-label={open ? 'Close AI assistant' : 'Open AI assistant'}
                     aria-expanded={open}
                     aria-controls="ai-panel"
-                    className="group relative h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-blue-950 hover:bg-blue-900 text-white shadow-lg shadow-blue-950/25 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-950/30"
+                    className="group relative h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-white/90 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/40"
                 >
                     {open ? (
                         <LuX className="w-5 h-5" />
                     ) : (
-                            <TbMessageChatbot className="w-5 h-5 sm:w-6 sm:h-6" />
+                        <TbMessageChatbot className="w-5 h-5 sm:w-6 sm:h-6" />
                     )}
                 </button>
 
-                {/* Tooltip (desktop, closed) */}
                 {!open && (
                     <span
                         aria-hidden="true"
@@ -385,11 +299,14 @@ function MessageBubble({
                 </span>
             )}
 
-            <div className={`max-w-[85%] space-y-2 ${isUser ? 'items-end' : 'items-start'}`}>
+            <div
+                className={`max-w-[90%] space-y-2 ${isUser ? 'items-end' : 'items-start'
+                    }`}
+            >
                 <div
                     className={`rounded-sm px-3 py-2 text-[12.5px] leading-relaxed ${isUser
-                            ? 'bg-blue-950 text-white'
-                            : 'bg-white border border-slate-200 text-slate-800'
+                        ? 'bg-blue-950 text-white'
+                        : 'bg-white border border-slate-200 text-slate-800'
                         }`}
                 >
                     {message.text}
@@ -401,13 +318,13 @@ function MessageBubble({
                         {message.products.map((p) => (
                             <li key={p.id}>
                                 <Link
-                                    href={`/pages/products?open=${p.id}`}
+                                    href={p.url || `/pages/products?open=${p.id}`}
                                     className="group flex items-center gap-2.5 bg-white border border-slate-200 hover:border-blue-200 hover:shadow-sm rounded-sm p-2 transition-all"
                                 >
                                     <div className="h-11 w-11 rounded-sm bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
-                                            src={p.images[0]}
+                                            src={p.images[0] ?? '/placeholder.jpeg'}
                                             alt=""
                                             className="w-full h-full object-cover"
                                         />
@@ -425,10 +342,10 @@ function MessageBubble({
                                             </span>
                                             <span
                                                 className={`text-[10px] font-medium px-1.5 py-0.5 rounded-sm ${p.stock === 'In Stock'
-                                                        ? 'bg-emerald-50 text-emerald-700'
-                                                        : p.stock === 'Low Stock'
-                                                            ? 'bg-amber-50 text-amber-700'
-                                                            : 'bg-red-50 text-red-700'
+                                                    ? 'bg-emerald-50 text-emerald-700'
+                                                    : p.stock === 'Low Stock'
+                                                        ? 'bg-amber-50 text-amber-700'
+                                                        : 'bg-red-50 text-red-700'
                                                     }`}
                                             >
                                                 {p.stock}

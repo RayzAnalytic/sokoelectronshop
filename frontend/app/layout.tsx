@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Your Store — Buy Phones, TVs, Laptops,,, Online',
-    template: '%s | Your Store',
+    default: 'RazeAnaly Store — Buy Phones, TVs, Laptops,,, Online',
+    template: '%s | RazeAnaly Store',
   },
   description:
     'Shop phones, TVs, laptops, and more. Fast delivery, secure payments, easy returns.',

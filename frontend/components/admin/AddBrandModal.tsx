@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Upload, Check, Image as ImageIcon, Trash2, Link as LinkIcon } from 'lucide-react';
+import {
+  X, Upload, Check, Image as ImageIcon, Trash2, Link as LinkIcon,
+  Loader2, AlertCircle,
+} from 'lucide-react';
 
 type BrandStatus = 'Active' | 'Inactive';
 
@@ -13,14 +16,19 @@ interface Brand {
   status: BrandStatus;
   description?: string;
   websiteUrl?: string;
+  featured?: boolean;
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSave: (brand: Omit<Brand, 'id'> & { id?: string }) => void;
+  onSave: (
+    brand: Omit<Brand, 'id'> & { id?: string },
+  ) => Promise<void> | void;
   initial?: Brand | null;
 }
+
+const MAX_FILE_MB = 2;
 
 const EMPTY = {
   name: '',
@@ -29,15 +37,35 @@ const EMPTY = {
   description: '',
   websiteUrl: '',
   status: 'Active' as BrandStatus,
+  featured: false,
 };
 
-export default function AddBrandModal({ open, onClose, onSave, initial }: Props) {
+/** File → base64 data URL. Survives reload; reaches the backend. */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+export default function AddBrandModal({
+  open,
+  onClose,
+  onSave,
+  initial,
+}: Props) {
   const [form, setForm] = useState(EMPTY);
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
+  // Populate / reset when the modal opens
   useEffect(() => {
     if (!open) return;
+    setError('');
+
     if (initial) {
       setForm({
         name: initial.name,
@@ -46,67 +74,101 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
         description: initial.description ?? '',
         websiteUrl: initial.websiteUrl ?? '',
         status: initial.status,
+        featured: initial.featured ?? false,
       });
     } else {
       setForm(EMPTY);
     }
   }, [open, initial]);
 
-  // Auto-slug
+  // Auto-slug from name
   useEffect(() => {
-    const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!form.name) return;
+    const slug = form.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
     setForm((prev) => ({ ...prev, slug }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.name]);
 
-  // ESC + body lock
+  // ESC + body scroll lock
   useEffect(() => {
     if (!open) return;
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (imagePickerOpen) setImagePickerOpen(false);
-        else onClose();
-      }
+      if (e.key !== 'Escape') return;
+      if (isSaving) return;
+      if (imagePickerOpen) setImagePickerOpen(false);
+      else onClose();
     };
+
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
+
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, imagePickerOpen, onClose]);
+  }, [open, imagePickerOpen, onClose, isSaving]);
 
   if (!open) return null;
 
-  const handleSubmit = () => {
-    if (!form.name.trim()) return;
+  const canSave = form.name.trim().length > 0 && !isSaving;
+
+  const closeIfIdle = () => {
+    if (isSaving) return;
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (!canSave) return;
     setIsSaving(true);
-    setTimeout(() => {
-      onSave({
+    setError('');
+
+    try {
+      await onSave({
         id: initial?.id,
-        name: form.name,
-        slug: form.slug || 'brand',
-        logo: form.logo || '/placeholder.jpeg',
-        description: form.description,
-        websiteUrl: form.websiteUrl,
+        name: form.name.trim(),
+        slug: form.slug.trim() || 'brand',
+        logo: form.logo || '',
+        description: form.description.trim(),
+        websiteUrl: form.websiteUrl.trim(),
         status: form.status,
+        featured: form.featured,
       });
-      setIsSaving(false);
       onClose();
-    }, 400);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not save the brand.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
-        <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full max-h-[90vh] flex flex-col shadow-xl">
+      <div
+        className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+        onClick={closeIfIdle}
+      >
+        <div
+          className="bg-white border border-slate-200 rounded-sm max-w-md w-full max-h-[90vh] flex flex-col shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
             <h2 className="text-[15px] font-semibold text-slate-900">
               {initial ? 'Edit brand' : 'Add brand'}
             </h2>
             <button
-              onClick={onClose}
-              className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+              type="button"
+              onClick={closeIfIdle}
+              disabled={isSaving}
+              className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-50"
+              aria-label="Close"
             >
               <X className="w-4 h-4" />
             </button>
@@ -114,6 +176,13 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <Field
               label="Brand name *"
               value={form.name}
@@ -137,23 +206,33 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
             />
 
             <div>
-              <label className="block font-medium text-slate-700 mb-1">Description</label>
+              <label className="block font-medium text-slate-700 mb-1">
+                Description
+              </label>
               <textarea
                 rows={3}
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
                 placeholder="Brief overview of the brand and its catalog…"
                 className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </div>
 
-            {/* Logo upload */}
+            {/* Logo */}
             <div>
-              <label className="block font-medium text-slate-700 mb-1">Brand logo</label>
+              <label className="block font-medium text-slate-700 mb-1">
+                Brand logo
+              </label>
               <div className="flex items-center gap-3">
                 <div className="w-16 h-16 rounded-sm bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
                   {form.logo ? (
-                    <img src={form.logo} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={form.logo}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <ImageIcon className="w-5 h-5 text-slate-400" />
                   )}
@@ -162,7 +241,8 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
                   <button
                     type="button"
                     onClick={() => setImagePickerOpen(true)}
-                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     {form.logo ? 'Change logo' : 'Upload logo'}
@@ -171,7 +251,8 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, logo: '' })}
-                      className="inline-flex items-center gap-1.5 text-red-600 hover:underline text-[13px] font-medium px-1"
+                      disabled={isSaving}
+                      className="inline-flex items-center gap-1.5 text-red-600 hover:underline text-[13px] font-medium px-1 disabled:opacity-60"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Remove logo
@@ -179,29 +260,52 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
                   )}
                 </div>
               </div>
-              <p className="text-[13px] text-slate-400 mt-1">Square image, min 300×300px recommended.</p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Square image, min 300×300px recommended. Max {MAX_FILE_MB}MB.
+              </p>
             </div>
 
-            {/* Status */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-              <span className="font-medium text-slate-700">Status</span>
-              <div className="inline-flex bg-slate-100 p-0.5 rounded-sm">
-                {(['Active', 'Inactive'] as BrandStatus[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setForm({ ...form, status: s })}
-                    className={`px-3 py-1.5 rounded-sm text-[13px] font-medium transition ${
-                      form.status === s
-                        ? s === 'Active'
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-700 text-white'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+            {/* Status + Featured */}
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Status
+                </label>
+                <div className="inline-flex bg-slate-100 p-0.5 rounded-sm">
+                  {(['Active', 'Inactive'] as BrandStatus[]).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setForm({ ...form, status: s })}
+                      disabled={isSaving}
+                      className={`px-3 py-1.5 rounded-sm text-[13px] font-medium transition ${form.status === s
+                          ? s === 'Active'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-700 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Storefront
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.featured}
+                    onChange={(e) =>
+                      setForm({ ...form, featured: e.target.checked })
+                    }
+                    disabled={isSaving}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950"
+                  />
+                  <span className="text-slate-700">Feature</span>
+                </label>
               </div>
             </div>
           </div>
@@ -209,24 +313,36 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
           {/* Footer */}
           <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
             <button
-              onClick={onClose}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+              type="button"
+              onClick={closeIfIdle}
+              disabled={isSaving}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
-              disabled={!form.name.trim() || isSaving}
-              className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 inline-flex items-center gap-1.5"
+              disabled={!canSave}
+              className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
             >
-              <Check className="w-3.5 h-3.5" />
-              {isSaving ? 'Saving…' : initial ? 'Save changes' : 'Save brand'}
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  {initial ? 'Save changes' : 'Save brand'}
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* IMAGE PICKER POPUP */}
+      {/* Image picker */}
       {imagePickerOpen && (
         <ImagePickerModal
           onClose={() => setImagePickerOpen(false)}
@@ -240,26 +356,78 @@ export default function AddBrandModal({ open, onClose, onSave, initial }: Props)
   );
 }
 
-/* ---------- Image picker sub-modal ---------- */
-function ImagePickerModal({ onClose, onSelect }: { onClose: () => void; onSelect: (url: string) => void }) {
+/* ─────────── Image picker ─────────── */
+function ImagePickerModal({
+  onClose,
+  onSelect,
+}: {
+  onClose: () => void;
+  onSelect: (url: string) => void;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState('');
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'upload' | 'url'>('upload');
+  const [uploading, setUploading] = useState(false);
+  const [localError, setLocalError] = useState('');
 
-  const handleFile = (file?: File) => {
+  const handleFile = async (file?: File) => {
     if (!file) return;
-    setPreview(URL.createObjectURL(file));
+    setLocalError('');
+
+    if (!file.type.startsWith('image/')) {
+      setLocalError('That file is not an image.');
+      return;
+    }
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      setLocalError(`Image is over ${MAX_FILE_MB}MB.`);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // base64 data URL — no blob URL, survives reloads
+      const dataUrl = await fileToDataUrl(file);
+      setPreview(dataUrl);
+    } catch {
+      setLocalError('Could not read that file.');
+    } finally {
+      setUploading(false);
+    }
   };
 
+  const urlIsUsable = (() => {
+    const v = url.trim();
+    if (!v) return false;
+    if (v.startsWith('/')) return true;
+    try {
+      const u = new URL(v);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  })();
+
+  const selected = preview || (mode === 'url' && urlIsUsable ? url : '');
+
   return (
-    <div className="fixed inset-0 z-[110] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3">
-      <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full shadow-xl">
+    <div
+      className="fixed inset-0 z-[110] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white border border-slate-200 rounded-sm max-w-md w-full shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
-          <h3 className="text-[15px] font-semibold text-slate-900">Choose logo</h3>
+          <h3 className="text-[15px] font-semibold text-slate-900">
+            Choose logo
+          </h3>
           <button
+            type="button"
             onClick={onClose}
             className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
@@ -267,19 +435,23 @@ function ImagePickerModal({ onClose, onSelect }: { onClose: () => void; onSelect
 
         <div className="flex gap-1 p-2 bg-slate-50 border-b border-slate-200">
           <button
+            type="button"
             onClick={() => setMode('upload')}
-            className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm text-[13px] font-medium transition ${
-              mode === 'upload' ? 'bg-white text-blue-950 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-100'
-            }`}
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm text-[13px] font-medium transition ${mode === 'upload'
+                ? 'bg-white text-blue-950 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:bg-slate-100'
+              }`}
           >
             <Upload className="w-3.5 h-3.5" />
             Upload
           </button>
           <button
+            type="button"
             onClick={() => setMode('url')}
-            className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm text-[13px] font-medium transition ${
-              mode === 'url' ? 'bg-white text-blue-950 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-100'
-            }`}
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-sm text-[13px] font-medium transition ${mode === 'url'
+                ? 'bg-white text-blue-950 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:bg-slate-100'
+              }`}
           >
             <LinkIcon className="w-3.5 h-3.5" />
             From URL
@@ -303,13 +475,30 @@ function ImagePickerModal({ onClose, onSelect }: { onClose: () => void; onSelect
                 className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
-              <Upload className="w-7 h-7 mx-auto text-slate-400" />
-              <p className="text-[13px] font-medium text-slate-900 mt-2">Drop an image or click to browse</p>
-              <p className="text-[13px] text-slate-500 mt-0.5">PNG, JPG, WEBP · max 2MB</p>
+              {uploading ? (
+                <>
+                  <Loader2 className="w-7 h-7 mx-auto text-slate-400 animate-spin" />
+                  <p className="text-[13px] font-medium text-slate-900 mt-2">
+                    Reading…
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-7 h-7 mx-auto text-slate-400" />
+                  <p className="text-[13px] font-medium text-slate-900 mt-2">
+                    Drop an image or click to browse
+                  </p>
+                  <p className="text-[13px] text-slate-500 mt-0.5">
+                    PNG, JPG, WEBP · max {MAX_FILE_MB}MB
+                  </p>
+                </>
+              )}
             </label>
           ) : (
             <div>
-              <label className="block text-[13px] font-medium text-slate-700 mb-1">Image URL</label>
+              <label className="block text-[13px] font-medium text-slate-700 mb-1">
+                Image URL
+              </label>
               <input
                 type="text"
                 value={url}
@@ -317,15 +506,28 @@ function ImagePickerModal({ onClose, onSelect }: { onClose: () => void; onSelect
                 placeholder="https://example.com/logo.png"
                 className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Must start with <code>/</code>, <code>http://</code>, or{' '}
+                <code>https://</code>.
+              </p>
             </div>
           )}
 
-          {(preview || (mode === 'url' && url)) && (
+          {localError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{localError}</span>
+            </div>
+          )}
+
+          {selected && (
             <div className="border border-slate-200 rounded-sm p-2">
-              <p className="text-[13px] font-medium text-slate-500 mb-1">Preview</p>
+              <p className="text-[13px] font-medium text-slate-500 mb-1">
+                Preview
+              </p>
               <div className="aspect-square max-w-[160px] mx-auto rounded-sm overflow-hidden bg-slate-50 border border-slate-200">
                 <img
-                  src={preview || url}
+                  src={selected}
                   alt=""
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -339,18 +541,17 @@ function ImagePickerModal({ onClose, onSelect }: { onClose: () => void; onSelect
 
         <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2">
           <button
+            type="button"
             onClick={onClose}
             className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
           >
             Cancel
           </button>
           <button
-            onClick={() => {
-              const value = preview || url;
-              if (value) onSelect(value);
-            }}
-            disabled={!(preview || url)}
-            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 inline-flex items-center gap-1.5"
+            type="button"
+            onClick={() => selected && onSelect(selected)}
+            disabled={!selected || uploading}
+            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
           >
             <Check className="w-3.5 h-3.5" />
             Use image
@@ -361,7 +562,7 @@ function ImagePickerModal({ onClose, onSelect }: { onClose: () => void; onSelect
   );
 }
 
-/* ---------- Field ---------- */
+/* ─────────── Field ─────────── */
 function Field({
   label,
   value,
@@ -385,9 +586,8 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 ${
-          mono ? 'font-mono text-slate-600' : 'text-slate-900'
-        }`}
+        className={`w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 ${mono ? 'font-mono text-slate-600' : 'text-slate-900'
+          }`}
       />
     </label>
   );

@@ -1,6 +1,7 @@
+// app/pages/best-selling/page.tsx
 'use client';
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
@@ -15,91 +16,53 @@ import {
     X,
     MessageSquare,
     Send,
+    AlertCircle,
 } from 'lucide-react';
-import { products as allProducts } from '@/data/products';
 import { useCart } from '@/lib/store/cart';
 import { WishlistButton } from '@/components/wishlistbutton/WishlistButton';
+import {
+    catalogApi,
+    type CatalogBestSeller,
+    type CatalogBestSellerDetail,
+    type CatalogRelatedProduct,
+    type CatalogReview,
+    type BestSellingQuery,
+} from '@/lib/api';
 
-type StockStatus = 'In Stock' | 'Low Stock' | 'Out of Stock';
-
-interface Product {
-    id: string;
-    bestSeller: boolean;
-    brand: string;
-    name: string;
-    description: string;
-    price: number;
-    previousPrice?: number;
-    rating: number;
-    reviewCount: number;
-    stockStatus: StockStatus;
-    images: string[];
-    category: string;
-}
-
-type Review = {
-    id: string;
-    author: string;
-    rating: number;
-    title: string;
-    body: string;
-    date: string;
-    verified: boolean;
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+const toNum = (v: string | number | null | undefined): number => {
+    if (v === null || v === undefined) return 0;
+    return typeof v === 'number' ? v : Number(v);
 };
 
-const bestSellersData: Product[] = [...allProducts]
-    .sort((a, b) => b.reviewCount - a.reviewCount)
-    .slice(0, 8)
-    .map((p) => ({
-        id: p.id,
-        bestSeller: true,
-        brand: p.brand,
-        name: p.name,
-        description: p.description,
-        price: p.price,
-        previousPrice: p.compareAtPrice ?? undefined,
-        rating: p.rating,
-        reviewCount: p.reviewCount,
-        stockStatus: p.stock,
-        images: p.images,
-        category: p.category,
-    }));
+function formatKES(amount: number): string {
+    return `KES ${amount.toLocaleString('en-KE', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    })}`;
+}
 
-const categories = ['All', ...Array.from(new Set(bestSellersData.map((p) => p.category)))];
-const brands = ['All', ...Array.from(new Set(bestSellersData.map((p) => p.brand)))];
+const PRICE_RANGES = [
+    { label: 'All Prices', value: 'All' },
+    { label: 'Under KES 5,000', value: 'under-5000' },
+    { label: 'KES 5,000 – 20,000', value: '5000-20000' },
+    { label: 'KES 20,000 – 50,000', value: '20000-50000' },
+    { label: 'Over KES 50,000', value: 'over-50000' },
+] as const;
 
-const MOCK_REVIEWS: Review[] = [
-    {
-        id: 'r1',
-        author: 'Brian K.',
-        rating: 5,
-        title: 'Excellent quality',
-        body: 'Exactly as described. Fast shipping and well packaged. Would buy again.',
-        date: '2026-09-12',
-        verified: true,
-    },
-    {
-        id: 'r2',
-        author: 'Amina M.',
-        rating: 4,
-        title: 'Great value',
-        body: 'Works well, solid build. Only minor gripe is the manual could be clearer.',
-        date: '2026-09-05',
-        verified: true,
-    },
-    {
-        id: 'r3',
-        author: 'Kevin O.',
-        rating: 5,
-        title: 'Highly recommend',
-        body: 'Second purchase from this store. Consistent quality and fair pricing.',
-        date: '2026-08-28',
-        verified: true,
-    },
+const STOCK_OPTIONS = ['All', 'In Stock', 'Low Stock', 'Out of Stock'] as const;
+
+const SORT_OPTIONS: { label: string; value: NonNullable<BestSellingQuery['sort_by']> }[] = [
+    { label: 'Best Selling', value: 'best-selling' },
+    { label: 'Price: Low to High', value: 'price-low-high' },
+    { label: 'Price: High to Low', value: 'price-high-low' },
+    { label: 'Customer Rating', value: 'rating' },
 ];
 
 // ─────────────────────────────────────────────────────────────
-// Public page — Suspense wrapper (useSearchParams requires it)
+// Suspense wrapper — useSearchParams() needs a boundary
 // ─────────────────────────────────────────────────────────────
 export default function BestSellingPage() {
     return (
@@ -118,202 +81,276 @@ function BestSellingPageInner() {
     const searchParams = useSearchParams();
     const openId = searchParams.get('open');
 
+    // ── Filter / sort state ───────────────────────────────────
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedBrand, setSelectedBrand] = useState('All');
-    const [selectedPriceRange, setSelectedPriceRange] = useState('All');
-    const [selectedStock, setSelectedStock] = useState('All');
+    const [selectedPriceRange, setSelectedPriceRange] = useState<string>('All');
+    const [selectedStock, setSelectedStock] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [sortBy, setSortBy] = useState('best-selling');
-
-    const [activeImageIndices, setActiveImageIndices] = useState<Record<string, number>>(
-        bestSellersData.reduce((acc, p) => ({ ...acc, [p.id]: 0 }), {})
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [sortBy, setSortBy] = useState<NonNullable<BestSellingQuery['sort_by']>>(
+        'best-selling',
     );
-    const [cartAddingId, setCartAddingId] = useState<string | null>(null);
-    const [selectedModalProduct, setSelectedModalProduct] = useState<Product | null>(null);
-    const [modalImageIndex, setModalImageIndex] = useState(0);
 
+    // ── Data ──────────────────────────────────────────────────
+    const [products, setProducts] = useState<CatalogBestSeller[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    // ── Modal state ───────────────────────────────────────────
+    const [modalDetail, setModalDetail] = useState<CatalogBestSellerDetail | null>(null);
+    const [modalImageIndex, setModalImageIndex] = useState(0);
+    const [cartAddingId, setCartAddingId] = useState<string | null>(null);
+
+    // ── Reviews state ─────────────────────────────────────────
     const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
-    const [reviewsByProduct, setReviewsByProduct] = useState<Record<string, Review[]>>({});
+    const [reviews, setReviews] = useState<CatalogReview[]>([]);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
     const [reviewForm, setReviewForm] = useState({
         author: '',
         rating: 5,
         title: '',
         body: '',
     });
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const [reviewError, setReviewError] = useState<string | null>(null);
     const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
     const addItem = useCart((s) => s.addItem);
 
-    // ── URL is the source of truth for the modal ──────────────
+    // ── Debounce search ───────────────────────────────────────
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+
+    // ── Fetch best sellers whenever filters change ────────────
+    useEffect(() => {
+        const ctrl = new AbortController();
+        setLoading(true);
+        setLoadError(null);
+
+        const query: BestSellingQuery = {
+            search: debouncedSearch || undefined,
+            category: selectedCategory !== 'All' ? selectedCategory : undefined,
+            brand: selectedBrand !== 'All' ? selectedBrand : undefined,
+            price_range:
+                selectedPriceRange !== 'All'
+                    ? (selectedPriceRange as BestSellingQuery['price_range'])
+                    : undefined,
+            stock:
+                selectedStock !== 'All'
+                    ? (selectedStock as BestSellingQuery['stock'])
+                    : undefined,
+            sort_by: sortBy,
+            limit: 48,
+        };
+
+        catalogApi.bestSelling
+            .list(query, ctrl.signal)
+            .then(setProducts)
+            .catch((err: unknown) => {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                setProducts([]);
+                setLoadError('Failed to load best sellers. Please try again.');
+            })
+            .finally(() => setLoading(false));
+
+        return () => ctrl.abort();
+    }, [
+        debouncedSearch,
+        selectedCategory,
+        selectedBrand,
+        selectedPriceRange,
+        selectedStock,
+        sortBy,
+    ]);
+
+    // ── Fetch modal detail from ?open= ────────────────────────
     useEffect(() => {
         if (!openId) {
-            setSelectedModalProduct(null);
+            setModalDetail(null);
             return;
         }
-        const found = bestSellersData.find((p) => p.id === openId);
-        if (found) {
-            setSelectedModalProduct(found);
-            setModalImageIndex(0);
-        } else {
-            router.replace(pathname, { scroll: false });
-        }
+        const ctrl = new AbortController();
+
+        catalogApi.bestSelling
+            .detail(openId, ctrl.signal)
+            .then((detail) => {
+                setModalDetail(detail);
+                setModalImageIndex(0);
+            })
+            .catch((err: unknown) => {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                setModalDetail(null);
+                router.replace(pathname, { scroll: false });
+            });
+
+        return () => ctrl.abort();
     }, [openId, router, pathname]);
 
-    function openProductInUrl(id: string) {
+    // ── Fetch reviews when sub-modal opens ────────────────────
+    useEffect(() => {
+        if (!reviewsModalOpen || !modalDetail) return;
+        const ctrl = new AbortController();
+        setReviewsLoading(true);
+
+        catalogApi.bestSelling.reviews
+            .list(modalDetail.product.id, ctrl.signal)
+            .then(setReviews)
+            .catch(() => setReviews([]))
+            .finally(() => setReviewsLoading(false));
+
+        return () => ctrl.abort();
+    }, [reviewsModalOpen, modalDetail]);
+
+    // ── URL helpers for the modal ─────────────────────────────
+    const openProductInUrl = (id: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('open', id);
         router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    }
+    };
 
-    function replaceProductInUrl(id: string) {
+    const replaceProductInUrl = (id: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('open', id);
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }
+    };
 
-    function closeProductInUrl() {
+    const closeProductInUrl = () => {
         const params = new URLSearchParams(searchParams.toString());
         params.delete('open');
         const qs = params.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    }
+    };
 
-    const filteredProducts = bestSellersData
-        .filter((product) => {
-            if (selectedCategory !== 'All' && product.category !== selectedCategory) return false;
-            if (selectedBrand !== 'All' && product.brand !== selectedBrand) return false;
+    // ── Dropdown sources derived from the returned products ──
+    const categories = useMemo(
+        () => ['All', ...Array.from(new Set(products.map((p) => p.category)))],
+        [products],
+    );
+    const brands = useMemo(
+        () => ['All', ...Array.from(new Set(products.map((p) => p.brand)))],
+        [products],
+    );
 
-            if (selectedPriceRange === 'under-5000' && product.price >= 5000) return false;
-            if (selectedPriceRange === '5000-20000' && (product.price < 5000 || product.price > 20000)) return false;
-            if (selectedPriceRange === '20000-50000' && (product.price < 20000 || product.price > 50000)) return false;
-            if (selectedPriceRange === 'over-50000' && product.price <= 50000) return false;
-
-            if (selectedStock !== 'All' && product.stockStatus !== selectedStock) return false;
-
-            if (searchQuery.trim() !== '') {
-                const query = searchQuery.toLowerCase();
-                const matchesName = product.name.toLowerCase().includes(query);
-                const matchesBrand = product.brand.toLowerCase().includes(query);
-                const matchesCategory = product.category.toLowerCase().includes(query);
-                if (!matchesName && !matchesBrand && !matchesCategory) return false;
-            }
-
-            return true;
-        })
-        .sort((a, b) => {
-            if (sortBy === 'price-low-high') return a.price - b.price;
-            if (sortBy === 'price-high-low') return b.price - a.price;
-            if (sortBy === 'rating') return b.rating - a.rating;
-            return 0;
-        });
-
-    const relatedProducts = useMemo(() => {
-        if (!selectedModalProduct) return [];
-        return bestSellersData
-            .filter(
-                (p) =>
-                    p.id !== selectedModalProduct.id &&
-                    (p.category === selectedModalProduct.category ||
-                        p.brand === selectedModalProduct.brand)
-            )
-            .slice(0, 6);
-    }, [selectedModalProduct]);
-
-    const reviewsForActiveProduct = useMemo(() => {
-        if (!selectedModalProduct) return [];
-        const stored = reviewsByProduct[selectedModalProduct.id];
-        return stored && stored.length > 0 ? stored : MOCK_REVIEWS;
-    }, [selectedModalProduct, reviewsByProduct]);
-
+    // ── Reviews derived ───────────────────────────────────────
     const averageReviewRating = useMemo(() => {
-        if (reviewsForActiveProduct.length === 0) return 0;
-        const sum = reviewsForActiveProduct.reduce((acc, r) => acc + r.rating, 0);
-        return Math.round((sum / reviewsForActiveProduct.length) * 10) / 10;
-    }, [reviewsForActiveProduct]);
+        if (reviews.length === 0) return 0;
+        const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+        return Math.round((sum / reviews.length) * 10) / 10;
+    }, [reviews]);
 
-    const handleThumbnailClick = (productId: string, imgIdx: number, e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setActiveImageIndices((prev) => ({ ...prev, [productId]: imgIdx }));
+    // ── Add to cart ───────────────────────────────────────────
+    const handleAddToCart = useCallback(
+        async (product: CatalogBestSeller, e?: React.MouseEvent) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            if (product.stockStatus === 'Out of Stock') return;
+
+            setCartAddingId(product.id);
+            try {
+                await addItem({
+                    variantId: product.id,
+                    productId: product.id,
+                    name: product.name,
+                    brand: product.brand,
+                    image: product.images[0] ?? '',
+                    unitPrice: toNum(product.price),
+                    compareAtPrice:
+                        product.previousPrice !== null
+                            ? toNum(product.previousPrice)
+                            : undefined,
+                    slug: product.id,
+                    stockCount: 10,
+                    stock: product.stockStatus,
+                });
+            } finally {
+                setCartAddingId(null);
+            }
+        },
+        [addItem],
+    );
+
+    // ── Modal open/close ──────────────────────────────────────
+    const openModal = (product: CatalogBestSeller) => openProductInUrl(product.id);
+
+    const closeModal = () => {
+        closeProductInUrl();
+        setReviewsModalOpen(false);
+        setReviewSubmitted(false);
+        setReviewError(null);
+        setReviewForm({ author: '', rating: 5, title: '', body: '' });
     };
 
-    const handleAddToCart = async (product: Product, e: React.MouseEvent): Promise<void> => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (product.stockStatus === 'Out of Stock') return;
-
-        setCartAddingId(product.id);
-
-        await addItem({
-            variantId: product.id,
-            productId: product.id,
-            name: product.name,
-            brand: product.brand,
-            image: product.images[0],
-            unitPrice: product.price,
-            compareAtPrice: product.previousPrice,
-            slug: product.id,
-            stockCount: 10,
-            stock: product.stockStatus,
-        });
-
-        setCartAddingId(null);
+    const handleSelectRelated = (rp: CatalogRelatedProduct) => {
+        replaceProductInUrl(rp.id);
+        setModalImageIndex(0);
+        setReviewsModalOpen(false);
     };
 
+    // ── Submit review ─────────────────────────────────────────
+    const handleSubmitReview = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!modalDetail) return;
+        if (!reviewForm.author.trim() || !reviewForm.body.trim()) return;
+
+        setReviewSubmitting(true);
+        setReviewError(null);
+
+        try {
+            const created = await catalogApi.bestSelling.reviews.create(
+                modalDetail.product.id,
+                {
+                    author: reviewForm.author.trim(),
+                    rating: reviewForm.rating,
+                    title: reviewForm.title.trim() || undefined,
+                    body: reviewForm.body.trim(),
+                },
+            );
+            setReviews((prev) => [created, ...prev]);
+            setReviewSubmitted(true);
+            setReviewForm({ author: '', rating: 5, title: '', body: '' });
+
+            // Refresh detail so rating/reviewCount aggregates update
+            catalogApi.bestSelling
+                .detail(modalDetail.product.id)
+                .then(setModalDetail)
+                .catch(() => {
+                    /* non-fatal */
+                });
+        } catch {
+            setReviewError('Could not submit review. Please try again.');
+        } finally {
+            setReviewSubmitting(false);
+        }
+    };
+
+    // ── Clear filters ─────────────────────────────────────────
     const clearFilters = () => {
         setSelectedCategory('All');
         setSelectedBrand('All');
         setSelectedPriceRange('All');
         setSelectedStock('All');
         setSearchQuery('');
+        setDebouncedSearch('');
         setSortBy('best-selling');
     };
 
-    // URL-driven open/close
-    const openModal = (product: Product) => {
-        openProductInUrl(product.id);
-    };
+    const hasActiveFilters =
+        selectedCategory !== 'All' ||
+        selectedBrand !== 'All' ||
+        selectedPriceRange !== 'All' ||
+        selectedStock !== 'All' ||
+        searchQuery.trim() !== '';
 
-    const closeModal = () => {
-        closeProductInUrl();
-        setReviewsModalOpen(false);
-        setReviewSubmitted(false);
-        setReviewForm({ author: '', rating: 5, title: '', body: '' });
-    };
-
-    const handleSelectRelated = (product: Product) => {
-        replaceProductInUrl(product.id);
-        setModalImageIndex(0);
-        setReviewsModalOpen(false);
-    };
-
-    const handleSubmitReview = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedModalProduct) return;
-        if (!reviewForm.author.trim() || !reviewForm.body.trim()) return;
-
-        const newReview: Review = {
-            id: `r-${Date.now()}`,
-            author: reviewForm.author.trim(),
-            rating: reviewForm.rating,
-            title: reviewForm.title.trim() || 'Review',
-            body: reviewForm.body.trim(),
-            date: new Date().toISOString().slice(0, 10),
-            verified: false,
-        };
-
-        setReviewsByProduct((prev) => {
-            const current = prev[selectedModalProduct.id] ?? MOCK_REVIEWS;
-            return { ...prev, [selectedModalProduct.id]: [newReview, ...current] };
-        });
-
-        setReviewSubmitted(true);
-        setReviewForm({ author: '', rating: 5, title: '', body: '' });
-    };
-
+    // ─────────────────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-
             {/* Breadcrumb */}
             <div className="bg-white border-b border-slate-200 py-2 text-xs text-slate-500">
                 <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4 flex items-center space-x-2">
@@ -344,7 +381,6 @@ function BestSellingPageInner() {
             </section>
 
             <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-4 lg:px-4 py-2">
-
                 {/* Category nav */}
                 <div className="mb-1 overflow-x-auto pb-1">
                     <div className="flex items-center space-x-2 min-w-max">
@@ -394,7 +430,9 @@ function BestSellingPageInner() {
                                 onChange={(e) => setSelectedBrand(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
-                                {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+                                {brands.map((b) => (
+                                    <option key={b} value={b}>{b}</option>
+                                ))}
                             </select>
                         </div>
 
@@ -407,11 +445,9 @@ function BestSellingPageInner() {
                                 onChange={(e) => setSelectedPriceRange(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
-                                <option value="All">All Prices</option>
-                                <option value="under-5000">Under KES 5,000</option>
-                                <option value="5000-20000">KES 5,000 – 20,000</option>
-                                <option value="20000-50000">KES 20,000 – 50,000</option>
-                                <option value="over-50000">Over KES 50,000</option>
+                                {PRICE_RANGES.map((r) => (
+                                    <option key={r.value} value={r.value}>{r.label}</option>
+                                ))}
                             </select>
                         </div>
 
@@ -424,10 +460,11 @@ function BestSellingPageInner() {
                                 onChange={(e) => setSelectedStock(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
-                                <option value="All">All Availability</option>
-                                <option value="In Stock">In Stock</option>
-                                <option value="Low Stock">Low Stock</option>
-                                <option value="Out of Stock">Out of Stock</option>
+                                {STOCK_OPTIONS.map((s) => (
+                                    <option key={s} value={s}>
+                                        {s === 'All' ? 'All Availability' : s}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 
@@ -438,13 +475,14 @@ function BestSellingPageInner() {
                                 </label>
                                 <select
                                     value={sortBy}
-                                    onChange={(e) => setSortBy(e.target.value)}
+                                    onChange={(e) =>
+                                        setSortBy(e.target.value as NonNullable<BestSellingQuery['sort_by']>)
+                                    }
                                     className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                                 >
-                                    <option value="best-selling">Best Selling</option>
-                                    <option value="price-low-high">Price: Low to High</option>
-                                    <option value="price-high-low">Price: High to Low</option>
-                                    <option value="rating">Customer Rating</option>
+                                    {SORT_OPTIONS.map((o) => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="flex items-end">
@@ -462,16 +500,55 @@ function BestSellingPageInner() {
                 {/* Count */}
                 <div className="flex items-center justify-between mb-4">
                     <p className="text-xs font-medium text-slate-600">
-                        Showing <span className="font-bold text-slate-900">{filteredProducts.length}</span> best-selling products
+                        Showing{' '}
+                        <span className="font-bold text-slate-900">{products.length}</span>{' '}
+                        best-selling products
                     </p>
                 </div>
 
-                {/* Grid */}
-                {filteredProducts.length > 0 ? (
+                {/* Error state */}
+                {loadError && !loading && (
+                    <div className="bg-white border border-red-200 rounded-sm p-6 text-center my-4">
+                        <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                        <p className="text-xs text-red-700 mb-3">{loadError}</p>
+                        <button
+                            onClick={() => setSortBy((s) => s)}
+                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-xs transition-colors"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
+
+                {/* Loading skeleton */}
+                {loading && products.length === 0 && !loadError && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {filteredProducts.map((product) => {
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <div
+                                key={i}
+                                className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+                            >
+                                <div className="aspect-[4/3] bg-slate-100" />
+                                <div className="p-3 space-y-2">
+                                    <div className="h-3 bg-slate-100 rounded w-1/3" />
+                                    <div className="h-4 bg-slate-100 rounded w-3/4" />
+                                    <div className="h-3 bg-slate-100 rounded w-1/2" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Grid */}
+                {!loading && !loadError && products.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {products.map((product) => {
                             const isAdding = cartAddingId === product.id;
-                            const activeImgIdx = activeImageIndices[product.id] ?? 0;
+                            const price = toNum(product.price);
+                            const previousPrice =
+                                product.previousPrice !== null
+                                    ? toNum(product.previousPrice)
+                                    : null;
 
                             return (
                                 <div
@@ -481,7 +558,7 @@ function BestSellingPageInner() {
                                     <div>
                                         <div className="aspect-[4/3] w-full bg-slate-100 overflow-hidden relative">
                                             <img
-                                                src={product.images[activeImgIdx]}
+                                                src={product.images[0] ?? '/placeholder.jpeg'}
                                                 alt={product.name}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                             />
@@ -495,9 +572,9 @@ function BestSellingPageInner() {
                                                 productId={product.id}
                                                 name={product.name}
                                                 brand={product.brand}
-                                                image={product.images[0]}
-                                                unitPrice={product.price}
-                                                compareAtPrice={product.previousPrice}
+                                                image={product.images[0] ?? ''}
+                                                unitPrice={price}
+                                                compareAtPrice={previousPrice ?? undefined}
                                                 slug={product.id}
                                                 stockCount={10}
                                                 stock={product.stockStatus}
@@ -539,8 +616,12 @@ function BestSellingPageInner() {
 
                                             <div className="flex items-center space-x-1 mb-1">
                                                 <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                                                <span className="text-xs font-bold text-slate-800">{product.rating}</span>
-                                                <span className="text-[12px] text-slate-500">({product.reviewCount})</span>
+                                                <span className="text-xs font-bold text-slate-800">
+                                                    {toNum(product.rating).toFixed(1)}
+                                                </span>
+                                                <span className="text-[12px] text-slate-500">
+                                                    ({product.reviewCount})
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -548,11 +629,11 @@ function BestSellingPageInner() {
                                     <div className="p-3 pt-0 mt-auto">
                                         <div className="flex items-baseline space-x-2 mb-2">
                                             <span className="text-sm font-extrabold text-slate-900">
-                                                KES {product.price.toLocaleString()}
+                                                {formatKES(price)}
                                             </span>
-                                            {product.previousPrice && (
+                                            {previousPrice !== null && (
                                                 <span className="text-[12px] text-slate-400 line-through">
-                                                    KES {product.previousPrice.toLocaleString()}
+                                                    {formatKES(previousPrice)}
                                                 </span>
                                             )}
                                         </div>
@@ -587,7 +668,10 @@ function BestSellingPageInner() {
                             );
                         })}
                     </div>
-                ) : (
+                )}
+
+                {/* Empty state */}
+                {!loading && !loadError && products.length === 0 && (
                     <div className="bg-white border border-slate-200 rounded-sm p-8 text-center max-w-lg mx-auto my-6">
                         <div className="w-12 h-12 bg-blue-50 text-blue-950 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Search className="w-6 h-6" />
@@ -609,14 +693,13 @@ function BestSellingPageInner() {
             </main>
 
             {/* PRODUCT MODAL */}
-            {selectedModalProduct && (
+            {modalDetail && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
                     <div className="bg-white rounded-sm max-w-4xl w-full overflow-hidden shadow-2xl relative max-h-[92vh] flex flex-col">
-
                         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div>
                                 <span className="text-[11px] font-semibold text-blue-950 uppercase tracking-wide">
-                                    {selectedModalProduct.brand} • {selectedModalProduct.category}
+                                    {modalDetail.product.brand} • {modalDetail.product.category}
                                 </span>
                                 <h2 className="text-base font-bold text-slate-900">Product Details</h2>
                             </div>
@@ -630,31 +713,37 @@ function BestSellingPageInner() {
 
                         <div className="overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
-
                                 <div className="bg-slate-50 p-2 flex flex-col items-center space-y-2 rounded-sm">
                                     <div className="relative w-full aspect-square bg-white rounded-sm overflow-hidden border border-slate-200 shadow-xs">
                                         <img
-                                            src={selectedModalProduct.images[modalImageIndex]}
-                                            alt={selectedModalProduct.name}
+                                            src={
+                                                modalDetail.product.images[modalImageIndex] ??
+                                                '/placeholder.jpeg'
+                                            }
+                                            alt={modalDetail.product.name}
                                             className="w-full h-full object-cover"
                                         />
                                         <WishlistButton
-                                            variantId={selectedModalProduct.id}
-                                            productId={selectedModalProduct.id}
-                                            name={selectedModalProduct.name}
-                                            brand={selectedModalProduct.brand}
-                                            image={selectedModalProduct.images[0]}
-                                            unitPrice={selectedModalProduct.price}
-                                            compareAtPrice={selectedModalProduct.previousPrice}
-                                            slug={selectedModalProduct.id}
+                                            variantId={modalDetail.product.id}
+                                            productId={modalDetail.product.id}
+                                            name={modalDetail.product.name}
+                                            brand={modalDetail.product.brand}
+                                            image={modalDetail.product.images[0] ?? ''}
+                                            unitPrice={toNum(modalDetail.product.price)}
+                                            compareAtPrice={
+                                                modalDetail.product.previousPrice !== null
+                                                    ? toNum(modalDetail.product.previousPrice)
+                                                    : undefined
+                                            }
+                                            slug={modalDetail.product.id}
                                             stockCount={10}
-                                            stock={selectedModalProduct.stockStatus}
+                                            stock={modalDetail.product.stockStatus}
                                             size="md"
                                             className="absolute top-3 left-3 z-10"
                                         />
                                     </div>
                                     <div className="flex items-center justify-center space-x-2">
-                                        {selectedModalProduct.images.map((img, idx) => (
+                                        {modalDetail.product.images.map((img, idx) => (
                                             <button
                                                 key={idx}
                                                 onClick={() => setModalImageIndex(idx)}
@@ -663,7 +752,11 @@ function BestSellingPageInner() {
                                                         : 'border-slate-200 opacity-70 hover:opacity-100 hover:border-slate-400'
                                                     }`}
                                             >
-                                                <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
+                                                <img
+                                                    src={img}
+                                                    alt={`View ${idx + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </button>
                                         ))}
                                     </div>
@@ -673,10 +766,10 @@ function BestSellingPageInner() {
                                     <div className="space-y-2">
                                         <div>
                                             <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">
-                                                {selectedModalProduct.brand} • {selectedModalProduct.category}
+                                                {modalDetail.product.brand} • {modalDetail.product.category}
                                             </span>
                                             <h2 className="text-lg font-bold text-slate-900 mt-1 leading-snug">
-                                                {selectedModalProduct.name}
+                                                {modalDetail.product.name}
                                             </h2>
                                         </div>
 
@@ -688,37 +781,39 @@ function BestSellingPageInner() {
                                         >
                                             <Star className="w-3.5 h-3.5 fill-current text-amber-500" />
                                             <span className="text-xs font-bold text-slate-800 underline-offset-2 group-hover/rating:underline">
-                                                {selectedModalProduct.rating}
+                                                {toNum(modalDetail.product.rating).toFixed(1)}
                                             </span>
                                             <span className="text-[12px] text-slate-500">
-                                                ({selectedModalProduct.reviewCount} reviews)
+                                                ({modalDetail.product.reviewCount} reviews)
                                             </span>
                                             <MessageSquare className="w-3.5 h-3.5 text-slate-400 ml-1" />
                                             <span
-                                                className={`ml-2 text-[11px] font-medium px-2 py-0.5 rounded-full ${selectedModalProduct.stockStatus === 'In Stock'
+                                                className={`ml-2 text-[11px] font-medium px-2 py-0.5 rounded-full ${modalDetail.product.stockStatus === 'In Stock'
                                                         ? 'bg-emerald-100 text-emerald-800'
-                                                        : selectedModalProduct.stockStatus === 'Low Stock'
+                                                        : modalDetail.product.stockStatus === 'Low Stock'
                                                             ? 'bg-amber-100 text-amber-800'
                                                             : 'bg-red-100 text-red-800'
                                                     }`}
                                             >
-                                                {selectedModalProduct.stockStatus}
+                                                {modalDetail.product.stockStatus}
                                             </span>
                                         </button>
 
                                         <div className="text-[12px] text-slate-600 leading-relaxed space-y-2">
-                                            {selectedModalProduct.description.split('\n\n').map((para, i) => (
-                                                <p key={i}>{para}</p>
-                                            ))}
+                                            {modalDetail.product.description
+                                                .split('\n\n')
+                                                .map((para, i) => (
+                                                    <p key={i}>{para}</p>
+                                                ))}
                                         </div>
 
                                         <div className="flex items-baseline space-x-2 pt-1">
                                             <span className="text-lg font-extrabold text-slate-900">
-                                                KES {selectedModalProduct.price.toLocaleString()}
+                                                {formatKES(toNum(modalDetail.product.price))}
                                             </span>
-                                            {selectedModalProduct.previousPrice && (
+                                            {modalDetail.product.previousPrice !== null && (
                                                 <span className="text-[12px] text-slate-400 line-through">
-                                                    KES {selectedModalProduct.previousPrice.toLocaleString()}
+                                                    {formatKES(toNum(modalDetail.product.previousPrice))}
                                                 </span>
                                             )}
                                         </div>
@@ -726,33 +821,35 @@ function BestSellingPageInner() {
 
                                     <div className="space-y-2 pt-2">
                                         <button
-                                            onClick={async (e) => {
-                                                await handleAddToCart(selectedModalProduct, e);
+                                            onClick={async () => {
+                                                await handleAddToCart(modalDetail.product);
                                                 closeModal();
                                             }}
-                                            disabled={selectedModalProduct.stockStatus === 'Out of Stock'}
+                                            disabled={modalDetail.product.stockStatus === 'Out of Stock'}
                                             className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
                                         >
                                             <ShoppingCart className="w-4 h-4" />
-                                            <span>Add to Cart — KES {selectedModalProduct.price.toLocaleString()}</span>
+                                            <span>
+                                                Add to Cart — {formatKES(toNum(modalDetail.product.price))}
+                                            </span>
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
-                            {relatedProducts.length > 0 && (
+                            {modalDetail.related.length > 0 && (
                                 <div className="px-5 pb-5 border-t border-slate-100 pt-5">
                                     <div className="flex items-center justify-between mb-3">
                                         <h4 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">
                                             You may also like
                                         </h4>
                                         <span className="text-[11px] text-slate-400">
-                                            {relatedProducts.length} related items
+                                            {modalDetail.related.length} related items
                                         </span>
                                     </div>
 
                                     <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-                                        {relatedProducts.map((rp) => (
+                                        {modalDetail.related.map((rp) => (
                                             <button
                                                 key={rp.id}
                                                 type="button"
@@ -761,7 +858,7 @@ function BestSellingPageInner() {
                                             >
                                                 <div className="aspect-square rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
                                                     <img
-                                                        src={rp.images[0]}
+                                                        src={rp.images[0] ?? '/placeholder.jpeg'}
                                                         alt={rp.name}
                                                         className="w-full h-full object-cover group-hover/rel:scale-105 transition-transform duration-300"
                                                     />
@@ -773,7 +870,7 @@ function BestSellingPageInner() {
                                                     {rp.name}
                                                 </p>
                                                 <p className="text-[12px] font-bold text-slate-900 mt-0.5">
-                                                    KES {rp.price.toLocaleString()}
+                                                    {formatKES(toNum(rp.price))}
                                                 </p>
                                             </button>
                                         ))}
@@ -786,17 +883,16 @@ function BestSellingPageInner() {
             )}
 
             {/* REVIEWS SUB-MODAL */}
-            {selectedModalProduct && reviewsModalOpen && (
+            {modalDetail && reviewsModalOpen && (
                 <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
                     <div className="bg-white rounded-sm max-w-3xl w-full overflow-hidden shadow-2xl relative max-h-[88vh] flex flex-col">
-
                         <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div className="min-w-0">
                                 <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
                                     Reviews for
                                 </p>
                                 <h2 className="text-base font-bold text-slate-900 truncate">
-                                    {selectedModalProduct.name}
+                                    {modalDetail.product.name}
                                 </h2>
                             </div>
                             <button
@@ -808,7 +904,6 @@ function BestSellingPageInner() {
                         </div>
 
                         <div className="overflow-y-auto flex-1 p-5 space-y-5">
-
                             <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-sm p-4">
                                 <div className="text-center">
                                     <p className="text-3xl font-bold text-slate-900">
@@ -826,7 +921,7 @@ function BestSellingPageInner() {
                                         ))}
                                     </div>
                                     <p className="text-[11px] text-slate-500 mt-1">
-                                        {reviewsForActiveProduct.length} reviews
+                                        {reviews.length} reviews
                                     </p>
                                 </div>
                                 <div className="flex-1 border-l border-slate-200 pl-4">
@@ -839,7 +934,10 @@ function BestSellingPageInner() {
                                 </div>
                             </div>
 
-                            <form onSubmit={handleSubmitReview} className="bg-white border border-slate-200 rounded-sm p-4 space-y-3">
+                            <form
+                                onSubmit={handleSubmitReview}
+                                className="bg-white border border-slate-200 rounded-sm p-4 space-y-3"
+                            >
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-slate-900">Write a review</h3>
                                     {reviewSubmitted && (
@@ -849,6 +947,12 @@ function BestSellingPageInner() {
                                         </span>
                                     )}
                                 </div>
+
+                                {reviewError && (
+                                    <div className="text-[12px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+                                        {reviewError}
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
@@ -863,6 +967,7 @@ function BestSellingPageInner() {
                                             }
                                             placeholder="e.g. Jane W."
                                             required
+                                            maxLength={120}
                                             className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                         />
                                     </div>
@@ -902,6 +1007,7 @@ function BestSellingPageInner() {
                                             setReviewForm({ ...reviewForm, title: e.target.value })
                                         }
                                         placeholder="Summarize your experience"
+                                        maxLength={200}
                                         className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     />
                                 </div>
@@ -925,21 +1031,35 @@ function BestSellingPageInner() {
                                 <div className="flex justify-end">
                                     <button
                                         type="submit"
-                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                                        disabled={reviewSubmitting}
+                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-50"
                                     >
                                         <Send className="w-3.5 h-3.5" />
-                                        Post review
+                                        {reviewSubmitting ? 'Posting…' : 'Post review'}
                                     </button>
                                 </div>
                             </form>
 
                             <div className="space-y-3">
                                 <h3 className="text-sm font-bold text-slate-900">
-                                    All reviews ({reviewsForActiveProduct.length})
+                                    All reviews ({reviews.length})
                                 </h3>
 
-                                {reviewsForActiveProduct.map((review) => (
-                                    <div key={review.id} className="border border-slate-200 rounded-sm p-3 space-y-1.5">
+                                {reviewsLoading && (
+                                    <p className="text-xs text-slate-500">Loading reviews…</p>
+                                )}
+
+                                {!reviewsLoading && reviews.length === 0 && (
+                                    <p className="text-xs text-slate-500">
+                                        No reviews yet. Be the first to review this product.
+                                    </p>
+                                )}
+
+                                {reviews.map((review) => (
+                                    <div
+                                        key={review.id}
+                                        className="border border-slate-200 rounded-sm p-3 space-y-1.5"
+                                    >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
                                                 <p className="text-xs font-semibold text-slate-900 truncate">
@@ -967,7 +1087,9 @@ function BestSellingPageInner() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-xs font-semibold text-slate-800">{review.title}</p>
+                                        <p className="text-xs font-semibold text-slate-800">
+                                            {review.title}
+                                        </p>
                                         <p className="text-[12px] text-slate-600 leading-relaxed">
                                             {review.body}
                                         </p>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Truck,
   Plus,
@@ -14,19 +14,27 @@ import {
   Key,
   CheckSquare,
   Square,
-  Package,
   Navigation,
   Store,
   Search,
-  ExternalLink,
-  RefreshCw,
-  ChevronRight,
   Box,
-  Route,
   Building2,
 } from 'lucide-react';
 
+import { adminApi } from '@/lib/admin-api';
+import type {
+  AdminKenyaRegions,
+  AdminShippingZone,
+  AdminShippingMethod,
+  AdminPickupLocation,
+  AdminShipment,
+  AdminShipmentStatus,
+  AdminCourierConfig,
+} from '@/lib/admin-types';
+
 // --- TYPES ---
+// The wire shape comes from `admin-types.ts`. The local aliases keep
+// the JSX readable without renaming every type reference.
 type ShippingTab =
   | 'Zones & Rates'
   | 'Methods'
@@ -34,213 +42,38 @@ type ShippingTab =
   | 'Tracking'
   | 'Providers';
 
-type ShipmentStatus =
-  | 'Pending'
-  | 'Label Created'
-  | 'Picked Up'
-  | 'In Transit'
-  | 'Out for Delivery'
-  | 'Delivered'
-  | 'Failed'
-  | 'Returned';
-
-interface ShippingRate {
-  id: string;
-  methodName: string;
-  price: number;
-  eta: string;
-  freeShippingThreshold?: number;
-}
-
-interface ShippingZone {
-  id: string;
-  name: string;
-  region: string;
-  counties: string[];
-  rates: ShippingRate[];
-}
-
-interface ShippingMethodItem {
-  id: string;
-  name: string;
-  defaultPrice: number;
-  eta: string;
-  status: 'Active' | 'Disabled';
-  description: string;
-}
-
-interface PickupLocation {
-  id: string;
-  name: string;
-  type: 'Locker' | 'Agent' | 'Store';
-  address: string;
-  county: string;
-  phone: string;
-  hours: string;
-  status: 'Active' | 'Disabled';
-}
-
-interface Shipment {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  method: string;
-  provider: string;
-  trackingNumber: string;
-  status: ShipmentStatus;
-  destination: string;
-  updatedAt: string;
-}
-
-interface CourierConfig {
-  id: string;
-  name: string;
-  logoBg: string;
-  description: string;
-  apiKey: string;
-  enabled: boolean;
-  regions: string[];
-}
-
-// --- KENYA REGIONS ---
-const KENYA_REGIONS: Record<string, string[]> = {
-  Nairobi: ['Nairobi'],
-  'Central Kenya': ['Kiambu', 'Murang\'a', 'Nyeri', 'Kirinyaga', 'Nyandarua'],
-  Coast: ['Mombasa', 'Kilifi', 'Kwale', 'Lamu', 'Tana River', 'Taita Taveta'],
-  Western: ['Kakamega', 'Bungoma', 'Busia', 'Vihiga'],
-  'Rift Valley': ['Nakuru', 'Uasin Gishu', 'Trans Nzoia', 'Nandi', 'Kericho', 'Bomet', 'Laikipia', 'Elgeyo Marakwet', 'West Pokot', 'Samburu', 'Turkana', 'Narok', 'Kajiado'],
-  Nyanza: ['Kisumu', 'Homa Bay', 'Migori', 'Kisii', 'Nyamira', 'Siaya'],
-  'North Eastern': ['Garissa', 'Wajir', 'Mandera', 'Isiolo', 'Marsabit'],
-  'Eastern': ['Machakos', 'Kitui', 'Makueni', 'Embu', 'Tharaka Nithi', 'Meru', 'Marsabit'],
-};
-
-const ALL_COUNTIES = Object.values(KENYA_REGIONS).flat().sort();
-
-const INITIAL_ZONES: ShippingZone[] = [
-  {
-    id: 'zone-1',
-    name: 'Nairobi Metropolitan',
-    region: 'Nairobi',
-    counties: ['Nairobi', 'Kiambu', 'Kajiado', 'Machakos'],
-    rates: [
-      { id: 'rate-1', methodName: 'Standard Delivery', price: 250, eta: '1 - 2 business days', freeShippingThreshold: 3000 },
-      { id: 'rate-2', methodName: 'Express Boda', price: 450, eta: 'Same day (2-4 hrs)', freeShippingThreshold: 6000 },
-      { id: 'rate-3', methodName: 'Store pickup', price: 0, eta: 'Ready in 1 hr' },
-    ],
-  },
-  {
-    id: 'zone-2',
-    name: 'Coastal Region',
-    region: 'Coast',
-    counties: ['Mombasa', 'Kilifi', 'Kwale', 'Lamu'],
-    rates: [
-      { id: 'rate-4', methodName: 'Courier shipping', price: 550, eta: '2 - 3 business days', freeShippingThreshold: 8000 },
-      { id: 'rate-5', methodName: 'Express air', price: 950, eta: 'Next day delivery' },
-    ],
-  },
-  {
-    id: 'zone-3',
-    name: 'Rift Valley Region',
-    region: 'Rift Valley',
-    counties: ['Nakuru', 'Uasin Gishu', 'Nandi', 'Kericho'],
-    rates: [
-      { id: 'rate-6', methodName: 'Nationwide bus / parcel', price: 400, eta: '2 - 4 business days', freeShippingThreshold: 7000 },
-    ],
-  },
-  {
-    id: 'zone-4',
-    name: 'Western Region',
-    region: 'Western',
-    counties: ['Kakamega', 'Bungoma', 'Busia', 'Vihiga'],
-    rates: [
-      { id: 'rate-7', methodName: 'Nationwide bus / parcel', price: 450, eta: '2 - 4 business days', freeShippingThreshold: 7000 },
-    ],
-  },
-  {
-    id: 'zone-5',
-    name: 'Nyanza Region',
-    region: 'Nyanza',
-    counties: ['Kisumu', 'Kisii', 'Homa Bay', 'Migori'],
-    rates: [
-      { id: 'rate-8', methodName: 'Nationwide bus / parcel', price: 450, eta: '2 - 4 business days', freeShippingThreshold: 7000 },
-    ],
-  },
-  {
-    id: 'zone-6',
-    name: 'Central Kenya Region',
-    region: 'Central Kenya',
-    counties: ['Nyeri', 'Murang\'a', 'Kirinyaga', 'Nyandarua'],
-    rates: [
-      { id: 'rate-9', methodName: 'Standard Delivery', price: 350, eta: '2 - 3 business days', freeShippingThreshold: 5000 },
-    ],
-  },
-  {
-    id: 'zone-7',
-    name: 'North Eastern Region',
-    region: 'North Eastern',
-    counties: ['Garissa', 'Wajir', 'Mandera'],
-    rates: [
-      { id: 'rate-10', methodName: 'Nationwide bus / parcel', price: 700, eta: '3 - 5 business days', freeShippingThreshold: 10000 },
-    ],
-  },
-];
-
-const INITIAL_METHODS: ShippingMethodItem[] = [
-  { id: 'm-1', name: 'Standard Delivery', defaultPrice: 300, eta: '2-3 days', status: 'Active', description: 'Standard regional courier delivery to door' },
-  { id: 'm-2', name: 'Express Boda', defaultPrice: 500, eta: 'Same day', status: 'Active', description: 'Fast motorcycle dispatch within metropolitan areas' },
-  { id: 'm-3', name: 'Pickup Mtaani / Locker', defaultPrice: 200, eta: '1-2 days', status: 'Active', description: 'Secure neighborhood pickup agents & lockers' },
-  { id: 'm-4', name: 'Freight / Bulk Cargo', defaultPrice: 1500, eta: '3-5 days', status: 'Disabled', description: 'Heavy machinery & large order pallet shipping' },
-  { id: 'm-5', name: 'Nationwide Bus / Parcel', defaultPrice: 400, eta: '2-4 days', status: 'Active', description: 'Affordable bus parcel services to major towns' },
-];
-
-const INITIAL_PICKUP_LOCATIONS: PickupLocation[] = [
-  { id: 'pl-1', name: 'Pickup Mtaani - Westlands', type: 'Agent', address: 'Westlands Square, Shop G12', county: 'Nairobi', phone: '+254 712 000 111', hours: 'Mon-Sat 8am-8pm', status: 'Active' },
-  { id: 'pl-2', name: 'Pickup Mtaani - Thika Road', type: 'Agent', address: 'TRM Mall, Ground Floor', county: 'Nairobi', phone: '+254 712 000 222', hours: 'Mon-Sun 9am-9pm', status: 'Active' },
-  { id: 'pl-3', name: 'SokoFlow Locker - CBD', type: 'Locker', address: 'Kimathi Street, Bihi Towers', county: 'Nairobi', phone: '+254 712 000 333', hours: '24/7', status: 'Active' },
-  { id: 'pl-4', name: 'Pickup Mtaani - Mombasa', type: 'Agent', address: 'Nyali Centre, Shop 22', county: 'Mombasa', phone: '+254 712 000 444', hours: 'Mon-Sat 9am-7pm', status: 'Active' },
-  { id: 'pl-5', name: 'SokoFlow Store - Kisumu', type: 'Store', address: 'Mega Plaza, 2nd Floor', county: 'Kisumu', phone: '+254 712 000 555', hours: 'Mon-Sat 9am-6pm', status: 'Active' },
-  { id: 'pl-6', name: 'Pickup Mtaani - Nakuru', type: 'Agent', address: 'Westside Mall, Shop 14', county: 'Nakuru', phone: '+254 712 000 666', hours: 'Mon-Sat 9am-7pm', status: 'Disabled' },
-];
-
-const INITIAL_SHIPMENTS: Shipment[] = [
-  { id: 'sh-1', orderNumber: '#SKO-9842', customerName: 'Isaac Mutinda', method: 'Standard Delivery', provider: 'Sendy', trackingNumber: 'SND-49302', status: 'In Transit', destination: 'Nyeri', updatedAt: '2026-09-23 14:20' },
-  { id: 'sh-2', orderNumber: '#SKO-9843', customerName: 'Amina Mohamed', method: 'Express Boda', provider: 'Glovo', trackingNumber: 'GLV-88210', status: 'Out for Delivery', destination: 'Westlands, Nairobi', updatedAt: '2026-09-23 15:05' },
-  { id: 'sh-3', orderNumber: '#SKO-9845', customerName: 'Grace Wanjiku', method: 'Standard Delivery', provider: 'Sendy', trackingNumber: 'SND-49303', status: 'Picked Up', destination: 'Karen, Nairobi', updatedAt: '2026-09-23 11:30' },
-  { id: 'sh-4', orderNumber: '#SKO-9846', customerName: 'David Kiprop', method: 'Nationwide Bus / Parcel', provider: 'Easy Coach', trackingNumber: 'EC-11223', status: 'Delivered', destination: 'Eldoret', updatedAt: '2026-09-22 10:30' },
-  { id: 'sh-5', orderNumber: '#SKO-9847', customerName: 'Fatuma Ali', method: 'Courier shipping', provider: 'G4S', trackingNumber: 'G4S-MSA-55678', status: 'Failed', destination: 'Mombasa', updatedAt: '2026-09-22 18:00' },
-  { id: 'sh-6', orderNumber: '#SKO-9848', customerName: 'Peter Njoroge', method: 'Pickup Mtaani / Locker', provider: 'Pickup Mtaani', trackingNumber: 'PUM-77812', status: 'Delivered', destination: 'Thika Road, Nairobi', updatedAt: '2026-09-23 09:15' },
-  { id: 'sh-7', orderNumber: '#SKO-9849', customerName: 'Mercy Chebet', method: 'Standard Delivery', provider: 'Sendy', trackingNumber: 'SND-49304', status: 'Returned', destination: 'Nakuru', updatedAt: '2026-09-22 16:00' },
-  { id: 'sh-8', orderNumber: '#SKO-9850', customerName: 'John Omondi', method: 'Express Boda', provider: 'Glovo', trackingNumber: 'GLV-88211', status: 'Label Created', destination: 'Kilimani, Nairobi', updatedAt: '2026-09-23 16:40' },
-];
-
-const INITIAL_COURIERS: CourierConfig[] = [
-  { id: 'sendy', name: 'Sendy Fulfillment', logoBg: 'bg-amber-500', description: 'Automated dispatch, motorcycle & truck fulfillment across Kenya.', apiKey: 'snd_live_99812736481029384', enabled: true, regions: ['Nairobi', 'Central Kenya', 'Coast', 'Rift Valley', 'Nyanza'] },
-  { id: 'glovo', name: 'Glovo Express', logoBg: 'bg-yellow-400', description: 'Instant on-demand multi-category delivery for quick commerce.', apiKey: 'glv_live_88372649102938475', enabled: true, regions: ['Nairobi', 'Coast', 'Nyanza'] },
-  { id: 'pickupmtaani', name: 'Pickup Mtaani', logoBg: 'bg-emerald-600', description: 'Affordable peer-to-peer neighborhood pickup stations.', apiKey: 'pum_test_11223344556677889', enabled: true, regions: ['Nairobi', 'Central Kenya', 'Coast', 'Rift Valley', 'Nyanza', 'Western'] },
-  { id: 'g4s', name: 'G4S Courier', logoBg: 'bg-blue-700', description: 'Secure nationwide courier and cash-in-transit logistics.', apiKey: 'g4s_live_55667788990011223', enabled: true, regions: ['Nairobi', 'Coast', 'Rift Valley', 'Western', 'Nyanza', 'North Eastern', 'Central Kenya'] },
-  { id: 'easycoach', name: 'Easy Coach Parcel', logoBg: 'bg-red-600', description: 'Affordable nationwide bus parcel delivery to major towns.', apiKey: 'ec_live_99887766554433221', enabled: false, regions: ['Western', 'Nyanza', 'Rift Valley', 'Coast', 'Central Kenya'] },
-];
+type ShipmentStatus = AdminShipmentStatus;
 
 export default function ShippingPage() {
   const [activeTab, setActiveTab] = useState<ShippingTab>('Zones & Rates');
-  const [zones, setZones] = useState<ShippingZone[]>(INITIAL_ZONES);
-  const [methods, setMethods] = useState<ShippingMethodItem[]>(INITIAL_METHODS);
-  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>(INITIAL_PICKUP_LOCATIONS);
-  const [shipments, setShipments] = useState<Shipment[]>(INITIAL_SHIPMENTS);
-  const [couriers, setCouriers] = useState<CourierConfig[]>(INITIAL_COURIERS);
 
+  // ── Server state ────────────────────────────────────────────────────
+  const [regions, setRegions] = useState<AdminKenyaRegions>({});
+  const [zones, setZones] = useState<AdminShippingZone[]>([]);
+  const [methods, setMethods] = useState<AdminShippingMethod[]>([]);
+  const [pickupLocations, setPickupLocations] = useState<AdminPickupLocation[]>([]);
+  const [shipments, setShipments] = useState<AdminShipment[]>([]);
+  const [couriers, setCouriers] = useState<AdminCourierConfig[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [shipmentsLoading, setShipmentsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [shipmentsError, setShipmentsError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // ── UI state ────────────────────────────────────────────────────────
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [isAddZoneOpen, setIsAddZoneOpen] = useState(false);
   const [isAddRateOpen, setIsAddRateOpen] = useState(false);
   const [isAddPickupOpen, setIsAddPickupOpen] = useState(false);
-  const [selectedZoneIdForRate, setSelectedZoneIdForRate] = useState('');
+  const [selectedZoneIdForRate, setSelectedZoneIdForRate] = useState<number | null>(null);
 
   const [zoneName, setZoneName] = useState('');
-  const [zoneRegion, setZoneRegion] = useState('Nairobi');
+  const [zoneRegion, setZoneRegion] = useState('');
   const [selectedCounties, setSelectedCounties] = useState<string[]>([]);
 
-  const [rateMethodName, setRateMethodName] = useState('Standard Delivery');
+  const [rateMethodName, setRateMethodName] = useState('');
   const [ratePrice, setRatePrice] = useState('');
   const [rateEta, setRateEta] = useState('2-3 business days');
   const [rateFreeThreshold, setRateFreeThreshold] = useState('');
@@ -248,14 +81,16 @@ export default function ShippingPage() {
   const [pickupName, setPickupName] = useState('');
   const [pickupType, setPickupType] = useState<'Locker' | 'Agent' | 'Store'>('Agent');
   const [pickupAddress, setPickupAddress] = useState('');
-  const [pickupCounty, setPickupCounty] = useState('Nairobi');
+  const [pickupCounty, setPickupCounty] = useState('');
   const [pickupPhone, setPickupPhone] = useState('');
   const [pickupHours, setPickupHours] = useState('Mon-Sat 9am-7pm');
 
   const [trackingSearch, setTrackingSearch] = useState('');
+  const [debouncedTrackingSearch, setDebouncedTrackingSearch] = useState('');
 
   const anyModalOpen = isAddZoneOpen || isAddRateOpen || isAddPickupOpen;
 
+  // ── Toast auto-dismiss ──────────────────────────────────────────────
   useEffect(() => {
     if (toastMessage) {
       const t = setTimeout(() => setToastMessage(null), 3000);
@@ -263,6 +98,7 @@ export default function ShippingPage() {
     }
   }, [toastMessage]);
 
+  // ── Modal Escape + body scroll lock ─────────────────────────────────
   useEffect(() => {
     if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -280,129 +116,368 @@ export default function ShippingPage() {
     };
   }, [anyModalOpen]);
 
+  // ── Initial fetch — everything except shipments ─────────────────────
+  // Shipments fetch through their own effect so the debounced search
+  // can drive a refetch without touching the rest.
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [r, z, m, p, c] = await Promise.all([
+          adminApi.shipping.regions(controller.signal),
+          adminApi.shipping.zones.list(controller.signal),
+          adminApi.shipping.methods.list(controller.signal),
+          adminApi.shipping.pickups.list(controller.signal),
+          adminApi.shipping.couriers.list(controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+        setRegions(r);
+        setZones(z);
+        setMethods(m);
+        setPickupLocations(p);
+        setCouriers(c);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : 'Failed to load shipping data.');
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  // ── Debounce the tracking search ────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedTrackingSearch(trackingSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [trackingSearch]);
+
+  // ── Fetch shipments on mount and on debounced search change ─────────
+  useEffect(() => {
+    const controller = new AbortController();
+    setShipmentsLoading(true);
+    setShipmentsError(null);
+    adminApi.shipping.shipments
+      .list(debouncedTrackingSearch, controller.signal)
+      .then((s) => {
+        if (controller.signal.aborted) return;
+        setShipments(s);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setShipmentsError(err instanceof Error ? err.message : 'Failed to load shipments.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setShipmentsLoading(false);
+      });
+    return () => controller.abort();
+  }, [debouncedTrackingSearch]);
+
+  // ── All counties, flattened from the regions map ────────────────────
+  const allCounties = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(regions).forEach((list) => list.forEach((c) => set.add(c)));
+    return Array.from(set).sort();
+  }, [regions]);
+
+  // ── Derive default region and county once regions load ─────────────
+  // The previous version hardcoded 'Nairobi'. If the backend's region
+  // keys ever change, the Add Zone select shows no matching option and
+  // submits a stale value. Deriving the default from the loaded map
+  // removes that coupling.
+  useEffect(() => {
+    const keys = Object.keys(regions);
+    if (keys.length === 0) return;
+    if (!zoneRegion || !keys.includes(zoneRegion)) {
+      setZoneRegion(keys[0]);
+    }
+  }, [regions, zoneRegion]);
+
+  useEffect(() => {
+    if (allCounties.length === 0) return;
+    if (!pickupCounty || !allCounties.includes(pickupCounty)) {
+      setPickupCounty(allCounties[0]);
+    }
+  }, [allCounties, pickupCounty]);
+
+  // ── Active methods, derived ─────────────────────────────────────────
+  const activeMethods = useMemo(
+    () => methods.filter((m) => m.status === 'Active'),
+    [methods],
+  );
+
+  // ── Seed the Add Rate dropdown when active methods load ────────────
+  // Seed ONLY when there is an active method. If every method is
+  // disabled, leave `rateMethodName` empty so the Save button stays
+  // disabled — a disabled method must not be offered for a new rate.
+  useEffect(() => {
+    if (activeMethods.length > 0 && !rateMethodName) {
+      setRateMethodName(activeMethods[0].name);
+    }
+    // If the seeded method is no longer active (e.g. methods reloaded),
+    // reset it so the dropdown and state stay consistent.
+    if (rateMethodName && !activeMethods.some((m) => m.name === rateMethodName)) {
+      setRateMethodName(activeMethods[0]?.name ?? '');
+    }
+  }, [activeMethods, rateMethodName]);
+
   const showToast = (msg: string) => setToastMessage(msg);
 
-  const saveZone = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!zoneName.trim()) return;
-    const newZone: ShippingZone = {
-      id: `zone-${Date.now()}`,
-      name: zoneName,
-      region: zoneRegion,
-      counties: selectedCounties.length > 0 ? selectedCounties : [zoneRegion],
-      rates: [
-        { id: `rate-${Date.now()}`, methodName: 'Standard Delivery', price: 300, eta: '2-3 business days', freeShippingThreshold: 5000 },
-      ],
-    };
-    setZones([newZone, ...zones]);
-    setIsAddZoneOpen(false);
-    setZoneName('');
-    setSelectedCounties([]);
-    showToast(`Zone "${newZone.name}" created`);
-  };
-
-  const saveRate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedZoneIdForRate || !ratePrice) return;
-    const newRate: ShippingRate = {
-      id: `rate-${Date.now()}`,
-      methodName: rateMethodName,
-      price: Number(ratePrice) || 0,
-      eta: rateEta || '2-3 days',
-      freeShippingThreshold: rateFreeThreshold ? Number(rateFreeThreshold) : undefined,
-    };
-    setZones((prev) =>
-      prev.map((z) => (z.id === selectedZoneIdForRate ? { ...z, rates: [...z.rates, newRate] } : z))
-    );
-    setIsAddRateOpen(false);
+  // ── Open the Add Rate modal with fresh form state ──────────────────
+  const openAddRate = (zoneId: number) => {
+    setSelectedZoneIdForRate(zoneId);
     setRatePrice('');
     setRateFreeThreshold('');
-    showToast('Shipping rate added');
+    setRateEta('2-3 business days');
+    setRateMethodName(activeMethods[0]?.name ?? '');
+    setIsAddRateOpen(true);
   };
 
-  const savePickup = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pickupName.trim() || !pickupAddress.trim()) return;
-    const newLoc: PickupLocation = {
-      id: `pl-${Date.now()}`,
-      name: pickupName,
-      type: pickupType,
-      address: pickupAddress,
-      county: pickupCounty,
-      phone: pickupPhone || '+254 700 000 000',
-      hours: pickupHours,
-      status: 'Active',
-    };
-    setPickupLocations([newLoc, ...pickupLocations]);
-    setIsAddPickupOpen(false);
+  // ── Open the Add Zone modal with fresh form state ──────────────────
+  const openAddZone = () => {
+    setZoneName('');
+    setSelectedCounties([]);
+    const keys = Object.keys(regions);
+    setZoneRegion(keys[0] ?? '');
+    setIsAddZoneOpen(true);
+  };
+
+  // ── Open the Add Pickup modal with fresh form state ────────────────
+  const openAddPickup = () => {
     setPickupName('');
+    setPickupType('Agent');
     setPickupAddress('');
     setPickupPhone('');
-    showToast(`Pickup location "${newLoc.name}" added`);
+    setPickupHours('Mon-Sat 9am-7pm');
+    setPickupCounty(allCounties[0] ?? '');
+    setIsAddPickupOpen(true);
   };
 
-  const deleteRate = (zoneId: string, rateId: string) => {
-    setZones((prev) =>
-      prev.map((z) => (z.id === zoneId ? { ...z, rates: z.rates.filter((r) => r.id !== rateId) } : z))
-    );
-    showToast('Rate deleted');
+  // ═════════════════════════════════════════════════════════════════════
+  // Mutations
+  // ═════════════════════════════════════════════════════════════════════
+
+  const saveZone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!zoneName.trim()) {
+      showToast('Zone name is required');
+      return;
+    }
+    if (!zoneRegion) {
+      showToast('Select a region — the region list has not loaded yet');
+      return;
+    }
+    setBusy(true);
+    try {
+      const newZone = await adminApi.shipping.zones.create({
+        name: zoneName,
+        region: zoneRegion,
+        counties: selectedCounties.length > 0 ? selectedCounties : [zoneRegion],
+      });
+      setZones((prev) => [newZone, ...prev]);
+      setIsAddZoneOpen(false);
+      setZoneName('');
+      setSelectedCounties([]);
+      showToast(`Zone "${newZone.name}" created`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to create zone');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const deleteZone = (zoneId: string) => {
-    setZones((prev) => prev.filter((z) => z.id !== zoneId));
-    showToast('Zone deleted');
+  const saveRate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (selectedZoneIdForRate === null) {
+      showToast('No zone selected');
+      return;
+    }
+    if (!rateMethodName) {
+      showToast('No active method available — enable a method first');
+      return;
+    }
+    if (!ratePrice) {
+      showToast('Price is required');
+      return;
+    }
+    setBusy(true);
+    try {
+      const updatedZone = await adminApi.shipping.zones.addRate(selectedZoneIdForRate, {
+        methodName: rateMethodName,
+        price: ratePrice,
+        eta: rateEta || '2-3 days',
+        freeShippingThreshold: rateFreeThreshold ? Number(rateFreeThreshold) : null,
+      });
+      setZones((prev) => prev.map((z) => (z.id === updatedZone.id ? updatedZone : z)));
+      setIsAddRateOpen(false);
+      setRatePrice('');
+      setRateFreeThreshold('');
+      showToast('Shipping rate added');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to add rate');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const deletePickup = (id: string) => {
-    setPickupLocations((prev) => prev.filter((p) => p.id !== id));
-    showToast('Pickup location deleted');
+  const savePickup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!pickupName.trim() || !pickupAddress.trim()) {
+      showToast('Name and address are required');
+      return;
+    }
+    if (!pickupCounty) {
+      showToast('No county available — the region list has not loaded yet');
+      return;
+    }
+    setBusy(true);
+    try {
+      const newLoc = await adminApi.shipping.pickups.create({
+        name: pickupName,
+        type: pickupType,
+        address: pickupAddress,
+        county: pickupCounty,
+        phone: pickupPhone,
+        hours: pickupHours,
+      });
+      setPickupLocations((prev) => [newLoc, ...prev]);
+      setIsAddPickupOpen(false);
+      setPickupName('');
+      setPickupAddress('');
+      setPickupPhone('');
+      showToast(`Pickup location "${newLoc.name}" added`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to add pickup');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const toggleMethodStatus = (id: string) => {
-    setMethods((prev) =>
-      prev.map((m) => {
-        if (m.id !== id) return m;
-        const next = m.status === 'Active' ? 'Disabled' : 'Active';
-        showToast(`${m.name} is now ${next.toLowerCase()}`);
-        return { ...m, status: next };
-      })
-    );
+  const deleteRate = async (zoneId: number, rateId: number) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await adminApi.shipping.zones.removeRate(zoneId, rateId);
+      setZones((prev) =>
+        prev.map((z) =>
+          z.id === zoneId
+            ? { ...z, rates: z.rates.filter((r) => r.id !== rateId) }
+            : z
+        )
+      );
+      showToast('Rate deleted');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete rate');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const togglePickupStatus = (id: string) => {
-    setPickupLocations((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const next = p.status === 'Active' ? 'Disabled' : 'Active';
-        showToast(`${p.name} is now ${next.toLowerCase()}`);
-        return { ...p, status: next };
-      })
-    );
+  const deleteZone = async (zoneId: number) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await adminApi.shipping.zones.remove(zoneId);
+      setZones((prev) => prev.filter((z) => z.id !== zoneId));
+      showToast('Zone deleted');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete zone');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const toggleCourier = (id: string) => {
-    setCouriers((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const next = !c.enabled;
-        showToast(`${c.name} ${next ? 'enabled' : 'disabled'}`);
-        return { ...c, enabled: next };
-      })
-    );
+  const deletePickup = async (id: number) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await adminApi.shipping.pickups.remove(id);
+      setPickupLocations((prev) => prev.filter((p) => p.id !== id));
+      showToast('Pickup location deleted');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete pickup');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const testCourier = (name: string) => showToast(`${name} API responded 200 OK (114ms)`);
-
-  const updateShipmentStatus = (id: string, status: ShipmentStatus) => {
-    setShipments((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, status, updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16) }
-          : s
-      )
-    );
-    showToast(`Shipment status updated to ${status}`);
+  const toggleMethodStatus = async (id: number) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const updated = await adminApi.shipping.methods.toggle(id);
+      setMethods((prev) => prev.map((m) => (m.id === id ? updated : m)));
+      showToast(`${updated.name} is now ${updated.status.toLowerCase()}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to toggle method');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const togglePickupStatus = async (id: number) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const updated = await adminApi.shipping.pickups.toggle(id);
+      setPickupLocations((prev) => prev.map((p) => (p.id === id ? updated : p)));
+      showToast(`${updated.name} is now ${updated.status.toLowerCase()}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to toggle pickup');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleCourier = async (id: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const updated = await adminApi.shipping.couriers.toggle(id);
+      setCouriers((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      showToast(`${updated.name} ${updated.enabled ? 'enabled' : 'disabled'}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to toggle courier');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testCourier = async (id: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await adminApi.shipping.couriers.test(id);
+      showToast(result.message);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Connection test failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateShipmentStatus = async (id: number, status: ShipmentStatus) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const updated = await adminApi.shipping.shipments.setStatus(id, status);
+      setShipments((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      showToast(`Shipment status updated to ${updated.status}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to update shipment');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ═════════════════════════════════════════════════════════════════════
+  // Derived
+  // ═════════════════════════════════════════════════════════════════════
 
   const statusBadge = (s: ShipmentStatus) =>
     s === 'Delivered'
@@ -413,18 +488,11 @@ export default function ShippingPage() {
           ? 'bg-amber-50 text-amber-700 border-amber-100'
           : 'bg-red-50 text-red-600 border-red-100';
 
-  const filteredShipments = shipments.filter((s) => {
-    if (!trackingSearch) return true;
-    const q = trackingSearch.toLowerCase();
-    return (
-      s.orderNumber.toLowerCase().includes(q) ||
-      s.trackingNumber.toLowerCase().includes(q) ||
-      s.customerName.toLowerCase().includes(q) ||
-      s.destination.toLowerCase().includes(q)
-    );
-  });
+  const regionCounties = regions[zoneRegion] || [];
 
-  const regionCounties = KENYA_REGIONS[zoneRegion] || [];
+  // ═════════════════════════════════════════════════════════════════════
+  // Render
+  // ═════════════════════════════════════════════════════════════════════
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
@@ -449,8 +517,9 @@ export default function ShippingPage() {
             </p>
           </div>
           <button
-            onClick={() => setIsAddZoneOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+            onClick={openAddZone}
+            disabled={loading || busy}
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add zone</span>
@@ -460,447 +529,518 @@ export default function ShippingPage() {
 
       <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
 
-        {/* TABS */}
-        <div className="bg-white border border-slate-200 rounded-sm p-0.5 inline-flex gap-0.5 overflow-x-auto max-w-full">
-          {(['Zones & Rates', 'Methods', 'Pickup Locations', 'Tracking', 'Providers'] as const).map((tab) => (
+        {/* INITIAL LOAD ERROR */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-sm p-2 flex items-start justify-between gap-2">
+            <div className="text-[13px]">
+              <p className="font-medium text-red-800">Could not load shipping data</p>
+              <p className="text-red-700 mt-0.5">{error}</p>
+            </div>
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'
-                }`}
+              onClick={() => window.location.reload()}
+              className="text-[13px] font-medium text-red-800 hover:underline whitespace-nowrap"
             >
-              {tab}
+              Reload
             </button>
-          ))}
-        </div>
+          </div>
+        )}
 
-        {/* TAB 1: ZONES */}
-        {activeTab === 'Zones & Rates' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {zones.map((zone) => (
-              <div key={zone.id} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-9 h-9 rounded-sm bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-950 shrink-0">
-                      <MapPin className="w-4 h-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-slate-900 truncate">{zone.name}</p>
-                      <p className="text-[13px] text-slate-500">
-                        {zone.region} · {zone.counties.length} counties
-                      </p>
+        {loading ? (
+          <div className="bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-400 text-[13px]">
+            Loading shipping configuration…
+          </div>
+        ) : (
+          <>
+            {/* TABS */}
+            <div className="bg-white border border-slate-200 rounded-sm p-0.5 inline-flex gap-0.5 overflow-x-auto max-w-full">
+              {(['Zones & Rates', 'Methods', 'Pickup Locations', 'Tracking', 'Providers'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* TAB 1: ZONES */}
+            {activeTab === 'Zones & Rates' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {zones.length === 0 ? (
+                  <div className="col-span-full bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-400 text-[13px]">
+                    No shipping zones yet. Add one to get started.
+                  </div>
+                ) : (
+                  zones.map((zone) => (
+                    <div key={zone.id} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-9 h-9 rounded-sm bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-950 shrink-0">
+                            <MapPin className="w-4 h-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-medium text-slate-900 truncate">{zone.name}</p>
+                            <p className="text-[13px] text-slate-500">
+                              {zone.region} · {zone.counties.length} counties
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => deleteZone(zone.id)}
+                          disabled={busy}
+                          className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition shrink-0"
+                          title="Delete zone"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1">
+                        {zone.counties.map((c) => (
+                          <span
+                            key={c}
+                            className="bg-slate-100 text-slate-700 text-[13px] font-medium px-1.5 py-0.5 rounded-sm"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[13px] font-medium text-slate-500">Shipping rates</p>
+                          <button
+                            onClick={() => openAddRate(zone.id)}
+                            disabled={busy}
+                            className="text-[13px] font-medium text-blue-950 hover:underline disabled:opacity-40 inline-flex items-center gap-0.5"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Add rate
+                          </button>
+                        </div>
+
+                        {zone.rates.length === 0 ? (
+                          <p className="text-[13px] text-slate-400 py-2">No rates in this zone.</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {zone.rates.map((rate) => (
+                              <div
+                                key={rate.id}
+                                className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between text-[13px] gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-medium text-slate-900 truncate">
+                                      {rate.methodName}
+                                    </span>
+                                    {rate.freeShippingThreshold !== null && (
+                                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[13px] font-medium px-1.5 py-0.5 rounded-sm">
+                                        Free over KES {rate.freeShippingThreshold.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[13px] text-slate-500 mt-0.5 inline-flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {rate.eta}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="font-mono font-medium text-slate-900">
+                                    {rate.price === 0 ? 'Free' : `KES ${rate.price.toLocaleString()}`}
+                                  </span>
+                                  <button
+                                    onClick={() => deleteRate(zone.id, rate.id)}
+                                    disabled={busy}
+                                    className="p-1 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition"
+                                    title="Delete rate"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: METHODS */}
+            {activeTab === 'Methods' && (
+              <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+                  <p className="text-[13px] font-medium text-slate-700">Available delivery methods</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[13px]">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                        <th className="py-2 px-3 font-medium">Method</th>
+                        <th className="py-2 px-3 font-medium">Description</th>
+                        <th className="py-2 px-3 font-medium text-right">Price</th>
+                        <th className="py-2 px-3 font-medium">ETA</th>
+                        <th className="py-2 px-3 font-medium">Status</th>
+                        <th className="py-2 px-3 w-24"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {methods.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400 text-[13px]">
+                            No delivery methods configured.
+                          </td>
+                        </tr>
+                      ) : (
+                        methods.map((m) => (
+                          <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-1.5">
+                                <Truck className="w-3.5 h-3.5 text-blue-950" />
+                                <span className="font-medium text-slate-900">{m.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-slate-500">{m.description}</td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-900">
+                              KES {m.defaultPrice.toLocaleString()}
+                            </td>
+                            <td className="py-2 px-3 text-slate-600">{m.eta}</td>
+                            <td className="py-2 px-3">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${m.status === 'Active'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                  : 'bg-slate-100 text-slate-500 border-slate-200'
+                                  }`}
+                              >
+                                {m.status}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <button
+                                onClick={() => toggleMethodStatus(m.id)}
+                                disabled={busy}
+                                className={`w-full px-2.5 py-2 rounded-sm font-medium text-[13px] disabled:opacity-40 transition ${m.status === 'Active'
+                                  ? 'bg-white border border-red-200 text-red-600 hover:bg-red-50'
+                                  : 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                                  }`}
+                              >
+                                {m.status === 'Active' ? 'Disable' : 'Enable'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: PICKUP LOCATIONS */}
+            {activeTab === 'Pickup Locations' && (
+              <>
+                <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between">
+                  <div>
+                    <p className="text-[13px] font-semibold text-slate-900">Pickup locations</p>
+                    <p className="text-[13px] text-slate-500">
+                      Neighborhood agents, lockers, and physical stores
+                    </p>
                   </div>
                   <button
-                    onClick={() => deleteZone(zone.id)}
-                    className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 transition shrink-0"
-                    title="Delete zone"
+                    onClick={openAddPickup}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" />
+                    Add location
                   </button>
                 </div>
 
-                <div className="flex flex-wrap gap-1">
-                  {zone.counties.map((c) => (
-                    <span
-                      key={c}
-                      className="bg-slate-100 text-slate-700 text-[13px] font-medium px-1.5 py-0.5 rounded-sm"
-                    >
-                      {c}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[13px] font-medium text-slate-500">Shipping rates</p>
-                    <button
-                      onClick={() => {
-                        setSelectedZoneIdForRate(zone.id);
-                        setIsAddRateOpen(true);
-                      }}
-                      className="text-[13px] font-medium text-blue-950 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Add rate
-                    </button>
+                {pickupLocations.length === 0 ? (
+                  <div className="bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-400 text-[13px]">
+                    No pickup locations yet.
                   </div>
-
-                  <div className="space-y-1.5">
-                    {zone.rates.map((rate) => (
-                      <div
-                        key={rate.id}
-                        className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between text-[13px] gap-2"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-medium text-slate-900 truncate">
-                              {rate.methodName}
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {pickupLocations.map((loc) => (
+                      <div key={loc.id} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className={`w-9 h-9 rounded-sm flex items-center justify-center shrink-0 border ${loc.type === 'Locker'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                : loc.type === 'Store'
+                                  ? 'bg-blue-50 text-blue-950 border-blue-100'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                }`}
+                            >
+                              {loc.type === 'Locker' ? (
+                                <Box className="w-4 h-4" />
+                              ) : loc.type === 'Store' ? (
+                                <Building2 className="w-4 h-4" />
+                              ) : (
+                                <Store className="w-4 h-4" />
+                              )}
                             </span>
-                            {rate.freeShippingThreshold && (
-                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[13px] font-medium px-1.5 py-0.5 rounded-sm">
-                                Free over KES {rate.freeShippingThreshold.toLocaleString()}
-                              </span>
-                            )}
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-medium text-slate-900 truncate">{loc.name}</p>
+                              <p className="text-[13px] text-slate-500">
+                                {loc.type} · {loc.county}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-[13px] text-slate-500 mt-0.5 inline-flex items-center gap-1">
+                          <button
+                            onClick={() => deletePickup(loc.id)}
+                            disabled={busy}
+                            className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition shrink-0"
+                            title="Delete location"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 space-y-1 text-[13px]">
+                          <p className="text-slate-700">{loc.address}</p>
+                          <p className="text-slate-500 font-mono">{loc.phone}</p>
+                          <p className="text-slate-500 inline-flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {rate.eta}
+                            {loc.hours}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono font-medium text-slate-900">
-                            {rate.price === 0 ? 'Free' : `KES ${rate.price.toLocaleString()}`}
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${loc.status === 'Active'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                              }`}
+                          >
+                            {loc.status}
                           </span>
                           <button
-                            onClick={() => deleteRate(zone.id, rate.id)}
-                            className="p-1 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                            title="Delete rate"
+                            onClick={() => togglePickupStatus(loc.id)}
+                            disabled={busy}
+                            className={`px-2.5 py-1.5 rounded-sm font-medium text-[13px] disabled:opacity-40 transition ${loc.status === 'Active'
+                              ? 'bg-white border border-red-200 text-red-600 hover:bg-red-50'
+                              : 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                              }`}
                           >
-                            <X className="w-3 h-3" />
+                            {loc.status === 'Active' ? 'Disable' : 'Enable'}
                           </button>
                         </div>
                       </div>
                     ))}
                   </div>
+                )}
+              </>
+            )}
+
+            {/* TAB 4: TRACKING */}
+            {activeTab === 'Tracking' && (
+              <div className="space-y-3">
+                <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search by order #, tracking #, customer, destination…"
+                      value={trackingSearch}
+                      onChange={(e) => setTrackingSearch(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    />
+                  </div>
+                  <span className="text-[13px] text-slate-500 lg:ml-2">
+                    {shipments.length} shipment{shipments.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {shipmentsError && (
+                  <div className="bg-red-50 border border-red-200 rounded-sm p-2 text-[13px]">
+                    <p className="font-medium text-red-800">Could not load shipments</p>
+                    <p className="text-red-700 mt-0.5">{shipmentsError}</p>
+                  </div>
+                )}
+
+                <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+                    <p className="text-[13px] font-medium text-slate-700">Order shipment status</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-[13px]">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                          <th className="py-2 px-3 font-medium">Order #</th>
+                          <th className="py-2 px-3 font-medium">Customer</th>
+                          <th className="py-2 px-3 font-medium">Method</th>
+                          <th className="py-2 px-3 font-medium">Provider</th>
+                          <th className="py-2 px-3 font-medium">Tracking #</th>
+                          <th className="py-2 px-3 font-medium">Destination</th>
+                          <th className="py-2 px-3 font-medium">Status</th>
+                          <th className="py-2 px-3 font-medium">Updated</th>
+                          <th className="py-2 px-3 w-44"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {shipmentsLoading && shipments.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="py-12 text-center text-slate-400 text-[13px]">
+                              Loading shipments…
+                            </td>
+                          </tr>
+                        ) : shipments.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="py-12 text-center text-slate-400 text-[13px]">
+                              No shipments match your search.
+                            </td>
+                          </tr>
+                        ) : (
+                          shipments.map((s) => (
+                            <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                                {s.orderNumber}
+                              </td>
+                              <td className="py-2 px-3 text-slate-900 truncate max-w-[160px]">
+                                {s.customerName}
+                              </td>
+                              <td className="py-2 px-3 text-slate-600">{s.method}</td>
+                              <td className="py-2 px-3 text-slate-600">{s.provider}</td>
+                              <td className="py-2 px-3 font-mono text-slate-700">{s.trackingNumber}</td>
+                              <td className="py-2 px-3 text-slate-600 inline-flex items-center gap-1">
+                                <Navigation className="w-3 h-3 text-slate-400" />
+                                {s.destination}
+                              </td>
+                              <td className="py-2 px-3">
+                                <span
+                                  className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge(
+                                    s.status
+                                  )}`}
+                                >
+                                  {s.status}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 font-mono text-slate-400">{s.updatedAt}</td>
+                              <td className="py-2 px-3">
+                                <select
+                                  value={s.status}
+                                  onChange={(e) =>
+                                    updateShipmentStatus(s.id, e.target.value as ShipmentStatus)
+                                  }
+                                  disabled={busy}
+                                  className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-40"
+                                >
+                                  <option value="Pending">Pending</option>
+                                  <option value="Label Created">Label Created</option>
+                                  <option value="Picked Up">Picked Up</option>
+                                  <option value="In Transit">In Transit</option>
+                                  <option value="Out for Delivery">Out for Delivery</option>
+                                  <option value="Delivered">Delivered</option>
+                                  <option value="Failed">Failed</option>
+                                  <option value="Returned">Returned</option>
+                                </select>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* TAB 2: METHODS */}
-        {activeTab === 'Methods' && (
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
-              <p className="text-[13px] font-medium text-slate-700">Available delivery methods</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">Method</th>
-                    <th className="py-2 px-3 font-medium">Description</th>
-                    <th className="py-2 px-3 font-medium text-right">Price</th>
-                    <th className="py-2 px-3 font-medium">ETA</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                    <th className="py-2 px-3 w-24"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {methods.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <Truck className="w-3.5 h-3.5 text-blue-950" />
-                          <span className="font-medium text-slate-900">{m.name}</span>
+            {/* TAB 5: PROVIDERS */}
+            {activeTab === 'Providers' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {couriers.length === 0 ? (
+                  <div className="col-span-full bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-400 text-[13px]">
+                    No courier integrations configured.
+                  </div>
+                ) : (
+                  couriers.map((courier) => (
+                    <div key={courier.id} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-10 h-10 rounded-sm ${courier.logoBg} flex items-center justify-center text-white font-semibold text-[13px] shrink-0`}
+                          >
+                            {courier.name.charAt(0)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-medium text-slate-900 truncate">{courier.name}</p>
+                            <span
+                              className={`inline-block text-[13px] font-medium px-1.5 py-0.5 rounded-sm ${courier.enabled
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-slate-100 text-slate-600'
+                                }`}
+                            >
+                              {courier.enabled ? 'Connected' : 'Disconnected'}
+                            </span>
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-2 px-3 text-slate-500">{m.description}</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-900">
-                        KES {m.defaultPrice.toLocaleString()}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">{m.eta}</td>
-                      <td className="py-2 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${m.status === 'Active'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                              : 'bg-slate-100 text-slate-500 border-slate-200'
-                            }`}
-                        >
-                          {m.status}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">
+
+                        <p className="text-[13px] text-slate-500">{courier.description}</p>
+
+                        <div className="flex flex-wrap gap-1">
+                          {courier.regions.slice(0, 3).map((r) => (
+                            <span
+                              key={r}
+                              className="bg-slate-100 text-slate-700 text-[13px] font-medium px-1.5 py-0.5 rounded-sm"
+                            >
+                              {r}
+                            </span>
+                          ))}
+                          {courier.regions.length > 3 && (
+                            <span className="bg-slate-100 text-slate-500 text-[13px] font-medium px-1.5 py-0.5 rounded-sm">
+                              +{courier.regions.length - 3}
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="flex items-center gap-1 text-[13px] font-medium text-slate-700 mb-1">
+                            <Key className="w-3 h-3 text-slate-400" />
+                            API key / secret
+                          </label>
+                          <input
+                            type="password"
+                            readOnly
+                            value={courier.apiKey}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono text-slate-700"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <span className="text-[13px] font-medium text-slate-700">Enable integration</span>
+                          <input
+                            type="checkbox"
+                            checked={courier.enabled}
+                            onChange={() => toggleCourier(courier.id)}
+                            disabled={busy}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer disabled:opacity-40"
+                          />
+                        </label>
+
                         <button
-                          onClick={() => toggleMethodStatus(m.id)}
-                          className={`w-full px-2.5 py-2 rounded-sm font-medium text-[13px] transition ${m.status === 'Active'
-                              ? 'bg-white border border-red-200 text-red-600 hover:bg-red-50'
-                              : 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                            }`}
+                          onClick={() => testCourier(courier.id)}
+                          disabled={!courier.enabled || busy}
+                          className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px] disabled:opacity-40 inline-flex items-center justify-center gap-1.5 transition"
                         >
-                          {m.status === 'Active' ? 'Disable' : 'Enable'}
+                          <Zap className="w-3.5 h-3.5 text-blue-950" />
+                          Test connection
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: PICKUP LOCATIONS */}
-        {activeTab === 'Pickup Locations' && (
-          <>
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between">
-              <div>
-                <p className="text-[13px] font-semibold text-slate-900">Pickup locations</p>
-                <p className="text-[13px] text-slate-500">
-                  Neighborhood agents, lockers, and physical stores
-                </p>
-              </div>
-              <button
-                onClick={() => setIsAddPickupOpen(true)}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add location
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {pickupLocations.map((loc) => (
-                <div key={loc.id} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={`w-9 h-9 rounded-sm flex items-center justify-center shrink-0 border ${loc.type === 'Locker'
-                            ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                            : loc.type === 'Store'
-                              ? 'bg-blue-50 text-blue-950 border-blue-100'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                          }`}
-                      >
-                        {loc.type === 'Locker' ? (
-                          <Box className="w-4 h-4" />
-                        ) : loc.type === 'Store' ? (
-                          <Building2 className="w-4 h-4" />
-                        ) : (
-                          <Store className="w-4 h-4" />
-                        )}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-medium text-slate-900 truncate">{loc.name}</p>
-                        <p className="text-[13px] text-slate-500">
-                          {loc.type} · {loc.county}
-                        </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => deletePickup(loc.id)}
-                      className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 transition shrink-0"
-                      title="Delete location"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 space-y-1 text-[13px]">
-                    <p className="text-slate-700">{loc.address}</p>
-                    <p className="text-slate-500 font-mono">{loc.phone}</p>
-                    <p className="text-slate-500 inline-flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {loc.hours}
-                    </p>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${loc.status === 'Active'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                          : 'bg-slate-100 text-slate-500 border-slate-200'
-                        }`}
-                    >
-                      {loc.status}
-                    </span>
-                    <button
-                      onClick={() => togglePickupStatus(loc.id)}
-                      className={`px-2.5 py-1.5 rounded-sm font-medium text-[13px] transition ${loc.status === 'Active'
-                          ? 'bg-white border border-red-200 text-red-600 hover:bg-red-50'
-                          : 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                        }`}
-                    >
-                      {loc.status === 'Active' ? 'Disable' : 'Enable'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  ))
+                )}
+              </div>
+            )}
           </>
-        )}
-
-        {/* TAB 4: TRACKING */}
-        {activeTab === 'Tracking' && (
-          <div className="space-y-3">
-            {/* Search bar */}
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search by order #, tracking #, customer, destination…"
-                  value={trackingSearch}
-                  onChange={(e) => setTrackingSearch(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                />
-              </div>
-              <span className="text-[13px] text-slate-500 lg:ml-2">
-                {filteredShipments.length} shipment{filteredShipments.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {/* Shipments table */}
-            <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-              <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
-                <p className="text-[13px] font-medium text-slate-700">Order shipment status</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[13px]">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                      <th className="py-2 px-3 font-medium">Order #</th>
-                      <th className="py-2 px-3 font-medium">Customer</th>
-                      <th className="py-2 px-3 font-medium">Method</th>
-                      <th className="py-2 px-3 font-medium">Provider</th>
-                      <th className="py-2 px-3 font-medium">Tracking #</th>
-                      <th className="py-2 px-3 font-medium">Destination</th>
-                      <th className="py-2 px-3 font-medium">Status</th>
-                      <th className="py-2 px-3 font-medium">Updated</th>
-                      <th className="py-2 px-3 w-44"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredShipments.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="py-12 text-center text-slate-400 text-[13px]">
-                          No shipments match your search.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredShipments.map((s) => (
-                        <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 px-3 font-mono font-medium text-blue-950">
-                            {s.orderNumber}
-                          </td>
-                          <td className="py-2 px-3 text-slate-900 truncate max-w-[160px]">
-                            {s.customerName}
-                          </td>
-                          <td className="py-2 px-3 text-slate-600">{s.method}</td>
-                          <td className="py-2 px-3 text-slate-600">{s.provider}</td>
-                          <td className="py-2 px-3 font-mono text-slate-700">{s.trackingNumber}</td>
-                          <td className="py-2 px-3 text-slate-600 inline-flex items-center gap-1">
-                            <Navigation className="w-3 h-3 text-slate-400" />
-                            {s.destination}
-                          </td>
-                          <td className="py-2 px-3">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge(
-                                s.status
-                              )}`}
-                            >
-                              {s.status}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 font-mono text-slate-400">{s.updatedAt}</td>
-                          <td className="py-2 px-3">
-                            <select
-                              value={s.status}
-                              onChange={(e) =>
-                                updateShipmentStatus(s.id, e.target.value as ShipmentStatus)
-                              }
-                              className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                            >
-                              <option value="Pending">Pending</option>
-                              <option value="Label Created">Label Created</option>
-                              <option value="Picked Up">Picked Up</option>
-                              <option value="In Transit">In Transit</option>
-                              <option value="Out for Delivery">Out for Delivery</option>
-                              <option value="Delivered">Delivered</option>
-                              <option value="Failed">Failed</option>
-                              <option value="Returned">Returned</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: PROVIDERS */}
-        {activeTab === 'Providers' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {couriers.map((courier) => (
-              <div key={courier.id} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-10 h-10 rounded-sm ${courier.logoBg} flex items-center justify-center text-white font-semibold text-[13px] shrink-0`}
-                    >
-                      {courier.name.charAt(0)}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-slate-900 truncate">{courier.name}</p>
-                      <span
-                        className={`inline-block text-[13px] font-medium px-1.5 py-0.5 rounded-sm ${courier.enabled
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-slate-100 text-slate-600'
-                          }`}
-                      >
-                        {courier.enabled ? 'Connected' : 'Disconnected'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <p className="text-[13px] text-slate-500">{courier.description}</p>
-
-                  <div className="flex flex-wrap gap-1">
-                    {courier.regions.slice(0, 3).map((r) => (
-                      <span
-                        key={r}
-                        className="bg-slate-100 text-slate-700 text-[13px] font-medium px-1.5 py-0.5 rounded-sm"
-                      >
-                        {r}
-                      </span>
-                    ))}
-                    {courier.regions.length > 3 && (
-                      <span className="bg-slate-100 text-slate-500 text-[13px] font-medium px-1.5 py-0.5 rounded-sm">
-                        +{courier.regions.length - 3}
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-1 text-[13px] font-medium text-slate-700 mb-1">
-                      <Key className="w-3 h-3 text-slate-400" />
-                      API key / secret
-                    </label>
-                    <input
-                      type="password"
-                      readOnly
-                      value={courier.apiKey}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono text-slate-700"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="text-[13px] font-medium text-slate-700">Enable integration</span>
-                    <input
-                      type="checkbox"
-                      checked={courier.enabled}
-                      onChange={() => toggleCourier(courier.id)}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
-                    />
-                  </label>
-
-                  <button
-                    onClick={() => testCourier(courier.name)}
-                    disabled={!courier.enabled}
-                    className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px] disabled:opacity-40 inline-flex items-center justify-center gap-1.5 transition"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-blue-950" />
-                    Test connection
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
         )}
       </main>
 
@@ -950,46 +1090,57 @@ export default function ShippingPage() {
                     setZoneRegion(e.target.value);
                     setSelectedCounties([]);
                   }}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  disabled={Object.keys(regions).length === 0}
+                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-50"
                 >
-                  {Object.keys(KENYA_REGIONS).map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  {Object.keys(regions).length === 0 ? (
+                    <option value="">No regions available</option>
+                  ) : (
+                    Object.keys(regions).map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
               <div>
                 <label className="block font-medium text-slate-700 mb-1">
-                  Select counties in {zoneRegion}
+                  Select counties in {zoneRegion || '—'}
                 </label>
                 <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-sm p-1 bg-white space-y-0.5">
-                  {regionCounties.map((county) => {
-                    const selected = selectedCounties.includes(county);
-                    return (
-                      <button
-                        type="button"
-                        key={county}
-                        onClick={() =>
-                          setSelectedCounties((prev) =>
-                            selected ? prev.filter((c) => c !== county) : [...prev, county]
-                          )
-                        }
-                        className={`w-full text-left px-2 py-2 rounded-sm flex items-center justify-between transition text-[13px] ${selected
+                  {regionCounties.length === 0 ? (
+                    <p className="text-[13px] text-slate-400 p-2">
+                      No counties — select a region above.
+                    </p>
+                  ) : (
+                    regionCounties.map((county) => {
+                      const selected = selectedCounties.includes(county);
+                      return (
+                        <button
+                          type="button"
+                          key={county}
+                          onClick={() =>
+                            setSelectedCounties((prev) =>
+                              selected ? prev.filter((c) => c !== county) : [...prev, county]
+                            )
+                          }
+                          className={`w-full text-left px-2 py-2 rounded-sm flex items-center justify-between transition text-[13px] ${selected
                             ? 'bg-blue-50 text-blue-950 font-medium'
                             : 'text-slate-700 hover:bg-slate-50'
-                          }`}
-                      >
-                        <span>{county}</span>
-                        {selected ? (
-                          <CheckSquare className="w-4 h-4 text-blue-950" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-300" />
-                        )}
-                      </button>
-                    );
-                  })}
+                            }`}
+                        >
+                          <span>{county}</span>
+                          {selected ? (
+                            <CheckSquare className="w-4 h-4 text-blue-950" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-300" />
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
@@ -997,15 +1148,17 @@ export default function ShippingPage() {
                 <button
                   type="button"
                   onClick={() => setIsAddZoneOpen(false)}
-                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                  disabled={busy}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                  disabled={busy || Object.keys(regions).length === 0}
+                  className="bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
                 >
-                  Save zone
+                  {busy ? 'Saving…' : 'Save zone'}
                 </button>
               </div>
             </form>
@@ -1044,14 +1197,20 @@ export default function ShippingPage() {
                 <select
                   value={rateMethodName}
                   onChange={(e) => setRateMethodName(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  disabled={activeMethods.length === 0}
+                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-50"
                 >
-                  <option value="Standard Delivery">Standard delivery</option>
-                  <option value="Express Boda">Express boda</option>
-                  <option value="Store Pickup">Store pickup</option>
-                  <option value="Courier Shipping">Courier shipping</option>
-                  <option value="Nationwide Bus / Parcel">Nationwide bus / parcel</option>
-                  <option value="Express Air">Express air</option>
+                  {activeMethods.length === 0 ? (
+                    <option value="">
+                      No active methods — enable one on the Methods tab first
+                    </option>
+                  ) : (
+                    activeMethods.map((m) => (
+                      <option key={m.id} value={m.name}>
+                        {m.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1099,15 +1258,17 @@ export default function ShippingPage() {
                 <button
                   type="button"
                   onClick={() => setIsAddRateOpen(false)}
-                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                  disabled={busy}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                  disabled={busy || activeMethods.length === 0}
+                  className="bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
                 >
-                  Save rate
+                  {busy ? 'Saving…' : 'Save rate'}
                 </button>
               </div>
             </form>
@@ -1171,13 +1332,18 @@ export default function ShippingPage() {
                   <select
                     value={pickupCounty}
                     onChange={(e) => setPickupCounty(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    disabled={allCounties.length === 0}
+                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-50"
                   >
-                    {ALL_COUNTIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+                    {allCounties.length === 0 ? (
+                      <option value="">No counties available</option>
+                    ) : (
+                      allCounties.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -1221,15 +1387,17 @@ export default function ShippingPage() {
                 <button
                   type="button"
                   onClick={() => setIsAddPickupOpen(false)}
-                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                  disabled={busy}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                  disabled={busy || allCounties.length === 0}
+                  className="bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
                 >
-                  Save location
+                  {busy ? 'Saving…' : 'Save location'}
                 </button>
               </div>
             </form>

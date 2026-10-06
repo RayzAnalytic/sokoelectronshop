@@ -1,6 +1,7 @@
+// app/pages/special-deals/page.tsx
 'use client';
 
-import React, { Suspense, useState, useEffect, useMemo } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
@@ -16,111 +17,31 @@ import {
   Check,
   Eye,
 } from 'lucide-react';
-import { products as allProducts, type ProductFull } from '@/data/products';
-import {
-  discounts,
-  computeStatus,
-  discountedPrice,
-  discountPercent,
-  type PromotionType,
-} from '@/data/discounts';
 import { useCart } from '@/lib/store/cart';
+import {
+  catalogApi,
+  type CatalogDealCard,
+  type CatalogCategoryRef,
+  type CatalogBrandRef,
+  type SpecialDealsQuery,
+  type DealSortBy,
+} from '@/lib/api';
 
-// ==========================================
-// TYPES
-// ==========================================
-interface DealProduct {
-  id: string;
-  productId: string;
-  discountCode: string;
-  name: string;
-  brand: string;
-  category: string;
-  price: number;
-  originalPrice: number;
-  discountPct: number;
-  inStock: boolean;
-  stockCount: number;
-  image: string;
-  description: string;
-  features: string[];
-  specs: Record<string, string>;
-  startDate: string;
-  endDate: string;
-  promotionType: PromotionType;
-  rating?: number;
-  reviewCount?: number;
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+const toNum = (v: string | number | null | undefined): number => {
+  if (v === null || v === undefined) return 0;
+  return typeof v === 'number' ? v : Number(v);
+};
+
+function formatKES(amount: number): string {
+  return `KES ${amount.toLocaleString('en-KE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
 }
 
-// ==========================================
-// JOIN: discounts × products → deal cards
-// Dedupe by product — highest discount wins
-// ==========================================
-function buildDealCards(): DealProduct[] {
-  const raw: DealProduct[] = [];
-
-  for (const discount of discounts) {
-    if (!discount.displayOnDealsPage) continue;
-
-    const status = computeStatus(discount.startDate, discount.endDate);
-    if (status === 'Expired') continue;
-
-    let applicable: ProductFull[];
-    if (discount.appliesTo === 'All Products') {
-      applicable = allProducts;
-    } else if (discount.appliesTo === 'Specific Products') {
-      const ids = new Set(discount.linkedProductIds);
-      applicable = allProducts.filter((p) => ids.has(p.id));
-    } else {
-      const cats = new Set(discount.linkedCategories);
-      applicable = allProducts.filter((p) => cats.has(p.category));
-    }
-
-    for (const product of applicable) {
-      const salePrice = discountedPrice(discount, product.price);
-      if (salePrice >= product.price) continue;
-
-      raw.push({
-        id: `${discount.id}__${product.id}`,
-        productId: product.id,
-        discountCode: discount.code,
-        name: product.name,
-        brand: product.brand,
-        category: product.category,
-        price: salePrice,
-        originalPrice: product.price,
-        discountPct: discountPercent(discount, product.price),
-        inStock: product.stock !== 'Out of Stock',
-        stockCount: product.stockQuantity,
-        image: product.images[0] ?? '/placeholder.jpeg',
-        description: product.description,
-        features: product.features ?? [],
-        specs: product.specs ?? {},
-        startDate: discount.startDate,
-        endDate: discount.endDate,
-        promotionType: discount.promotionType,
-        rating: product.rating,
-        reviewCount: product.reviewCount,
-      });
-    }
-  }
-
-  const sorted = raw.sort((a, b) => b.discountPct - a.discountPct);
-  const seen = new Set<string>();
-  const unique: DealProduct[] = [];
-  for (const card of sorted) {
-    if (seen.has(card.productId)) continue;
-    seen.add(card.productId);
-    unique.push(card);
-  }
-  return unique;
-}
-
-const DEAL_CARDS = buildDealCards();
-
-// ==========================================
-// TIME HELPERS
-// ==========================================
 function formatRemaining(ms: number): string {
   if (ms <= 0) return 'Expired';
   const totalSec = Math.floor(ms / 1000);
@@ -142,9 +63,17 @@ function urgencyClass(ms: number): string {
   return 'bg-slate-50 text-slate-600 border-slate-200';
 }
 
-// ==========================================
-// Public page — Suspense wrapper
-// ==========================================
+const SORT_OPTIONS: DealSortBy[] = [
+  'Featured Deals',
+  'Biggest Discount',
+  'Price: Low to High',
+  'Price: High to Low',
+  'Ending Soon',
+];
+
+// ─────────────────────────────────────────────────────────────
+// Public wrapper — Suspense boundary for useSearchParams()
+// ─────────────────────────────────────────────────────────────
 export default function SpecialDealsPage() {
   return (
     <Suspense fallback={null}>
@@ -153,128 +82,110 @@ export default function SpecialDealsPage() {
   );
 }
 
-// ==========================================
+// ─────────────────────────────────────────────────────────────
 // The real page
-// ==========================================
+// ─────────────────────────────────────────────────────────────
 function SpecialDealsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const openId = searchParams.get('open');
 
+  // ── Live ticker for countdowns ────────────────────────────
   const [now, setNow] = useState<number | null>(null);
-
   useEffect(() => {
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
+  // ── Filter / sort state ───────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedBrand, setSelectedBrand] = useState<string>('All');
-  const [minPrice, setMinPrice] = useState<string>('');
-  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedBrand, setSelectedBrand] = useState('All');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [selectedAvailability, setSelectedAvailability] = useState<string>('All');
   const [selectedDiscountLevel, setSelectedDiscountLevel] = useState<string>('All');
-  const [sortBy, setSortBy] = useState<string>('Featured Deals');
+  const [sortBy, setSortBy] = useState<DealSortBy>('Featured Deals');
 
-  const [isLoading] = useState<boolean>(false);
-  const [hasError, setHasError] = useState<boolean>(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
+  // ── Data ──────────────────────────────────────────────────
+  const [deals, setDeals] = useState<CatalogDealCard[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  const [categories, setCategories] = useState<CatalogCategoryRef[]>([]);
+  const [brands, setBrands] = useState<CatalogBrandRef[]>([]);
+
+  // ── Modal ─────────────────────────────────────────────────
+  const [modalProduct, setModalProduct] = useState<CatalogDealCard | null>(null);
+
+  // ── UI ────────────────────────────────────────────────────
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
-
-  const [modalProduct, setModalProduct] = useState<DealProduct | null>(null);
 
   const addItem = useCart((s) => s.addItem);
 
-  // Deals whose promo window is open right now
-  const validDeals = useMemo(() => {
-    if (now === null) return DEAL_CARDS;
-    return DEAL_CARDS.filter((deal) => {
-      const start = new Date(deal.startDate.replace(' ', 'T')).getTime();
-      const end = new Date(deal.endDate.replace(' ', 'T')).getTime();
-      return now >= start && now <= end;
-    });
-  }, [now]);
-
-  // ── URL is the source of truth for the modal ──────────────
+  // ── Debounce search ───────────────────────────────────────
   useEffect(() => {
-    if (!openId) {
-      setModalProduct(null);
-      return;
-    }
-    const found = DEAL_CARDS.find((d) => d.productId === openId);
-    if (found) {
-      setModalProduct(found);
-    } else {
-      router.replace(pathname, { scroll: false });
-    }
-  }, [openId, router, pathname]);
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  function openProductInUrl(productId: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('open', productId);
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  }
-
-  function closeProductInUrl() {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('open');
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }
-
-  const categories = useMemo(() => {
-    const set = new Set(validDeals.map((d) => d.category));
-    return ['All', ...Array.from(set)];
-  }, [validDeals]);
-
-  const brands = useMemo(() => {
-    const set = new Set(validDeals.map((d) => d.brand));
-    return ['All', ...Array.from(set)];
-  }, [validDeals]);
-
-  const filteredDeals = useMemo(() => {
-    return validDeals
-      .filter((product) => {
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matches =
-            product.name.toLowerCase().includes(q) ||
-            product.brand.toLowerCase().includes(q) ||
-            product.category.toLowerCase().includes(q);
-          if (!matches) return false;
-        }
-
-        if (selectedCategory !== 'All' && product.category !== selectedCategory) return false;
-        if (selectedBrand !== 'All' && product.brand !== selectedBrand) return false;
-        if (minPrice !== '' && product.price < Number(minPrice)) return false;
-        if (maxPrice !== '' && product.price > Number(maxPrice)) return false;
-        if (selectedAvailability === 'In Stock' && !product.inStock) return false;
-        if (selectedAvailability === 'Out of Stock' && product.inStock) return false;
-
-        if (selectedDiscountLevel !== 'All') {
-          const threshold = parseInt(selectedDiscountLevel, 10);
-          if (product.discountPct < threshold) return false;
-        }
-
-        return true;
+  // ── Fetch filter dropdown sources (categories, brands) ────
+  useEffect(() => {
+    const ctrl = new AbortController();
+    Promise.all([
+      catalogApi.specialDeals.categories(ctrl.signal),
+      catalogApi.specialDeals.brands(ctrl.signal),
+    ])
+      .then(([cats, brs]) => {
+        setCategories(cats);
+        setBrands(brs);
       })
-      .sort((a, b) => {
-        if (sortBy === 'Biggest Discount') return b.discountPct - a.discountPct;
-        if (sortBy === 'Price: Low to High') return a.price - b.price;
-        if (sortBy === 'Price: High to Low') return b.price - a.price;
-        if (sortBy === 'Ending Soon')
-          return (
-            new Date(a.endDate.replace(' ', 'T')).getTime() -
-            new Date(b.endDate.replace(' ', 'T')).getTime()
-          );
-        return 0;
+      .catch(() => {
+        /* non-fatal — dropdowns stay empty */
       });
+    return () => ctrl.abort();
+  }, []);
+
+  // ── Fetch deals whenever filters change ───────────────────
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    setHasError(false);
+
+    const query: SpecialDealsQuery = {
+      search: debouncedSearch || undefined,
+      category: selectedCategory !== 'All' ? selectedCategory : undefined,
+      brand: selectedBrand !== 'All' ? selectedBrand : undefined,
+      min_price: minPrice || undefined,
+      max_price: maxPrice || undefined,
+      availability:
+        selectedAvailability !== 'All'
+          ? (selectedAvailability as SpecialDealsQuery['availability'])
+          : undefined,
+      discount_level:
+        selectedDiscountLevel !== 'All'
+          ? (Number(selectedDiscountLevel) as SpecialDealsQuery['discount_level'])
+          : undefined,
+      sort_by: sortBy,
+    };
+
+    catalogApi.specialDeals
+      .list(query, ctrl.signal)
+      .then(setDeals)
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setDeals([]);
+        setHasError(true);
+      })
+      .finally(() => setLoading(false));
+
+    return () => ctrl.abort();
   }, [
-    validDeals,
-    searchQuery,
+    debouncedSearch,
     selectedCategory,
     selectedBrand,
     minPrice,
@@ -284,28 +195,78 @@ function SpecialDealsPageInner() {
     sortBy,
   ]);
 
-  const handleAddToCart = async (product: DealProduct): Promise<void> => {
-    if (!product.inStock) return;
+  // ── Fetch modal detail from ?open= ────────────────────────
+  useEffect(() => {
+    if (!openId) {
+      setModalProduct(null);
+      return;
+    }
+    const ctrl = new AbortController();
 
-    await addItem({
-      variantId: product.productId,
-      productId: product.productId,
-      name: product.name,
-      brand: product.brand,
-      image: product.image,
-      unitPrice: product.price,
-      compareAtPrice: product.originalPrice,
-      slug: product.productId,
-      stockCount: product.stockCount,
-      stock: product.inStock ? 'In Stock' : 'Out of Stock',
-    });
+    catalogApi.specialDeals
+      .detail(openId, ctrl.signal)
+      .then(setModalProduct)
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setModalProduct(null);
+        router.replace(pathname, { scroll: false });
+      });
 
-    setNotification(`Successfully added "${product.name}" to cart.`);
-    setTimeout(() => setNotification(null), 3500);
+    return () => ctrl.abort();
+  }, [openId, router, pathname]);
+
+  // ── URL helpers for the modal ─────────────────────────────
+  const openProductInUrl = (productId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('open', productId);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  const closeProductInUrl = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('open');
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
+  // ── Dropdown option lists (with an "All" option) ──────────
+  const categoryNames = useMemo(
+    () => ['All', ...categories.map((c) => c.name)],
+    [categories],
+  );
+  const brandNames = useMemo(
+    () => ['All', ...brands.map((b) => b.name)],
+    [brands],
+  );
+
+  // ── Add to cart ───────────────────────────────────────────
+  const handleAddToCart = useCallback(
+    async (product: CatalogDealCard) => {
+      if (!product.inStock) return;
+
+      await addItem({
+        variantId: product.productId,
+        productId: product.productId,
+        name: product.name,
+        brand: product.brand,
+        image: product.image,
+        unitPrice: toNum(product.price),
+        compareAtPrice: toNum(product.originalPrice),
+        slug: product.productId,
+        stockCount: product.stockCount,
+        stock: product.inStock ? 'In Stock' : 'Out of Stock',
+      });
+
+      setNotification(`Successfully added "${product.name}" to cart.`);
+      setTimeout(() => setNotification(null), 3500);
+    },
+    [addItem],
+  );
+
+  // ── Clear filters ─────────────────────────────────────────
   const clearAllFilters = () => {
     setSearchQuery('');
+    setDebouncedSearch('');
     setSelectedCategory('All');
     setSelectedBrand('All');
     setMinPrice('');
@@ -323,9 +284,11 @@ function SpecialDealsPageInner() {
     (selectedDiscountLevel !== 'All' ? 1 : 0) +
     (searchQuery.trim() !== '' ? 1 : 0);
 
+  // ─────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-900 selection:text-white">
-
       {notification && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-lg text-sm flex items-center space-x-2 border border-slate-700">
           <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -349,7 +312,7 @@ function SpecialDealsPageInner() {
               <div className="sm:w-2/5 p-2 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200">
                 <div className="aspect-square w-full bg-white rounded-sm overflow-hidden border border-slate-200 relative">
                   <img
-                    src={modalProduct.image}
+                    src={modalProduct.image || '/placeholder.jpeg'}
                     alt={modalProduct.name}
                     className="w-full h-full object-cover"
                   />
@@ -362,9 +325,13 @@ function SpecialDealsPageInner() {
                 </div>
 
                 {(() => {
-                  const ms = new Date(modalProduct.endDate.replace(' ', 'T')).getTime() - (now ?? Date.now());
+                  const ms =
+                    new Date(modalProduct.endDate).getTime() -
+                    (now ?? Date.now());
                   return (
-                    <div className={`mt-2 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 ${urgencyClass(ms)}`}>
+                    <div
+                      className={`mt-2 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 ${urgencyClass(ms)}`}
+                    >
                       <Clock className="w-3.5 h-3.5 shrink-0" />
                       <span>{formatRemaining(ms)}</span>
                     </div>
@@ -382,17 +349,17 @@ function SpecialDealsPageInner() {
                     {modalProduct.name}
                   </h2>
 
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
                     {modalProduct.description}
                   </p>
 
                   <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5">
                     <div>
                       <span className="text-lg font-extrabold text-red-600 block">
-                        KES {modalProduct.price.toLocaleString()}
+                        {formatKES(toNum(modalProduct.price))}
                       </span>
                       <span className="text-xs text-slate-400 line-through">
-                        KES {modalProduct.originalPrice.toLocaleString()}
+                        {formatKES(toNum(modalProduct.originalPrice))}
                       </span>
                     </div>
                     <span
@@ -432,19 +399,21 @@ function SpecialDealsPageInner() {
                         Specifications
                       </h4>
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
-                        {Object.entries(modalProduct.specs).map(([key, val]) => (
-                          <div
-                            key={key}
-                            className="bg-slate-50 p-1.5 rounded border border-slate-200"
-                          >
-                            <span className="text-slate-400 block text-[12px]">
-                              {key}
-                            </span>
-                            <span className="font-semibold text-slate-800">
-                              {val}
-                            </span>
-                          </div>
-                        ))}
+                        {Object.entries(modalProduct.specs).map(
+                          ([key, val]) => (
+                            <div
+                              key={key}
+                              className="bg-slate-50 p-1.5 rounded border border-slate-200"
+                            >
+                              <span className="text-slate-400 block text-[12px]">
+                                {key}
+                              </span>
+                              <span className="font-semibold text-slate-800">
+                                {val}
+                              </span>
+                            </div>
+                          ),
+                        )}
                       </div>
                     </div>
                   )}
@@ -461,7 +430,9 @@ function SpecialDealsPageInner() {
                     className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded-sm text-[13px] transition disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
                     <ShoppingCart className="w-3.5 h-3.5" />
-                    <span>{modalProduct.inStock ? 'Add to Cart' : 'Out of Stock'}</span>
+                    <span>
+                      {modalProduct.inStock ? 'Add to Cart' : 'Out of Stock'}
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -495,13 +466,13 @@ function SpecialDealsPageInner() {
             </h1>
             <p className="text-xs text-slate-600 mt-1 max-w-2xl">
               Shop current offers and discounted electronics while the
-              promotions last. Prices and inventory are verified directly from
-              our inventory system.
+              promotions last. Prices and inventory are verified directly
+              from our inventory system.
             </p>
           </div>
           <div className="mt-1 md:mt-0 bg-slate-50 border border-slate-200 rounded-sm p-2 text-center shrink-0">
             <span className="block text-2xl font-bold text-blue-950">
-              {validDeals.length}
+              {loading ? '…' : deals.length}
             </span>
             <span className="text-xs font-medium text-slate-500 uppercase">
               Active Deals Available
@@ -511,7 +482,7 @@ function SpecialDealsPageInner() {
 
         <div className="mb-1 overflow-x-auto pb-2">
           <div className="flex items-center space-x-2 min-w-max">
-            {categories.map((cat) => (
+            {categoryNames.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
@@ -532,13 +503,9 @@ function SpecialDealsPageInner() {
               <p className="text-xs text-slate-600 font-medium">
                 Showing{' '}
                 <span className="font-bold text-slate-900">
-                  {filteredDeals.length}
+                  {deals.length}
                 </span>{' '}
-                of{' '}
-                <span className="font-bold text-slate-900">
-                  {validDeals.length}
-                </span>{' '}
-                deals
+                active deals
               </p>
 
               <button
@@ -547,7 +514,8 @@ function SpecialDealsPageInner() {
               >
                 <Filter className="w-3.5 h-3.5" />
                 <span>
-                  Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
+                  Filters{' '}
+                  {activeFilterCount > 0 && `(${activeFilterCount})`}
                 </span>
               </button>
             </div>
@@ -559,7 +527,7 @@ function SpecialDealsPageInner() {
                 className="text-xs bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-700 focus:outline-none focus:border-blue-950 font-medium"
               >
                 <option value="All">All Brands</option>
-                {brands
+                {brandNames
                   .filter((b) => b !== 'All')
                   .map((brand) => (
                     <option key={brand} value={brand}>
@@ -624,14 +592,14 @@ function SpecialDealsPageInner() {
               </span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => setSortBy(e.target.value as DealSortBy)}
                 className="text-xs bg-white border border-slate-200 rounded px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-950 font-medium"
               >
-                <option value="Featured Deals">Featured Deals</option>
-                <option value="Biggest Discount">Biggest Discount</option>
-                <option value="Price: Low to High">Price: Low to High</option>
-                <option value="Price: High to Low">Price: High to Low</option>
-                <option value="Ending Soon">Ending Soon</option>
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -649,7 +617,7 @@ function SpecialDealsPageInner() {
                     className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700"
                   >
                     <option value="All">All Brands</option>
-                    {brands
+                    {brandNames
                       .filter((b) => b !== 'All')
                       .map((brand) => (
                         <option key={brand} value={brand}>
@@ -664,7 +632,9 @@ function SpecialDealsPageInner() {
                   </label>
                   <select
                     value={selectedAvailability}
-                    onChange={(e) => setSelectedAvailability(e.target.value)}
+                    onChange={(e) =>
+                      setSelectedAvailability(e.target.value)
+                    }
                     className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700"
                   >
                     <option value="All">All Availability</option>
@@ -680,7 +650,9 @@ function SpecialDealsPageInner() {
                   </label>
                   <select
                     value={selectedDiscountLevel}
-                    onChange={(e) => setSelectedDiscountLevel(e.target.value)}
+                    onChange={(e) =>
+                      setSelectedDiscountLevel(e.target.value)
+                    }
                     className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700"
                   >
                     <option value="All">Any Discount</option>
@@ -790,7 +762,7 @@ function SpecialDealsPageInner() {
           </div>
         )}
 
-        {isLoading && (
+        {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div
@@ -806,7 +778,7 @@ function SpecialDealsPageInner() {
           </div>
         )}
 
-        {hasError && (
+        {hasError && !loading && (
           <div className="bg-white border border-red-200 rounded-lg p-12 text-center my-12">
             <AlertCircle className="w-10 h-10 text-red-600 mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-900 mb-1">
@@ -817,7 +789,7 @@ function SpecialDealsPageInner() {
               backend.
             </p>
             <button
-              onClick={() => setHasError(false)}
+              onClick={() => setSortBy((s) => s)}
               className="inline-flex items-center space-x-1.5 text-xs font-medium bg-blue-950 text-white px-4 py-2 rounded"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -826,16 +798,16 @@ function SpecialDealsPageInner() {
           </div>
         )}
 
-        {!isLoading && !hasError && filteredDeals.length === 0 && (
+        {!loading && !hasError && deals.length === 0 && (
           <div className="bg-white border border-slate-200 rounded-lg p-12 text-center my-8">
             <Tag className="w-10 h-10 text-slate-300 mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-900 mb-1">
-              {validDeals.length === 0
+              {activeFilterCount === 0
                 ? 'No special deals available right now'
                 : 'No deals match your current filters.'}
             </h3>
             <p className="text-xs text-slate-600 mb-4">
-              {validDeals.length === 0
+              {activeFilterCount === 0
                 ? 'Check back later for new offers and promotions.'
                 : 'Try clearing your filters or search terms to see available offers.'}
             </p>
@@ -850,12 +822,12 @@ function SpecialDealsPageInner() {
           </div>
         )}
 
-        {!isLoading && !hasError && filteredDeals.length > 0 && (
+        {!loading && !hasError && deals.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-            {filteredDeals.map((product) => {
+            {deals.map((product) => {
               const remainingMs =
                 now !== null
-                  ? new Date(product.endDate.replace(' ', 'T')).getTime() - now
+                  ? new Date(product.endDate).getTime() - now
                   : null;
 
               return (
@@ -866,7 +838,7 @@ function SpecialDealsPageInner() {
                   <div>
                     <div className="aspect-square w-full bg-slate-100 overflow-hidden relative">
                       <img
-                        src={product.image}
+                        src={product.image || '/placeholder.jpeg'}
                         alt={product.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -889,7 +861,9 @@ function SpecialDealsPageInner() {
 
                       {remainingMs !== null && (
                         <div
-                          className={`flex items-center gap-1 text-[10px] font-medium border rounded px-1.5 py-0.5 mb-1.5 ${urgencyClass(remainingMs)}`}
+                          className={`flex items-center gap-1 text-[10px] font-medium border rounded px-1.5 py-0.5 mb-1.5 ${urgencyClass(
+                            remainingMs,
+                          )}`}
                         >
                           <Clock className="w-2.5 h-2.5 shrink-0" />
                           <span className="truncate">
@@ -900,10 +874,10 @@ function SpecialDealsPageInner() {
 
                       <div className="mb-1">
                         <span className="text-xs font-bold text-red-600 block">
-                          KES {product.price.toLocaleString()}
+                          {formatKES(toNum(product.price))}
                         </span>
                         <span className="text-[10px] text-slate-400 line-through">
-                          KES {product.originalPrice.toLocaleString()}
+                          {formatKES(toNum(product.originalPrice))}
                         </span>
                       </div>
                     </div>
@@ -913,7 +887,9 @@ function SpecialDealsPageInner() {
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
-                        onClick={() => openProductInUrl(product.productId)}
+                        onClick={() =>
+                          openProductInUrl(product.productId)
+                        }
                         className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium py-1.5 px-2 text-[12px] transition duration-150 flex items-center justify-center space-x-1"
                       >
                         <Eye className="w-3 h-3" />
@@ -927,7 +903,9 @@ function SpecialDealsPageInner() {
                         className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-1.5 px-2 text-[12px] transition duration-150 ease-in-out disabled:opacity-50 flex items-center justify-center space-x-1 shadow-xs"
                       >
                         <ShoppingCart className="w-3 h-3" />
-                        <span>{product.inStock ? 'Add' : 'Sold'}</span>
+                        <span>
+                          {product.inStock ? 'Add' : 'Sold'}
+                        </span>
                       </button>
                     </div>
                   </div>

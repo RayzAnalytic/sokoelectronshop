@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search,
   Download,
@@ -15,317 +15,92 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
-  Smartphone,
   DollarSign,
   Copy,
   CheckSquare,
   Square,
   Link2,
-  FileText,
-  Hash,
   Phone,
   User,
-  Calendar,
-  AlertTriangle,
 } from 'lucide-react';
 
-// --- TYPES ---
-// Transactions are SEPARATE from orders.
-// An Order = commercial purchase (what was bought).
-// A Transaction = financial event (how it was paid).
-// M-Pesa is the ONLY payment method.
+import { adminApi } from '@/lib/admin-api';
+import type {
+  AdminTransaction,
+  AdminTransactionSummary,
+  AdminTransactionFilters,
+  AdminTransactionMethod,
+  AdminTransactionStatus,
+} from '@/lib/admin-types';
 
-type TxStatus = 'Success' | 'Pending' | 'Failed' | 'Reversed';
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+//
+// The wire shape is `AdminTransaction`. The component reads exactly
+// those fields — no local aliases. If you find yourself renaming a
+// field here, the wire shape is wrong, not the component.
+//
+// Money fields (`amount`, `fee`) are Decimal-strings from the backend.
+// The component converts them with `Number()` at render time — never
+// stores them as numbers in state, because that reintroduces float
+// drift and would silently disagree with the CSV export.
+// ─────────────────────────────────────────────────────────────────────────────
 
-interface Transaction {
-  id: string;
-  ref: string;                    // M-Pesa receipt / transaction reference
-  orderNumber: string;            // Links to the commercial order
-  amount: number;
-  fee: number;                    // M-Pesa transaction fee
-  phoneNumber: string;            // Payer M-Pesa number
-  status: TxStatus;
-  responseCode: string;           // M-Pesa result code
-  responseDesc: string;           // M-Pesa result description
-  date: string;
-  customerName: string;
-  customerEmail: string;
-  merchantRequestId: string;
-  checkoutRequestId: string;
-  payload: Record<string, any>;   // Raw M-Pesa callback payload
-  timeline: { title: string; time: string; status: 'completed' | 'active' | 'failed' }[];
-}
-
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'tx-1',
-    ref: 'MPX9842K21',
-    orderNumber: '#SKO-9842',
-    amount: 157500,
-    fee: 3150,
-    phoneNumber: '+254 712 *** 890',
-    status: 'Success',
-    responseCode: '0',
-    responseDesc: 'The service request is processed successfully.',
-    date: '2026-09-23 21:14',
-    customerName: 'Brian Kiprop',
-    customerEmail: 'brian.kiprop@gmail.com',
-    merchantRequestId: '29115-3465611-1',
-    checkoutRequestId: 'ws_CO_23092026211412345',
-    payload: {
-      MerchantRequestID: '29115-3465611-1',
-      CheckoutRequestID: 'ws_CO_23092026211412345',
-      ResultCode: 0,
-      ResultDesc: 'The service request is processed successfully.',
-      Amount: 157500,
-      MpesaReceiptNumber: 'MPX9842K21',
-      TransactionDate: '20260923211422',
-      PhoneNumber: '254712345890',
-    },
-    timeline: [
-      { title: 'STK Push Triggered', time: '21:14:02', status: 'completed' },
-      { title: 'Customer PIN Entered', time: '21:14:15', status: 'completed' },
-      { title: 'M-Pesa Callback Received (Code 0)', time: '21:14:22', status: 'completed' },
-      { title: 'Order Marked Paid & Fulfilled', time: '21:14:23', status: 'completed' },
-    ],
-  },
-  {
-    id: 'tx-2',
-    ref: 'MPX9843B77',
-    orderNumber: '#SKO-9843',
-    amount: 68000,
-    fee: 1360,
-    phoneNumber: '+254 733 *** 654',
-    status: 'Success',
-    responseCode: '0',
-    responseDesc: 'The service request is processed successfully.',
-    date: '2026-09-23 20:42',
-    customerName: 'Amina Ouma',
-    customerEmail: 'amina.ouma@outlook.com',
-    merchantRequestId: '29115-3465612-1',
-    checkoutRequestId: 'ws_CO_23092026204212345',
-    payload: {
-      MerchantRequestID: '29115-3465612-1',
-      CheckoutRequestID: 'ws_CO_23092026204212345',
-      ResultCode: 0,
-      ResultDesc: 'The service request is processed successfully.',
-      Amount: 68000,
-      MpesaReceiptNumber: 'MPX9843B77',
-      TransactionDate: '20260923204211',
-      PhoneNumber: '254733987654',
-    },
-    timeline: [
-      { title: 'STK Push Triggered', time: '20:42:01', status: 'completed' },
-      { title: 'Customer PIN Entered', time: '20:42:10', status: 'completed' },
-      { title: 'M-Pesa Callback Received (Code 0)', time: '20:42:11', status: 'completed' },
-    ],
-  },
-  {
-    id: 'tx-3',
-    ref: 'MPX9840C12',
-    orderNumber: '#SKO-9840',
-    amount: 14500,
-    fee: 290,
-    phoneNumber: '+254 733 *** 112',
-    status: 'Failed',
-    responseCode: '1032',
-    responseDesc: 'Request cancelled by user',
-    date: '2026-09-23 19:10',
-    customerName: 'Kevin Juma',
-    customerEmail: 'kjuma@yahoo.com',
-    merchantRequestId: '29115-3465613-1',
-    checkoutRequestId: 'ws_CO_23092026191012345',
-    payload: {
-      MerchantRequestID: '29115-3465613-1',
-      CheckoutRequestID: 'ws_CO_23092026191012345',
-      ResultCode: 1032,
-      ResultDesc: 'Request cancelled by user',
-      Amount: 14500,
-      MpesaReceiptNumber: '',
-      TransactionDate: '20260923191005',
-      PhoneNumber: '254733111112',
-    },
-    timeline: [
-      { title: 'STK Push Triggered', time: '19:09:40', status: 'completed' },
-      { title: 'Waiting for PIN Prompt', time: '19:09:55', status: 'active' },
-      { title: 'User Cancelled Request (1032)', time: '19:10:05', status: 'failed' },
-    ],
-  },
-  {
-    id: 'tx-4',
-    ref: 'MPX9839A10',
-    orderNumber: '#SKO-9839',
-    amount: 32000,
-    fee: 640,
-    phoneNumber: '+254 722 *** 445',
-    status: 'Success',
-    responseCode: '0',
-    responseDesc: 'The service request is processed successfully.',
-    date: '2026-09-23 18:05',
-    customerName: 'Sarah Wanjiru',
-    customerEmail: 'sarah.w@sokoflow.co.ke',
-    merchantRequestId: '12844-882910-1',
-    checkoutRequestId: 'ws_CO_23092026180512345',
-    payload: {
-      MerchantRequestID: '12844-882910-1',
-      CheckoutRequestID: 'ws_CO_23092026180512345',
-      ResultCode: 0,
-      ResultDesc: 'Success',
-      Amount: 32000,
-      MpesaReceiptNumber: 'MPX9839A10',
-      TransactionDate: '20260923180512',
-      PhoneNumber: '254722111445',
-    },
-    timeline: [
-      { title: 'STK Push Triggered', time: '18:04:40', status: 'completed' },
-      { title: 'Callback Received (Code 0)', time: '18:05:12', status: 'completed' },
-    ],
-  },
-  {
-    id: 'tx-5',
-    ref: 'MPX9835D55',
-    orderNumber: '#SKO-9835',
-    amount: 8900,
-    fee: 178,
-    phoneNumber: '+254 701 *** 223',
-    status: 'Success',
-    responseCode: '0',
-    responseDesc: 'The service request is processed successfully.',
-    date: '2026-09-23 16:30',
-    customerName: 'David Mutua',
-    customerEmail: 'dmutua@gmail.com',
-    merchantRequestId: '12844-882911-1',
-    checkoutRequestId: 'ws_CO_23092026163012345',
-    payload: {
-      MerchantRequestID: '12844-882911-1',
-      CheckoutRequestID: 'ws_CO_23092026163012345',
-      ResultCode: 0,
-      ResultDesc: 'Success',
-      Amount: 8900,
-      MpesaReceiptNumber: 'MPX9835D55',
-      TransactionDate: '20260923163022',
-      PhoneNumber: '254701222223',
-    },
-    timeline: [
-      { title: 'STK Push Triggered', time: '16:29:50', status: 'completed' },
-      { title: 'Callback Received (Code 0)', time: '16:30:22', status: 'completed' },
-    ],
-  },
-  {
-    id: 'tx-6',
-    ref: 'MPX9831B99',
-    orderNumber: '#SKO-9831',
-    amount: 45000,
-    fee: 900,
-    phoneNumber: '+254 700 *** 991',
-    status: 'Failed',
-    responseCode: '1001',
-    responseDesc: 'The balance is insufficient for the transaction.',
-    date: '2026-09-23 14:22',
-    customerName: 'Mercy Chebet',
-    customerEmail: 'mercy.chebet@gmail.com',
-    merchantRequestId: '12844-882912-1',
-    checkoutRequestId: 'ws_CO_23092026142212345',
-    payload: {
-      MerchantRequestID: '12844-882912-1',
-      CheckoutRequestID: 'ws_CO_23092026142212345',
-      ResultCode: 1001,
-      ResultDesc: 'The balance is insufficient for the transaction.',
-      Amount: 45000,
-      MpesaReceiptNumber: '',
-      TransactionDate: '20260923142215',
-      PhoneNumber: '254700999991',
-    },
-    timeline: [
-      { title: 'STK Push Sent', time: '14:21:50', status: 'completed' },
-      { title: 'Insufficient Funds Error (1001)', time: '14:22:15', status: 'failed' },
-    ],
-  },
-  {
-    id: 'tx-7',
-    ref: 'MPX9828E33',
-    orderNumber: '#SKO-9828',
-    amount: 24000,
-    fee: 480,
-    phoneNumber: '+254 711 *** 007',
-    status: 'Success',
-    responseCode: '0',
-    responseDesc: 'The service request is processed successfully.',
-    date: '2026-09-23 13:12',
-    customerName: 'John Omondi',
-    customerEmail: 'john.omondi@tech.co.ke',
-    merchantRequestId: '12844-882913-1',
-    checkoutRequestId: 'ws_CO_23092026131212345',
-    payload: {
-      MerchantRequestID: '12844-882913-1',
-      CheckoutRequestID: 'ws_CO_23092026131212345',
-      ResultCode: 0,
-      ResultDesc: 'Success',
-      Amount: 24000,
-      MpesaReceiptNumber: 'MPX9828E33',
-      TransactionDate: '20260923131205',
-      PhoneNumber: '254711000007',
-    },
-    timeline: [
-      { title: 'STK Push Triggered', time: '13:10:00', status: 'completed' },
-      { title: 'Callback Received (Code 0)', time: '13:12:05', status: 'completed' },
-    ],
-  },
-  {
-    id: 'tx-8',
-    ref: 'MPX9820REV',
-    orderNumber: '#SKO-9815',
-    amount: 120000,
-    fee: 2400,
-    phoneNumber: '+254 722 *** 102',
-    status: 'Reversed',
-    responseCode: 'REV_C2B',
-    responseDesc: 'Duplicate payment reversed by merchant.',
-    date: '2026-09-22 10:15',
-    customerName: 'Grace Njeri',
-    customerEmail: 'grace.njeri@gmail.com',
-    merchantRequestId: '12844-882914-1',
-    checkoutRequestId: 'ws_CO_22092026101512345',
-    payload: {
-      MerchantRequestID: '12844-882914-1',
-      CheckoutRequestID: 'ws_CO_22092026101512345',
-      ResultCode: 0,
-      ResultDesc: 'Success',
-      Amount: 120000,
-      MpesaReceiptNumber: 'MPX9820REV',
-      TransactionDate: '20260922093000',
-      PhoneNumber: '254722111102',
-      ReversalReason: 'Duplicate payment initiated by customer',
-      OriginalReceipt: 'MPX9820OLD',
-      ReversalTransactionID: 'MPX9820REV',
-    },
-    timeline: [
-      { title: 'Payment Success', time: '09:30:00', status: 'completed' },
-      { title: 'Refund/Reversal Requested', time: '10:00:00', status: 'completed' },
-      { title: 'M-Pesa Reversal Executed', time: '10:15:20', status: 'completed' },
-    ],
-  },
+const STATUS_OPTIONS: AdminTransactionStatus[] = [
+  'Success',
+  'Pending',
+  'Failed',
+  'Reversed',
 ];
 
-const STATUSES: TxStatus[] = ['Success', 'Pending', 'Failed', 'Reversed'];
-const DATE_RANGES = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days'];
+const METHOD_OPTIONS: { value: AdminTransactionMethod; label: string }[] = [
+  { value: 'MPESA', label: 'M-Pesa' },
+  { value: 'COD', label: 'Cash on Delivery' },
+];
 
+const DATE_RANGES = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days'] as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Formatters
+// ─────────────────────────────────────────────────────────────────────────────
+const fmtMoney = (v: string | number): string =>
+  `KES ${Number(v || 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`;
+
+const fmtNumber = (v: string | number): string =>
+  Number(v || 0).toLocaleString('en-KE', { maximumFractionDigits: 2 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────────────────────
 export default function TransactionsLedgerPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+  // ── Server state ────────────────────────────────────────────────────────
+  const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
+  const [summary, setSummary] = useState<AdminTransactionSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // ── Filters ─────────────────────────────────────────────────────────────
+  // `searchQuery` is what the input shows; `debouncedSearch` is what the
+  // effect reads. Debouncing on the input side means every keystroke does
+  // not fire a request.
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<TxStatus | null>(null);
-  const [dateRange, setDateRange] = useState('Today');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<AdminTransactionStatus | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<AdminTransactionMethod | null>(null);
+  const [dateRange, setDateRange] = useState<typeof DATE_RANGES[number]>('Today');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const [activeTx, setActiveTx] = useState<Transaction | null>(null);
-  const [reconcileTx, setReconcileTx] = useState<Transaction | null>(null);
+  // ── Drawer + modal state ────────────────────────────────────────────────
+  const [activeTx, setActiveTx] = useState<AdminTransaction | null>(null);
+  const [reconcileTx, setReconcileTx] = useState<AdminTransaction | null>(null);
   const [reconcileStatus, setReconcileStatus] = useState<'Matched' | 'Unmatched'>('Matched');
   const [reconcileOrder, setReconcileOrder] = useState('');
   const [reconcileNote, setReconcileNote] = useState('');
+  const [busy, setBusy] = useState(false);
 
+  // ── Toast ───────────────────────────────────────────────────────────────
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -335,88 +110,174 @@ export default function TransactionsLedgerPage() {
     }
   }, [toastMessage]);
 
-  const filtered = useMemo(() => {
-    return transactions.filter((tx) => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        !q ||
-        tx.ref.toLowerCase().includes(q) ||
-        tx.orderNumber.toLowerCase().includes(q) ||
-        tx.customerName.toLowerCase().includes(q) ||
-        tx.customerEmail.toLowerCase().includes(q) ||
-        tx.phoneNumber.toLowerCase().includes(q);
-      const matchesStatus = !selectedStatus || tx.status === selectedStatus;
-      const amt = tx.amount;
-      const matchesMin = minAmount === '' || amt >= Number(minAmount);
-      const matchesMax = maxAmount === '' || amt <= Number(maxAmount);
-      return matchesSearch && matchesStatus && matchesMin && matchesMax;
-    });
-  }, [transactions, searchQuery, selectedStatus, minAmount, maxAmount]);
+  // ── Debounce the search input ───────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  const totalSuccessful = filtered.filter((t) => t.status === 'Success').reduce((a, t) => a + t.amount, 0);
-  const totalFailed = filtered.filter((t) => t.status === 'Failed').reduce((a, t) => a + t.amount, 0);
-  const totalPending = filtered.filter((t) => t.status === 'Pending').reduce((a, t) => a + t.amount, 0);
-  const totalFees = filtered.reduce((a, t) => a + t.fee, 0);
-  const netAmount = totalSuccessful - totalFees;
+  // ── The current filter set, as the API expects it ───────────────────────
+  const filters: AdminTransactionFilters = useMemo(() => {
+    const f: AdminTransactionFilters = {};
+    if (debouncedSearch) f.q = debouncedSearch;
+    if (selectedStatus) f.status = selectedStatus;
+    if (selectedMethod) f.method = selectedMethod;
+    if (dateRange) f.dateRange = dateRange;
+    if (minAmount) f.minAmount = minAmount;
+    if (maxAmount) f.maxAmount = maxAmount;
+    return f;
+  }, [
+    debouncedSearch,
+    selectedStatus,
+    selectedMethod,
+    dateRange,
+    minAmount,
+    maxAmount,
+  ]);
 
-  const allSelected = filtered.length > 0 && selectedIds.length === filtered.length;
-  const toggleSelectAll = () => setSelectedIds(allSelected ? [] : filtered.map((t) => t.id));
+  // ── Fetch list + summary ────────────────────────────────────────────────
+  // One effect, one AbortController, two parallel requests. Both must
+  // use the SAME filters — otherwise the summary cards drift from the
+  // table on the next filter change.
+  const fetchAll = useCallback(
+    async (signal: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [list, sum] = await Promise.all([
+          adminApi.transactions.list(filters, signal),
+          adminApi.transactions.summary(filters, signal),
+        ]);
+        if (signal.aborted) return;
+        setTransactions(list);
+        setSummary(sum);
+      } catch (err) {
+        if (signal.aborted) return;
+        const message =
+          err instanceof Error ? err.message : 'Failed to load transactions.';
+        setError(message);
+      } finally {
+        if (!signal.aborted) setLoading(false);
+      }
+    },
+    [filters],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchAll(controller.signal);
+    return () => controller.abort();
+  }, [fetchAll]);
+
+  // ── Derived summary values ──────────────────────────────────────────────
+  // Fall back to zero-shape when the summary has not loaded yet, so the
+  // cards render `KES 0` instead of crashing during the first paint.
+  const totalSuccessful = summary?.totalSuccessful ?? '0';
+  const totalPending = summary?.totalPending ?? '0';
+  const totalFailed = summary?.totalFailed ?? '0';
+  const totalFees = summary?.totalFees ?? '0';
+  const netAmount = summary?.netAmount ?? '0';
+
+  // ── Selection ───────────────────────────────────────────────────────────
+  const allSelected =
+    transactions.length > 0 && selectedIds.length === transactions.length;
+  const toggleSelectAll = () =>
+    setSelectedIds(allSelected ? [] : transactions.map((t) => t.id));
   const toggleRow = (id: string) =>
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
-
-  const handleRetry = (tx: Transaction) => {
-    setTransactions((prev) =>
-      prev.map((t) =>
-        t.id === tx.id
-          ? {
-            ...t,
-            status: 'Success',
-            responseCode: '0',
-            responseDesc: 'The service request is processed successfully.',
-            ref: t.ref.startsWith('MPX') ? t.ref : `MPX${Date.now().toString().slice(-6)}`,
-          }
-          : t
-      )
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
-    if (activeTx?.id === tx.id) {
-      setActiveTx((prev) =>
-        prev
-          ? {
-            ...prev,
-            status: 'Success',
-            responseCode: '0',
-            responseDesc: 'The service request is processed successfully.',
-          }
-          : null
+
+  // ── Retry ───────────────────────────────────────────────────────────────
+  const handleRetry = async (tx: AdminTransaction) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const fresh = await adminApi.transactions.retry(tx.id);
+      setToastMessage(
+        `Retry initiated · new attempt ${fresh.checkoutRequestId || fresh.id}`,
       );
+      // Refetch both list and summary — a retry creates a new Pending
+      // row, and the summary totals change.
+      const controller = new AbortController();
+      await fetchAll(controller.signal);
+      // If the drawer was open on the failed row, keep it open and let
+      // the refreshed list supply the new state on next click.
+      setActiveTx(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Retry failed.';
+      setToastMessage(message);
+    } finally {
+      setBusy(false);
     }
-    setToastMessage(`M-Pesa transaction ${tx.ref} retried successfully`);
   };
 
-  const saveReconciliation = () => {
-    if (!reconcileTx) return;
-    setTransactions((prev) =>
-      prev.map((t) =>
-        t.id === reconcileTx.id
-          ? {
-            ...t,
-            orderNumber: reconcileOrder || t.orderNumber,
-            payload: {
-              ...t.payload,
-              reconciliationNote: reconcileNote,
-              reconciliationStatus: reconcileStatus,
-            },
-          }
-          : t
-      )
-    );
-    setToastMessage(`Transaction ${reconcileTx.ref} reconciled`);
-    setReconcileTx(null);
-    setReconcileNote('');
-    setReconcileOrder('');
+  // ── Reconcile ───────────────────────────────────────────────────────────
+  const saveReconciliation = async () => {
+    if (!reconcileTx || busy) return;
+    setBusy(true);
+    try {
+      await adminApi.transactions.reconcile(reconcileTx.id, {
+        status: reconcileStatus,
+        orderNumber: reconcileOrder || undefined,
+        note: reconcileNote || undefined,
+      });
+      setToastMessage(`Transaction ${reconcileTx.ref || reconcileTx.id} reconciled`);
+      setReconcileTx(null);
+      setReconcileNote('');
+      setReconcileOrder('');
+      const controller = new AbortController();
+      await fetchAll(controller.signal);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Reconcile failed.';
+      setToastMessage(message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const statusBadge = (s: TxStatus) =>
+  // ── Exports ─────────────────────────────────────────────────────────────
+  const handleExportFiltered = async () => {
+    try {
+      await adminApi.transactions.exportFiltered(filters);
+      setToastMessage(`Exported ${transactions.length} transactions`);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Export failed.';
+      setToastMessage(message);
+    }
+  };
+
+  const handleExportSelected = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      await adminApi.transactions.exportBulk({ ids: selectedIds });
+      setToastMessage(`Exported ${selectedIds.length} transactions`);
+      setSelectedIds([]);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Export failed.';
+      setToastMessage(message);
+    }
+  };
+
+  // ── Filter helpers ──────────────────────────────────────────────────────
+  const activeFilterCount =
+    (selectedStatus ? 1 : 0) +
+    (selectedMethod ? 1 : 0) +
+    (minAmount || maxAmount ? 1 : 0);
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedStatus(null);
+    setSelectedMethod(null);
+    setMinAmount('');
+    setMaxAmount('');
+  };
+
+  const statusBadge = (s: AdminTransactionStatus) =>
     s === 'Success'
       ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
       : s === 'Failed'
@@ -424,16 +285,6 @@ export default function TransactionsLedgerPage() {
         : s === 'Reversed'
           ? 'bg-purple-50 text-purple-700 border-purple-100'
           : 'bg-amber-50 text-amber-700 border-amber-100';
-
-  const activeFilterCount =
-    (selectedStatus ? 1 : 0) + (minAmount || maxAmount ? 1 : 0);
-
-  const clearFilters = () => {
-    setSearchQuery('');
-    setSelectedStatus(null);
-    setMinAmount('');
-    setMaxAmount('');
-  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
@@ -454,12 +305,13 @@ export default function TransactionsLedgerPage() {
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Transactions</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              M-Pesa financial ledger & gateway event stream
+              Financial ledger & payment event stream
             </p>
           </div>
           <button
-            onClick={() => setToastMessage(`Exporting ${filtered.length} transactions as CSV…`)}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+            onClick={handleExportFiltered}
+            disabled={loading || transactions.length === 0}
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
@@ -477,10 +329,29 @@ export default function TransactionsLedgerPage() {
             <p className="text-blue-800 mt-0.5">
               An <span className="font-medium">Order</span> represents the commercial purchase (what was bought).
               A <span className="font-medium">Transaction</span> represents the financial event (how it was paid).
-              Multiple M-Pesa transactions can settle a single order.
+              Multiple payment attempts — M-Pesa retries, cash on delivery — can settle a single order.
             </p>
           </div>
         </div>
+
+        {/* ERROR BANNER */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-sm p-2 flex items-start justify-between gap-2">
+            <div className="text-[13px]">
+              <p className="font-medium text-red-800">Could not load the ledger</p>
+              <p className="text-red-700 mt-0.5">{error}</p>
+            </div>
+            <button
+              onClick={() => {
+                const controller = new AbortController();
+                fetchAll(controller.signal);
+              }}
+              className="text-[13px] font-medium text-red-800 hover:underline whitespace-nowrap"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* SUMMARY CARDS */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
@@ -488,7 +359,7 @@ export default function TransactionsLedgerPage() {
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Successful</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
-                KES {totalSuccessful.toLocaleString()}
+                {fmtMoney(totalSuccessful)}
               </p>
               <p className="text-[13px] text-emerald-600 mt-0.5 inline-flex items-center gap-0.5">
                 <ArrowUpRight className="w-3 h-3" /> Completed
@@ -503,7 +374,7 @@ export default function TransactionsLedgerPage() {
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Pending</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
-                KES {totalPending.toLocaleString()}
+                {fmtMoney(totalPending)}
               </p>
               <p className="text-[13px] text-amber-600 mt-0.5">Awaiting callback</p>
             </div>
@@ -516,7 +387,7 @@ export default function TransactionsLedgerPage() {
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Failed</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
-                KES {totalFailed.toLocaleString()}
+                {fmtMoney(totalFailed)}
               </p>
               <p className="text-[13px] text-red-600 mt-0.5 inline-flex items-center gap-0.5">
                 <ArrowDownRight className="w-3 h-3" /> Declined
@@ -529,9 +400,9 @@ export default function TransactionsLedgerPage() {
 
           <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-slate-500">M-Pesa Fees</p>
+              <p className="text-[13px] font-medium text-slate-500">Gateway Fees</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
-                KES {totalFees.toLocaleString()}
+                {fmtMoney(totalFees)}
               </p>
               <p className="text-[13px] text-indigo-600 mt-0.5">Deductions</p>
             </div>
@@ -544,7 +415,7 @@ export default function TransactionsLedgerPage() {
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-blue-300">Net settled</p>
               <p className="text-[15px] font-bold text-white mt-0.5 truncate">
-                KES {netAmount.toLocaleString()}
+                {fmtMoney(netAmount)}
               </p>
               <p className="text-[13px] text-emerald-400 mt-0.5">Ledger balance</p>
             </div>
@@ -560,7 +431,7 @@ export default function TransactionsLedgerPage() {
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search M-Pesa ref, order #, phone, customer…"
+              placeholder="Search ref, order #, phone, customer…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
@@ -571,14 +442,27 @@ export default function TransactionsLedgerPage() {
             <FilterDropdown
               label="Status"
               value={selectedStatus}
-              options={STATUSES as unknown as string[]}
-              onChange={(v) => setSelectedStatus(v as TxStatus | null)}
+              options={STATUS_OPTIONS as unknown as string[]}
+              onChange={(v) => setSelectedStatus(v as AdminTransactionStatus | null)}
+            />
+            <FilterDropdown
+              label="Method"
+              value={selectedMethod ? METHOD_OPTIONS.find((m) => m.value === selectedMethod)?.label ?? null : null}
+              options={METHOD_OPTIONS.map((m) => m.label)}
+              onChange={(label) => {
+                if (label === null) {
+                  setSelectedMethod(null);
+                  return;
+                }
+                const match = METHOD_OPTIONS.find((m) => m.label === label);
+                setSelectedMethod(match ? match.value : null);
+              }}
             />
             <FilterDropdown
               label={dateRange}
               value={null}
-              options={DATE_RANGES}
-              onChange={(v) => setDateRange(v ?? 'Today')}
+              options={DATE_RANGES as unknown as string[]}
+              onChange={(v) => setDateRange((v ?? 'Today') as typeof DATE_RANGES[number])}
             />
 
             <div className="flex items-center gap-1">
@@ -615,11 +499,9 @@ export default function TransactionsLedgerPage() {
           <div className="bg-blue-950 text-white rounded-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[13px] font-medium">{selectedIds.length} selected</span>
             <button
-              onClick={() => {
-                setToastMessage('Selected transactions exported');
-                setSelectedIds([]);
-              }}
-              className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
+              onClick={handleExportSelected}
+              disabled={busy}
+              className="bg-blue-900 hover:bg-blue-800 disabled:opacity-50 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
             >
               Export selected
             </button>
@@ -630,7 +512,8 @@ export default function TransactionsLedgerPage() {
         <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <span className="text-[13px] font-medium text-slate-700">
-              M-Pesa ledger entries · {filtered.length}
+              Ledger entries · {transactions.length}
+              {loading && <span className="text-slate-400 ml-2">loading…</span>}
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -646,7 +529,7 @@ export default function TransactionsLedgerPage() {
                       )}
                     </button>
                   </th>
-                  <th className="py-2 px-3 font-medium">M-Pesa Ref</th>
+                  <th className="py-2 px-3 font-medium">Ref</th>
                   <th className="py-2 px-3 font-medium">Order #</th>
                   <th className="py-2 px-3 font-medium text-right">Amount</th>
                   <th className="py-2 px-3 font-medium text-right">Fee</th>
@@ -658,14 +541,20 @@ export default function TransactionsLedgerPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.length === 0 ? (
+                {loading && transactions.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-slate-400 text-[13px]">
-                      No M-Pesa transactions match your filters.
+                      Loading transactions…
+                    </td>
+                  </tr>
+                ) : transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-slate-400 text-[13px]">
+                      No transactions match your filters.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((tx) => {
+                  transactions.map((tx) => {
                     const isSelected = selectedIds.includes(tx.id);
                     return (
                       <tr
@@ -686,13 +575,15 @@ export default function TransactionsLedgerPage() {
                             )}
                           </button>
                         </td>
-                        <td className="py-2 px-3 font-mono font-medium text-blue-950">{tx.ref}</td>
+                        <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                          {tx.ref || <span className="text-slate-300">—</span>}
+                        </td>
                         <td className="py-2 px-3 font-mono text-slate-700">{tx.orderNumber}</td>
                         <td className="py-2 px-3 text-right font-medium text-slate-900">
-                          {tx.amount.toLocaleString()}
+                          {fmtNumber(tx.amount)}
                         </td>
                         <td className="py-2 px-3 text-right text-slate-500">
-                          {tx.fee.toLocaleString()}
+                          {fmtNumber(tx.fee)}
                         </td>
                         <td className="py-2 px-3 font-mono text-slate-500">{tx.phoneNumber}</td>
                         <td className="py-2 px-3">
@@ -710,7 +601,7 @@ export default function TransactionsLedgerPage() {
                         </td>
                         <td className="py-2 px-3">
                           <span className="font-mono bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-sm">
-                            {tx.responseCode}
+                            {tx.responseCode || '—'}
                           </span>
                         </td>
                         <td className="py-2 px-3 font-mono text-slate-400">{tx.date}</td>
@@ -723,11 +614,12 @@ export default function TransactionsLedgerPage() {
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
-                            {tx.status === 'Failed' && (
+                            {tx.status === 'Failed' && tx.method === 'MPESA' && (
                               <button
                                 onClick={() => handleRetry(tx)}
+                                disabled={busy}
                                 title="Retry"
-                                className="p-1.5 rounded-sm bg-blue-950 hover:bg-blue-900 text-white transition"
+                                className="p-1.5 rounded-sm bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white transition"
                               >
                                 <RefreshCw className="w-3.5 h-3.5" />
                               </button>
@@ -736,6 +628,8 @@ export default function TransactionsLedgerPage() {
                               onClick={() => {
                                 setReconcileTx(tx);
                                 setReconcileOrder(tx.orderNumber);
+                                setReconcileStatus('Matched');
+                                setReconcileNote('');
                               }}
                               title="Reconcile"
                               className="px-2 py-1.5 rounded-sm bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-medium transition"
@@ -766,9 +660,9 @@ export default function TransactionsLedgerPage() {
           >
             <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
               <div className="min-w-0">
-                <p className="text-[13px] font-medium text-slate-500">M-Pesa transaction inspector</p>
+                <p className="text-[13px] font-medium text-slate-500">Transaction inspector</p>
                 <h2 className="text-[15px] font-semibold font-mono text-blue-950 mt-0.5 truncate">
-                  {activeTx.ref}
+                  {activeTx.ref || activeTx.id}
                 </h2>
               </div>
               <button
@@ -783,59 +677,65 @@ export default function TransactionsLedgerPage() {
               {/* Quick stats */}
               <div className="grid grid-cols-2 gap-2">
                 <Stat label="Order linked" value={activeTx.orderNumber} mono icon={<Link2 className="w-3 h-3" />} />
-                <Stat label="Amount" value={`KES ${activeTx.amount.toLocaleString()}`} icon={<DollarSign className="w-3 h-3" />} />
-                <Stat label="M-Pesa fee" value={`KES ${activeTx.fee.toLocaleString()}`} />
-                <Stat label="Response code" value={activeTx.responseCode} mono />
+                <Stat label="Amount" value={fmtMoney(activeTx.amount)} icon={<DollarSign className="w-3 h-3" />} />
+                <Stat label="Gateway fee" value={fmtMoney(activeTx.fee)} />
+                <Stat label="Response code" value={activeTx.responseCode || '—'} mono />
                 <Stat label="Customer" value={activeTx.customerName} icon={<User className="w-3 h-3" />} />
                 <Stat label="Phone" value={activeTx.phoneNumber} mono icon={<Phone className="w-3 h-3" />} />
-                <Stat label="Merchant Request ID" value={activeTx.merchantRequestId} mono />
-                <Stat label="Checkout Request ID" value={activeTx.checkoutRequestId} mono />
+                <Stat label="Merchant Request ID" value={activeTx.merchantRequestId || '—'} mono />
+                <Stat label="Checkout Request ID" value={activeTx.checkoutRequestId || '—'} mono />
               </div>
 
               {/* Response description */}
               <div
                 className={`rounded-sm p-2 border ${activeTx.status === 'Success'
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : activeTx.status === 'Failed'
-                      ? 'bg-red-50 border-red-200'
+                  ? 'bg-emerald-50 border-emerald-200'
+                  : activeTx.status === 'Failed'
+                    ? 'bg-red-50 border-red-200'
+                    : activeTx.status === 'Reversed'
+                      ? 'bg-purple-50 border-purple-200'
                       : 'bg-amber-50 border-amber-200'
                   }`}
               >
                 <p className="font-medium text-slate-700 mb-0.5">Result description</p>
-                <p className="text-slate-800">{activeTx.responseDesc}</p>
+                <p className="text-slate-800">{activeTx.responseDesc || '—'}</p>
               </div>
 
               {/* Timeline */}
               <div>
                 <p className="font-medium text-slate-700 mb-2">Lifecycle timeline</p>
-                <ul className="space-y-2">
-                  {activeTx.timeline.map((item, idx) => {
-                    const dot =
-                      item.status === 'completed'
-                        ? 'bg-emerald-500'
-                        : item.status === 'failed'
-                          ? 'bg-red-500'
-                          : 'bg-amber-500';
-                    return (
-                      <li
-                        key={idx}
-                        className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                          <span className="font-medium text-slate-800 truncate">{item.title}</span>
-                        </div>
-                        <span className="font-mono text-slate-400 shrink-0">{item.time}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
+                {activeTx.timeline.length === 0 ? (
+                  <p className="text-slate-400 text-[13px]">No events recorded.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {activeTx.timeline.map((item, idx) => {
+                      const dot =
+                        item.status === 'completed'
+                          ? 'bg-emerald-500'
+                          : item.status === 'failed'
+                            ? 'bg-red-500'
+                            : 'bg-amber-500';
+                      return (
+                        <li
+                          key={idx}
+                          className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                            <span className="font-medium text-slate-800 truncate">{item.title}</span>
+                          </div>
+                          <span className="font-mono text-slate-400 shrink-0">{item.time}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
 
               {/* Payload */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-slate-700">Raw M-Pesa callback payload</p>
+                  <p className="font-medium text-slate-700">Raw gateway callback payload</p>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(JSON.stringify(activeTx.payload, null, 2));
@@ -848,7 +748,7 @@ export default function TransactionsLedgerPage() {
                   </button>
                 </div>
                 <div className="bg-slate-900 text-slate-100 p-3 rounded-sm font-mono text-[13px] overflow-x-auto">
-                  <pre>{JSON.stringify(activeTx.payload, null, 2)}</pre>
+                  <pre>{JSON.stringify(activeTx.payload ?? {}, null, 2)}</pre>
                 </div>
               </div>
             </div>
@@ -858,19 +758,22 @@ export default function TransactionsLedgerPage() {
                 onClick={() => {
                   setReconcileTx(activeTx);
                   setReconcileOrder(activeTx.orderNumber);
+                  setReconcileStatus('Matched');
+                  setReconcileNote('');
                   setActiveTx(null);
                 }}
                 className="bg-white border border-emerald-200 hover:bg-emerald-50 text-emerald-700 font-medium px-3 py-2 rounded-sm text-[13px]"
               >
                 Reconcile
               </button>
-              {activeTx.status === 'Failed' && (
+              {activeTx.status === 'Failed' && activeTx.method === 'MPESA' && (
                 <button
                   onClick={() => handleRetry(activeTx)}
-                  className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                  disabled={busy}
+                  className="bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  Retry M-Pesa payment
+                  Retry payment
                 </button>
               )}
             </div>
@@ -890,9 +793,9 @@ export default function TransactionsLedgerPage() {
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[13px] font-medium text-slate-500">Manual M-Pesa reconciliation</p>
+                <p className="text-[13px] font-medium text-slate-500">Manual reconciliation</p>
                 <h3 className="text-[15px] font-semibold font-mono text-slate-900 mt-0.5 truncate">
-                  {reconcileTx.ref}
+                  {reconcileTx.ref || reconcileTx.id}
                 </h3>
               </div>
               <button
@@ -906,7 +809,7 @@ export default function TransactionsLedgerPage() {
             <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between">
               <div>
                 <p className="text-slate-500">Amount</p>
-                <p className="font-medium text-slate-900">KES {reconcileTx.amount.toLocaleString()}</p>
+                <p className="font-medium text-slate-900">{fmtMoney(reconcileTx.amount)}</p>
               </div>
               <div>
                 <p className="text-slate-500">Phone</p>
@@ -925,8 +828,8 @@ export default function TransactionsLedgerPage() {
                   type="button"
                   onClick={() => setReconcileStatus('Matched')}
                   className={`py-2 rounded-sm font-medium border transition ${reconcileStatus === 'Matched'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                     }`}
                 >
                   Mark matched
@@ -935,8 +838,8 @@ export default function TransactionsLedgerPage() {
                   type="button"
                   onClick={() => setReconcileStatus('Unmatched')}
                   className={`py-2 rounded-sm font-medium border transition ${reconcileStatus === 'Unmatched'
-                      ? 'bg-red-50 text-red-700 border-red-300'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-red-50 text-red-700 border-red-300'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                     }`}
                 >
                   Mark unmatched
@@ -950,7 +853,7 @@ export default function TransactionsLedgerPage() {
                 type="text"
                 value={reconcileOrder}
                 onChange={(e) => setReconcileOrder(e.target.value)}
-                placeholder="#SKO-XXXX"
+                placeholder="ORD-YYYYMMDD-XXXXXXXX"
                 className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </div>
@@ -969,15 +872,17 @@ export default function TransactionsLedgerPage() {
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setReconcileTx(null)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                disabled={busy}
+                className="bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
               >
                 Cancel
               </button>
               <button
                 onClick={saveReconciliation}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                disabled={busy}
+                className="bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
               >
-                Save reconciliation
+                {busy ? 'Saving…' : 'Save reconciliation'}
               </button>
             </div>
           </div>
@@ -1026,8 +931,8 @@ function FilterDropdown({
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
-            ? 'bg-blue-50 border-blue-950 text-blue-950'
-            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+          ? 'bg-blue-50 border-blue-950 text-blue-950'
+          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}
       >
         {value ?? label}

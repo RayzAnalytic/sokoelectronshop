@@ -169,8 +169,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
                                                 href={item.href}
                                                 onClick={() => setMobileOpen(false)}
                                                 className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${isActive
-                                                        ? 'bg-blue-50 text-blue-950 font-semibold border-l-2 border-blue-950'
-                                                        : 'text-slate-700 hover:bg-slate-50'
+                                                    ? 'bg-blue-50 text-blue-950 font-semibold border-l-2 border-blue-950'
+                                                    : 'text-slate-700 hover:bg-slate-50'
                                                     }`}
                                             >
                                                 <Icon className={`h-4 w-4 ${isActive ? 'text-blue-950' : 'text-slate-500'}`} />

@@ -2,6 +2,9 @@ import React from 'react';
 import Header from '@/components/homepage/Navbar';
 import Footer from '@/components/homepage/Footer';
 
+import WhatsAppButton from "@/components/homepage/WhatsAppButton";
+import AIAssistantButton from "@/components/homepage/AIAssistantButton";
+
 interface ProductsLayoutProps {
     children: React.ReactNode;
 }
@@ -19,6 +22,12 @@ export default function ProductsLayout({ children }: ProductsLayoutProps) {
 
             {/* Global Homepage Footer */}
             <Footer />
+
+
+                  {/* Floating action buttons — fixed position, don't affect layout.
+                      Stacked vertically: AI Assistant above WhatsApp. */}
+                  <AIAssistantButton shopName="MyShop" />
+                 <WhatsAppButton/>
         </div>
     );
 }
