@@ -19,6 +19,8 @@ Every successful PATCH:
   3. Invalidates the settings cache so the next read hits the DB.
 """
 
+import logging
+
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.sessions.models import Session
 from django.utils import timezone
@@ -60,6 +62,24 @@ from .services import (
     invalidate_settings_cache,
     refresh_integration_status,
 )
+
+logger = logging.getLogger(__name__)
+
+
+# ══════════════════════════════════════════════════════════════
+# Blocked integration keys
+#
+# Same set as `models._BLOCKED_INTEGRATION_KEYS` and
+# `serializers._BLOCKED_INTEGRATION_KEYS`. Duplicated here because
+# the view layer must apply the filter at the queryset level —
+# otherwise a blocked row would still count toward pagination and
+# produce a `null` entry in the list.
+# ══════════════════════════════════════════════════════════════
+
+_BLOCKED_INTEGRATION_KEYS = [
+    "twitter", "x", "twitter_x", "twitterx",
+    "twilio",  # SMS is not supported on this platform
+]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -106,6 +126,9 @@ class SingletonView(APIView):
         ser.is_valid(raise_exception=True)
         updated = ser.save()
 
+        # Snapshot the saved instance — this includes the auto-updated
+        # `updated_at` which is excluded by `_SNAPSHOT_IGNORE`, but
+        # makes the diff computation explicit rather than implicit.
         after = self._snapshot(updated)
         audit_diff(
             self.model_class.__name__,
@@ -325,11 +348,26 @@ class IntegrationStatusViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = IntegrationStatus.objects.all()
+    """
+    Read-only viewset for the connection grid on Settings → Integrations.
+
+    Blocked keys (Twitter/X, Twilio) are excluded at the queryset
+    level. The serializer also omits them in `to_representation` for
+    single-object retrievals — belt and suspenders — but the queryset
+    filter is what keeps paginated lists clean.
+    """
+
     serializer_class = s.IntegrationStatusSerializer
     permission_classes = [IsAdminUser]
     lookup_field = "key"
     filterset_fields = ["category", "connected"]
+
+    def get_queryset(self):
+        return (
+            IntegrationStatus.objects
+            .exclude(key__in=_BLOCKED_INTEGRATION_KEYS)
+            .order_by("category", "name")
+        )
 
     def retrieve(self, request, *args, **kwargs):
         """GET /integrations/<key>/ — also pings the service first.
@@ -342,7 +380,8 @@ class IntegrationStatusViewSet(
             refresh_integration_status()
         except Exception:
             # Never let a health-check failure break the read.
-            pass
+            logger.exception("refresh_integration_status failed during retrieve")
+
         return super().retrieve(request, *args, **kwargs)
 
 
@@ -456,14 +495,39 @@ def list_sessions(request):
 @api_view(["DELETE"])
 @permission_classes([IsAdminUser])
 def revoke_session(request, session_key):
-    # Guard: never let an admin revoke their own current session.
+    """
+    Revoke a session by key.
+
+    Guarded on two fronts:
+      1. Never revoke the caller's own current session — that would
+         log them out mid-action.
+      2. Verify the target session belongs to the caller. Without this,
+         any admin could guess a session key and log out another user.
+    """
     if session_key == request.session.session_key:
         return Response(
             {"detail": "You cannot revoke the session you are currently using."},
             status=400,
         )
 
-    Session.objects.filter(session_key=session_key).delete()
+    target = Session.objects.filter(session_key=session_key).first()
+    if not target:
+        return Response({"detail": "Session not found."}, status=404)
+
+    # Ownership check — the session's decoded payload must name the
+    # caller as the authenticated user.
+    try:
+        data = target.get_decoded()
+    except Exception:
+        return Response({"detail": "Session payload is unreadable."}, status=400)
+
+    if str(data.get("_auth_user_id")) != str(request.user.pk):
+        return Response(
+            {"detail": "You can only revoke your own sessions."},
+            status=403,
+        )
+
+    target.delete()
     return Response(status=204)
 
 
@@ -474,21 +538,28 @@ def revoke_session(request, session_key):
 @api_view(["POST"])
 @permission_classes([IsAdminUser])
 def refresh_integrations(request):
-    """Force-rerun the health checks.
+    """
+    Force-rerun the health checks.
 
     Called by the "Refresh status" button on the Integrations tab.
     Returns the freshly-updated rows so the frontend can re-render
-    without a second GET.
+    without a second GET. Blocked keys are excluded from the response
+    by the same queryset filter used in the viewset.
     """
     try:
         refresh_integration_status()
     except Exception as e:
+        logger.exception("refresh_integration_status failed")
         return Response(
             {"detail": f"Refresh failed: {e}"},
             status=500,
         )
 
-    rows = IntegrationStatus.objects.all()
+    rows = (
+        IntegrationStatus.objects
+        .exclude(key__in=_BLOCKED_INTEGRATION_KEYS)
+        .order_by("category", "name")
+    )
     return Response(s.IntegrationStatusSerializer(rows, many=True).data)
 
 
@@ -499,14 +570,14 @@ def refresh_integrations(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def mpesa_callback(request):
-    """Safaricom POSTs here. We always return 200 — if we return an
-    error, Safaricom retries up to three times, which we don't want."""
+    """
+    Safaricom POSTs here. We always return 200 — if we return an
+    error, Safaricom retries up to three times, which we don't want.
+    """
     try:
         handle_mpesa_callback(request.data)
     except Exception:
         # Swallow — the handler already logs. Safaricom must see 200.
-        import logging
-
-        logging.getLogger(__name__).exception("M-Pesa callback failed")
+        logger.exception("M-Pesa callback failed")
 
     return Response({"ResultCode": 0, "ResultDesc": "Accepted"})

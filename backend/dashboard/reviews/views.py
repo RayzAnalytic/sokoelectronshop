@@ -1,24 +1,6 @@
-"""
-Reviews moderation API.
-
-Endpoints (mounted at /api/v1/admin/reviews/):
-
-    GET    /                       list (filters, search, pagination)
-    GET    /<id>/                  detail
-    GET    /stats/                 headline stats + rating distribution
-    POST   /<id>/approve/          status → published
-    POST   /<id>/reject/           status → rejected, sets reason
-    POST   /<id>/flag/             set flag + reason
-    POST   /<id>/resolve-flag/     flag → resolved
-    POST   /<id>/replies/          append a ReviewReply
-    POST   /<id>/helpful/          increment helpful_count
-    DELETE /<id>/                  hard delete
-    POST   /bulk/                  one of approve / reject / flag / delete
-"""
-
 import logging
 
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count
 from rest_framework import status as http_status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
@@ -43,21 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 class ReviewModerationViewSet(ModelViewSet):
-    """
-    Admin moderation for customer reviews.
-
-    The queryset pulls the whole moderation surface in one round-trip:
-    the review row, its author, the moderator stamps, and its replies
-    (with each reply's author). A list of N reviews costs 4 queries,
-    not 4N.
-    """
-
     permission_classes = [IsAdminUser]
     filterset_class = ReviewFilter
     ordering = ["-created_at"]
-
-    # Only list, retrieve, delete are standard HTTP methods. Everything
-    # else is a custom action with its own method decorator.
     http_method_names = ["get", "delete", "head", "options", "post"]
 
     def get_queryset(self):
@@ -69,12 +39,8 @@ class ReviewModerationViewSet(ModelViewSet):
         )
 
     def get_serializer_class(self):
-        # Every response (list, retrieve, actions) uses the same read
-        # serializer. The write payloads are validated by their own
-        # serializers inside each action.
         return ModerationReviewSerializer
 
-    # ── List / retrieve use the read serializer ────────────────────────
     def list(self, request, *args, **kwargs):
         qs = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(qs)
@@ -97,15 +63,8 @@ class ReviewModerationViewSet(ModelViewSet):
             ).data
         )
 
-    # ── Stats ──────────────────────────────────────────────────────────
     @action(detail=False, methods=["get"], url_path="stats")
     def stats(self, request):
-        """
-        Headline tiles and rating distribution.
-
-        Computed live from the DB. The frontend currently hardcodes
-        the distribution — swap it for this once there's real data.
-        """
         qs = Review.objects.all()
 
         total = qs.count()
@@ -117,9 +76,6 @@ class ReviewModerationViewSet(ModelViewSet):
 
         avg = qs.aggregate(a=Avg("rating"))["a"] or 0
 
-        # Rating distribution across all reviews (not just published).
-        # Rationale: the admin sees the true distribution of submitted
-        # ratings, including pending ones, so they know what's coming.
         raw_dist = (
             qs.values("rating")
             .annotate(n=Count("id"))
@@ -149,7 +105,6 @@ class ReviewModerationViewSet(ModelViewSet):
         }
         return Response(ModerationStatsSerializer(payload).data)
 
-    # ── Approve ────────────────────────────────────────────────────────
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):
         review = self.get_object()
@@ -163,7 +118,6 @@ class ReviewModerationViewSet(ModelViewSet):
             ).data
         )
 
-    # ── Reject ─────────────────────────────────────────────────────────
     @action(detail=True, methods=["post"], url_path="reject")
     def reject(self, request, pk=None):
         ser = RejectReviewSerializer(data=request.data)
@@ -182,7 +136,6 @@ class ReviewModerationViewSet(ModelViewSet):
             ).data
         )
 
-    # ── Flag ───────────────────────────────────────────────────────────
     @action(detail=True, methods=["post"], url_path="flag")
     def flag(self, request, pk=None):
         ser = FlagReviewSerializer(data=request.data)
@@ -201,7 +154,6 @@ class ReviewModerationViewSet(ModelViewSet):
             ).data
         )
 
-    # ── Resolve flag ───────────────────────────────────────────────────
     @action(detail=True, methods=["post"], url_path="resolve-flag")
     def resolve_flag(self, request, pk=None):
         review = self.get_object()
@@ -213,7 +165,6 @@ class ReviewModerationViewSet(ModelViewSet):
             ).data
         )
 
-    # ── Reply ──────────────────────────────────────────────────────────
     @action(detail=True, methods=["post"], url_path="replies")
     def create_reply(self, request, pk=None):
         ser = ReplyWriteSerializer(data=request.data)
@@ -230,7 +181,6 @@ class ReviewModerationViewSet(ModelViewSet):
             status=http_status.HTTP_201_CREATED,
         )
 
-    # ── Helpful ────────────────────────────────────────────────────────
     @action(detail=True, methods=["post"], url_path="helpful")
     def helpful(self, request, pk=None):
         review = self.get_object()
@@ -242,22 +192,13 @@ class ReviewModerationViewSet(ModelViewSet):
             ).data
         )
 
-    # ── Delete (single) ────────────────────────────────────────────────
     def destroy(self, request, *args, **kwargs):
         review = self.get_object()
         services.delete_review(review)
         return Response(status=http_status.HTTP_204_NO_CONTENT)
 
-    # ── Bulk ───────────────────────────────────────────────────────────
     @action(detail=False, methods=["post"], url_path="bulk")
     def bulk(self, request):
-        """
-        One endpoint, four actions.
-
-        `ids` must belong to reviews the caller can see. Any id that
-        doesn't resolve to a real review is silently skipped — the
-        response reports how many were actually changed.
-        """
         ser = BulkActionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
 

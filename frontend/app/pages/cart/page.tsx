@@ -1,4 +1,3 @@
-// app/pages/cart/page.tsx
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -36,40 +35,26 @@ import {
   cartApi,
   checkoutApi,
   whatsappApi,
+  shippingApi,
   ApiError,
   type Cart as ServerCart,
   type CartItem as ServerCartItem,
   type DeliveryMethod,
+  type ShippingRate,
+  type ShippingZone,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pricing config
-//
-// Sourced from `GET /api/v1/checkout/config/`. The endpoint returns
-// BOTH express rates so the frontend can show the correct one based on
-// auth state — plus `your_express_fee`, which is precomputed for the
-// current caller.
-//
-// Tax shape
-// ---------
-// The API returns tax NESTED:
-//   { tax: { enabled, rate, prices_include_tax } }
-//
-// The rate comes as a STRING percentage ("16"), not a decimal. This
-// file normalises to a decimal (0.16) once, at parse time, so the rest
-// of the math is in decimal form.
-// ─────────────────────────────────────────────────────────────────────────────
 interface CartConfig {
   deliveryFees: Record<DeliveryMethod, number>;
   freeDeliveryThreshold: number;
   taxEnabled: boolean;
-  taxRate: number;              // decimal, e.g. 0.16
+  taxRate: number;
   pricesIncludeTax: boolean;
 }
 
 const DEFAULT_CONFIG: CartConfig = {
   deliveryFees: {
-    express: 500, // guest rate
+    express: 500,
     standard: 300,
     pickup: 0,
   },
@@ -93,7 +78,6 @@ function parseFeesFromConfig(raw: {
     rate?: string | number;
     prices_include_tax?: boolean;
   };
-  /** Legacy flat shape — supported for backward compatibility. */
   tax_rate?: string | number;
 }): CartConfig {
   const parseNum = (s: string | number | undefined, fallback: number) => {
@@ -102,7 +86,6 @@ function parseFeesFromConfig(raw: {
     return Number.isFinite(n) ? n : fallback;
   };
 
-  // ── Tax — try nested first, fall back to legacy flat ──
   let taxEnabled = DEFAULT_CONFIG.taxEnabled;
   let taxRate = DEFAULT_CONFIG.taxRate;
   let pricesIncludeTax = DEFAULT_CONFIG.pricesIncludeTax;
@@ -110,19 +93,16 @@ function parseFeesFromConfig(raw: {
   if (raw.tax && (raw.tax.rate !== undefined || raw.tax.enabled !== undefined)) {
     taxEnabled = raw.tax.enabled ?? true;
     const rawRate = parseNum(raw.tax.rate, 16);
-    // Normalise to decimal: "16" → 0.16. If the API ever returns a
-    // decimal ("0.16"), leave it alone — anything > 1 is a percentage.
     taxRate = rawRate > 1 ? rawRate / 100 : rawRate;
     pricesIncludeTax = raw.tax.prices_include_tax ?? false;
   } else if (raw.tax_rate !== undefined) {
     const rawRate = parseNum(raw.tax_rate, 16);
     taxRate = rawRate > 1 ? rawRate / 100 : rawRate;
-    pricesIncludeTax = false; // legacy shape assumed exclusive
+    pricesIncludeTax = false;
   }
 
   return {
     deliveryFees: {
-      // `your_express_fee` accounts for the caller's auth state.
       express: parseNum(
         raw.your_express_fee,
         DEFAULT_CONFIG.deliveryFees.express,
@@ -154,11 +134,15 @@ function formatKES(amount: number): string {
   })}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Unified view model
-// ─────────────────────────────────────────────────────────────────────────────
+function rateIcon(method: string, active: boolean): React.ReactNode {
+  const cls = `w-4 h-4 mt-0.5 shrink-0 ${active ? 'text-blue-950' : 'text-slate-400'}`;
+  if (method === 'express') return <Zap className={cls} />;
+  if (method === 'pickup') return <Store className={cls} />;
+  return <Truck className={cls} />;
+}
+
 interface ViewItem {
-  id: string;                    // local string id, or String(server id)
+  id: string;
   productId: string;
   name: string;
   brand: string;
@@ -205,45 +189,43 @@ function fromServer(item: ServerCartItem): ViewItem {
 export default function CartPage() {
   const router = useRouter();
 
-  // ── Local (anonymous) source ──
   const localItems = useCart((s) => s.items);
   const localUpdateQty = useCart((s) => s.updateQty);
   const localRemoveItem = useCart((s) => s.removeItem);
   const localClear = useCart((s) => s.clear);
 
-  // ── Auth state ──
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
-  // ── Pricing config ──
   const [cartConfig, setCartConfig] = useState<CartConfig>(DEFAULT_CONFIG);
   const [configResolved, setConfigResolved] = useState(false);
 
-  // ── Server cart state ──
   const [serverCart, setServerCart] = useState<ServerCart | null>(null);
 
-  // ── UI state ──
+  const [zones, setZones] = useState<ShippingZone[]>([]);
+  const [zonesLoading, setZonesLoading] = useState(true);
+  const [zonesError, setZonesError] = useState(false);
+  const [selectedCounty, setSelectedCounty] = useState<string>('');
+  const [selectedRateId, setSelectedRateId] = useState<number | null>(null);
+
   const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
   const [couponCode, setCouponCode] = useState<string>('');
   const [appliedCoupon, setAppliedCoupon] = useState<string>('');
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [couponMessage, setCouponMessage] = useState<string>('');
   const [couponValidating, setCouponValidating] = useState(false);
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('standard');
   const [orderNotes, setOrderNotes] = useState<string>('');
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [busyAll, setBusyAll] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // ── WhatsApp handoff state ──
   const [whatsappBusy, setWhatsappBusy] = useState(false);
   const [whatsappMessage, setWhatsappMessage] = useState<{
     kind: 'info' | 'success' | 'error';
     text: string;
   } | null>(null);
 
-  // ── Fetch pricing config ──
   useEffect(() => {
     let cancelled = false;
 
@@ -253,7 +235,6 @@ export default function CartPage() {
         if (cancelled) return;
         setCartConfig(parseFeesFromConfig(cfg));
       } catch {
-        // Keep defaults.
       } finally {
         if (!cancelled) setConfigResolved(true);
       }
@@ -264,7 +245,33 @@ export default function CartPage() {
     };
   }, []);
 
-  // ── Auth + initial server cart ──
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = await shippingApi.zones();
+        if (cancelled) return;
+        setZones(data);
+      } catch {
+        if (!cancelled) setZonesError(true);
+      } finally {
+        if (!cancelled) setZonesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!zones.length || selectedCounty) return;
+    const preferred = zones.find((z) => z.counties.includes('Nairobi'));
+    const fallback = preferred?.counties[0] ?? zones[0]?.counties[0];
+    if (fallback) setSelectedCounty(fallback);
+  }, [zones, selectedCounty]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -323,7 +330,6 @@ export default function CartPage() {
     };
   }, []);
 
-  // ── Unified items for the UI ──
   const items: ViewItem[] = useMemo(() => {
     if (!authChecked) return [];
     if (isAuthed) {
@@ -335,12 +341,40 @@ export default function CartPage() {
   const isInitialLoading =
     !authChecked || (isAuthed && serverCart === null && !loadError);
 
-  // ── Selection ──
   const isSelected = (id: string) => !deselectedIds.has(id);
   const selectedItems = items.filter((i) => isSelected(i.id));
   const allSelected = items.length > 0 && selectedItems.length === items.length;
 
-  // ── Mutations ──
+  const selectedZone = useMemo(() => {
+    if (!selectedCounty) return null;
+    return zones.find((z) => z.counties.includes(selectedCounty)) ?? null;
+  }, [zones, selectedCounty]);
+
+  useEffect(() => {
+    if (!selectedZone) {
+      setSelectedRateId(null);
+      return;
+    }
+    if (selectedZone.rates.some((r) => r.id === selectedRateId)) return;
+    const preferred =
+      selectedZone.rates.find((r) => r.method === 'standard') ??
+      selectedZone.rates[0];
+    setSelectedRateId(preferred?.id ?? null);
+  }, [selectedZone, selectedRateId]);
+
+  const selectedRate: ShippingRate | null = useMemo(() => {
+    if (!selectedZone) return null;
+    return selectedZone.rates.find((r) => r.id === selectedRateId) ?? null;
+  }, [selectedZone, selectedRateId]);
+
+  const selectedMethodKey = (selectedRate?.method ?? 'standard') as DeliveryMethod;
+
+  const ratePrice = selectedRate ? Number(selectedRate.price) || 0 : 0;
+  const rateThreshold =
+    selectedRate && selectedRate.freeShippingThreshold !== null
+      ? Number(selectedRate.freeShippingThreshold)
+      : null;
+
   const updateQty = useCallback(
     async (id: string, qty: number) => {
       if (qty < 1) return;
@@ -406,7 +440,6 @@ export default function CartPage() {
     }
   }, [isAuthed, localClear]);
 
-  // ── UI event handlers ──
   const handleUpdateQuantity = (item: ViewItem, newQty: number): void => {
     if (newQty < 1) return;
     if (item.stockCount && newQty > item.stockCount) {
@@ -459,7 +492,6 @@ export default function CartPage() {
     }
   };
 
-  // ── Coupon validation ──
   const handleApplyCoupon = async (
     e: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
@@ -481,7 +513,8 @@ export default function CartPage() {
 
       if (result.valid) {
         const pct = parseFloat(result.percent_off ?? '0');
-        setAppliedDiscount(Number.isFinite(pct) ? pct : 0);
+        const fraction = Number.isFinite(pct) ? pct : 0;
+        setAppliedDiscount(fraction);
         setAppliedCoupon(result.code ?? code);
         setCouponMessage(result.message || 'Discount applied.');
       } else {
@@ -505,7 +538,6 @@ export default function CartPage() {
     setCouponMessage('');
   };
 
-  // ── Totals ──
   const subtotal = selectedItems.reduce<number>(
     (acc, item) => acc + item.unitPrice * item.quantity,
     0,
@@ -514,13 +546,12 @@ export default function CartPage() {
   const discountAmount = subtotal * appliedDiscount;
 
   const shippingFee = (() => {
-    if (deliveryMethod === 'pickup') return 0;
+    if (!selectedRate) return 0;
     if (subtotal === 0) return 0;
-    if (subtotal >= cartConfig.freeDeliveryThreshold) return 0;
-    return cartConfig.deliveryFees[deliveryMethod];
+    if (rateThreshold !== null && subtotal >= rateThreshold) return 0;
+    return ratePrice;
   })();
 
-  // ── Tax + total — respecting prices_include_tax ──
   const { taxAmount, total } = useMemo(() => {
     const taxable = subtotal - discountAmount;
     let tax = 0;
@@ -528,18 +559,14 @@ export default function CartPage() {
 
     if (cartConfig.taxEnabled) {
       if (cartConfig.pricesIncludeTax) {
-        // Extract VAT from the subtotal — total unchanged.
-        tax = taxable * cartConfig.taxRate / (1 + cartConfig.taxRate);
+        tax = (taxable * cartConfig.taxRate) / (1 + cartConfig.taxRate);
       } else {
-        // Add VAT on top.
         tax = taxable * cartConfig.taxRate;
         tot += tax;
       }
     }
 
-    // NaN guard — if config was malformed, fall back to a safe total.
     if (!Number.isFinite(tot)) {
-      // eslint-disable-next-line no-console
       console.error('Cart totals produced NaN — check config:', cartConfig);
       tot = taxable + shippingFee;
     }
@@ -549,43 +576,44 @@ export default function CartPage() {
 
   const taxPercent = Math.round(cartConfig.taxRate * 100);
 
-  const remainingForFreeShipping = Math.max(
-    0,
-    cartConfig.freeDeliveryThreshold - subtotal,
-  );
-  const freeShippingProgress = Math.min(
-    100,
-    (subtotal / cartConfig.freeDeliveryThreshold) * 100,
-  );
+  const hasFreeShipping = rateThreshold !== null && rateThreshold > 0;
+  const remainingForFreeShipping = hasFreeShipping
+    ? Math.max(0, (rateThreshold as number) - subtotal)
+    : 0;
+  const freeShippingProgress = hasFreeShipping
+    ? Math.min(100, (subtotal / (rateThreshold as number)) * 100)
+    : 0;
 
-  const estimatedDelivery = (() => {
-    const today = new Date();
-    const days =
-      deliveryMethod === 'express' ? 1 : deliveryMethod === 'pickup' ? 0 : 3;
-    today.setDate(today.getDate() + days);
-    return today.toLocaleDateString('en-KE', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
-  })();
+  const estimatedDelivery = selectedRate?.eta || '—';
+
+  const canCheckout =
+    selectedItems.length > 0 && !!selectedCounty && !!selectedRate;
 
   const handleCheckout = (): void => {
     if (selectedItems.length === 0) {
       alert('Please select at least one item to checkout.');
       return;
     }
+    if (!selectedCounty) {
+      alert('Please select a delivery county.');
+      return;
+    }
+    if (!selectedRate) {
+      alert('Please select a delivery method.');
+      return;
+    }
 
     const params = new URLSearchParams();
-    params.set('items', selectedItems.map((i) => i.id).join(','));
-    params.set('delivery', deliveryMethod);
+    params.set('items', selectedItems.map((i) => i.productId).join(','));
+    params.set('delivery', selectedMethodKey);
+    params.set('county', selectedCounty);
+    params.set('rate_id', String(selectedRate.id));
     if (appliedCoupon) params.set('coupon', appliedCoupon);
     if (orderNotes.trim()) params.set('notes', orderNotes.trim());
 
     router.push(`/pages/checkout?${params.toString()}`);
   };
 
-  // ── WhatsApp handoff ──
   const handleWhatsAppOrder = async (): Promise<void> => {
     if (selectedItems.length === 0) {
       alert('Please select at least one item to send via WhatsApp.');
@@ -594,7 +622,6 @@ export default function CartPage() {
 
     setWhatsappMessage(null);
 
-    // ── Anonymous fallback ──
     if (!isAuthed) {
       const itemsText = selectedItems
         .map(
@@ -607,16 +634,17 @@ export default function CartPage() {
 
       const message = `Hello! I would like to place an order:%0A%0A${itemsText}%0A%0ASubtotal: ${formatKES(
         subtotal,
-      )}%0ADiscount: -${formatKES(discountAmount)}%0AShipping (${deliveryMethod}): ${shippingText}%0AVAT (${taxPercent}%): ${formatKES(
+      )}%0ADiscount: -${formatKES(discountAmount)}%0AShipping (${selectedMethodKey}, ${selectedCounty}): ${shippingText}%0AVAT (${taxPercent}%): ${formatKES(
         taxAmount,
-      )}%0A%0A*Total: ${formatKES(total)}*${orderNotes ? `%0A%0ANotes: ${encodeURIComponent(orderNotes)}` : ''
+      )}%0A%0A*Total: ${formatKES(total)}*${orderNotes
+        ? `%0A%0ANotes: ${encodeURIComponent(orderNotes)}`
+        : ''
         }`;
 
       window.open(`https://wa.me/254712345678?text=${message}`, '_blank');
       return;
     }
 
-    // ── Authenticated handoff ──
     setWhatsappBusy(true);
 
     try {
@@ -625,7 +653,7 @@ export default function CartPage() {
           productId: i.productId,
           quantity: i.quantity,
         })),
-        delivery: deliveryMethod,
+        delivery: selectedMethodKey,
         coupon: appliedCoupon || null,
         notes: orderNotes.trim() || null,
       });
@@ -709,8 +737,7 @@ export default function CartPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       <Header />
 
-      <main className="max-w-6xl mx-auto px-3 py-3 space-y-3">
-        {/* Breadcrumb */}
+      <main className="max-w-6xl mx-auto px-3 py-3 space-y-2">
         <nav className="flex items-center space-x-2 text-xs text-slate-500">
           <Link href="/" className="hover:text-slate-900 flex items-center space-x-1">
             <Home className="w-3.5 h-3.5" />
@@ -720,7 +747,6 @@ export default function CartPage() {
           <span className="text-slate-900 font-medium">Shopping Cart</span>
         </nav>
 
-        {/* Cart Header */}
         <div className="bg-white border border-slate-200 rounded-sm px-3 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Shopping cart</h1>
@@ -745,7 +771,6 @@ export default function CartPage() {
           </div>
         </div>
 
-        {/* Error banner */}
         {errorMessage && (
           <div className="bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-center justify-between gap-2">
             <span className="text-[13px] text-red-700">{errorMessage}</span>
@@ -766,38 +791,37 @@ export default function CartPage() {
           </div>
         ) : items.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            {/* LEFT — items, promo, delivery */}
-            <div className="lg:col-span-8 space-y-3">
-              {/* Free shipping progress bar */}
-              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[13px] text-slate-700">
-                    {remainingForFreeShipping > 0 ? (
-                      <>
-                        Add{' '}
-                        <span className="font-semibold text-slate-900">
-                          {formatKES(remainingForFreeShipping)}
-                        </span>{' '}
-                        more for free delivery
-                      </>
-                    ) : (
-                      <span className="text-emerald-700 font-medium">
-                        You&apos;ve unlocked free delivery
-                      </span>
-                    )}
-                  </p>
-                  <Truck className="w-3.5 h-3.5 text-blue-950 shrink-0" />
+            <div className="lg:col-span-8 space-y-2">
+              {hasFreeShipping && (
+                <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] text-slate-700">
+                      {remainingForFreeShipping > 0 ? (
+                        <>
+                          Add{' '}
+                          <span className="font-semibold text-slate-900">
+                            {formatKES(remainingForFreeShipping)}
+                          </span>{' '}
+                          more for free delivery
+                        </>
+                      ) : (
+                        <span className="text-emerald-700 font-medium">
+                          You&apos;ve unlocked free delivery
+                        </span>
+                      )}
+                    </p>
+                    <Truck className="w-3.5 h-3.5 text-blue-950 shrink-0" />
+                  </div>
+                  <div className="h-1.5 rounded-sm bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${freeShippingProgress >= 100 ? 'bg-emerald-500' : 'bg-blue-950'
+                        }`}
+                      style={{ width: `${freeShippingProgress}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-sm bg-slate-100 overflow-hidden">
-                  <div
-                    className={`h-full transition-all ${freeShippingProgress >= 100 ? 'bg-emerald-500' : 'bg-blue-950'
-                      }`}
-                    style={{ width: `${freeShippingProgress}%` }}
-                  />
-                </div>
-              </div>
+              )}
 
-              {/* Bulk actions bar */}
               <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
                 <button
                   onClick={handleSelectAll}
@@ -826,7 +850,6 @@ export default function CartPage() {
                 )}
               </div>
 
-              {/* Items list */}
               <div className="bg-white border border-slate-200 rounded-sm divide-y divide-slate-100">
                 {items.map((item) => {
                   const isLowStock = item.stockCount > 0 && item.stockCount <= 3;
@@ -893,7 +916,7 @@ export default function CartPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 gap-3">
+                      <div className="flex items-center justify-between w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 gap-3">
                         <button
                           onClick={() => {
                             handleRemoveItem(item.id);
@@ -964,7 +987,6 @@ export default function CartPage() {
                 Continue shopping
               </Link>
 
-              {/* Promo code */}
               <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
                 <div className="flex items-center gap-2 text-slate-900 font-medium text-[13px]">
                   <Tag className="w-3.5 h-3.5 text-blue-950" />
@@ -1024,92 +1046,116 @@ export default function CartPage() {
                 )}
               </div>
 
-              {/* Delivery method */}
-              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
                 <div className="flex items-center gap-2 text-slate-900 font-medium text-[13px]">
                   <Truck className="w-3.5 h-3.5 text-blue-950" />
-                  <span>Delivery method</span>
+                  <span>Delivery</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {(
-                    [
-                      {
-                        id: 'standard' as const,
-                        label: 'Standard',
-                        sub: '3–5 days',
-                        price: cartConfig.deliveryFees.standard,
-                        icon: Truck,
-                      },
-                      {
-                        id: 'express' as const,
-                        label: 'Express',
-                        sub: '24–48 hours',
-                        price: cartConfig.deliveryFees.express,
-                        icon: Zap,
-                      },
-                      {
-                        id: 'pickup' as const,
-                        label: 'Store pickup',
-                        sub: 'Ready in 1h',
-                        price: cartConfig.deliveryFees.pickup,
-                        icon: Store,
-                      },
-                    ]
-                  ).map(({ id, label, sub, price, icon: Icon }) => {
-                    const active = deliveryMethod === id;
-                    const freeForOrder =
-                      id !== 'pickup' &&
-                      subtotal > 0 &&
-                      subtotal >= cartConfig.freeDeliveryThreshold;
 
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => setDeliveryMethod(id)}
-                        className={`p-2 rounded-sm border text-left transition flex items-start gap-2 ${active
-                          ? 'border-blue-950 bg-blue-50'
-                          : 'border-slate-200 hover:bg-slate-50'
-                          }`}
+                <div>
+                  <label className="block text-[13px] text-slate-600 mb-1">
+                    County
+                  </label>
+                  <select
+                    value={selectedCounty}
+                    onChange={(e) => setSelectedCounty(e.target.value)}
+                    disabled={zonesLoading || zonesError}
+                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
+                  >
+                    <option value="">
+                      {zonesLoading ? 'Loading counties…' : 'Select county…'}
+                    </option>
+                    {zones.map((z) => (
+                      <optgroup
+                        key={z.id}
+                        label={`${z.name}${z.region ? ` · ${z.region}` : ''}`}
                       >
-                        <Icon
-                          className={`w-4 h-4 mt-0.5 shrink-0 ${active ? 'text-blue-950' : 'text-slate-400'
-                            }`}
-                        />
-                        <div className="min-w-0">
-                          <p
-                            className={`text-[13px] font-medium ${active ? 'text-blue-950' : 'text-slate-800'
-                              }`}
-                          >
-                            {label}
-                          </p>
-                          <p className="text-[13px] text-slate-500 mt-0.5">
-                            {sub}
-                          </p>
-                          <p className="text-[13px] font-medium text-slate-900 mt-0.5">
-                            {price === 0 || freeForOrder
-                              ? 'Free'
-                              : formatKES(price)}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        {z.counties.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
-                <p className="text-[13px] text-slate-500 pt-1">
-                  Estimated arrival:{' '}
-                  <span className="font-medium text-slate-900">
-                    {estimatedDelivery}
-                  </span>
-                </p>
-                {subtotal > 0 && subtotal < cartConfig.freeDeliveryThreshold && (
-                  <p className="text-[13px] text-slate-400">
-                    Free delivery on orders over {formatKES(cartConfig.freeDeliveryThreshold)}
+
+                {zonesError && (
+                  <p className="text-[13px] text-red-600">
+                    Could not load delivery options. Please try again later.
                   </p>
                 )}
+
+                {!zonesLoading && !zonesError && selectedZone && selectedZone.rates.length === 0 && (
+                  <p className="text-[13px] text-slate-500">
+                    No delivery methods available for {selectedCounty}.
+                  </p>
+                )}
+
+                {selectedZone && selectedZone.rates.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedZone.rates.map((rate) => {
+                      const active = rate.id === selectedRateId;
+                      const price = Number(rate.price) || 0;
+                      const threshold = rate.freeShippingThreshold !== null
+                        ? Number(rate.freeShippingThreshold)
+                        : null;
+                      const freeForOrder =
+                        threshold !== null && subtotal >= threshold;
+
+                      return (
+                        <button
+                          key={rate.id}
+                          type="button"
+                          onClick={() => setSelectedRateId(rate.id)}
+                          className={`p-2.5 rounded-sm border text-left transition flex items-start gap-2 ${active
+                            ? 'border-blue-950 bg-blue-50'
+                            : 'border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                          {rateIcon(rate.method, active)}
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={`text-[13px] font-medium ${active ? 'text-blue-950' : 'text-slate-800'
+                                }`}
+                            >
+                              {rate.methodName}
+                            </p>
+                            <p className="text-[13px] text-slate-500 mt-0.5">
+                              {rate.eta || '—'}
+                            </p>
+                            <p className="text-[13px] font-medium text-slate-900 mt-0.5">
+                              {price === 0 || freeForOrder
+                                ? 'Free'
+                                : formatKES(price)}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedRate && (
+                  <p className="text-[13px] text-slate-500 pt-1">
+                    Estimated arrival:{' '}
+                    <span className="font-medium text-slate-900">
+                      {estimatedDelivery}
+                    </span>
+                  </p>
+                )}
+
+                {selectedRate &&
+                  rateThreshold !== null &&
+                  rateThreshold > 0 &&
+                  subtotal > 0 &&
+                  subtotal < rateThreshold && (
+                    <p className="text-[13px] text-slate-400">
+                      Free delivery on orders over {formatKES(rateThreshold)}
+                    </p>
+                  )}
               </div>
 
-              {/* Order notes */}
               <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
                 <div className="flex items-center gap-2 text-slate-900 font-medium text-[13px]">
                   <StickyNote className="w-3.5 h-3.5 text-blue-950" />
@@ -1125,9 +1171,8 @@ export default function CartPage() {
               </div>
             </div>
 
-            {/* RIGHT — summary */}
-            <div className="lg:col-span-4 space-y-3">
-              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+            <div className="lg:col-span-4 space-y-2">
+              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
                 <h2 className="text-[15px] font-semibold text-slate-900 pb-2 border-b border-slate-100">
                   Order summary
                 </h2>
@@ -1151,7 +1196,11 @@ export default function CartPage() {
                   <div className="flex justify-between">
                     <span>Delivery</span>
                     <span className="font-medium text-slate-900">
-                      {shippingFee === 0 ? 'Free' : formatKES(shippingFee)}
+                      {!selectedRate
+                        ? '—'
+                        : shippingFee === 0
+                          ? 'Free'
+                          : formatKES(shippingFee)}
                     </span>
                   </div>
                   {cartConfig.taxEnabled && (
@@ -1167,7 +1216,7 @@ export default function CartPage() {
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-[15px] font-semibold text-slate-900">
                     Total
                   </span>
@@ -1179,14 +1228,13 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={handleCheckout}
-                  disabled={selectedItems.length === 0}
+                  disabled={!canCheckout}
                   className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>Proceed to checkout</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
 
-                {/* Payment method icons */}
                 <div className="flex items-center justify-center gap-2 pt-1">
                   <PaymentChip
                     icon={<Smartphone className="w-3.5 h-3.5" />}
@@ -1198,13 +1246,12 @@ export default function CartPage() {
                   />
                 </div>
 
-                {/* WhatsApp handoff */}
                 <button
                   type="button"
                   onClick={() => {
                     void handleWhatsAppOrder();
                   }}
-                  disabled={selectedItems.length === 0 || whatsappBusy}
+                  disabled={!canCheckout || whatsappBusy}
                   className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-medium py-2 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {whatsappBusy ? (
@@ -1227,7 +1274,6 @@ export default function CartPage() {
                   )}
                 </button>
 
-                {/* WhatsApp handoff feedback */}
                 {whatsappMessage && (
                   <div
                     className={`flex items-start justify-between gap-2 rounded-sm border px-2 py-1.5 ${whatsappMessage.kind === 'success'
@@ -1251,7 +1297,6 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {/* Trust row */}
                 <div className="flex flex-col items-center gap-1.5 pt-1">
                   <div className="flex items-center gap-1.5 text-[13px] text-slate-500">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -1264,7 +1309,6 @@ export default function CartPage() {
                 </div>
               </div>
 
-              {/* Continue shopping (mobile) */}
               <Link
                 href="/pages/products"
                 className="lg:hidden inline-flex items-center gap-1.5 text-[13px] font-medium text-blue-950 hover:underline"
@@ -1302,7 +1346,6 @@ export default function CartPage() {
   );
 }
 
-/* ───── Payment chip ───── */
 function PaymentChip({
   icon,
   label,

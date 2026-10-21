@@ -1,4 +1,4 @@
-// components/dealssection/DealsSection.tsx
+
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,9 +11,6 @@ import {
   type SpecialDealsQuery,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers — identical to app/pages/special-deals/page.tsx
-// ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
   if (v === null || v === undefined) return 0;
   return typeof v === 'number' ? v : Number(v);
@@ -60,15 +57,11 @@ export default function DealsSection() {
   const [now, setNow] = useState<number | null>(null);
 
   const addItem = useCart((s) => s.addItem);
-
-  // ── Live ticker for the countdowns ────────────────────────
   useEffect(() => {
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-
-  // ── Fetch top deals from the same endpoint the page uses ──
   useEffect(() => {
     const ctrl = new AbortController();
     setLoading(true);
@@ -91,7 +84,6 @@ export default function DealsSection() {
     return () => ctrl.abort();
   }, []);
 
-  // ── Hide deals whose promo has expired since fetch ────────
   const activeDeals = useMemo(() => {
     if (now === null) return deals;
     return deals.filter((deal) => {
@@ -126,12 +118,8 @@ export default function DealsSection() {
     },
     [addItem],
   );
-
-  // ─────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────
   return (
-    <section className="bg-white py-6 lg:py-8 border-b border-slate-200">
+    <section className="bg-white py-6 lg:py-6 border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5">
@@ -145,14 +133,13 @@ export default function DealsSection() {
             </p>
           </div>
           <Link
-            href="/pages/special-deals"
+            href="/pages/products/specialdeals"
             className="text-[13px] font-medium text-blue-950 hover:underline mt-2 sm:mt-0 inline-flex items-center"
           >
             View all deals →
           </Link>
         </div>
 
-        {/* Loading skeleton */}
         {loading && activeDeals.length === 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
             {Array.from({ length: DEALS_LIMIT }).map((_, i) => (
@@ -171,7 +158,6 @@ export default function DealsSection() {
           </div>
         )}
 
-        {/* Empty / error state */}
         {!loading && (error || activeDeals.length === 0) && (
           <div className="bg-slate-50 border border-dashed border-slate-300 rounded-sm p-8 text-center">
             <Clock className="w-8 h-8 text-slate-400 mx-auto mb-2" />
@@ -204,7 +190,7 @@ export default function DealsSection() {
               return (
                 <Link
                   key={deal.id}
-                  href={`/pages/special-deals?open=${deal.productId}`}
+                  href={`/pages/products/specialdeals?open=${deal.productId}`}
                   className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
                 >
                   <div>
@@ -221,17 +207,15 @@ export default function DealsSection() {
                           <ShoppingCart className="w-8 h-8 text-slate-400" />
                         </div>
                       )}
-
-                      {/* Diagonal discount ribbon */}
                       <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none z-10">
-                        <div className="absolute transform -rotate-45 bg-gradient-to-r from-blue-600 via-blue-500 to-orange-500 text-white font-bold text-[11px] tracking-widest py-1 left-[-42px] top-[20px] w-[150px] text-center shadow-xs">
+                        <div className="absolute transform -rotate-45 bg-gradient-to-r from-blue-600 via-blue-500 to-orange-500 text-white font-bold text-[12px] tracking-widest py-1 left-[-42px] top-[20px] w-[150px] text-center shadow-xs">
                           {discountPct}% OFF
                         </div>
                       </div>
 
                       {/* Stock badge */}
                       <span
-                        className={`absolute top-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${stockStatus === 'In Stock'
+                        className={`absolute top-2 right-2 text-[12px] font-medium px-2 py-0.5 rounded shadow-xs ${stockStatus === 'In Stock'
                             ? 'bg-emerald-100 text-emerald-800'
                             : stockStatus === 'Low Stock'
                               ? 'bg-amber-100 text-amber-800'
@@ -244,7 +228,7 @@ export default function DealsSection() {
 
                     {/* Body */}
                     <div className="p-2">
-                      <p className="text-[11px] font-medium text-slate-500 uppercase truncate">
+                      <p className="text-[12px] font-medium text-slate-500 uppercase truncate">
                         {deal.brand}
                       </p>
 
@@ -268,11 +252,11 @@ export default function DealsSection() {
                   {/* Footer */}
                   <div className="p-2 pt-0">
                     <div className="pt-2 border-t border-slate-100 mt-1">
-                      <div className="flex items-baseline flex-wrap gap-1.5 mb-2.5">
+                      <div className="flex items-baseline flex-wrap gap-1.5 mb-2">
                         <span className="text-sm font-bold text-red-600">
                           {formatKES(price)}
                         </span>
-                        <span className="text-[11px] text-slate-400 line-through">
+                        <span className="text-[12px] text-slate-400 line-through">
                           {formatKES(previousPrice)}
                         </span>
                       </div>
@@ -281,7 +265,7 @@ export default function DealsSection() {
                         type="button"
                         onClick={(e) => handleAddToCart(deal, e)}
                         disabled={isAdding || stockStatus === 'Out of Stock'}
-                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-1.5 px-2 rounded text-[12px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
+                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-1.5 px-2 rounded text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
                       >
                         {isAdding ? (
                           <>

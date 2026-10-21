@@ -1,13 +1,13 @@
 from django.conf import settings
-from django.db import models
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, models, transaction
 
+_BLOCKED_INTEGRATION_KEYS = {
+    "twitter", "x", "twitter_x", "twitterx", "twilio",
+}
 
-# ══════════════════════════════════════════════════════════════
-# Base
-# ══════════════════════════════════════════════════════════════
 
 class SingletonModel(models.Model):
-    """True singleton — always pk=1."""
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -15,6 +15,9 @@ class SingletonModel(models.Model):
 
     def save(self, *args, **kwargs):
         self.pk = 1
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "updated_at" not in update_fields:
+            kwargs["update_fields"] = list(update_fields) + ["updated_at"]
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -22,13 +25,15 @@ class SingletonModel(models.Model):
 
     @classmethod
     def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
+        try:
+            return cls.objects.get(pk=1)
+        except cls.DoesNotExist:
+            try:
+                with transaction.atomic():
+                    return cls.objects.create(pk=1)
+            except IntegrityError:
+                return cls.objects.get(pk=1)
 
-
-# ══════════════════════════════════════════════════════════════
-# General
-# ══════════════════════════════════════════════════════════════
 
 class GeneralSettings(SingletonModel):
     CURRENCY = [('KES', 'Kenyan Shilling'), ('USD', 'US Dollar'), ('EUR', 'Euro')]
@@ -46,10 +51,10 @@ class GeneralSettings(SingletonModel):
     date_format   = models.CharField(max_length=16, choices=DATE_FMT, default='DD/MM/YYYY')
     weight_unit   = models.CharField(max_length=4, choices=WEIGHT, default='kg')
 
+    class Meta:
+        verbose_name = "General settings"
+        verbose_name_plural = "General settings"
 
-# ══════════════════════════════════════════════════════════════
-# Store / Checkout / Inventory / Reviews
-# ══════════════════════════════════════════════════════════════
 
 class StoreSettings(SingletonModel):
     STATUS = [('open', 'Open'), ('closed', 'Closed'), ('paused', 'Paused')]
@@ -58,12 +63,20 @@ class StoreSettings(SingletonModel):
     is_indexable   = models.BooleanField(default=True)
     paused_message = models.TextField(blank=True)
 
+    class Meta:
+        verbose_name = "Store settings"
+        verbose_name_plural = "Store settings"
+
 
 class CheckoutSettings(SingletonModel):
     allow_guest_checkout = models.BooleanField(default=True)
     require_phone        = models.BooleanField(default=True)
     auto_confirm_orders  = models.BooleanField(default=False)
     whatsapp_fallback    = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Checkout settings"
+        verbose_name_plural = "Checkout settings"
 
 
 class InventorySettings(SingletonModel):
@@ -72,6 +85,10 @@ class InventorySettings(SingletonModel):
     allow_backorders    = models.BooleanField(default=False)
     hide_out_of_stock   = models.BooleanField(default=False)
 
+    class Meta:
+        verbose_name = "Inventory settings"
+        verbose_name_plural = "Inventory settings"
+
 
 class ReviewSettings(SingletonModel):
     reviews_enabled           = models.BooleanField(default=True)
@@ -79,10 +96,10 @@ class ReviewSettings(SingletonModel):
     auto_publish              = models.BooleanField(default=False)
     allow_photos              = models.BooleanField(default=True)
 
+    class Meta:
+        verbose_name = "Review settings"
+        verbose_name_plural = "Review settings"
 
-# ══════════════════════════════════════════════════════════════
-# Payments
-# ══════════════════════════════════════════════════════════════
 
 class PaymentSettings(SingletonModel):
     mpesa_enabled       = models.BooleanField(default=True)
@@ -92,9 +109,12 @@ class PaymentSettings(SingletonModel):
     auto_capture        = models.BooleanField(default=True)
     auto_refund         = models.BooleanField(default=True)
 
+    class Meta:
+        verbose_name = "Payment settings"
+        verbose_name_plural = "Payment settings"
+
 
 class MpesaConfig(SingletonModel):
-    """Admin-only. Never exposed via API. Encrypt credentials at rest."""
     ENV = [('sandbox', 'Sandbox'), ('production', 'Production')]
 
     enabled         = models.BooleanField(default=True)
@@ -105,6 +125,10 @@ class MpesaConfig(SingletonModel):
     passkey         = models.TextField(blank=True)
     callback_url    = models.URLField(blank=True)
     last_rotated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "M-Pesa configuration"
+        verbose_name_plural = "M-Pesa configuration"
 
 
 class MpesaTransaction(models.Model):
@@ -129,17 +153,19 @@ class MpesaTransaction(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes  = [models.Index(fields=['order_id', 'status'])]
+        verbose_name = "M-Pesa transaction"
+        verbose_name_plural = "M-Pesa transactions"
 
-
-# ══════════════════════════════════════════════════════════════
-# Shipping
-# ══════════════════════════════════════════════════════════════
 
 class ShippingSettings(SingletonModel):
     shipping_enabled            = models.BooleanField(default=True)
     free_shipping_threshold_kes = models.DecimalField(max_digits=10, decimal_places=2, default=5000)
     default_delivery_fee_kes    = models.DecimalField(max_digits=10, decimal_places=2, default=250)
     local_pickup_enabled        = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Shipping settings"
+        verbose_name_plural = "Shipping settings"
 
 
 class ShippingProvider(models.Model):
@@ -152,6 +178,13 @@ class ShippingProvider(models.Model):
     name        = models.CharField(max_length=64)
     enabled     = models.BooleanField(default=False)
     credentials = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Shipping provider"
+        verbose_name_plural = "Shipping providers"
+
+    def __str__(self):
+        return self.name
 
 
 class DeliveryZone(models.Model):
@@ -166,11 +199,12 @@ class DeliveryZone(models.Model):
 
     class Meta:
         ordering = ['display_order', 'name']
+        verbose_name = "Delivery zone"
+        verbose_name_plural = "Delivery zones"
 
+    def __str__(self):
+        return f"{self.name} ({self.region})"
 
-# ══════════════════════════════════════════════════════════════
-# Notifications
-# ══════════════════════════════════════════════════════════════
 
 class NotificationSettings(SingletonModel):
     email_enabled    = models.BooleanField(default=True)
@@ -185,12 +219,20 @@ class NotificationSettings(SingletonModel):
 
     admin_alert_email = models.EmailField(blank=True)
 
+    class Meta:
+        verbose_name = "Notification settings"
+        verbose_name_plural = "Notification settings"
+
 
 class WhatsAppConfig(SingletonModel):
     phone_number_id = models.CharField(max_length=64, blank=True)
     waba_id         = models.CharField(max_length=64, blank=True)
-    access_token    = models.TextField(blank=True)          # encrypt at rest
+    access_token    = models.TextField(blank=True)
     template_map    = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "WhatsApp configuration"
+        verbose_name_plural = "WhatsApp configuration"
 
 
 class NotificationLog(models.Model):
@@ -207,21 +249,25 @@ class NotificationLog(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name = "Notification log"
+        verbose_name_plural = "Notification logs"
 
-
-# ══════════════════════════════════════════════════════════════
-# Security
-# ══════════════════════════════════════════════════════════════
 
 class SecuritySettings(SingletonModel):
     session_timeout_minutes = models.PositiveIntegerField(default=60)
     require_2fa             = models.BooleanField(default=True)
 
+    class Meta:
+        verbose_name = "Security settings"
+        verbose_name_plural = "Security settings"
+
 
 class LoginEvent(models.Model):
-    user         = models.ForeignKey(settings.AUTH_USER_MODEL,
-                                     on_delete=models.CASCADE,
-                                     related_name='login_events')
+    user         = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='login_events',
+    )
     ip_address   = models.GenericIPAddressField(null=True, blank=True)
     user_agent   = models.TextField(blank=True)
     device_label = models.CharField(max_length=128, blank=True)
@@ -230,11 +276,12 @@ class LoginEvent(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name = "Login event"
+        verbose_name_plural = "Login events"
 
+    def __str__(self):
+        return f"{self.user} @ {self.created_at:%Y-%m-%d %H:%M}"
 
-# ══════════════════════════════════════════════════════════════
-# Tax
-# ══════════════════════════════════════════════════════════════
 
 class TaxSettings(SingletonModel):
     vat_enabled        = models.BooleanField(default=True)
@@ -242,12 +289,20 @@ class TaxSettings(SingletonModel):
     prices_include_tax = models.BooleanField(default=True)
     etims_enabled      = models.BooleanField(default=True)
 
+    class Meta:
+        verbose_name = "Tax settings"
+        verbose_name_plural = "Tax settings"
+
 
 class EtimsConfig(SingletonModel):
     kra_pin         = models.CharField(max_length=16, blank=True)
     control_unit_id = models.CharField(max_length=32, blank=True)
     device_serial   = models.CharField(max_length=32, blank=True)
     api_credentials = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "eTIMS configuration"
+        verbose_name_plural = "eTIMS configuration"
 
 
 class EtimsSubmission(models.Model):
@@ -260,10 +315,11 @@ class EtimsSubmission(models.Model):
     response       = models.JSONField(null=True, blank=True)
     created_at     = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "eTIMS submission"
+        verbose_name_plural = "eTIMS submissions"
 
-# ══════════════════════════════════════════════════════════════
-# Integrations (read-only status)
-# ══════════════════════════════════════════════════════════════
 
 class IntegrationStatus(models.Model):
     CATEGORY = [
@@ -272,7 +328,7 @@ class IntegrationStatus(models.Model):
         ('Analytics', 'Analytics'),
     ]
 
-    key             = models.CharField(max_length=32, unique=True)
+    key             = models.CharField(max_length=64, unique=True)
     name            = models.CharField(max_length=128)
     category        = models.CharField(max_length=16, choices=CATEGORY)
     connected       = models.BooleanField(default=False)
@@ -284,21 +340,39 @@ class IntegrationStatus(models.Model):
 
     class Meta:
         ordering = ['category', 'name']
+        verbose_name = "Integration status"
+        verbose_name_plural = "Integration statuses"
 
+    def __str__(self):
+        return f"{self.name} ({self.category})"
 
-# ══════════════════════════════════════════════════════════════
-# Audit
-# ══════════════════════════════════════════════════════════════
+    def clean(self):
+        super().clean()
+        if self.key and self.key.lower() in _BLOCKED_INTEGRATION_KEYS:
+            raise ValidationError(
+                {
+                    "key": (
+                        f"'{self.key}' is blocked — Twitter/X and SMS "
+                        f"gateways are not supported on this platform."
+                    )
+                }
+            )
+
 
 class SettingsAuditLog(models.Model):
     section    = models.CharField(max_length=64, db_index=True)
     field_name = models.CharField(max_length=64)
     before     = models.TextField(blank=True)
     after      = models.TextField(blank=True)
-    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL,
-                                   null=True, on_delete=models.SET_NULL)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+    )
     changed_at = models.DateTimeField(auto_now_add=True, db_index=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 
     class Meta:
         ordering = ['-changed_at']
+        verbose_name = "Settings audit log entry"
+        verbose_name_plural = "Settings audit log"

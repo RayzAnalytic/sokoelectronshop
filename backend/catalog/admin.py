@@ -12,9 +12,6 @@ from .models import (
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Category
-# ─────────────────────────────────────────────────────────────────────────────
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = (
@@ -35,7 +32,7 @@ class CategoryAdmin(admin.ModelAdmin):
             "fields": ("parent",),
         }),
         ("Storefront", {
-            "fields": ("icon_name", "image", "sort_order", "is_active"),
+            "fields": ("icon_name", "image", "image_alt", "sort_order", "is_active"),
         }),
         ("SEO", {
             "fields": (
@@ -66,9 +63,6 @@ class CategoryAdmin(admin.ModelAdmin):
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Brand
-# ─────────────────────────────────────────────────────────────────────────────
 @admin.register(Brand)
 class BrandAdmin(admin.ModelAdmin):
     list_display = (
@@ -83,7 +77,7 @@ class BrandAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ("Identity", {
-            "fields": ("name", "slug", "logo", "description"),
+            "fields": ("name", "slug", "logo", "logo_alt", "description"),
         }),
         ("Storefront", {
             "fields": ("website_url", "featured", "is_active"),
@@ -116,15 +110,9 @@ class BrandAdmin(admin.ModelAdmin):
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Product inlines
-# ─────────────────────────────────────────────────────────────────────────────
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
     extra = 1
-    # `external_url` is listed before `image` because it's the common path
-    # for products created through the admin API — the URL field is what
-    # gets populated, and admins rarely upload files directly.
     fields = ("external_url", "image", "alt_text", "sort_order", "is_primary")
 
 
@@ -140,58 +128,73 @@ class ProductSpecInline(admin.TabularInline):
     fields = ("key", "value", "sort_order")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Product
-# ─────────────────────────────────────────────────────────────────────────────
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "name", "brand", "category",
-        "price", "compare_at_price",
+        "id", "name", "sku", "brand", "category",
+        "price", "cost_price", "compare_at_price",
         "stock_badge",
         "featured", "best_seller",
-        "sales_count", "review_count",
+        "sales_count", "review_count", "views_count",
         "is_active",
     )
     list_filter = (
         "is_active", "featured", "best_seller",
         "category", "brand",
     )
-    search_fields = ("id", "name", "brand__name", "category__name", "slug")
+    search_fields = (
+        "id", "name", "sku", "barcode",
+        "brand__name", "category__name", "slug",
+    )
     readonly_fields = (
         "id", "slug",
-        "rating_avg", "review_count",
+        "rating_avg", "review_count", "views_count",
         "created_at", "updated_at",
     )
-    inlines = [ProductImageInline, ProductFeatureInline, ProductSpecInline]
+    inlines = [
+        ProductImageInline,
+        ProductFeatureInline,
+        ProductSpecInline,
+    ]
     list_select_related = ("brand", "category")
     ordering = ("-created_at",)
     list_per_page = 25
 
     fieldsets = (
         ("Identity", {
-            "fields": ("id", "name", "slug", "brand", "category", "description"),
+            "fields": ("id", "name", "slug", "sku", "barcode", "brand", "category", "description"),
         }),
         ("Pricing", {
-            "fields": ("price", "compare_at_price"),
+            "fields": ("price", "compare_at_price", "cost_price"),
         }),
         ("Inventory", {
-            "fields": ("stock_quantity", "low_stock_threshold"),
+            "fields": ("stock_quantity", "low_stock_threshold", "weight_kg"),
         }),
         ("Storefront flags", {
-            "fields": ("featured", "best_seller", "is_active"),
+            "fields": ("featured", "best_seller", "is_active", "tags"),
+        }),
+        ("Warranty & returns", {
+            "fields": ("warranty_months", "return_window_days"),
         }),
         ("Sales & reviews", {
             "fields": (
                 "sales_volume", "sales_count",
-                "rating_avg", "review_count",
+                "rating_avg", "review_count", "views_count",
             ),
         }),
         ("Promo", {
             "fields": ("promo_end_date",),
         }),
+        ("SEO", {
+            "fields": (
+                "meta_title", "meta_description",
+                "meta_keywords", "canonical_url",
+            ),
+            "classes": ("collapse",),
+        }),
         ("Timestamps", {
             "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",),
         }),
     )
 
@@ -210,29 +213,18 @@ class ProductAdmin(admin.ModelAdmin):
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Review
-#
-# The `Review` model was moved to the `account` app (see the note at the
-# bottom of `catalog/models.py`). It is registered in
-# `account/admin.py` as `account.Review`. Do not register it here.
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Discount
-# ─────────────────────────────────────────────────────────────────────────────
 @admin.register(Discount)
 class DiscountAdmin(admin.ModelAdmin):
     list_display = (
         "code", "deal_title", "type", "value",
-        "applies_to", "status_badge",
+        "applies_to", "source", "status_badge",
         "start_date", "end_date",
         "priority", "display_on_deals_page",
     )
     list_filter = (
-        "type", "applies_to", "display_on_deals_page",
-        "promotion_type", "is_most_deal",
+        "type", "applies_to", "source",
+        "is_automatic", "is_clearance",
+        "display_on_deals_page", "promotion_type", "is_most_deal",
     )
     search_fields = ("code", "deal_title", "description", "badge_text")
     filter_horizontal = ("linked_products", "linked_categories")
@@ -259,6 +251,15 @@ class DiscountAdmin(admin.ModelAdmin):
                 "eligibility", "target_audience",
             ),
         }),
+        ("Automation & clearance", {
+            "fields": (
+                "source", "is_automatic", "is_clearance",
+                "expires_when_sold_out", "created_by", "status_override",
+            ),
+        }),
+        ("Channels", {
+            "fields": ("channels", "tiktok_video"),
+        }),
         ("Storefront", {
             "fields": ("display_on_deals_page", "is_most_deal", "priority"),
         }),
@@ -273,6 +274,8 @@ class DiscountAdmin(admin.ModelAdmin):
             "Active": "#16a34a",
             "Scheduled": "#d97706",
             "Expired": "#dc2626",
+            "Draft": "#64748b",
+            "Paused": "#64748b",
         }
         s = obj.status
         return format_html(
@@ -281,9 +284,6 @@ class DiscountAdmin(admin.ModelAdmin):
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Admin site branding
-# ─────────────────────────────────────────────────────────────────────────────
-admin.site.site_header = "Myshop Administration"
-admin.site.site_title = "Myshop Admin"
+admin.site.site_header = "RazeStore Administration"
+admin.site.site_title = "RazeStore Admin"
 admin.site.index_title = "Catalog, Checkout & Accounts"

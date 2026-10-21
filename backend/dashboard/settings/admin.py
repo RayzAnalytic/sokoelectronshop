@@ -10,10 +10,21 @@ Layout:
     through /admin). This keeps a single source of truth.
 
   • Credential singletons — read-only. Edits go through the platform
-    admin's deploy, never through the Django admin UI.
+    admin's deploy, never through the Django admin UI. The credential
+    fields themselves are excluded from the change form entirely.
 
   • Child models — full CRUD where it makes sense (zones, providers),
     read-only where it doesn't (logs, submissions, audit trail).
+
+Access model:
+
+  • Config singletons (`GeneralSettings`, `StoreSettings`, …) are
+    viewable by any staff user — they're just numeric flags and
+    business metadata.
+  • Credential singletons (`MpesaConfig`, `WhatsAppConfig`,
+    `EtimsConfig`) and every transaction/log/submission/audit model
+    are viewable ONLY by superusers. Staff can't see the data even
+    read-only.
 """
 
 from django.contrib import admin
@@ -43,8 +54,30 @@ class ReadOnlySingletonAdmin(admin.ModelAdmin):
         return False
 
 
+class SuperuserViewOnlyMixin:
+    """
+    Restrict viewing to superusers.
+
+    Applied to credential singletons and every audit / ledger table —
+    M-Pesa transactions, notification payloads, eTIMS submissions,
+    the settings change history. Staff users with the `admin` app
+    installed would otherwise see this data in read-only mode.
+
+    Combined with `has_add_permission = False` on each subclass, this
+    leaves superusers with a browse-only view and everyone else with
+    no access at all.
+    """
+
+    def has_view_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_module_permission(self, request):
+        # Hide the whole app block from the sidebar for non-superusers.
+        return bool(request.user and request.user.is_superuser)
+
+
 # ══════════════════════════════════════════════════════════════
-# Config singletons
+# Config singletons — visible to any staff user
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.GeneralSettings)
@@ -145,32 +178,36 @@ class TaxSettingsAdmin(ReadOnlySingletonAdmin):
 
 
 # ══════════════════════════════════════════════════════════════
-# Credential singletons — read-only, credentials never shown
+# Credential singletons — superuser-only, credentials hidden
+#
+# Each admin:
+#   • Inherits SuperuserViewOnlyMixin so only superusers can view.
+#   • Excludes the actual secret fields from the change form, so
+#     they never render even for a superuser. The safe fields
+#     (enabled / environment / shortcode) are what admins need to
+#     know "which account is this" without leaking the credentials.
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.MpesaConfig)
-class MpesaConfigAdmin(ReadOnlySingletonAdmin):
+class MpesaConfigAdmin(SuperuserViewOnlyMixin, ReadOnlySingletonAdmin):
     list_display = ("enabled", "environment", "shortcode", "last_rotated_at")
-
-    def has_view_permission(self, request, obj=None):
-        # Only superusers can see this row at all — even read-only.
-        return request.user.is_superuser
+    list_filter = ("enabled", "environment")
+    # Never render the credential fields.
+    exclude = ("consumer_key", "consumer_secret", "passkey", "callback_url")
 
 
 @admin.register(m.WhatsAppConfig)
-class WhatsAppConfigAdmin(ReadOnlySingletonAdmin):
+class WhatsAppConfigAdmin(SuperuserViewOnlyMixin, ReadOnlySingletonAdmin):
     list_display = ("phone_number_id", "waba_id", "updated_at")
-
-    def has_view_permission(self, request, obj=None):
-        return request.user.is_superuser
+    # Never render the access token.
+    exclude = ("access_token",)
 
 
 @admin.register(m.EtimsConfig)
-class EtimsConfigAdmin(ReadOnlySingletonAdmin):
+class EtimsConfigAdmin(SuperuserViewOnlyMixin, ReadOnlySingletonAdmin):
     list_display = ("kra_pin", "control_unit_id", "device_serial", "updated_at")
-
-    def has_view_permission(self, request, obj=None):
-        return request.user.is_superuser
+    # Never render the raw credentials blob.
+    exclude = ("api_credentials",)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -178,7 +215,7 @@ class EtimsConfigAdmin(ReadOnlySingletonAdmin):
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.MpesaTransaction)
-class MpesaTxnAdmin(admin.ModelAdmin):
+class MpesaTxnAdmin(SuperuserViewOnlyMixin, admin.ModelAdmin):
     list_display = (
         "order_id",
         "amount",
@@ -214,9 +251,17 @@ class MpesaTxnAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        # Read-only ledger — no inline edits even by superusers.
+        return False
+
 
 # ══════════════════════════════════════════════════════════════
 # Multi-row — shipping
+#
+# Providers and zones are the two config tables the store admin
+# legitimately edits through the Django admin (until the Settings
+# page covers them). Full CRUD is allowed.
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.ShippingProvider)
@@ -247,7 +292,7 @@ class ZoneAdmin(admin.ModelAdmin):
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.NotificationLog)
-class NotificationLogAdmin(admin.ModelAdmin):
+class NotificationLogAdmin(SuperuserViewOnlyMixin, admin.ModelAdmin):
     list_display = (
         "event",
         "channel",
@@ -272,13 +317,19 @@ class NotificationLogAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 # ══════════════════════════════════════════════════════════════
 # Multi-row — security
+#
+# Login events contain IP addresses and device fingerprints.
+# Superuser-only access.
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.LoginEvent)
-class LoginEventAdmin(admin.ModelAdmin):
+class LoginEventAdmin(SuperuserViewOnlyMixin, admin.ModelAdmin):
     list_display = (
         "user",
         "device_label",
@@ -301,13 +352,16 @@ class LoginEventAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 # ══════════════════════════════════════════════════════════════
 # Multi-row — tax
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.EtimsSubmission)
-class EtimsSubmissionAdmin(admin.ModelAdmin):
+class EtimsSubmissionAdmin(SuperuserViewOnlyMixin, admin.ModelAdmin):
     list_display = (
         "order_id",
         "invoice_number",
@@ -330,13 +384,20 @@ class EtimsSubmissionAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 # ══════════════════════════════════════════════════════════════
 # Multi-row — integrations
+#
+# The integration status grid is the source of truth for the
+# Settings → Integrations page. Django admin is a read-only window
+# into it, superuser-only.
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.IntegrationStatus)
-class IntegrationAdmin(admin.ModelAdmin):
+class IntegrationAdmin(SuperuserViewOnlyMixin, admin.ModelAdmin):
     list_display = (
         "key",
         "name",
@@ -361,13 +422,18 @@ class IntegrationAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 # ══════════════════════════════════════════════════════════════
 # Multi-row — audit
+#
+# Every settings change is logged here. Superuser-only.
 # ══════════════════════════════════════════════════════════════
 
 @admin.register(m.SettingsAuditLog)
-class AuditAdmin(admin.ModelAdmin):
+class AuditAdmin(SuperuserViewOnlyMixin, admin.ModelAdmin):
     list_display = (
         "section",
         "field_name",
@@ -389,4 +455,7 @@ class AuditAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False

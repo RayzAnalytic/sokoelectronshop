@@ -8,9 +8,6 @@ import {
 } from 'lucide-react';
 import { accountApi, ApiError, type Address } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 const formatKES = (n: number | string): string => {
     const num = typeof n === 'string' ? parseFloat(n) : n;
     if (!Number.isFinite(num)) return 'KES 0';
@@ -20,10 +17,6 @@ const formatKES = (n: number | string): string => {
     })}`;
 };
 
-/**
- * Backend sends `o.get_status_display()` values: "Pending", "Confirmed",
- * "Processing", "Shipped", "Delivered", "Cancelled".
- */
 const statusColor = (status: string): string => {
     switch (status) {
         case 'Delivered':
@@ -42,9 +35,6 @@ const statusColor = (status: string): string => {
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Local view types
-// ─────────────────────────────────────────────────────────────────────────────
 interface OverviewUser {
     id: number;
     email: string;
@@ -70,9 +60,6 @@ interface OverviewStats {
     pending_reviews: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────────────────────
 export default function AccountOverview() {
     const [user, setUser] = useState<OverviewUser | null>(null);
     const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
@@ -81,7 +68,6 @@ export default function AccountOverview() {
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
 
-    // ── Load everything the overview page needs — single call ──
     useEffect(() => {
         let cancelled = false;
 
@@ -95,10 +81,7 @@ export default function AccountOverview() {
                     email: data.user.email,
                     first_name: data.user.first_name,
                     last_name: data.user.last_name,
-                    // Fallback for older API responses that don't yet
-                    // include `phone`. Once the serializer ships it,
-                    // this `?? ''` never fires.
-                    phone: (data.user as { phone?: string }).phone ?? '',
+                    phone: data.user.phone ?? '',
                     joined_at: data.user.joined_at,
                 });
 
@@ -132,12 +115,8 @@ export default function AccountOverview() {
         };
     }, []);
 
-    // ── Derived display values ──
     const displayName = (user?.first_name || '').trim() || 'there';
     const userEmail = user?.email ?? '';
-    // Phone precedence: profile → default address → empty. A customer
-    // who has a phone on their account but no saved address sees their
-    // phone; one with neither sees the "Add a phone number" link.
     const userPhone = user?.phone || defaultAddress?.phone || '';
     const joinedAt = user?.joined_at ?? null;
 
@@ -148,13 +127,11 @@ export default function AccountOverview() {
         })
         : null;
 
-    // ── Stats with defaults ──
     const totalOrders = stats?.total_orders ?? 0;
     const inTransit = stats?.in_transit ?? 0;
     const wishlistCount = stats?.wishlist_count ?? 0;
     const pendingReviews = stats?.pending_reviews ?? 0;
 
-    // ── Stat cards — each links to its destination page ──
     const statCards = [
         {
             label: 'Total Orders',
@@ -186,19 +163,18 @@ export default function AccountOverview() {
         },
     ];
 
-    // ── Loading skeleton ──
     if (isLoading) {
         return (
-            <div className="space-y-6">
-                <div className="bg-white border border-slate-200 rounded-sm p-6">
+            <div className="space-y-2">
+                <div className="bg-white border border-slate-200 rounded-sm p-3">
                     <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-6 w-48 bg-slate-200 rounded mt-3 animate-pulse" />
+                    <div className="h-6 w-48 bg-slate-200 rounded mt-2 animate-pulse" />
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[0, 1, 2, 3].map((i) => (
                         <div
                             key={i}
-                            className="bg-white border border-slate-200 rounded-sm p-4 space-y-3 animate-pulse"
+                            className="bg-white border border-slate-200 rounded-sm p-3 space-y-2 animate-pulse"
                         >
                             <div className="w-9 h-9 rounded-sm bg-slate-200" />
                             <div className="h-5 w-12 bg-slate-200 rounded" />
@@ -215,20 +191,18 @@ export default function AccountOverview() {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Load error banner */}
+        <div className="space-y-2">
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
             )}
 
-            {/* Review prompt — soft nudge, only when there's something to review */}
             {pendingReviews > 0 && (
                 <Link
                     href="/pages/account/reviews"
-                    className="block bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 rounded-sm p-4 transition-colors group"
+                    className="block bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 rounded-sm p-3 transition-colors group"
                 >
                     <div className="flex items-start gap-3">
                         <span className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
@@ -249,28 +223,26 @@ export default function AccountOverview() {
                 </Link>
             )}
 
-            {/* Greeting */}
-            <div className="bg-white border border-slate-200 rounded-sm p-6">
+            <div className="bg-white border border-slate-200 rounded-sm p-3">
                 <p className="text-sm text-slate-500">Welcome back,</p>
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
                     Hi, {displayName} 👋
                 </h1>
                 {memberSince && (
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-0.5">
                         Member since {memberSince}
                     </p>
                 )}
             </div>
 
-            {/* Stats — each card links to its page */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {statCards.map(({ label, value, icon: Icon, tint, href }) => (
                     <Link
                         key={label}
                         href={href}
-                        className="bg-white border border-slate-200 rounded-sm p-4 hover:border-blue-200 hover:shadow-sm transition-all"
+                        className="bg-white border border-slate-200 rounded-sm p-3 hover:border-blue-200 hover:shadow-sm transition-all"
                     >
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-1">
                             <span
                                 className={`w-9 h-9 rounded-sm flex items-center justify-center ${tint}`}
                             >
@@ -285,9 +257,8 @@ export default function AccountOverview() {
                 ))}
             </div>
 
-            {/* Recent Orders */}
             <div className="bg-white border border-slate-200 rounded-sm">
-                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                <div className="flex items-center justify-between p-3 border-b border-slate-100">
                     <h2 className="text-sm font-semibold text-slate-900">
                         Recent Orders
                     </h2>
@@ -300,14 +271,14 @@ export default function AccountOverview() {
                 </div>
 
                 {recentOrders.length === 0 ? (
-                    <div className="p-8 text-center">
-                        <Package className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                    <div className="p-3 text-center">
+                        <Package className="h-8 w-8 text-slate-300 mx-auto mb-1" />
                         <p className="text-xs text-slate-500">
                             You haven&apos;t placed any orders yet.
                         </p>
                         <Link
                             href="/pages/products"
-                            className="mt-3 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                            className="mt-2 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
                         >
                             Browse Products
                         </Link>
@@ -317,7 +288,7 @@ export default function AccountOverview() {
                         {recentOrders.map((order) => (
                             <li
                                 key={order.id}
-                                className="p-4 flex items-center justify-between gap-4"
+                                className="p-4 flex items-center justify-between gap-3"
                             >
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
@@ -362,9 +333,8 @@ export default function AccountOverview() {
                 )}
             </div>
 
-            {/* Two columns: default address + account details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-200 rounded-sm p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-white border border-slate-200 rounded-sm p-3">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-slate-500" /> Default
@@ -380,7 +350,7 @@ export default function AccountOverview() {
 
                     {defaultAddress ? (
                         <>
-                            <p className="text-xs text-slate-700 leading-relaxed">
+                            <p className="text-xs text-slate-700">
                                 <span className="font-semibold text-slate-900">
                                     {defaultAddress.full_name}
                                 </span>
@@ -400,7 +370,7 @@ export default function AccountOverview() {
                             </p>
                         </>
                     ) : (
-                        <div className="text-xs text-slate-500 leading-relaxed">
+                        <div className="text-xs text-slate-500">
                             No address saved yet.{' '}
                             <Link
                                 href="/pages/account/addresses"
@@ -412,7 +382,7 @@ export default function AccountOverview() {
                     )}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-5">
+                <div className="bg-white border border-slate-200 rounded-sm p-3">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-sm font-semibold text-slate-900">
                             Account Details

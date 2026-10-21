@@ -1,4 +1,3 @@
-// app/pages/categories/[slug]/page.tsx
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -14,9 +13,6 @@ import {
   type CategoryPageQuery,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
   if (v === null || v === undefined) return 0;
   return typeof v === 'number' ? v : Number(v);
@@ -29,9 +25,24 @@ function formatKES(amount: number): string {
   })}`;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────
+type StockKind = 'in' | 'low' | 'out' | 'unknown';
+
+function normalizeStock(raw: string | undefined): StockKind {
+  const s = (raw || '').toLowerCase().replace(/[_\s-]/g, '');
+  if (s === 'instock' || s === 'in') return 'in';
+  if (s === 'lowstock' || s === 'low') return 'low';
+  if (s === 'outofstock' || s === 'out' || s === 'soldout') return 'out';
+  return 'unknown';
+}
+
+function stockBadgeClasses(status: string): string {
+  const key = (status || '').toLowerCase().replace(/[_\s-]/g, '');
+  if (key === 'instock') return 'bg-green-600 text-white';
+  if (key === 'lowstock') return 'bg-orange-500 text-white';
+  if (key === 'outofstock') return 'bg-red-600 text-white';
+  return 'bg-slate-600 text-white';
+}
+
 export default function CategoryPage() {
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
@@ -45,7 +56,6 @@ export default function CategoryPage() {
 
   const addItem = useCart((s) => s.addItem);
 
-  // ── Read URL params that CategoriesLayout emits ───────────
   const q = searchParams.get('q') ?? undefined;
   const stockRaw = searchParams.get('stock');
   const sortRaw = searchParams.get('sort');
@@ -64,7 +74,6 @@ export default function CategoryPage() {
       ? (sortRaw as CategoryPageQuery['sort'])
       : undefined;
 
-  // ── Fetch category + products ─────────────────────────────
   useEffect(() => {
     if (!slug) return;
     const ctrl = new AbortController();
@@ -88,12 +97,11 @@ export default function CategoryPage() {
     return () => ctrl.abort();
   }, [slug, q, stock, sort]);
 
-  // ── Add to cart ───────────────────────────────────────────
   const handleAddToCart = useCallback(
     async (product: CatalogProduct, e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault();
       e.stopPropagation();
-      if (product.stock === 'Out of Stock') return;
+      if (normalizeStock(product.stock) === 'out') return;
 
       setCartAddingId(product.id);
       try {
@@ -119,7 +127,6 @@ export default function CategoryPage() {
     [addItem],
   );
 
-  // ── Fallback name when category hasn't loaded yet ─────────
   const fallbackName = slug
     .split('-')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -128,9 +135,6 @@ export default function CategoryPage() {
   const categoryName = category?.name ?? fallbackName;
   const itemCount = items.length;
 
-  // ─────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────
   return (
     <section className="w-full">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -146,7 +150,6 @@ export default function CategoryPage() {
         </div>
       </div>
 
-      {/* Error state */}
       {error && !loading && (
         <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 py-16 px-6 text-center rounded-sm">
           <AlertCircle className="w-8 h-8 text-slate-400 mb-2" />
@@ -157,7 +160,6 @@ export default function CategoryPage() {
         </div>
       )}
 
-      {/* Loading skeleton */}
       {loading && items.length === 0 && !error && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -176,7 +178,6 @@ export default function CategoryPage() {
         </div>
       )}
 
-      {/* Empty state */}
       {!loading && !error && items.length === 0 && (
         <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 py-16 px-6 text-center rounded-sm">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-xl">
@@ -191,7 +192,6 @@ export default function CategoryPage() {
         </div>
       )}
 
-      {/* Product grid */}
       {!loading && items.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {items.map((product) => {
@@ -201,6 +201,7 @@ export default function CategoryPage() {
               product.compareAtPrice !== null
                 ? toNum(product.compareAtPrice)
                 : null;
+            const isOutOfStock = normalizeStock(product.stock) === 'out';
 
             return (
               <Link
@@ -232,12 +233,7 @@ export default function CategoryPage() {
                     />
 
                     <span
-                      className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stock === 'In Stock'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                          : product.stock === 'Low Stock'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                            : 'bg-red-50 text-red-700 border border-red-200/60'
-                        }`}
+                      className={`absolute bottom-2 left-2 z-10 text-[10px] font-semibold px-2 py-0.5 rounded shadow-xs ${stockBadgeClasses(product.stock)}`}
                     >
                       {product.stock}
                     </span>
@@ -278,9 +274,7 @@ export default function CategoryPage() {
                     <button
                       type="button"
                       onClick={(e) => handleAddToCart(product, e)}
-                      disabled={
-                        isAdding || product.stock === 'Out of Stock'
-                      }
+                      disabled={isAdding || isOutOfStock}
                       aria-label="Add to cart"
                       className="bg-slate-900 text-white p-2 rounded-sm hover:bg-slate-800 transition-colors disabled:opacity-50"
                     >

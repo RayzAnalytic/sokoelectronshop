@@ -27,7 +27,6 @@ import type {
   AdminGrowthPoint, AdminCampaignPerformance, AdminAnalyticsSummary,
 } from '@/lib/admin-types';
 
-// ─────────────────────────────────────────────────────────────────────────────
 type Tab = 'subscribers' | 'lists' | 'segments' | 'templates' | 'campaigns' | 'analytics';
 type StatusFilter = 'Subscribed' | 'Unsubscribed';
 
@@ -46,7 +45,6 @@ const LIST_COLOR_PRESETS = [
 ];
 const DEFAULT_LIST_COLOR = 'bg-blue-50 text-blue-950 border-blue-100';
 
-// ─────────────────────────────────────────────────────────────────────────────
 function isAbort(e: unknown): boolean {
   return (
     (typeof DOMException !== 'undefined' &&
@@ -96,7 +94,6 @@ function pct(n?: number | null): string {
   return `${n}%`;
 }
 
-/** Normalize API responses that may be [] | { results: [] } | { data: [] } */
 function asArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
   if (value && typeof value === 'object') {
@@ -115,7 +112,6 @@ interface AudienceChoice {
   count: number;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 export default function NewsletterPage() {
   const [activeTab, setActiveTab] = useState<Tab>('subscribers');
 
@@ -166,7 +162,6 @@ export default function NewsletterPage() {
   const [campaignDraft, setCampaignDraft] = useState<Partial<AdminCampaignWrite> | null>(null);
   const [recipientsFor, setRecipientsFor] = useState<AdminCampaign | null>(null);
 
-  // ── Loaders ───────────────────────────────────────────────────────────────
   const loadSubscribers = useCallback(async (signal?: AbortSignal) => {
     setLoadingSubs(true);
     try {
@@ -364,7 +359,6 @@ export default function NewsletterPage() {
     { id: 'analytics' as Tab, label: 'Analytics', icon: BarChart3 },
   ];
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   const refreshSubscriberContext = useCallback(async () => {
     await Promise.all([loadStats(), loadLists()]);
   }, [loadStats, loadLists]);
@@ -484,11 +478,10 @@ export default function NewsletterPage() {
     });
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
@@ -507,9 +500,8 @@ export default function NewsletterPage() {
         </div>
       )}
 
-      {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1600px] mx-auto px-2 py-3 flex items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Newsletter</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -535,7 +527,7 @@ export default function NewsletterPage() {
           </div>
         </div>
 
-        <div className="max-w-[1600px] mx-auto px-3 flex items-center gap-0.5 border-t border-slate-100 pt-2 overflow-x-auto">
+        <div className="max-w-[1700px] mx-auto px-2 flex items-center gap-0.5 border-t border-slate-100 pt-2 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -564,8 +556,7 @@ export default function NewsletterPage() {
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-        {/* STATS */}
+      <main className="max-w-[1700px] mx-auto px-0.5 py-3 space-y-2">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <StatCard
             label="Total subscribers"
@@ -604,10 +595,9 @@ export default function NewsletterPage() {
           />
         </div>
 
-        {/* SUBSCRIBERS */}
         {activeTab === 'subscribers' && (
           <>
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+            <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
               <div className="relative flex-1">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -678,13 +668,13 @@ export default function NewsletterPage() {
                 <table className="w-full text-left border-collapse text-[13px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                      <th className="py-2 px-3 font-medium">Email</th>
-                      <th className="py-2 px-3 font-medium">Name</th>
-                      <th className="py-2 px-3 font-medium">Lists</th>
-                      <th className="py-2 px-3 font-medium">Source</th>
-                      <th className="py-2 px-3 font-medium">Status</th>
-                      <th className="py-2 px-3 font-medium">Joined</th>
-                      <th className="py-2 px-3 w-28" />
+                      <th className="py-2 px-2 font-medium">Email</th>
+                      <th className="py-2 px-2 font-medium">Name</th>
+                      <th className="py-2 px-2 font-medium">Lists</th>
+                      <th className="py-2 px-2 font-medium">Source</th>
+                      <th className="py-2 px-2 font-medium">Status</th>
+                      <th className="py-2 px-2 font-medium">Joined</th>
+                      <th className="py-2 px-2 w-28" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -704,10 +694,10 @@ export default function NewsletterPage() {
                     ) : (
                       subscribers.map((sub) => (
                         <tr key={String(sub.id)} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 px-3 font-mono text-slate-900 truncate max-w-[260px]">
+                          <td className="py-2 px-2 font-mono text-slate-900 truncate max-w-[260px]">
                             {sub.email}
                           </td>
-                          <td className="py-2 px-3 text-slate-700">
+                          <td className="py-2 px-2 text-slate-700">
                             <div className="flex items-center gap-1.5">
                               <span className="truncate">{sub.name || '—'}</span>
                               {(sub.tags ?? []).includes('vip') && (
@@ -717,7 +707,7 @@ export default function NewsletterPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <div className="flex flex-wrap gap-1">
                               {(sub.lists ?? []).slice(0, 2).map((l) => (
                                 <span
@@ -737,12 +727,12 @@ export default function NewsletterPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <span className="inline-block px-2 py-0.5 rounded-sm font-medium border bg-slate-100 text-slate-600 border-slate-200">
                               {sub.source || '—'}
                             </span>
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <button
                               onClick={() => handleToggleSubscriber(sub)}
                               title="Toggle active status"
@@ -754,10 +744,10 @@ export default function NewsletterPage() {
                               {sub.status}
                             </button>
                           </td>
-                          <td className="py-2 px-3 font-mono text-slate-400">
+                          <td className="py-2 px-2 font-mono text-slate-400">
                             {fmtDate(sub.subscribed_at)}
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => setSubscriberModal({ open: true, initial: sub })}
@@ -785,9 +775,8 @@ export default function NewsletterPage() {
           </>
         )}
 
-        {/* LISTS */}
         {activeTab === 'lists' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between">
               <div>
                 <p className="text-[13px] font-semibold text-slate-900">Subscriber lists</p>
@@ -810,7 +799,7 @@ export default function NewsletterPage() {
                 body="Create your first list to start segmenting your audience."
               />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {lists.map((list) => (
                   <div
                     key={String(list.id)}
@@ -883,9 +872,8 @@ export default function NewsletterPage() {
           </div>
         )}
 
-        {/* SEGMENTS */}
         {activeTab === 'segments' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="bg-white border border-slate-200 rounded-sm p-2">
               <p className="text-[13px] font-semibold text-slate-900">Dynamic segments</p>
               <p className="text-[13px] text-slate-500">
@@ -957,9 +945,8 @@ export default function NewsletterPage() {
           </div>
         )}
 
-        {/* TEMPLATES */}
         {activeTab === 'templates' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between">
               <div>
                 <p className="text-[13px] font-semibold text-slate-900">Email templates</p>
@@ -1053,10 +1040,9 @@ export default function NewsletterPage() {
           </div>
         )}
 
-        {/* CAMPAIGNS */}
         {activeTab === 'campaigns' && (
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <p className="text-[13px] font-medium text-slate-700">
                 Campaigns · {campaigns.length}
               </p>
@@ -1071,14 +1057,14 @@ export default function NewsletterPage() {
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">Campaign</th>
-                    <th className="py-2 px-3 font-medium">Audience</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                    <th className="py-2 px-3 font-medium text-right">Recipients</th>
-                    <th className="py-2 px-3 font-medium text-right">Open</th>
-                    <th className="py-2 px-3 font-medium text-right">Click</th>
-                    <th className="py-2 px-3 font-medium">Schedule / Sent</th>
-                    <th className="py-2 px-3 w-56" />
+                    <th className="py-2 px-2 font-medium">Campaign</th>
+                    <th className="py-2 px-2 font-medium">Audience</th>
+                    <th className="py-2 px-2 font-medium">Status</th>
+                    <th className="py-2 px-2 font-medium text-right">Recipients</th>
+                    <th className="py-2 px-2 font-medium text-right">Open</th>
+                    <th className="py-2 px-2 font-medium text-right">Click</th>
+                    <th className="py-2 px-2 font-medium">Schedule / Sent</th>
+                    <th className="py-2 px-2 w-56" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1100,14 +1086,14 @@ export default function NewsletterPage() {
                       const isLive = c.status === 'sending' || c.status === 'queued';
                       return (
                         <tr key={String(c.id)} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <p className="font-medium text-slate-900 truncate max-w-[240px]">
                               {c.subject}
                             </p>
                             <p className="text-[13px] text-slate-400 truncate">{c.name}</p>
                           </td>
-                          <td className="py-2 px-3 text-slate-600">{c.audienceLabel || '—'}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2 text-slate-600">{c.audienceLabel || '—'}</td>
+                          <td className="py-2 px-2">
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border ${campaignStatusBadge(c.status)}`}
                             >
@@ -1115,31 +1101,36 @@ export default function NewsletterPage() {
                               {titleCase(c.status)}
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-700">
+                          <td className="py-2 px-2 text-right font-mono text-slate-700">
                             {c.sent_count > 0 && isLive
                               ? `${c.sent_count.toLocaleString()} / ${c.recipient_count.toLocaleString()}`
                               : c.recipient_count.toLocaleString()}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-700">
+                          <td className="py-2 px-2 text-right font-mono text-slate-700">
                             {pct(c.openRate)}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-700">
+                          <td className="py-2 px-2 text-right font-mono text-slate-700">
                             {pct(c.clickRate)}
                           </td>
-                          <td className="py-2 px-3 font-mono text-slate-400">
+                          <td className="py-2 px-2 font-mono text-slate-400">
                             {c.sent_at
                               ? fmtDateTime(c.sent_at)
                               : c.scheduled_at
                                 ? fmtDateTime(c.scheduled_at)
                                 : 'Not scheduled'}
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <div className="flex items-center justify-end gap-1">
                               {(c.status === 'draft' ||
                                 c.status === 'scheduled' ||
                                 c.status === 'paused') && (
                                   <button
-                                    onClick={() => handleCampaignAction(c, 'send')}
+                                    onClick={() =>
+                                      handleCampaignAction(
+                                        c,
+                                        c.status === 'paused' ? 'resume' : 'send',
+                                      )
+                                    }
                                     className="inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-2 rounded-sm text-[13px] transition"
                                   >
                                     <Play className="w-3 h-3" />
@@ -1183,9 +1174,8 @@ export default function NewsletterPage() {
           </div>
         )}
 
-        {/* ANALYTICS */}
         {activeTab === 'analytics' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[13px] font-semibold text-slate-900">Subscriber list growth</p>
@@ -1345,7 +1335,6 @@ export default function NewsletterPage() {
         )}
       </main>
 
-      {/* MODALS */}
       {subscriberModal.open && (
         <SubscriberModal
           initial={subscriberModal.initial}
@@ -1459,7 +1448,6 @@ export default function NewsletterPage() {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 function campaignStatusBadge(s: string): string {
   switch (s) {
     case 'sent':
@@ -1527,7 +1515,7 @@ function SkeletonGrid() {
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="bg-white border border-slate-200 rounded-sm p-2 space-y-3 animate-pulse"
+          className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 animate-pulse"
         >
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-sm bg-slate-100" />
@@ -1608,14 +1596,14 @@ function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
       onClick={onClose}
     >
       <div
         className={`bg-white border border-slate-200 rounded-sm ${maxWidth} w-full max-h-[90vh] flex flex-col shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
+        <div className="flex items-start justify-between px-2 py-2 border-b border-slate-200 shrink-0">
           <div className="min-w-0">
             <h3 className="text-[15px] font-semibold text-slate-900 truncate">{title}</h3>
             {subtitle && <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>}
@@ -1627,9 +1615,9 @@ function Modal({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">{children}</div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 text-[13px]">{children}</div>
         {footer && (
-          <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+          <div className="px-2 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
             {footer}
           </div>
         )}
@@ -1638,7 +1626,6 @@ function Modal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 function SubscriberModal({
   initial,
   onClose,
@@ -1722,7 +1709,7 @@ function SubscriberModal({
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
@@ -1805,7 +1792,6 @@ function SubscriberModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 function ListModal({
   initial,
   onClose,
@@ -1878,7 +1864,7 @@ function ListModal({
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
@@ -1923,7 +1909,6 @@ function ListModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 function TemplateModal({
   initial,
   onClose,
@@ -2020,12 +2005,12 @@ function TemplateModal({
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <label className="block font-medium text-slate-700 mb-1">Template name *</label>
           <input
@@ -2105,7 +2090,7 @@ function TemplateModal({
           <img
             src={heroImage}
             alt=""
-            className="w-full h-32 object-cover rounded-sm border border-slate-200"
+            className="w-full h-32 object-cover rounded border border-slate-200"
           />
         ) : (
           <div className="w-full h-24 rounded-sm border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 gap-2">
@@ -2153,7 +2138,6 @@ function TemplateModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 function CampaignModal({
   draft,
   templates,
@@ -2306,7 +2290,7 @@ function CampaignModal({
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
@@ -2431,7 +2415,7 @@ function CampaignModal({
             className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         ) : (
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 min-h-[160px]">
+          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 min-h-[160px]">
             <p className="text-[15px] font-semibold text-slate-900">
               {subject || 'Untitled subject'}
             </p>
@@ -2440,14 +2424,14 @@ function CampaignModal({
               <img
                 src={heroImage}
                 alt=""
-                className="w-full rounded-sm border border-slate-200 mt-2"
+                className="w-full rounded-sm border border-slate-200 mt-1"
               />
             )}
-            <p className="text-[13px] text-slate-700 whitespace-pre-wrap mt-2">
+            <p className="text-[13px] text-slate-700 whitespace-pre-wrap mt-1">
               {body || 'No content entered yet.'}
             </p>
             {ctaText && (
-              <span className="inline-block mt-3 bg-blue-950 text-white text-[13px] font-medium px-3 py-1.5 rounded-sm">
+              <span className="inline-block mt-3 bg-blue-950 text-white text-[13px] font-medium px-2 py-1.5 rounded-sm">
                 {ctaText}
               </span>
             )}
@@ -2515,7 +2499,6 @@ function CampaignModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 function RecipientsModal({
   campaign,
   onClose,
@@ -2568,7 +2551,7 @@ function RecipientsModal({
       footer={
         <button
           onClick={onClose}
-          className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+          className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px]"
         >
           Close
         </button>
@@ -2597,13 +2580,13 @@ function RecipientsModal({
         </div>
       </div>
       {loadError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{loadError}</span>
         </div>
       )}
       <div className="border border-slate-200 rounded-sm overflow-hidden">
-        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+        <div className="px-2 py-2 bg-slate-50 border-b border-slate-200">
           <p className="text-[13px] font-medium text-slate-700">
             Recipients {loading ? '' : `· ${rows.length}`}
           </p>
@@ -2621,29 +2604,29 @@ function RecipientsModal({
             <table className="w-full text-left border-collapse text-[13px]">
               <thead className="sticky top-0 bg-white">
                 <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2 px-3 font-medium">Email</th>
-                  <th className="py-2 px-3 font-medium">Status</th>
-                  <th className="py-2 px-3 font-medium">Sent at</th>
-                  <th className="py-2 px-3 font-medium">Error</th>
+                  <th className="py-2 px-2 font-medium">Email</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                  <th className="py-2 px-2 font-medium">Sent at</th>
+                  <th className="py-2 px-2 font-medium">Error</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((r) => (
                   <tr key={String(r.id)}>
-                    <td className="py-2 px-3 font-mono text-slate-800 truncate max-w-[240px]">
+                    <td className="py-2 px-2 font-mono text-slate-800 truncate max-w-[240px]">
                       {r.email}
                     </td>
-                    <td className="py-2 px-3">
+                    <td className="py-2 px-2">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${recipientBadge(r.status)}`}
                       >
                         {titleCase(r.status)}
                       </span>
                     </td>
-                    <td className="py-2 px-3 font-mono text-slate-400">
+                    <td className="py-2 px-2 font-mono text-slate-400">
                       {fmtDateTime(r.sent_at)}
                     </td>
-                    <td className="py-2 px-3 text-slate-500 truncate max-w-[200px]">
+                    <td className="py-2 px-2 text-slate-500 truncate max-w-[200px]">
                       {r.error_message || '—'}
                     </td>
                   </tr>
@@ -2657,7 +2640,6 @@ function RecipientsModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 function FilterDropdown({
   label,
   value,
@@ -2695,7 +2677,7 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
+        className={`flex items-center gap-1.5 border rounded-sm px-2 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
           ? 'bg-blue-50 border-blue-950 text-blue-950'
           : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}

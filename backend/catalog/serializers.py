@@ -12,15 +12,6 @@ from .models import (
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Settings helper — safe to call during migrations / cold boot
-#
-# Every serializer that needs a settings value calls `_settings()`.
-# The bundle is cached in-process for 5 minutes and invalidated on
-# every write from the Settings page, so the overhead per call is
-# negligible. The try/except guard protects management commands and
-# test runs that touch serializers before the settings tables exist.
-# ─────────────────────────────────────────────────────────────────────────────
 def _settings():
     try:
         from dashboard.settings.services import get_settings_bundle
@@ -50,12 +41,6 @@ def _low_stock_threshold() -> int:
 
 
 def _storefront_stock_status(obj) -> str:
-    """
-    Stock label that respects `allow_backorders`.
-
-    With backorders enabled, a zero-stock product is 'preorder' rather
-    than 'out_of_stock' — the frontend renders a "Pre-order" button.
-    """
     if obj.stock_quantity <= 0:
         return 'preorder' if _allow_backorders() else 'out_of_stock'
     if obj.stock_quantity <= _low_stock_threshold():
@@ -63,16 +48,22 @@ def _storefront_stock_status(obj) -> str:
     return 'in_stock'
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Category  — powers Sidebar, category page header, dropdowns, and the admin
-# ─────────────────────────────────────────────────────────────────────────────
-class CategorySerializer(serializers.ModelSerializer):
-    """
-    Read shape for the storefront AND the admin.
+def _absolute_image_urls(obj, request):
+    urls = []
+    for img in obj.images.all():
+        if img.external_url:
+            urls.append(img.external_url)
+            continue
+        if not img.image:
+            continue
+        url = img.image.url
+        if request:
+            url = request.build_absolute_uri(url)
+        urls.append(url)
+    return urls
 
-    Storefront uses: { id, name, slug, href, icon, productCount, itemCount, image }
-    Admin additionally consumes: parent_id, displayOrder, seo.
-    """
+
+class CategorySerializer(serializers.ModelSerializer):
     href = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
 
@@ -122,9 +113,6 @@ class CategorySerializer(serializers.ModelSerializer):
         }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Brand  — powers the storefront brand dropdown AND the admin brands page
-# ─────────────────────────────────────────────────────────────────────────────
 class BrandSerializer(serializers.ModelSerializer):
     logo = serializers.SerializerMethodField()
 
@@ -162,9 +150,6 @@ class BrandSerializer(serializers.ModelSerializer):
         }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Product images
-# ─────────────────────────────────────────────────────────────────────────────
 class ProductImageSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
 
@@ -182,9 +167,6 @@ class ProductImageSerializer(serializers.ModelSerializer):
         return request.build_absolute_uri(url) if request else url
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Reviews — read-only, sourced from account.Review
-# ─────────────────────────────────────────────────────────────────────────────
 class ReviewSerializer(serializers.ModelSerializer):
     author = serializers.CharField(source="display_author", read_only=True)
     verified = serializers.BooleanField(
@@ -201,27 +183,45 @@ class ReviewSerializer(serializers.ModelSerializer):
         return obj.created_at.date().isoformat()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Product image helper — shared by every product serializer
-# ─────────────────────────────────────────────────────────────────────────────
-def _absolute_image_urls(obj, request):
-    urls = []
-    for img in obj.images.all():
-        if img.external_url:
-            urls.append(img.external_url)
-            continue
-        if not img.image:
-            continue
-        url = img.image.url
-        if request:
-            url = request.build_absolute_uri(url)
-        urls.append(url)
-    return urls
+class ReviewCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AccountReview
+        fields = ["author", "rating", "title", "body"]
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError(
+                "Rating must be between 1 and 5."
+            )
+        return value
+
+    def validate_body(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Review body cannot be empty.")
+        return value.strip()
+
+    def validate_title(self, value):
+        return (value or "").strip()
+
+    def validate_author(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Author name is required.")
+        return value.strip()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Pricing mixin — every product serializer that ships `price` should use this
-# ─────────────────────────────────────────────────────────────────────────────
+class _ProductMetaMixin(serializers.Serializer):
+    sku = serializers.CharField(read_only=True)
+    barcode = serializers.CharField(read_only=True)
+    tags = serializers.JSONField(read_only=True)
+    viewsCount = serializers.IntegerField(source="views_count", read_only=True)
+    weightKg = serializers.DecimalField(
+        source="weight_kg", max_digits=8, decimal_places=3,
+        allow_null=True, read_only=True,
+    )
+    warrantyMonths = serializers.IntegerField(source="warranty_months", read_only=True)
+    returnWindowDays = serializers.IntegerField(source="return_window_days", read_only=True)
+
+
 class _EffectivePricingMixin:
     def get_effective_price(self, obj):
         return str(obj.effective_price)
@@ -233,22 +233,7 @@ class _EffectivePricingMixin:
         return obj.effective_discount_percentage
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Storefront-shared mixin — currency + stock + low_stock via settings
-#
-# Every product serializer that emits `stock`, `stockStatus`, or `price`
-# should inherit this so the shop's current settings are the single
-# source of truth for what the customer sees. Priority: Settings →
-# Store and Settings → General.
-# ─────────────────────────────────────────────────────────────────────────────
 class _StorefrontContextMixin:
-    """
-    Adds:
-      * `currency`      — the shop's ISO currency code
-      * `stockLabel`    — 'in_stock' | 'low_stock' | 'out_of_stock' | 'preorder'
-      * `lowStock`      — boolean, true when 0 < qty <= threshold
-    """
-
     def get_currency(self, obj):
         return _safe_currency()
 
@@ -260,10 +245,8 @@ class _StorefrontContextMixin:
         return 0 < qty <= _low_stock_threshold()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Products — list + detail (ProductsPage)
-# ─────────────────────────────────────────────────────────────────────────────
 class ProductListSerializer(
+    _ProductMetaMixin,
     _StorefrontContextMixin,
     _EffectivePricingMixin,
     serializers.ModelSerializer,
@@ -305,12 +288,14 @@ class ProductListSerializer(
     class Meta:
         model = Product
         fields = [
-            "id", "name", "slug", "brand", "category",
+            "id", "name", "slug", "sku", "barcode", "brand", "category",
             "images", "price", "originalPrice", "compareAtPrice",
             "stock", "stockQuantity", "stockLabel", "lowStock",
             "currency",
             "rating", "reviewCount",
             "featured", "bestSeller", "salesVolume",
+            "viewsCount", "tags",
+            "weightKg", "warrantyMonths", "returnWindowDays",
             "createdAt", "promoEndDate", "discountPercentage",
             "description",
         ]
@@ -319,10 +304,6 @@ class ProductListSerializer(
         return _absolute_image_urls(obj, self.context.get("request"))
 
     def get_stock(self, obj):
-        """
-        Legacy `stock` string. Kept for backward compat — new consumers
-        should read `stockLabel` and `lowStock` instead.
-        """
         return _storefront_stock_status(obj)
 
     def get_price(self, obj):
@@ -337,14 +318,6 @@ class ProductListSerializer(
 
 
 class ProductDetailSerializer(ProductListSerializer):
-    """
-    Modal payload — adds features[], specs{}, relatedProducts[].
-
-    `weightUnit` is included so the frontend can render weights in the
-    shop's chosen unit without a second request. `weight` itself is a
-    spec key the backend already stores in kg — the frontend does the
-    conversion for display.
-    """
     features = serializers.SerializerMethodField()
     specs = serializers.SerializerMethodField()
     relatedProducts = serializers.SerializerMethodField()
@@ -375,23 +348,25 @@ class ProductDetailSerializer(ProductListSerializer):
 
 
 class ProductWriteSerializer(serializers.ModelSerializer):
-    """Admin / seed / API POST."""
     class Meta:
         model = Product
         fields = [
-            "id", "name", "slug", "brand", "category", "description",
-            "price", "compare_at_price", "stock_quantity",
-            "low_stock_threshold", "featured", "best_seller",
+            "id", "name", "slug", "sku", "barcode",
+            "brand", "category", "description",
+            "price", "compare_at_price", "cost_price",
+            "stock_quantity", "low_stock_threshold",
+            "featured", "best_seller",
             "sales_volume", "sales_count",
+            "tags", "views_count",
+            "weight_kg", "warranty_months", "return_window_days",
+            "meta_title", "meta_description", "meta_keywords", "canonical_url",
             "promo_end_date", "is_active",
         ]
-        read_only_fields = ["id", "slug"]
+        read_only_fields = ["id", "slug", "views_count"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Best selling page
-# ─────────────────────────────────────────────────────────────────────────────
 class BestSellerProductSerializer(
+    _ProductMetaMixin,
     _StorefrontContextMixin,
     _EffectivePricingMixin,
     serializers.ModelSerializer,
@@ -399,6 +374,8 @@ class BestSellerProductSerializer(
     bestSeller = serializers.BooleanField(source="best_seller", read_only=True)
     brand = serializers.CharField(source="brand.name", read_only=True)
     category = serializers.CharField(source="category.name", read_only=True)
+
+    stockQuantity = serializers.IntegerField(source="stock_quantity", read_only=True)
 
     price = serializers.SerializerMethodField()
     previousPrice = serializers.SerializerMethodField()
@@ -408,7 +385,6 @@ class BestSellerProductSerializer(
     )
     reviewCount = serializers.IntegerField(source="review_count", read_only=True)
 
-    # SerializerMethodField so we can honor `allow_backorders`
     stockStatus = serializers.SerializerMethodField()
     currency = serializers.SerializerMethodField()
     stockLabel = serializers.SerializerMethodField()
@@ -419,10 +395,11 @@ class BestSellerProductSerializer(
     class Meta:
         model = Product
         fields = [
-            "id", "bestSeller", "brand", "name", "description",
+            "id", "slug", "sku", "bestSeller", "brand", "name", "description",
             "price", "previousPrice", "rating", "reviewCount",
-            "stockStatus", "stockLabel", "lowStock", "currency",
+            "stockStatus", "stockQuantity", "stockLabel", "lowStock", "currency",
             "images", "category",
+            "tags", "viewsCount", "warrantyMonths", "returnWindowDays",
         ]
 
     def get_images(self, obj):
@@ -443,7 +420,6 @@ class BestSellerProductSerializer(
 
 
 class RelatedProductSerializer(_EffectivePricingMixin, serializers.ModelSerializer):
-    """'You may also like' rail on the best selling modal."""
     brand = serializers.CharField(source="brand.name", read_only=True)
     images = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
@@ -463,10 +439,8 @@ class RelatedProductSerializer(_EffectivePricingMixin, serializers.ModelSerializ
         return _safe_currency()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# New arrivals page
-# ─────────────────────────────────────────────────────────────────────────────
 class NewArrivalProductSerializer(
+    _ProductMetaMixin,
     _StorefrontContextMixin,
     _EffectivePricingMixin,
     serializers.ModelSerializer,
@@ -495,12 +469,13 @@ class NewArrivalProductSerializer(
     class Meta:
         model = Product
         fields = [
-            "id", "name", "brand", "category",
+            "id", "slug", "name", "sku", "brand", "category",
             "price", "compareAtPrice",
             "stockStatus", "stockQuantity", "stockLabel", "lowStock",
             "currency",
             "images", "description",
             "rating", "reviewCount", "createdAt",
+            "tags", "viewsCount", "warrantyMonths", "returnWindowDays",
         ]
 
     def get_images(self, obj):
@@ -520,23 +495,10 @@ class NewArrivalProductSerializer(
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Special deals page
-# ─────────────────────────────────────────────────────────────────────────────
 class DealCardSerializer(serializers.Serializer):
-    """
-    Shape matches the `DealProduct` interface inside SpecialDealsPage.tsx.
-    Cards are built by `catalog.services.build_deal_card()` — this serializer
-    documents the schema and validates the service output when serialising.
-
-    `endDate` is nullable because clearance discounts run open-ended until
-    the stock is gone. The storefront hides the countdown when it is null.
-
-    `currency` is added so the deals grid can render prices consistently
-    with the rest of the storefront even when the user lands here first.
-    """
     id = serializers.CharField()
     productId = serializers.CharField()
+    slug = serializers.CharField()
     discountCode = serializers.CharField()
     name = serializers.CharField()
     brand = serializers.CharField()
@@ -564,8 +526,19 @@ class DealCardSerializer(serializers.Serializer):
     isClearance = serializers.BooleanField(required=False, default=False)
     source = serializers.CharField(required=False, allow_blank=True, default="")
 
-    # NEW — shop currency code so the deals grid can format consistently
     currency = serializers.SerializerMethodField()
 
     def get_currency(self, obj):
         return _safe_currency()
+
+
+class CategoryRefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ["id", "name", "slug"]
+
+
+class BrandRefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ["id", "name", "slug"]

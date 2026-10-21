@@ -12,18 +12,13 @@ import BulkCategoryUploadModal, {
 } from '@/components/admin/BulkCategoryUploadModal';
 import { adminApi } from '@/lib/admin-api';
 import { ApiError } from '@/lib/api';
+import type {
+  AdminCategory,
+  AdminCategoryWrite,
+  AdminSEO,
+} from '@/lib/admin-types';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
 type CategoryStatus = 'Active' | 'Inactive';
-
-interface SEOMetadata {
-  metaTitle: string;
-  metaDescription: string;
-  metaKeywords: string;
-  canonicalUrl: string;
-}
 
 interface Category {
   id: string;
@@ -35,52 +30,28 @@ interface Category {
   image: string;
   displayOrder: number;
   description?: string;
-  seo: SEOMetadata;
+  seo: AdminSEO;
   children?: Category[];
 }
 
-interface ApiCategory {
-  id: number;
-  name: string;
-  slug: string;
-  parent_id: number | null;
-  productsCount: number;
-  status: 'Active' | 'Inactive';
-  image: string | null;
-  displayOrder: number;
-  description: string;
-  seo: SEOMetadata;
-  is_active: boolean;
-  icon_name: string;
-  children?: ApiCategory[];
-}
-
-/**
- * Local view of the admin categories API. Casting `adminApi.categories`
- * to this interface keeps the page compiling even if `lib/admin-api.ts`
- * hasn't been updated yet.
- */
 interface CategoriesApi {
-  list: (signal?: AbortSignal) => Promise<ApiCategory[]>;
-  create: (payload: Record<string, unknown>) => Promise<ApiCategory>;
+  list: (signal?: AbortSignal) => Promise<AdminCategory[]>;
+  create: (payload: AdminCategoryWrite) => Promise<AdminCategory>;
   update: (
     id: string,
-    payload: Record<string, unknown>,
-  ) => Promise<ApiCategory>;
+    payload: Partial<AdminCategoryWrite>,
+  ) => Promise<AdminCategory>;
   remove: (id: string) => Promise<void>;
 }
 
-const DEFAULT_SEO: SEOMetadata = {
+const DEFAULT_SEO: AdminSEO = {
   metaTitle: '',
   metaDescription: '',
   metaKeywords: '',
   canonicalUrl: '',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// API ↔ local shape
-// ─────────────────────────────────────────────────────────────────────────────
-function apiToCategory(api: ApiCategory): Category {
+function apiToCategory(api: AdminCategory): Category {
   return {
     id: String(api.id),
     name: api.name,
@@ -98,8 +69,8 @@ function apiToCategory(api: ApiCategory): Category {
 
 function categoryToApi(
   data: Partial<Category>,
-  existingSeo?: SEOMetadata,
-): Record<string, unknown> {
+  existingSeo?: AdminSEO,
+): AdminCategoryWrite {
   const parentId = data.parentId ? Number(data.parentId) : null;
   const seo = data.seo ?? existingSeo ?? DEFAULT_SEO;
 
@@ -122,9 +93,6 @@ function categoryToApi(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tree helpers
-// ─────────────────────────────────────────────────────────────────────────────
 function walkTree(
   nodes: Category[],
   visit: (node: Category, parent?: Category) => void,
@@ -154,9 +122,6 @@ function findNode(nodes: Category[], id: string): Category | null {
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -178,9 +143,6 @@ export default function CategoriesPage() {
   const [seoDrawer, setSeoDrawer] = useState<Category | null>(null);
   const [toast, setToast] = useState('');
 
-  // Cast the API object to our local interface once. Every call below uses
-  // this reference so the page compiles no matter how `lib/admin-api.ts` is
-  // currently typed.
   const categoriesApi = adminApi.categories as unknown as CategoriesApi;
 
   const flash = (msg: string) => {
@@ -188,7 +150,6 @@ export default function CategoriesPage() {
     setTimeout(() => setToast(''), 2500);
   };
 
-  // ── Load + refresh ──
   const refresh = useCallback(async () => {
     try {
       const rows = await categoriesApi.list();
@@ -209,7 +170,6 @@ export default function CategoriesPage() {
     refresh();
   }, [refresh]);
 
-  // Close kebab on outside click
   useEffect(() => {
     const onDoc = () => setOpenKebabId(null);
     if (openKebabId) document.addEventListener('click', onDoc);
@@ -255,7 +215,6 @@ export default function CategoriesPage() {
     return opts;
   }, [categories, editingCategory]);
 
-  // ── Create / update ──
   const handleSave = async (
     data: Partial<Omit<Category, 'id'>> & { id?: string },
   ) => {
@@ -289,7 +248,6 @@ export default function CategoriesPage() {
     }
   };
 
-  // ── Delete ──
   const confirmDelete = async () => {
     if (!deleteCategoryId) return;
     const id = deleteCategoryId;
@@ -318,7 +276,6 @@ export default function CategoriesPage() {
     }
   };
 
-  // ── Toggle status ──
   const toggleStatus = async (id: string) => {
     const node = findNode(categories, id);
     if (!node) return;
@@ -350,9 +307,8 @@ export default function CategoriesPage() {
     }
   };
 
-  // ── SEO ──
   const updateSeo = useCallback(
-    async (id: string, seo: SEOMetadata) => {
+    async (id: string, seo: AdminSEO) => {
       const node = findNode(categories, id);
       if (!node) return;
 
@@ -375,17 +331,14 @@ export default function CategoriesPage() {
     [categories, categoriesApi, refresh],
   );
 
-  // Wrapper that reads the current `seoDrawer` at call time. This is what
-  // avoids the "seoDrawer is possibly null" error inside inline callbacks.
   const handleSeoSave = useCallback(
-    async (seo: SEOMetadata) => {
+    async (seo: AdminSEO) => {
       if (!seoDrawer) return;
       await updateSeo(seoDrawer.id, seo);
     },
     [seoDrawer, updateSeo],
   );
 
-  // ── Bulk import ──
   const handleBulkImport = async (rows: ImportedCategory[]) => {
     if (rows.length === 0) return;
     setSaving(true);
@@ -396,7 +349,6 @@ export default function CategoriesPage() {
       lookup.set(n.slug, n.id);
     });
 
-    // Parents before children so parentName resolves.
     const ordered = [...rows].sort((a, b) => {
       const aHasParent = a.parentName ? 1 : 0;
       const bHasParent = b.parentName ? 1 : 0;
@@ -411,7 +363,7 @@ export default function CategoriesPage() {
         ? lookup.get(row.parentName.toLowerCase()) ?? null
         : null;
 
-      const payload: Record<string, unknown> = {
+      const payload: AdminCategoryWrite = {
         name: row.name,
         slug: row.slug,
         parent_id: parentId ? Number(parentId) : null,
@@ -452,7 +404,6 @@ export default function CategoriesPage() {
     }
   };
 
-  // ── Filter + sort ──
   const filtered = useMemo((): Category[] => {
     const q = searchQuery.toLowerCase();
 
@@ -515,27 +466,26 @@ export default function CategoriesPage() {
   }, [categories]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-      {/* HEADER */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12 relative">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-[15px] font-semibold text-slate-900">
+        <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-[14px] font-semibold text-slate-900">
               Categories
             </h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">
+            <p className="text-[13px] text-slate-500 mt-0.5 truncate">
               {isLoading
                 ? 'Loading…'
                 : `Organize your catalog hierarchy · ${totalCount} categories`}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => setBulkOpen(true)}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
+              className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[13px] transition disabled:opacity-60"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3 h-3" />
               <span className="hidden sm:inline">Bulk upload</span>
               <span className="sm:hidden">Bulk</span>
             </button>
@@ -545,25 +495,24 @@ export default function CategoriesPage() {
                 setAddOpen(true);
               }}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
+              className="inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px] transition disabled:opacity-60"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3 h-3" />
               <span>Add category</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-1.5 space-y-2">
         {loadError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-[13px] flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-[13px] flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             {loadError}
           </div>
         )}
 
-        {/* SUMMARY */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           {[
             {
               label: 'Total Categories',
@@ -592,38 +541,37 @@ export default function CategoriesPage() {
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5"
+              className="bg-white border border-slate-200 rounded p-2 flex items-center gap-2"
             >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`w-6 h-6 rounded-sm flex items-center justify-center ${s.color}`}
-                >
-                  <s.icon className="w-3.5 h-3.5" />
-                </span>
-                <span className="text-[13px] font-medium text-slate-500 truncate">
+              <span
+                className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${s.color}`}
+              >
+                <s.icon className="w-3.5 h-3.5" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-slate-500 truncate">
                   {s.label}
-                </span>
-              </div>
-              <div className="text-[15px] font-bold text-slate-900">
-                {s.value}
+                </div>
+                <div className="text-[14px] font-semibold text-slate-900">
+                  {s.value}
+                </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* SEARCH + SORT */}
-        <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded p-0.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search categories by name or slug…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded pl-8 pr-2.5 py-2.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span className="text-[13px] font-medium text-slate-500 hidden sm:inline">
               Sort:
             </span>
@@ -631,10 +579,11 @@ export default function CategoriesPage() {
               <button
                 key={opt}
                 onClick={() => setSortBy(opt)}
-                className={`px-2.5 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${sortBy === opt
+                className={`px-2 py-2.5 rounded text-[13px] font-medium transition whitespace-nowrap ${
+                  sortBy === opt
                     ? 'bg-blue-50 border border-blue-950 text-blue-950'
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                }`}
               >
                 {opt === 'displayOrder'
                   ? 'Order'
@@ -646,22 +595,21 @@ export default function CategoriesPage() {
           </div>
         </div>
 
-        {/* LOADING / TABLE */}
         {isLoading ? (
-          <div className="bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-500 text-[13px]">
+          <div className="bg-white border border-slate-200 rounded p-10 text-center text-slate-500 text-[13px]">
             <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
             Loading categories…
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 w-8 text-center">
+                    <th className="py-1.5 px-2 w-7 text-center">
                       <GripVertical className="w-3.5 h-3.5 mx-auto text-slate-300" />
                     </th>
-                    <th className="py-2 px-2 w-10">
+                    <th className="py-1.5 px-2 w-8">
                       <input
                         type="checkbox"
                         checked={
@@ -676,30 +624,30 @@ export default function CategoriesPage() {
                             setSelectedIds(ids);
                           }
                         }}
-                        className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                        className="border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                       />
                     </th>
-                    <th className="py-2 px-3 font-medium">Category</th>
-                    <th className="py-2 px-3 font-medium">Slug</th>
-                    <th className="py-2 px-3 font-medium">Parent</th>
-                    <th className="py-2 px-3 font-medium text-center">Order</th>
-                    <th className="py-2 px-3 font-medium text-center">
+                    <th className="py-1.5 px-2 font-medium">Category</th>
+                    <th className="py-1.5 px-2 font-medium">Slug</th>
+                    <th className="py-1.5 px-2 font-medium">Parent</th>
+                    <th className="py-1.5 px-2 font-medium text-center">Order</th>
+                    <th className="py-1.5 px-2 font-medium text-center">
                       Products
                     </th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                    <th className="py-2 px-3 font-medium text-center">SEO</th>
-                    <th className="py-2 px-3 w-12"></th>
+                    <th className="py-1.5 px-2 font-medium">Status</th>
+                    <th className="py-1.5 px-2 font-medium text-center">SEO</th>
+                    <th className="py-1.5 px-2 w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-16 text-center">
+                      <td colSpan={10} className="py-12 text-center">
                         <div className="flex flex-col items-center gap-2">
-                          <span className="w-12 h-12 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
-                            <FolderTree className="w-6 h-6" />
+                          <span className="w-10 h-10 rounded bg-blue-50 text-blue-950 flex items-center justify-center">
+                            <FolderTree className="w-5 h-5" />
                           </span>
-                          <h3 className="text-[15px] font-semibold text-slate-900">
+                          <h3 className="text-[13px] font-semibold text-slate-900">
                             No categories found
                           </h3>
                           <p className="text-[13px] text-slate-500 max-w-xs">
@@ -712,9 +660,9 @@ export default function CategoriesPage() {
                               setEditingCategory(null);
                               setAddOpen(true);
                             }}
-                            className="mt-1 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                            className="mt-1 inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                           >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-3 h-3" />
                             Add category
                           </button>
                         </div>
@@ -732,23 +680,23 @@ export default function CategoriesPage() {
                       return (
                         <React.Fragment key={cat.id}>
                           <tr className="hover:bg-slate-50 transition-colors">
-                            <td className="py-2 px-3 text-center text-slate-400 cursor-grab">
-                              <GripVertical className="w-4 h-4 mx-auto" />
+                            <td className="py-1.5 px-2 text-center text-slate-400 cursor-grab">
+                              <GripVertical className="w-3.5 h-3.5 mx-auto" />
                             </td>
-                            <td className="py-2 px-2">
+                            <td className="py-1.5 px-2">
                               <input
                                 type="checkbox"
                                 checked={selectedIds.includes(cat.id)}
                                 onChange={() => toggleSelectRow(cat.id)}
-                                className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                                className=" border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                               />
                             </td>
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-2">
+                            <td className="py-1.5 px-2">
+                              <div className="flex items-center gap-1.5">
                                 {hasChildren ? (
                                   <button
                                     onClick={() => toggleExpand(cat.id)}
-                                    className="p-1 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition"
+                                    className="p-0.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100 transition"
                                   >
                                     {isExpanded ? (
                                       <ChevronDown className="w-3.5 h-3.5" />
@@ -757,48 +705,49 @@ export default function CategoriesPage() {
                                     )}
                                   </button>
                                 ) : (
-                                  <span className="w-5" />
+                                  <span className="w-4" />
                                 )}
                                 <img
                                   src={cat.image}
                                   alt={cat.name}
-                                  className="w-7 h-7 rounded-sm object-cover border border-slate-200 shrink-0"
+                                  className="w-7 h-7 rounded-md object-cover border border-slate-200 shrink-0"
                                 />
                                 <div className="min-w-0">
                                   <div className="font-medium text-slate-900 truncate">
                                     {cat.name}
                                   </div>
                                   {cat.description && (
-                                    <div className="text-[13px] text-slate-400 truncate max-w-[260px]">
+                                    <div className="text-[13px] text-slate-400 truncate max-w-[240px]">
                                       {cat.description}
                                     </div>
                                   )}
                                 </div>
                               </div>
                             </td>
-                            <td className="py-2 px-3 font-mono text-slate-500">
+                            <td className="py-1.5 px-2 font-mono text-slate-500">
                               {cat.slug}
                             </td>
-                            <td className="py-2 px-3 text-slate-400 italic">
+                            <td className="py-1.5 px-2 text-slate-400 italic">
                               Root
                             </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="inline-block bg-slate-100 px-2 py-0.5 rounded-sm font-mono text-slate-700">
+                            <td className="py-1.5 px-2 text-center">
+                              <span className="inline-block bg-slate-100 px-1.5 py-0.5 rounded text-[13px] font-mono text-slate-700">
                                 {cat.displayOrder}
                               </span>
                             </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="bg-slate-100 px-2 py-0.5 rounded-sm font-medium text-slate-800">
+                            <td className="py-1.5 px-2 text-center">
+                              <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[13px] font-medium text-slate-800">
                                 {cat.productsCount}
                               </span>
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-1.5 px-2">
                               <button
                                 onClick={() => toggleStatus(cat.id)}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${cat.status === 'Active'
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
+                                  cat.status === 'Active'
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                                     : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                                  }`}
+                                }`}
                               >
                                 {cat.status === 'Active' ? (
                                   <Eye className="w-3 h-3" />
@@ -808,13 +757,14 @@ export default function CategoriesPage() {
                                 {cat.status}
                               </button>
                             </td>
-                            <td className="py-2 px-3 text-center">
+                            <td className="py-1.5 px-2 text-center">
                               <button
                                 onClick={() => setSeoDrawer(cat)}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${seoFilled
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
+                                  seoFilled
                                     ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
                                     : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
-                                  }`}
+                                }`}
                                 title={
                                   seoFilled ? 'SEO complete' : 'SEO missing'
                                 }
@@ -823,7 +773,7 @@ export default function CategoriesPage() {
                                 {seoFilled ? 'Ready' : 'Missing'}
                               </button>
                             </td>
-                            <td className="py-2 px-3 relative">
+                            <td className="py-1.5 px-2 relative">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -831,9 +781,9 @@ export default function CategoriesPage() {
                                     parentMenuOpen ? null : cat.id,
                                   );
                                 }}
-                                className="p-1.5 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition"
+                                className="p-1 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100 transition"
                               >
-                                <MoreVertical className="w-4 h-4" />
+                                <MoreVertical className="w-3.5 h-3.5" />
                               </button>
                               {parentMenuOpen && (
                                 <KebabMenu
@@ -857,8 +807,7 @@ export default function CategoriesPage() {
                           {hasChildren &&
                             isExpanded &&
                             cat.children?.map((child) => {
-                              const childMenuOpen =
-                                openKebabId === child.id;
+                              const childMenuOpen = openKebabId === child.id;
                               const childSeoFilled = !!(
                                 child.seo.metaTitle &&
                                 child.seo.metaDescription
@@ -868,59 +817,54 @@ export default function CategoriesPage() {
                                   key={child.id}
                                   className="bg-slate-50/40 hover:bg-slate-50 transition-colors"
                                 >
-                                  <td className="py-2 px-3 text-center text-slate-300">
-                                    <GripVertical className="w-4 h-4 mx-auto" />
+                                  <td className="py-1.5 px-2 text-center text-slate-300">
+                                    <GripVertical className="w-3.5 h-3.5 mx-auto" />
                                   </td>
-                                  <td className="py-2 px-2">
+                                  <td className="py-1.5 px-2">
                                     <input
                                       type="checkbox"
-                                      checked={selectedIds.includes(
-                                        child.id,
-                                      )}
-                                      onChange={() =>
-                                        toggleSelectRow(child.id)
-                                      }
-                                      className="rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                                      checked={selectedIds.includes(child.id)}
+                                      onChange={() => toggleSelectRow(child.id)}
+                                      className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                                     />
                                   </td>
-                                  <td className="py-2 px-3">
-                                    <div className="flex items-center gap-2 pl-7">
+                                  <td className="py-1.5 px-2">
+                                    <div className="flex items-center gap-1.5 pl-6">
                                       <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                                       <img
                                         src={child.image}
                                         alt={child.name}
-                                        className="w-6 h-6 rounded-sm object-cover border border-slate-200 shrink-0"
+                                        className="w-6 h-6 object-cover border border-slate-200 shrink-0"
                                       />
                                       <span className="font-medium text-slate-800">
                                         {child.name}
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="py-2 px-3 font-mono text-slate-500">
+                                  <td className="py-1.5 px-2 font-mono text-slate-500">
                                     {child.slug}
                                   </td>
-                                  <td className="py-2 px-3 text-slate-600">
+                                  <td className="py-1.5 px-2 text-slate-600">
                                     {cat.name}
                                   </td>
-                                  <td className="py-2 px-3 text-center">
-                                    <span className="inline-block bg-slate-100 px-2 py-0.5 rounded-sm font-mono text-slate-700">
+                                  <td className="py-1.5 px-2 text-center">
+                                    <span className="inline-block bg-slate-100 px-1.5 py-0.5 rounded text-[13px] font-mono text-slate-700">
                                       {child.displayOrder}
                                     </span>
                                   </td>
-                                  <td className="py-2 px-3 text-center">
-                                    <span className="bg-slate-100 px-2 py-0.5 rounded-sm font-medium text-slate-800">
+                                  <td className="py-1.5 px-2 text-center">
+                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[13px] font-medium text-slate-800">
                                       {child.productsCount}
                                     </span>
                                   </td>
-                                  <td className="py-2 px-3">
+                                  <td className="py-1.5 px-2">
                                     <button
-                                      onClick={() =>
-                                        toggleStatus(child.id)
-                                      }
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${child.status === 'Active'
+                                      onClick={() => toggleStatus(child.id)}
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
+                                        child.status === 'Active'
                                           ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                                           : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                                        }`}
+                                      }`}
                                     >
                                       {child.status === 'Active' ? (
                                         <Eye className="w-3 h-3" />
@@ -930,19 +874,20 @@ export default function CategoriesPage() {
                                       {child.status}
                                     </button>
                                   </td>
-                                  <td className="py-2 px-3 text-center">
+                                  <td className="py-1.5 px-2 text-center">
                                     <button
                                       onClick={() => setSeoDrawer(child)}
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border transition ${childSeoFilled
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
+                                        childSeoFilled
                                           ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
                                           : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
-                                        }`}
+                                      }`}
                                     >
                                       <Globe className="w-3 h-3" />
                                       {childSeoFilled ? 'Ready' : 'Missing'}
                                     </button>
                                   </td>
-                                  <td className="py-2 px-3 relative">
+                                  <td className="py-1.5 px-2 relative">
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -950,9 +895,9 @@ export default function CategoriesPage() {
                                           childMenuOpen ? null : child.id,
                                         );
                                       }}
-                                      className="p-1.5 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition"
+                                      className="p-1 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100 transition"
                                     >
-                                      <MoreVertical className="w-4 h-4" />
+                                      <MoreVertical className="w-3.5 h-3.5" />
                                     </button>
                                     {childMenuOpen && (
                                       <KebabMenu
@@ -1018,31 +963,31 @@ export default function CategoriesPage() {
           onClick={() => setDeleteCategoryId(null)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl"
+            className="bg-white border border-slate-200 rounded max-w-md w-full p-3 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2">
-              <span className="w-9 h-9 rounded-sm bg-red-50 text-red-600 flex items-center justify-center">
+              <span className="w-8 h-8 rounded bg-red-50 text-red-600 flex items-center justify-center">
                 <AlertTriangle className="w-4 h-4" />
               </span>
-              <h3 className="text-[15px] font-semibold text-slate-900">
+              <h3 className="text-[13px] font-semibold text-slate-900">
                 Delete category?
               </h3>
             </div>
-            <p className="text-[13px] text-slate-500 mt-2">
+            <p className="text-[12px] text-slate-500 mt-2">
               Products in this category will become uncategorized. Subcategories
               will also be removed. This cannot be undone.
             </p>
-            <div className="flex justify-end gap-2 mt-3">
+            <div className="flex justify-end gap-1.5 mt-3">
               <button
                 onClick={() => setDeleteCategoryId(null)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[13px]"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="bg-red-600 hover:bg-red-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-red-600 hover:bg-red-500 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
               >
                 Delete
               </button>
@@ -1052,7 +997,7 @@ export default function CategoriesPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-4 py-2.5 rounded-sm shadow-lg">
+        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[12px] px-3 py-2 rounded shadow-lg">
           {toast}
         </div>
       )}
@@ -1060,7 +1005,6 @@ export default function CategoriesPage() {
   );
 }
 
-/* ─────────────────────────── SEO Drawer ─────────────────────────── */
 function SEODrawer({
   category,
   onClose,
@@ -1068,9 +1012,9 @@ function SEODrawer({
 }: {
   category: Category;
   onClose: () => void;
-  onSave: (seo: SEOMetadata) => void | Promise<void>;
+  onSave: (seo: AdminSEO) => void | Promise<void>;
 }) {
-  const [seo, setSeo] = useState<SEOMetadata>(category.seo || DEFAULT_SEO);
+  const [seo, setSeo] = useState<AdminSEO>(category.seo || DEFAULT_SEO);
 
   const slugPreview = category.slug;
   const titlePreview = seo.metaTitle || `${category.name} — Your Store`;
@@ -1092,9 +1036,9 @@ function SEODrawer({
         onClick={(e) => e.stopPropagation()}
         className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto shadow-xl flex flex-col"
       >
-        <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
+        <div className="px-3 py-2.5 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+            <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
               <Globe className="w-4 h-4" />
             </span>
             <div className="min-w-0">
@@ -1108,21 +1052,22 @@ function SEODrawer({
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+            className="h-7 w-7 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-3 space-y-3">
+        <div className="p-3 space-y-2.5">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-[13px] font-medium text-slate-700">
+              <label className="text-[12px] font-medium text-slate-700">
                 Meta Title
               </label>
               <span
-                className={`text-[13px] font-mono ${titleOk ? 'text-emerald-600' : 'text-amber-600'
-                  }`}
+                className={`text-[11px] font-mono ${
+                  titleOk ? 'text-emerald-600' : 'text-amber-600'
+                }`}
               >
                 {titleLength}/60
               </span>
@@ -1132,9 +1077,9 @@ function SEODrawer({
               value={seo.metaTitle}
               onChange={(e) => setSeo({ ...seo, metaTitle: e.target.value })}
               placeholder={`${category.name} — Your Store`}
-              className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
-            <p className="text-[13px] text-slate-400 mt-1">
+            <p className="text-[11px] text-slate-400 mt-1">
               Recommended: 30–60 characters. Shown in search results.
             </p>
           </div>
@@ -1145,8 +1090,9 @@ function SEODrawer({
                 Meta Description
               </label>
               <span
-                className={`text-[13px] font-mono ${descOk ? 'text-emerald-600' : 'text-amber-600'
-                  }`}
+                className={`text-[13px] font-mono ${
+                  descOk ? 'text-emerald-600' : 'text-amber-600'
+                }`}
               >
                 {descLength}/160
               </span>
@@ -1158,7 +1104,7 @@ function SEODrawer({
               }
               rows={3}
               placeholder={`Browse our selection of ${category.name.toLowerCase()} products.`}
-              className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 resize-none"
+              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 resize-none"
             />
             <p className="text-[13px] text-slate-400 mt-1">
               Recommended: 120–160 characters. The snippet shown under the
@@ -1177,7 +1123,7 @@ function SEODrawer({
                 setSeo({ ...seo, metaKeywords: e.target.value })
               }
               placeholder="comma, separated, keywords"
-              className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
             <p className="text-[13px] text-slate-400 mt-1">
               Comma-separated. Low SEO impact but useful for internal search.
@@ -1195,46 +1141,46 @@ function SEODrawer({
                 setSeo({ ...seo, canonicalUrl: e.target.value })
               }
               placeholder={`/categories/${slugPreview}`}
-              className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
-            <p className="text-[13px] text-slate-400 mt-1">
+            <p className="text-[11px] text-slate-400 mt-1">
               The preferred URL for this category page to avoid duplicate
               content.
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1">
-            <div className="flex items-center gap-1.5 text-[13px] text-slate-500">
+          <div className="bg-white border border-slate-200 rounded p-2 space-y-1">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
               <Search className="w-3 h-3" />
               Search preview
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
+            <div className="bg-slate-50 border border-slate-200 rounded p-2">
               <div className="text-[13px] text-emerald-700 truncate">
                 yourstore.co.ke
                 {seo.canonicalUrl || `/categories/${slugPreview}`}
               </div>
-              <div className="text-[15px] text-blue-800 font-medium truncate mt-0.5">
+              <div className="text-[13px] text-blue-800 font-medium truncate mt-0.5">
                 {titlePreview}
               </div>
-              <div className="text-[13px] text-slate-600 line-clamp-2 mt-0.5">
+              <div className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">
                 {descPreview}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="px-3 py-3 border-t border-slate-200 sticky bottom-0 bg-white flex items-center justify-end gap-2">
+        <div className="px-3 py-2.5 border-t border-slate-200 sticky bottom-0 bg-white flex items-center justify-end gap-1.5">
           <button
             onClick={onClose}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[12px]"
           >
             Cancel
           </button>
           <button
             onClick={() => onSave(seo)}
-            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px] inline-flex items-center gap-1"
           >
-            <Save className="w-3.5 h-3.5" />
+            <Save className="w-3 h-3" />
             Save SEO
           </button>
         </div>
@@ -1243,7 +1189,6 @@ function SEODrawer({
   );
 }
 
-/* ─────────────────────────── Kebab menu ─────────────────────────── */
 function KebabMenu({
   onEdit,
   onEditSeo,
@@ -1256,18 +1201,18 @@ function KebabMenu({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="absolute top-full mt-1 right-0 w-48 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1"
+      className="absolute top-full mt-1 right-0 w-44 bg-white border border-slate-200 rounded shadow-lg z-50 py-1"
     >
       <button
         onClick={onEdit}
-        className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 text-left transition"
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12px] text-slate-700 hover:bg-slate-50 text-left transition"
       >
         <Edit className="w-3.5 h-3.5 text-slate-400" />
         Edit category
       </button>
       <button
         onClick={onEditSeo}
-        className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 text-left transition"
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-slate-700 hover:bg-slate-50 text-left transition"
       >
         <Globe className="w-3.5 h-3.5 text-slate-400" />
         Edit SEO
@@ -1275,7 +1220,7 @@ function KebabMenu({
       <div className="border-t border-slate-100 my-1" />
       <button
         onClick={onDelete}
-        className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 hover:bg-red-50 text-left transition"
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-red-600 hover:bg-red-50 text-left transition"
       >
         <Trash2 className="w-3.5 h-3.5 text-red-500" />
         Delete

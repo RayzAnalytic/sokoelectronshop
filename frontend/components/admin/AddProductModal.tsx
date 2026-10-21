@@ -33,7 +33,6 @@ const EMPTY = {
     images: [] as string[],
 };
 
-/** Convert a File to a base64 data URL. */
 function fileToDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -52,7 +51,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
     const [error, setError] = useState("");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    // Lock body scroll while open
     useEffect(() => {
         if (!open) return;
         const original = document.body.style.overflow;
@@ -62,7 +60,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
         };
     }, [open]);
 
-    // Close on ESC (but not while saving)
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
@@ -72,7 +69,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
         return () => window.removeEventListener("keydown", onKey);
     }, [open, onClose, saving]);
 
-    // Reset form + load options when the modal opens
     useEffect(() => {
         if (!open) return;
 
@@ -80,9 +76,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
         setError("");
         setLoadingOptions(true);
 
-        // `.refs()` hits the storefront endpoints that return flat {id, name}
-        // pairs. `.list()` would return full admin shapes (brands) or a
-        // nested tree (categories) — wrong for a simple dropdown.
         Promise.all([
             adminApi.brands.refs(),
             adminApi.categories.refs(),
@@ -198,7 +191,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                 className="bg-white border border-slate-200 rounded-md w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
                     <div className="flex items-center gap-2">
                         <span className="h-7 w-7 rounded bg-blue-950 text-white flex items-center justify-center">
@@ -224,7 +216,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                     </button>
                 </div>
 
-                {/* Body */}
                 <div className="flex-1 overflow-y-auto p-3">
                     {error && (
                         <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md text-[13px] flex items-start gap-2">
@@ -234,7 +225,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                     )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                        {/* LEFT: form */}
                         <div className="lg:col-span-2 space-y-3">
                             <Field
                                 label="Product name *"
@@ -243,7 +233,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                 placeholder="e.g. Apex Ultra X1 Pro 5G"
                             />
 
-                            {/* Category + Brand — floating dropdowns */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <FloatingSelect
                                     label="Category *"
@@ -463,7 +452,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                             </div>
                         </div>
 
-                        {/* RIGHT: preview */}
                         <div className="lg:col-span-1">
                             <p className="text-[13px] font-medium text-slate-700 mb-1">
                                 Live preview
@@ -536,7 +524,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-200 shrink-0 bg-white">
                     <p className="text-[13px] text-slate-500 hidden sm:block">
                         Fields marked with * are required
@@ -575,7 +562,6 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
     );
 }
 
-/* ─── Compact field ─── */
 function Field({
     label,
     value,
@@ -610,15 +596,6 @@ function Field({
     );
 }
 
-/* ─── Floating select ──────────────────────────────────────────────
- * Renders the dropdown at document.body via createPortal, so it floats
- * above any parent with overflow / transform / z-index constraints.
- *
- * - Auto-flips above the trigger if there isn't room below.
- * - Matches the trigger's width.
- * - Closes on outside click, ESC, or selecting an item.
- * - Repositions on window resize.
- */
 function FloatingSelect({
     label,
     value,
@@ -653,7 +630,6 @@ function FloatingSelect({
 
     const selected = options.find((o) => o.value === value);
 
-    // Compute position when opening
     useLayoutEffect(() => {
         if (!open || !triggerRef.current) return;
 
@@ -670,7 +646,6 @@ function FloatingSelect({
         });
     }, [open]);
 
-    // Recompute on resize
     useEffect(() => {
         if (!open) return;
         const onResize = () => {
@@ -691,7 +666,6 @@ function FloatingSelect({
         return () => window.removeEventListener("resize", onResize);
     }, [open]);
 
-    // Outside click + ESC
     useEffect(() => {
         if (!open) return;
 
@@ -720,7 +694,6 @@ function FloatingSelect({
         };
     }, [open]);
 
-    // Reset search + focus the search input when opening
     useEffect(() => {
         if (open) {
             setQuery("");

@@ -1,46 +1,3 @@
-# dashboard/discounts/serializers.py
-
-"""
-All serializers for the dashboard discounts API.
-
-Enum normalization
-------------------
-The React form uses different string values than the Django model for
-some fields. The mappings below are the ONLY place those translations
-happen. If either side changes, update the map.
-
-React value            Django value
-------------           ----------------
-type: 'Percentage'  →  'Percentage'
-type: 'Fixed Amount'→  'Fixed Amount'
-type: 'Free Shipping'→ 'Free Shipping'
-type: 'BOGO'        →  'Buy X Get Y'
-type: 'Bundle'      →  'Buy X Get Y'
-type: 'Tiered'      →  'Percentage'
-
-appliesTo: 'Entire Order'         → 'All Products'
-appliesTo: 'Specific Products'    → 'Specific Products'
-appliesTo: 'Specific Categories'  → 'Specific Categories'
-appliesTo: 'Exclude Products'     → (not supported, rejected in validate)
-
-status: 'Active'  → status_override=''         (dates decide)
-status: 'Draft'   → status_override='Draft'
-status: 'Paused'  → status_override='Paused'
-
-Camel-case contract
--------------------
-The frontend `Discount` TS interface uses camelCase (`dealTitle`,
-`targetAudience`, etc.). Every camelCase serializer field carries an
-explicit `source=` pointing at the snake_case model column.
-
-Virtual fields
---------------
-`appliesTo`, `status`, `linkedCategories`, and `linkedProductIds` have
-no matching model attribute. They are declared `write_only=True` so DRF
-never tries to read them off a model instance during response
-serialization.
-"""
-
 from __future__ import annotations
 
 from rest_framework import serializers
@@ -57,9 +14,6 @@ from catalog.models import (
 from . import services
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Enum maps
-# ═════════════════════════════════════════════════════════════════════════════
 TYPE_MAP = {
     "Percentage":       DiscountType.PERCENTAGE,
     "Fixed Amount":     DiscountType.FIXED_AMOUNT,
@@ -99,23 +53,12 @@ STATUS_TO_OVERRIDE = {
 }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Read serializers
-# ═════════════════════════════════════════════════════════════════════════════
 class DiscountReadSerializer(serializers.ModelSerializer):
-    """
-    Full wire shape the React admin table + edit modal consume.
-
-    Every camelCase field has an explicit `source=` pointing at the
-    matching snake_case model column.
-    """
-    # ── Identity ─────────────────────────────────────────────────────
     dealTitle = serializers.CharField(source="deal_title", allow_blank=True)
     badgeText = serializers.CharField(source="badge_text", allow_blank=True)
     displayOnDealsPage = serializers.BooleanField(source="display_on_deals_page")
     isMostDeal = serializers.BooleanField(source="is_most_deal")
 
-    # ── Mechanics ────────────────────────────────────────────────────
     type = serializers.SerializerMethodField()
     promotionType = serializers.CharField(source="promotion_type")
     minOrder = serializers.DecimalField(
@@ -125,34 +68,27 @@ class DiscountReadSerializer(serializers.ModelSerializer):
         source="max_cap", max_digits=12, decimal_places=2,
     )
 
-    # ── Limits ───────────────────────────────────────────────────────
     usageLimit = serializers.IntegerField(source="usage_limit")
     perCustomer = serializers.IntegerField(source="per_customer")
     usageCount = serializers.IntegerField(source="usage_count")
 
-    # ── Window ───────────────────────────────────────────────────────
     startDate = serializers.DateTimeField(source="start_date")
     endDate = serializers.DateTimeField(source="end_date", allow_null=True)
 
-    # ── Targeting ────────────────────────────────────────────────────
     appliesTo = serializers.SerializerMethodField()
     targetAudience = serializers.CharField(
         source="target_audience", allow_blank=True,
     )
 
-    # ── Status ───────────────────────────────────────────────────────
     status = serializers.SerializerMethodField()
 
-    # ── Slow-stock ───────────────────────────────────────────────────
     source = serializers.CharField()
     isAutomatic = serializers.BooleanField(source="is_automatic")
     isClearance = serializers.BooleanField(source="is_clearance")
     expiresWhenSoldOut = serializers.BooleanField(source="expires_when_sold_out")
 
-    # ── Social / channels ────────────────────────────────────────────
     tiktokVideo = serializers.CharField(source="tiktok_video", allow_blank=True)
 
-    # ── M2M — exposed as names for the frontend ─────────────────────
     linkedCategories = serializers.SerializerMethodField()
     linkedProductIds = serializers.SerializerMethodField()
 
@@ -188,15 +124,6 @@ class DiscountReadSerializer(serializers.ModelSerializer):
 
 
 class DiscountListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight shape for the Overview tab.
-
-    Includes `image` so the compact row can render a thumbnail — the
-    frontend table shows an 8×8 preview next to every discount title.
-    Omits the heavier fields (`channels`, `tiktokVideo`, `startDate`,
-    `endDate`, `linkedCategories`, `linkedProductIds`) that only the
-    edit modal needs — the modal fetches `detail` instead.
-    """
     dealTitle = serializers.CharField(source="deal_title", allow_blank=True)
     usageCount = serializers.IntegerField(source="usage_count")
     status = serializers.SerializerMethodField()
@@ -207,28 +134,14 @@ class DiscountListSerializer(serializers.ModelSerializer):
             "id", "code", "dealTitle", "description",
             "type", "value", "usageCount", "status",
             "priority", "is_clearance",
-            "image",                        # ← added — makes the
-                                            #   thumbnail render
+            "image",
         ]
 
     def get_status(self, obj):
         return obj.status
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Write serializer
-# ═════════════════════════════════════════════════════════════════════════════
 class DiscountWriteSerializer(serializers.ModelSerializer):
-    """
-    Accepts the React `DiscountModal` payload.
-
-    Every camelCase field has an explicit `source=` pointing at the
-    matching snake_case model column. Virtual fields (`appliesTo`,
-    `status`, `linkedCategories`, `linkedProductIds`) are
-    `write_only=True` so DRF never tries to read them back off the
-    model instance during response serialization.
-    """
-    # ── Identity ─────────────────────────────────────────────────────
     dealTitle = serializers.CharField(
         source="deal_title", required=False, allow_blank=True,
     )
@@ -242,7 +155,6 @@ class DiscountWriteSerializer(serializers.ModelSerializer):
         source="is_most_deal", required=False,
     )
 
-    # ── Mechanics ────────────────────────────────────────────────────
     type = serializers.CharField(required=True)
     promotionType = serializers.CharField(
         source="promotion_type", required=False, allow_blank=True,
@@ -254,7 +166,6 @@ class DiscountWriteSerializer(serializers.ModelSerializer):
         source="max_cap", max_digits=12, decimal_places=2, required=False,
     )
 
-    # ── Limits ───────────────────────────────────────────────────────
     usageLimit = serializers.IntegerField(
         source="usage_limit", required=False, min_value=0,
     )
@@ -262,25 +173,18 @@ class DiscountWriteSerializer(serializers.ModelSerializer):
         source="per_customer", required=False, min_value=0,
     )
 
-    # ── Window ───────────────────────────────────────────────────────
     startDate = serializers.DateTimeField(source="start_date", required=False)
     endDate = serializers.DateTimeField(
         source="end_date", required=False, allow_null=True,
     )
 
-    # ── Targeting ────────────────────────────────────────────────────
-    # `appliesTo` is VIRTUAL — no matching model field. Must be
-    # `write_only` so DRF doesn't try to read it off the instance.
     appliesTo = serializers.CharField(required=True, write_only=True)
     targetAudience = serializers.CharField(
         source="target_audience", required=False, allow_blank=True,
     )
 
-    # ── Status ───────────────────────────────────────────────────────
-    # Virtual — maps to `status_override` in `create`/`update`.
     status = serializers.CharField(required=False, write_only=True)
 
-    # ── Slow-stock ───────────────────────────────────────────────────
     isAutomatic = serializers.BooleanField(
         source="is_automatic", required=False,
     )
@@ -291,12 +195,10 @@ class DiscountWriteSerializer(serializers.ModelSerializer):
         source="expires_when_sold_out", required=False,
     )
 
-    # ── Social ───────────────────────────────────────────────────────
     tiktokVideo = serializers.CharField(
         source="tiktok_video", required=False, allow_blank=True,
     )
 
-    # ── M2M — virtual, resolved in create/update ────────────────────
     linkedCategories = serializers.ListField(
         child=serializers.CharField(), required=False, write_only=True,
     )
@@ -320,7 +222,6 @@ class DiscountWriteSerializer(serializers.ModelSerializer):
             "status",
         ]
 
-    # ── Field-level validation ────────────────────────────────────────
     def validate_type(self, value):
         if value not in TYPE_MAP:
             raise serializers.ValidationError(
@@ -369,14 +270,11 @@ class DiscountWriteSerializer(serializers.ModelSerializer):
             attrs["code"] = f"AUTO-{uuid.uuid4().hex[:8].upper()}"
         return attrs
 
-    # ── Create / update ───────────────────────────────────────────────
     def create(self, validated_data):
         category_names = validated_data.pop("linkedCategories", [])
         product_ids    = validated_data.pop("linkedProductIds", [])
         status_value   = validated_data.pop("status", None)
 
-        # Enum normalization — `pop` so the virtual key doesn't leak
-        # into `Discount.objects.create(**validated_data)`.
         validated_data["type"] = TYPE_MAP[validated_data["type"]]
         validated_data["applies_to"] = APPLIES_TO_MAP[
             validated_data.pop("appliesTo")
@@ -438,13 +336,7 @@ class DiscountWriteSerializer(serializers.ModelSerializer):
         return instance
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Slow-stock serializer
-# ═════════════════════════════════════════════════════════════════════════════
 class SlowMovingProductSerializer(serializers.ModelSerializer):
-    """
-    One row in the "Clear Slow Stock" wizard.
-    """
     brand = serializers.CharField(source="brand.name", read_only=True)
     category = serializers.CharField(source="category.name", read_only=True)
     daysSinceListed = serializers.IntegerField(source="days_since_listed")
@@ -472,9 +364,6 @@ class SlowMovingProductSerializer(serializers.ModelSerializer):
         return 15
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Analytics + Rules (pass-through)
-# ═════════════════════════════════════════════════════════════════════════════
 class AnalyticsSerializer(serializers.Serializer):
     kpis = serializers.DictField()
     redemptions_over_time = serializers.ListField(child=serializers.DictField())

@@ -1,25 +1,8 @@
-"""
-Write actions for the admin orders module.
-
-Every function here is a single action the admin can take. Views call
-these; they never touch the ORM directly.
-
-STATUS TRANSITIONS go through `checkout.services.change_order_status`,
-which handles the timeline event and the customer notification. This
-module does NOT duplicate that logic — it just checks the transition
-is legal from the admin panel's perspective and delegates.
-
-PAYMENT STATUS is separate. A refund is not a fulfillment transition —
-it updates `payment_status` and writes a timeline event, but leaves
-`status` alone unless the admin also asks to move it. That is why
-refunds live here, not on the order service.
-"""
-
 import logging
 
 from django.db import transaction
 
-from checkout.models import Order
+from checkout.models import Order, Payment
 from checkout.services import change_order_status, record_status_event
 
 from .constants import is_transition_allowed
@@ -27,9 +10,6 @@ from .constants import is_transition_allowed
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Status transitions
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def set_status(
     order: Order,
@@ -38,25 +18,7 @@ def set_status(
     actor,
     note: str = "",
 ) -> Order:
-    """
-    Move an order to a new fulfillment status.
-
-    Validates against `ALLOWED_TRANSITIONS` — a stricter contract than
-    the underlying model allows. The model would happily let you go
-    `delivered` → `pending`; the admin panel forbids it. Rewriting
-    history on an already-shipped order is a footgun.
-
-    Idempotent: calling with the current status is a no-op and returns
-    the order unchanged, no timeline event, no notification.
-
-    Raises ValueError with a customer-safe message when the transition
-    is not allowed.
-
-    Delegates to `checkout.services.change_order_status`, which writes
-    the timeline event and fires the notification.
-    """
     if order.status == new_status:
-        # Idempotent no-op.
         return order
 
     if not is_transition_allowed(order.status, new_status):
@@ -83,9 +45,6 @@ def set_status(
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Tracking
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def set_tracking(
     order: Order,
@@ -94,19 +53,6 @@ def set_tracking(
     tracking_number: str = "",
     actor,
 ) -> Order:
-    """
-    Set or update the courier and tracking number on an order.
-
-    These are first-class columns, so this is a plain field write.
-    Does NOT advance the status — the admin sets tracking, then
-    separately moves the order to Shipped. Two clicks, but predictable.
-
-    Writes a timeline event so the customer sees the tracking details
-    appear on the order. The event uses the current status as both
-    from and to, so it does not look like a status transition.
-
-    Returns the updated order.
-    """
     courier = (courier or "").strip()[:120]
     tracking_number = (tracking_number or "").strip()[:120]
 
@@ -146,9 +92,6 @@ def set_tracking(
     return order
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Refund
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def refund_order(
     order: Order,
@@ -157,36 +100,9 @@ def refund_order(
     amount=None,
     reason: str = "",
 ) -> Order:
-    """
-    Mark an order as refunded.
-
-    IMPORTANT: This does NOT move money. It flips `payment_status` to
-    REFUNDED and writes a timeline event. The actual M-Pesa reversal
-    or manual bank transfer is a separate step the admin performs
-    outside this system. If you later add an automated refund provider
-    (Daraja's reversal API, for instance), this is where the network
-    call goes.
-
-    `amount` is optional. When omitted, the full order total is
-    refunded. When provided, it must equal the order total — partial
-    refunds are not supported yet and would need a `Refund` model that
-    records each partial against the order.
-
-    Reasons:
-      * Full refund only, for now.
-      * Cannot refund an already-refunded order (idempotent — returns
-        unchanged).
-      * Cannot refund an order with `payment_status = UNPAID` — there
-        is nothing to refund. COD orders that were never delivered are
-        simply cancelled, not refunded.
-
-    Returns the updated order. Raises ValueError on invalid input.
-    """
     from decimal import Decimal
-    from django.core.exceptions import ValidationError as DjangoValidationError
 
     if order.payment_status == Order.PaymentStatus.REFUNDED:
-        # Idempotent — clicking twice is harmless.
         return order
 
     if order.payment_status == Order.PaymentStatus.UNPAID:
@@ -226,8 +142,6 @@ def refund_order(
         note=note,
     )
 
-    # Notify the customer. Best-effort — a failure here does not roll
-    # back the refund.
     if order.user_id:
         try:
             from account.services import notify_order_refunded
@@ -245,24 +159,8 @@ def refund_order(
     return order
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Internal notes
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def add_internal_note(order: Order, *, text: str, actor) -> Order:
-    """
-    Append a staff-only note to the order.
-
-    Writes to `Order.internal_notes` — a separate field from
-    `Order.notes`, which is the customer's checkout note. The two are
-    distinct so this function never overwrites what the customer typed.
-
-    Does NOT write a timeline event. The timeline is the customer-
-    facing story; internal notes are admin-only and should not appear
-    on it.
-
-    Raises ValueError when `text` is empty.
-    """
     text = (text or "").strip()
     if not text:
         raise ValueError("Note text cannot be empty.")
@@ -275,9 +173,6 @@ def add_internal_note(order: Order, *, text: str, actor) -> Order:
     return order
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# WhatsApp update
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def send_whatsapp_update(
     order: Order,
@@ -285,17 +180,6 @@ def send_whatsapp_update(
     message: str,
     actor,
 ) -> Order:
-    """
-    Log a WhatsApp update against the order.
-
-    NOTE: This does not actually send a WhatsApp message — no provider
-    is wired up yet. It records the intent on the timeline so the
-    action is auditable, and returns success.
-
-    When a WhatsApp Business provider is integrated, this is where the
-    network call goes. The timeline event already captures what would
-    have been sent, so the audit trail survives the provider swap.
-    """
     message = (message or "").strip()
     if not message:
         raise ValueError("Message cannot be empty.")
@@ -314,3 +198,49 @@ def send_whatsapp_update(
     )
 
     return order
+
+
+def find_order_by_qr_token(token: str) -> Order | None:
+    token = (token or "").strip()
+    if not token:
+        return None
+
+    qs = (
+        Order.objects
+        .select_related("user")
+        .prefetch_related("items", "payments")
+    )
+
+    order = qs.filter(verify_token=token).first()
+    if order is not None:
+        return order
+
+    return qs.filter(reference=token).first()
+
+
+@transaction.atomic
+def mark_fulfilled(order: Order, *, actor) -> Order:
+    if order.status == Order.Status.DELIVERED:
+        return order
+
+    if order.status in {
+        Order.Status.CANCELLED,
+        Order.Status.RETURNED,
+        Order.Status.FAILED,
+    }:
+        raise ValueError(
+            f"Cannot fulfil an order that is already "
+            f"{order.get_status_display().lower()}."
+        )
+
+    actor_label = (
+        f"Admin {actor.get_username()}" if actor else "Admin"
+    )
+
+    return change_order_status(
+        order,
+        Order.Status.DELIVERED,
+        actor=actor,
+        actor_label=actor_label,
+        note="Fulfilled via QR scan.",
+    )

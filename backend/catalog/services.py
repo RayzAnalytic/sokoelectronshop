@@ -1,52 +1,8 @@
-# catalog/services.py
-
-"""
-Read-only query layer for the catalog app.
-
-This module does not mutate anything — every function below returns a
-queryset or a dict. Stock mutations live in `checkout.services` (sales
-and returns) and `dashboard.inventory` (manual adjustments), and both
-are responsible for calling `check_low_stock()` here after they write.
-
-SETTINGS AWARENESS:
-    Every product queryset now routes through `_apply_storefront_filters()`,
-    which reads `InventorySettings` from the cached settings bundle and
-    applies the shop owner's rules:
-
-        hide_out_of_stock=True  + allow_backorders=False  → hide zero-stock
-        hide_out_of_stock=True  + allow_backorders=True   → keep zero-stock
-        hide_out_of_stock=False                            → keep everything
-
-    The same helper also handles the `low_stock_threshold` fallback for
-    products that don't set their own. Product-level thresholds still
-    win; the setting is the store-wide default.
-
-AUTOMATIONS:
-    One event is exported from this module:
-
-        stock.below_threshold   — fired by `check_low_stock(product_id)`
-
-    `check_low_stock` is deliberately a standalone helper rather than
-    something the query functions call inline — the `get_*` functions
-    run on every page load, and firing events from them would be
-    catastrophic.
-
-    Callers:
-
-        checkout.services._persist_order   (after stock decrement)
-        checkout.services.change_order_status  (after RETURNED restock
-                                                if the restock is partial)
-        dashboard.inventory views          (after manual adjust)
-
-    The helper is best-effort and never raises. An automation failure
-    must not roll back the stock change that triggered it.
-"""
-
 from datetime import timedelta
 from decimal import Decimal
 
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from .models import (
@@ -59,20 +15,10 @@ from .models import (
     DiscountSource,
 )
 
-# Reviews live in the account app now. `account.Review.product_id` is an
-# opaque CharField snapshot — there is no reverse FK from `catalog.Product`.
-# Importing here is safe: `account/models.py` does not import from `catalog`.
 from account.models import Review as AccountReview
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Settings helper — safe to call during migrations / cold boot
-# ═════════════════════════════════════════════════════════════════════════════
 def _settings():
-    """
-    Return the cached settings bundle, or None if the settings app
-    isn't ready yet (first migration, test setup, management commands).
-    """
     try:
         from dashboard.settings.services import get_settings_bundle
         return get_settings_bundle()
@@ -91,56 +37,28 @@ def _allow_backorders() -> bool:
 
 
 def _low_stock_threshold_default() -> int:
-    """
-    Store-wide fallback threshold. Used only by `check_low_stock()` when
-    a product has no `low_stock_threshold` of its own.
-    """
     s = _settings()
     return s['inventory'].low_stock_threshold if s else 5
 
 
 def _apply_storefront_filters(qs):
-    """
-    Apply the shop owner's visibility rules to a product queryset.
-
-    Every storefront queryset MUST route through this helper so the
-    hide/backorder rules stay consistent across the products page,
-    category page, best sellers, new arrivals, and deals grid.
-
-    Rules:
-        hide_out_of_stock=False                → keep everything
-        hide_out_of_stock=True + backorders=on → keep zero-stock (they're
-                                                  preorderable)
-        hide_out_of_stock=True + backorders=off → drop zero-stock
-    """
     if _hide_out_of_stock() and not _allow_backorders():
         qs = qs.filter(stock_quantity__gt=0)
     return qs
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Automation dispatch (best-effort side effect)
-# ═════════════════════════════════════════════════════════════════════════════
+def _with_image(qs):
+    return qs.filter(images__isnull=False).distinct()
+
+
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 def _fire_event(event_name: str, payload: dict) -> None:
-    """
-    Hand an event to the AI automations dispatcher.
-
-    Never raises. An automation failure must not roll back a stock
-    change, a product edit, or anything else the caller was doing —
-    the write is the important part; the automation is a side effect.
-
-    Lazy import: `dashboard.aiandautomations` pulls in catalog,
-    account, and checkout models at module load. A top-level import
-    would risk a circular dependency the first time Django resolves
-    the app registry.
-    """
     try:
-        from dashboard.aiandautomations.services.automations import dispatch
+        from dashboard.aiautomations.services.automations import dispatch
         dispatch(event_name, payload)
     except Exception:
         logger.exception(
@@ -149,20 +67,6 @@ def _fire_event(event_name: str, payload: dict) -> None:
 
 
 def check_low_stock(product_id: str) -> bool:
-    """
-    Fire `stock.below_threshold` if the product is currently below its
-    low-stock threshold.
-
-    Threshold priority:
-        1. The product's own `low_stock_threshold` (if > 0)
-        2. The store-wide `inventory.low_stock_threshold` setting
-
-    A zero/negative threshold on the product disables the check for
-    that product — the escape hatch for digital goods and made-to-order
-    items that shouldn't alert.
-
-    Returns True if the event was fired, False otherwise. Never raises.
-    """
     if not product_id:
         return False
 
@@ -176,10 +80,8 @@ def check_low_stock(product_id: str) -> bool:
         if not row:
             return False
 
-        # Product-level threshold wins; fall back to the store default.
         threshold = row["low_stock_threshold"] or _low_stock_threshold_default()
 
-        # A product that explicitly sets threshold=0 has opted out.
         if row["low_stock_threshold"] == 0:
             return False
 
@@ -203,11 +105,18 @@ def check_low_stock(product_id: str) -> bool:
         return False
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Shared — categories & brands
-# ═════════════════════════════════════════════════════════════════════════════
+def increment_product_views(product_id: str) -> None:
+    if not product_id:
+        return
+    try:
+        Product.objects.filter(pk=product_id).update(
+            views_count=F("views_count") + 1
+        )
+    except Exception:
+        logger.exception("increment_product_views failed for %s", product_id)
+
+
 def get_categories():
-    """Active categories, sidebar ordering. No product counts."""
     return Category.objects.active().order_by("sort_order", "name")
 
 
@@ -216,10 +125,6 @@ def get_brands():
 
 
 def get_categories_with_counts():
-    """
-    Sidebar list — active categories, each annotated with `product_count`.
-    Powers `CategorySerializer.productCount` and `itemCount`.
-    """
     return (
         Category.objects.active()
         .with_product_counts()
@@ -227,9 +132,20 @@ def get_categories_with_counts():
     )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Products page
-# ═════════════════════════════════════════════════════════════════════════════
+def get_brands_with_counts():
+    return (
+        Brand.objects.filter(is_active=True)
+        .annotate(
+            product_count=models.Count(
+                "products",
+                filter=models.Q(products__is_active=True),
+                distinct=True,
+            )
+        )
+        .order_by("name")
+    )
+
+
 PRODUCT_PRICE_RANGES = {
     "0-10000":      (0, 10_000),
     "10000-50000":  (10_000, 50_000),
@@ -243,6 +159,8 @@ PRODUCT_SORT_MAP = {
     "price-high": ["-price"],
     "rating":     ["-rating_avg", "-review_count"],
     "newest":     ["-created_at"],
+    "popular":    ["-views_count", "-sales_count"],
+    "best-selling": ["-sales_count", "-review_count"],
 }
 
 
@@ -263,6 +181,8 @@ def get_products(
             Q(name__icontains=search)
             | Q(brand__name__icontains=search)
             | Q(category__name__icontains=search)
+            | Q(sku__icontains=search)
+            | Q(barcode__icontains=search)
         )
 
     if category and category != "All":
@@ -292,17 +212,41 @@ def get_products(
     return qs.order_by(*PRODUCT_SORT_MAP.get(sort_by, PRODUCT_SORT_MAP["featured"]))
 
 
+def get_products_by_tag(tag: str):
+    return (
+        Product.objects.active()
+        .with_relations()
+        .filter(tags__contains=[tag])
+    )
+
+
 def get_product_by_id(product_id: str):
-    """
-    Detail view fetch. We do NOT apply the hide filter here — a customer
-    with a direct link should still see the product page (which will show
-    "out of stock" or "pre-order"). The listing filter is a discoverability
-    rule, not a content-access rule.
-    """
     return (
         Product.objects.active()
         .with_relations()
         .filter(id=product_id)
+        .first()
+    )
+
+
+def get_product_by_sku(sku: str):
+    if not sku:
+        return None
+    return (
+        Product.objects.active()
+        .with_relations()
+        .filter(sku__iexact=sku.strip())
+        .first()
+    )
+
+
+def get_product_by_barcode(barcode: str):
+    if not barcode:
+        return None
+    return (
+        Product.objects.active()
+        .with_relations()
+        .filter(barcode__iexact=barcode.strip())
         .first()
     )
 
@@ -318,9 +262,6 @@ def get_related_products(product: Product, limit: int = 6):
     return qs.order_by("-rating_avg", "-created_at")[:limit]
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Category page
-# ═════════════════════════════════════════════════════════════════════════════
 CATEGORY_SORT_MAP = {
     "featured":   ["-featured", "-created_at"],
     "price-low":  ["price"],
@@ -352,6 +293,7 @@ def get_products_for_category(
         qs = qs.filter(
             Q(name__icontains=search)
             | Q(brand__name__icontains=search)
+            | Q(sku__icontains=search)
         )
 
     if stock == "in-stock":
@@ -365,9 +307,6 @@ def get_products_for_category(
     return qs.order_by(*CATEGORY_SORT_MAP.get(sort_by, CATEGORY_SORT_MAP["featured"]))
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Best selling page
-# ═════════════════════════════════════════════════════════════════════════════
 BEST_SELLERS_LIMIT = 8
 
 BEST_SELLER_PRICE_RANGES = {
@@ -388,6 +327,7 @@ BEST_SELLER_SORT_MAP = {
 def get_best_sellers(*, limit=BEST_SELLERS_LIMIT):
     qs = Product.objects.active().with_relations()
     qs = _apply_storefront_filters(qs)
+    qs = _with_image(qs)
     return qs.order_by("-sales_count", "-review_count", "-created_at")[:limit]
 
 
@@ -403,12 +343,14 @@ def filter_best_sellers(
 ):
     qs = Product.objects.active().with_relations()
     qs = _apply_storefront_filters(qs)
+    qs = _with_image(qs)
 
     if search:
         qs = qs.filter(
             Q(name__icontains=search)
             | Q(brand__name__icontains=search)
             | Q(category__name__icontains=search)
+            | Q(sku__icontains=search)
         )
 
     if category and category != "All":
@@ -462,9 +404,6 @@ def get_best_seller_related_products(product: Product, limit: int = 6):
     return qs.order_by("-sales_count", "-review_count", "-created_at")[:limit]
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# New arrivals page
-# ═════════════════════════════════════════════════════════════════════════════
 NEW_ARRIVALS_LIMIT = 8
 NEW_ARRIVALS_WINDOW_DAYS = 90
 
@@ -490,6 +429,7 @@ def filter_new_arrivals(
 ):
     qs = Product.objects.active().with_relations()
     qs = _apply_storefront_filters(qs)
+    qs = _with_image(qs)
 
     if window_days:
         cutoff = timezone.now() - timedelta(days=window_days)
@@ -500,6 +440,7 @@ def filter_new_arrivals(
             Q(name__icontains=search)
             | Q(brand__name__icontains=search)
             | Q(description__icontains=search)
+            | Q(sku__icontains=search)
         )
 
     if category and category != "All":
@@ -541,24 +482,10 @@ def get_new_arrival_by_id(product_id: str):
     )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Automatic discounts — used by `Product.effective_price`
-# ═════════════════════════════════════════════════════════════════════════════
 def get_best_automatic_discount_for_product(
     product: Product,
     at=None,
 ) -> Discount | None:
-    """
-    The best currently-active automatic discount for `product`, or None.
-
-    "Best" = largest percent off. Ties broken by priority (higher first),
-    then by start_date (more recent first).
-
-    Clearance discounts that have opted in via `expires_when_sold_out`
-    are skipped once stock hits zero — UNLESS the shop allows backorders,
-    in which case the discount stays live because the product is still
-    orderable as a preorder.
-    """
     at = at or timezone.now()
     backorders = _allow_backorders()
 
@@ -587,8 +514,6 @@ def get_best_automatic_discount_for_product(
     best_pct = -1
 
     for discount in qs:
-        # Clearance expires when sold out — unless backorders are on,
-        # in which case the item is still orderable as a preorder.
         if (
             discount.expires_when_sold_out
             and product.stock_quantity == 0
@@ -603,9 +528,6 @@ def get_best_automatic_discount_for_product(
     return best
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Slow-stock helpers — used by the "Clear Slow Stock" admin workflow
-# ═════════════════════════════════════════════════════════════════════════════
 def get_slow_moving_products(
     *,
     min_days=90,
@@ -613,10 +535,6 @@ def get_slow_moving_products(
     min_stock=10,
     limit=None,
 ):
-    """
-    Products that have been listed a long time, sold few units, and still
-    have stock. This is the query behind the "Clear Slow Stock" wizard.
-    """
     qs = (
         Product.objects.active()
         .slow_moving(min_days=min_days, max_sales=max_sales, min_stock=min_stock)
@@ -629,9 +547,6 @@ def get_slow_moving_products(
 
 
 def get_products_without_active_clearance(*, min_days=90, max_sales=5, min_stock=10):
-    """
-    Slow movers that are NOT already under an active clearance discount.
-    """
     slow = get_slow_moving_products(
         min_days=min_days, max_sales=max_sales, min_stock=min_stock,
     )
@@ -644,9 +559,6 @@ def get_products_without_active_clearance(*, min_days=90, max_sales=5, min_stock
     return slow.exclude(id__in=cleared_ids)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Special deals page
-# ═════════════════════════════════════════════════════════════════════════════
 SORT_FEATURED         = "Featured Deals"
 SORT_BIGGEST_DISCOUNT = "Biggest Discount"
 SORT_PRICE_LOW_HIGH   = "Price: Low to High"
@@ -704,13 +616,6 @@ def build_deal_card(
     sale_price: Decimal,
     request=None,
 ) -> dict:
-    """
-    Build one deal card.
-
-    `inStock` reflects the shop's backorder rule: when backorders are
-    allowed, a zero-stock product still reports `inStock=True` so the
-    frontend renders "Pre-order" instead of "Sold out".
-    """
     images = list(product.images.all())
     primary_image = ""
 
@@ -739,6 +644,7 @@ def build_deal_card(
     return {
         "id": f"{discount.id}__{product.id}",
         "productId": product.id,
+        "slug": product.slug,
         "discountCode": discount.code,
         "name": product.name,
         "brand": product.brand.name,
@@ -783,8 +689,6 @@ def build_all_active_deal_cards(request=None) -> list[dict]:
 
     for discount in get_active_discounts():
         for product in resolve_applicable_products(discount):
-            # Clearance expires when sold out — unless backorders are on,
-            # in which case the preorder path keeps the card visible.
             if (
                 discount.expires_when_sold_out
                 and product.stock_quantity == 0
@@ -941,17 +845,7 @@ def get_deal_brands(request=None):
     return Brand.objects.filter(name__in=names, is_active=True).order_by("name")
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Reviews — read-only from the catalog side
-# ═════════════════════════════════════════════════════════════════════════════
 def get_reviews_for_product(product: Product):
-    """
-    Published reviews for a product, newest first.
-
-    Gated by `reviews.reviews_enabled` from Settings → Store. When the
-    shop owner disables reviews, the storefront simply gets an empty
-    queryset — no serializer change required, no frontend change needed.
-    """
     if _settings() and not _settings()['reviews'].reviews_enabled:
         return AccountReview.objects.none()
 
@@ -964,3 +858,196 @@ def get_reviews_for_product(product: Product):
         .select_related("user")
         .order_by("-created_at")
     )
+
+
+WHATSAPP_ELIGIBILITY_TAG = "whatsapp"
+
+WHATSAPP_DEFAULT_CURRENCY = "KES"
+
+
+def whatsapp_eligible_products(rule: str = "ALL_ACTIVE"):
+    qs = Product.objects.active().with_relations()
+
+    if rule == "MANUAL":
+        return Product.objects.none()
+
+    if rule == "IN_STOCK_ONLY":
+        if not _allow_backorders():
+            qs = qs.filter(stock_quantity__gt=0)
+        return qs
+
+    if rule == "HAS_IMAGE":
+        return qs.filter(images__isnull=False).distinct()
+
+    if rule == "TAGGED_WHATSAPP":
+        return qs.filter(tags__contains=[WHATSAPP_ELIGIBILITY_TAG])
+
+    return qs
+
+
+def get_product_by_ref(ref: str):
+    if not ref:
+        return None
+    product = (
+        Product.objects.active()
+        .with_relations()
+        .filter(id=ref)
+        .first()
+    )
+    if product is not None:
+        return product
+    return (
+        Product.objects.active()
+        .with_relations()
+        .filter(sku__iexact=ref.strip())
+        .first()
+    )
+
+
+def get_products_by_refs(refs):
+    refs = [r for r in (refs or []) if r]
+    if not refs:
+        return Product.objects.none()
+    return (
+        Product.objects.active()
+        .with_relations()
+        .filter(Q(id__in=refs) | Q(sku__in=refs))
+    )
+
+
+def whatsapp_retailer_id(product: Product, variant_ref: str | None = None) -> str:
+    if variant_ref:
+        return f"{product.id}__{variant_ref}"
+    return str(product.id)
+
+
+def whatsapp_image_url(product: Product, request=None) -> str:
+    images = list(product.images.all())
+    if not images:
+        return ""
+
+    chosen = next((i for i in images if i.is_primary), images[0])
+
+    if chosen.external_url:
+        return chosen.external_url
+
+    if not chosen.image:
+        return ""
+
+    url = chosen.image.url
+    if request is not None:
+        return request.build_absolute_uri(url)
+
+    try:
+        from django.conf import settings as django_settings
+        site = getattr(django_settings, "SITE_URL", "") or ""
+        if site:
+            return f"{site.rstrip('/')}{url}"
+    except Exception:
+        pass
+    return url
+
+
+def whatsapp_product_url(product: Product) -> str:
+    try:
+        from django.conf import settings as django_settings
+        site = getattr(django_settings, "SITE_URL", "") or ""
+    except Exception:
+        site = ""
+
+    path = f"/products/{product.id}"
+    return f"{site.rstrip('/')}{path}" if site else path
+
+
+def whatsapp_price_parts(product: Product) -> dict:
+    list_price: Decimal = Decimal(product.price or 0)
+    effective: Decimal = getattr(product, "effective_price", list_price) or list_price
+
+    currency = WHATSAPP_DEFAULT_CURRENCY
+
+    sale_price_str: str | None = None
+    if effective < list_price:
+        sale_price_str = f"{effective:.2f}"
+
+    return {
+        "price": f"{list_price:.2f}",
+        "sale_price": sale_price_str,
+        "currency": currency,
+        "effective": f"{effective:.2f}",
+    }
+
+
+def whatsapp_availability(product: Product) -> str:
+    if product.stock_quantity > 0:
+        return "in stock"
+    if _allow_backorders():
+        return "in stock"
+    return "out of stock"
+
+
+def build_whatsapp_projection(product: Product, request=None) -> dict:
+    prices = whatsapp_price_parts(product)
+
+    category_name = ""
+    if getattr(product, "category", None):
+        category_name = product.category.name or ""
+
+    brand_name = ""
+    if getattr(product, "brand", None):
+        brand_name = product.brand.name or ""
+
+    product_tags = list(product.tags or [])
+
+    return {
+        "retailer_id": whatsapp_retailer_id(product),
+        "store_product_ref": str(product.id),
+        "store_variant_ref": "",
+        "sku": product.sku or "",
+        "barcode": product.barcode or "",
+        "name": product.name or "",
+        "description": (product.description or "").strip(),
+        "price": prices["price"],
+        "sale_price": prices["sale_price"],
+        "currency": prices["currency"],
+        "image_url": whatsapp_image_url(product, request=request),
+        "product_url": whatsapp_product_url(product),
+        "category": category_name,
+        "brand": brand_name,
+        "tags": product_tags,
+        "in_stock": product.stock_quantity > 0 or _allow_backorders(),
+        "availability": whatsapp_availability(product),
+        "warranty_months": product.warranty_months or 0,
+        "return_window_days": product.return_window_days or 0,
+        "weight_kg": str(product.weight_kg) if product.weight_kg else "",
+    }
+
+
+def build_whatsapp_projections(product_ids, request=None) -> list[dict]:
+    ids = [i for i in (product_ids or []) if i]
+    if not ids:
+        return []
+
+    products = get_products_by_refs(ids)
+    return [build_whatsapp_projection(p, request=request) for p in products]
+
+
+def whatsapp_differs_from_store(
+    product: Product,
+    existing_projection: dict,
+) -> bool:
+    fresh = build_whatsapp_projection(product)
+
+    compared = (
+        "name", "description", "price", "sale_price", "currency",
+        "image_url", "product_url", "category", "brand",
+        "in_stock", "availability", "sku", "barcode",
+        "warranty_months", "return_window_days", "weight_kg",
+    )
+    for key in compared:
+        if str(fresh.get(key) or "") != str(existing_projection.get(key) or ""):
+            return True
+
+    if list(fresh.get("tags") or []) != list(existing_projection.get("tags") or []):
+        return True
+
+    return False

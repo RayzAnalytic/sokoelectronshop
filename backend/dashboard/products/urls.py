@@ -18,7 +18,7 @@ urlpatterns = [
         name="admin-products-bulk",
     ),
     path(
-        "<str:id>/",                                       # ← was <str:pk>
+        "<str:id>/",
         ProductAdminViewSet.as_view({
             "get": "retrieve",
             "patch": "partial_update",
@@ -28,12 +28,12 @@ urlpatterns = [
         name="admin-products-detail",
     ),
     path(
-        "<str:id>/toggle-featured/",                       # ← was <str:pk>
+        "<str:id>/toggle-featured/",
         ProductAdminViewSet.as_view({"post": "toggle_featured"}),
         name="admin-products-toggle-featured",
     ),
     path(
-        "<str:id>/toggle-best-seller/",                    # ← was <str:pk>
+        "<str:id>/toggle-best-seller/",
         ProductAdminViewSet.as_view({"post": "toggle_best_seller"}),
         name="admin-products-toggle-best-seller",
     ),

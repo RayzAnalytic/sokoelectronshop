@@ -48,14 +48,16 @@ export default function Footer() {
 
                     {/* Brand */}
                     <div className="col-span-2 md:col-span-1 space-y-3">
-                        <Link href="/" className="flex items-center gap-2">
-                            <div className="flex items-center justify-center w-8 h-8 bg-white text-blue-950 rounded-lg font-bold text-sm shadow-sm">
-                                N
-                            </div>
-                            <span className="font-bold text-white text-sm tracking-tight">
-                                NordicStore
-                            </span>
-                        </Link>
+                        <Link href="/" className="flex items-center space-x-0.5">
+              <img
+                src="/logo.jpeg"
+                alt="RazeStore"
+                className="w-8 h-8 object-contain rounded-sm"
+              />
+              <span className="font-bold text-slate-100 text-base tracking-tight hidden sm:inline-block">
+                RazeStore
+              </span>
+            </Link>
                         <p className="text-slate-300 leading-relaxed max-w-xs text-[12px]">
                             Premium electronics and certified hardware, backed by comprehensive warranties.
                         </p>

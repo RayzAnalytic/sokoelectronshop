@@ -1,153 +1,113 @@
 from django.urls import path
 
 from .views import (
-    # Webhook + cart + OTP (existing)
-    verify_webhook,
-    receive_webhook,
-    CartHandoffView,
-    CartSessionDetailView,
-    OTPRequestView,
-    OTPConfirmView,
-
-    # Connection
-    WhatsAppAccountView,
-    WhatsAppAccountSetActiveView,
-    WhatsAppAccountRefreshView,
-    WhatsAppAccountProfileView,
-
-    # Inbox
-    ConversationListView,
+    AccountRefreshView,
+    AccountSetActiveView,
+    AccountView,
+    AnalyticsAgentsView,
+    AnalyticsCommerceView,
+    AnalyticsCostView,
+    AnalyticsFunnelView,
+    AnalyticsSeriesView,
+    AnalyticsSummaryView,
+    AuditListView,
+    AutomationListView,
+    AutomationToggleView,
+    BillingInvoicesView,
+    BillingSummaryView,
+    BotFlowPublishView,
+    BotFlowView,
+    BroadcastListView,
+    BroadcastPauseView,
+    BroadcastSendView,
+    CatalogItemBulkView,
+    CatalogItemDetailView,
+    CatalogItemListView,
+    CatalogSyncView,
+    CatalogView,
+    ContactListView,
+    ContactUnsubscribeView,
     ConversationDetailView,
-    ConversationMessageView,
-    ConversationSendTemplateView,
-    ConversationCreateOrderView,                              # ── ADDED
-    ConversationSendCheckoutLinkView,                         # ── ADDED
-    ConversationAssignView,
+    ConversationListView,
+    ConversationMessagesView,
     ConversationResolveView,
-    ConversationReopenView,
-    ConversationTagView,
-    ConversationNoteView,
-    MessagePollView,
-
-    # Templates
-    TemplateListCreateView,
-    TemplateDetailView,
+    ConversationSendMediaView,
+    ConversationSendProductView,
+    NotificationMarkReadView,
+    NotificationsMarkAllReadView,
+    NotificationsView,
+    OrderListView,
+    QuickReplyListView,
+    SegmentListView,
+    SettingsView,
+    TeamListView,
+    TemplateListView,
+    TemplatePauseView,
     TemplateSubmitView,
     TemplateSyncView,
-
-    # Automations
-    AutomationListCreateView,
-    AutomationDetailView,
-    AutomationToggleView,
-
-    # Broadcasts
-    BroadcastListCreateView,
-    BroadcastDetailView,
-    BroadcastSendView,
-    BroadcastPauseView,
-    BroadcastStatsView,
-
-    # Contacts
-    ContactListView,
-    ContactDetailView,
-    ContactUnsubscribeView,
-
-    # Analytics / Billing
-    AnalyticsSummaryView,
-    AnalyticsSeriesView,
-    CostBreakdownView,
-    BillingSummaryView,
-    BillingRefreshView,
+    WebhookEventListView,
+    WebhookEventReplayView,
+    WhatsAppWebhookReceiver,
 )
 
-app_name = "whatsapp"
-
 urlpatterns = [
-    # ── Meta webhook ───────────────────────────────────────────────────────
-    path("webhooks/whatsapp/",       verify_webhook,  name="webhook-verify"),
-    path("webhooks/whatsapp/event/", receive_webhook, name="webhook-event"),
+    path("account/", AccountView.as_view()),
+    path("account/refresh/", AccountRefreshView.as_view()),
+    path("account/set-active/", AccountSetActiveView.as_view()),
+    path("account/settings/", SettingsView.as_view()),
+    path("account/team/", TeamListView.as_view()),
+    path("account/audit/", AuditListView.as_view()),
+    path("account/notifications/", NotificationsView.as_view()),
+    path("account/notifications/mark-all-read/", NotificationsMarkAllReadView.as_view()),
+    path("account/notifications/<int:pk>/read/", NotificationMarkReadView.as_view()),
 
-    # ── Cart handoff ───────────────────────────────────────────────────────
-    path("cart-handoff/", CartHandoffView.as_view(), name="cart-handoff"),
-    path("sessions/<uuid:token>/", CartSessionDetailView.as_view(),
-         name="cart-session-detail"),
+    path("catalog/", CatalogView.as_view()),
+    path("catalog/sync/", CatalogSyncView.as_view()),
+    path("catalog/items/", CatalogItemListView.as_view()),
+    path("catalog/items/bulk/", CatalogItemBulkView.as_view()),
+    path("catalog/items/<int:pk>/", CatalogItemDetailView.as_view()),
 
-    # ── OTP ────────────────────────────────────────────────────────────────
-    path("verify-number/",         OTPRequestView.as_view(), name="otp-request"),
-    path("verify-number/confirm/", OTPConfirmView.as_view(), name="otp-confirm"),
+    path("conversations/", ConversationListView.as_view()),
+    path("conversations/<int:pk>/", ConversationDetailView.as_view()),
+    path("conversations/<int:pk>/messages/", ConversationMessagesView.as_view()),
+    path("conversations/<int:pk>/send-media/", ConversationSendMediaView.as_view()),
+    path("conversations/<int:pk>/send-product/", ConversationSendProductView.as_view()),
+    path("conversations/<int:pk>/resolve/", ConversationResolveView.as_view()),
 
-    # ── Connection ─────────────────────────────────────────────────────────
-    path("account/",             WhatsAppAccountView.as_view(),           name="account"),
-    path("account/set-active/",  WhatsAppAccountSetActiveView.as_view(),  name="account-set-active"),
-    path("account/refresh/",     WhatsAppAccountRefreshView.as_view(),    name="account-refresh"),
-    path("account/profile/",     WhatsAppAccountProfileView.as_view(),    name="account-profile"),
+    path("orders/", OrderListView.as_view()),
 
-    # ── Inbox ──────────────────────────────────────────────────────────────
-    path("conversations/",                              ConversationListView.as_view(),        name="conversation-list"),
-    path("conversations/<int:pk>/",                     ConversationDetailView.as_view(),      name="conversation-detail"),
-    path("conversations/<int:pk>/messages/",            ConversationMessageView.as_view(),     name="conversation-messages"),
-    path("conversations/<int:pk>/send-template/",       ConversationSendTemplateView.as_view(),name="conversation-send-template"),
+    path("templates/", TemplateListView.as_view()),
+    path("templates/sync/", TemplateSyncView.as_view()),
+    path("templates/<int:pk>/submit/", TemplateSubmitView.as_view()),
+    path("templates/<int:pk>/pause/", TemplatePauseView.as_view()),
 
-    # ── Direct-orders integration (staff) ──────────────────────────────
-    # Both endpoints back buttons in the admin inbox:
-    #   * create-order/       — seller converts the chat into an Order
-    #   * send-checkout-link/ — seller sends a WhatsApp checkout URL
-    #
-    # Staff-only via the view's permission_classes (IsAuthenticated at
-    # present — swap to a stricter staff check if your User model has a
-    # role flag distinct from `is_staff`).
-    #
-    # Route ordering: `<int:pk>/create-order/` and
-    # `<int:pk>/send-checkout-link/` have an extra segment compared to
-    # `<int:pk>/`, so they cannot collide with the detail pattern. Any
-    # order in this list resolves correctly.
-    path(
-        "conversations/<int:pk>/create-order/",
-        ConversationCreateOrderView.as_view(),
-        name="conversation-create-order",
-    ),
-    path(
-        "conversations/<int:pk>/send-checkout-link/",
-        ConversationSendCheckoutLinkView.as_view(),
-        name="conversation-send-checkout-link",
-    ),
+    path("automations/", AutomationListView.as_view()),
+    path("automations/<int:pk>/toggle/", AutomationToggleView.as_view()),
 
-    path("conversations/<int:pk>/assign/",              ConversationAssignView.as_view(),      name="conversation-assign"),
-    path("conversations/<int:pk>/resolve/",             ConversationResolveView.as_view(),     name="conversation-resolve"),
-    path("conversations/<int:pk>/reopen/",              ConversationReopenView.as_view(),      name="conversation-reopen"),
-    path("conversations/<int:pk>/tag/",                 ConversationTagView.as_view(),         name="conversation-tag"),
-    path("conversations/<int:pk>/notes/",               ConversationNoteView.as_view(),        name="conversation-notes"),
-    path("messages/poll/",                              MessagePollView.as_view(),             name="messages-poll"),
+    path("broadcasts/", BroadcastListView.as_view()),
+    path("broadcasts/<int:pk>/send/", BroadcastSendView.as_view()),
+    path("broadcasts/<int:pk>/pause/", BroadcastPauseView.as_view()),
 
-    # ── Templates ──────────────────────────────────────────────────────────
-    path("templates/",                 TemplateListCreateView.as_view(), name="template-list"),
-    path("templates/<int:pk>/",        TemplateDetailView.as_view(),     name="template-detail"),
-    path("templates/<int:pk>/submit/", TemplateSubmitView.as_view(),     name="template-submit"),
-    path("templates/sync/",            TemplateSyncView.as_view(),       name="template-sync"),
+    path("contacts/", ContactListView.as_view()),
+    path("contacts/<int:pk>/unsubscribe/", ContactUnsubscribeView.as_view()),
 
-    # ── Automations ────────────────────────────────────────────────────────
-    path("automations/",                 AutomationListCreateView.as_view(), name="automation-list"),
-    path("automations/<int:pk>/",        AutomationDetailView.as_view(),     name="automation-detail"),
-    path("automations/<int:pk>/toggle/", AutomationToggleView.as_view(),     name="automation-toggle"),
+    path("segments/", SegmentListView.as_view()),
+    path("quick-replies/", QuickReplyListView.as_view()),
 
-    # ── Broadcasts ─────────────────────────────────────────────────────────
-    path("broadcasts/",                 BroadcastListCreateView.as_view(), name="broadcast-list"),
-    path("broadcasts/<int:pk>/",        BroadcastDetailView.as_view(),     name="broadcast-detail"),
-    path("broadcasts/<int:pk>/send/",   BroadcastSendView.as_view(),       name="broadcast-send"),
-    path("broadcasts/<int:pk>/pause/",  BroadcastPauseView.as_view(),      name="broadcast-pause"),
-    path("broadcasts/<int:pk>/stats/",  BroadcastStatsView.as_view(),      name="broadcast-stats"),
+    path("analytics/summary/", AnalyticsSummaryView.as_view()),
+    path("analytics/series/", AnalyticsSeriesView.as_view()),
+    path("analytics/cost-breakdown/", AnalyticsCostView.as_view()),
+    path("analytics/funnel/", AnalyticsFunnelView.as_view()),
+    path("analytics/agents/", AnalyticsAgentsView.as_view()),
+    path("analytics/commerce/", AnalyticsCommerceView.as_view()),
 
-    # ── Contacts ───────────────────────────────────────────────────────────
-    path("contacts/",                     ContactListView.as_view(),        name="contact-list"),
-    path("contacts/<int:pk>/",            ContactDetailView.as_view(),      name="contact-detail"),
-    path("contacts/<int:pk>/unsubscribe/",ContactUnsubscribeView.as_view(), name="contact-unsubscribe"),
+    path("billing/summary/", BillingSummaryView.as_view()),
+    path("billing/invoices/", BillingInvoicesView.as_view()),
 
-    # ── Analytics ──────────────────────────────────────────────────────────
-    path("analytics/summary/",        AnalyticsSummaryView.as_view(), name="analytics-summary"),
-    path("analytics/series/",         AnalyticsSeriesView.as_view(),  name="analytics-series"),
-    path("analytics/cost-breakdown/", CostBreakdownView.as_view(),    name="analytics-cost-breakdown"),
+    path("webhooks/events/", WebhookEventListView.as_view()),
+    path("webhooks/events/<int:pk>/replay/", WebhookEventReplayView.as_view()),
+    path("webhooks/receive/", WhatsAppWebhookReceiver.as_view()),
 
-    # ── Billing ────────────────────────────────────────────────────────────
-    path("billing/summary/", BillingSummaryView.as_view(), name="billing-summary"),
-    path("billing/refresh/", BillingRefreshView.as_view(), name="billing-refresh"),
+    path("bot/flow/", BotFlowView.as_view()),
+    path("bot/flow/publish/", BotFlowPublishView.as_view()),
 ]

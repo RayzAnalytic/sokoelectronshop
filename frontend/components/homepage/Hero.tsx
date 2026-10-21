@@ -26,12 +26,8 @@ export default function Hero() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
 
-    // Deduplicate impression pings per slide id — the carousel rotates
-    // back to the same slide, but the impression counter should bump
-    // once per real user visit. Re-mounting (page refresh) resets this.
     const seenImpressions = useRef<Set<number>>(new Set());
 
-    // ── Load slides from the API on mount ─────────────────────────────────
     useEffect(() => {
         const ctrl = new AbortController();
         let cancelled = false;
@@ -42,8 +38,6 @@ export default function Hero() {
                 if (!cancelled) setSlides(rows);
             })
             .catch(() => {
-                // Silent — a broken hero shouldn't take down the whole page.
-                // The section simply renders nothing (see `if (!slides.length)`).
                 if (!cancelled) setSlides([]);
             })
             .finally(() => {
@@ -56,7 +50,6 @@ export default function Hero() {
         };
     }, []);
 
-    // ── Auto-advance ──────────────────────────────────────────────────────
     useEffect(() => {
         if (isPaused || slides.length < 2) return;
         const t = setInterval(() => {
@@ -65,18 +58,15 @@ export default function Hero() {
         return () => clearInterval(t);
     }, [isPaused, slides.length]);
 
-    // ── Keep index in range when slides change ────────────────────────────
     useEffect(() => {
         if (currentIndex >= slides.length) setCurrentIndex(0);
     }, [slides.length, currentIndex]);
 
-    // ── Fire impression ping on slide rotation (fire-and-forget) ──────────
     useEffect(() => {
         const slide = slides[currentIndex];
         if (!slide) return;
         if (seenImpressions.current.has(slide.id)) return;
         seenImpressions.current.add(slide.id);
-        // Never await; a dropped ping must never surface to the customer.
         bannersApi.track(slide.id, 'impression').catch(() => { });
     }, [currentIndex, slides]);
 
@@ -85,7 +75,6 @@ export default function Hero() {
     const handleNext = () =>
         setCurrentIndex((i) => (i + 1) % slides.length);
 
-    // ── CTA click tracking ────────────────────────────────────────────────
     const handleCtaClick = useCallback(
         (slideId: number) => {
             bannersApi.track(slideId, 'click').catch(() => { });
@@ -93,12 +82,11 @@ export default function Hero() {
         [],
     );
 
-    // ── Skeleton while loading, or when no active banners ─────────────────
     if (loading) {
         return (
             <section className="bg-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-                    <div className="rounded-3xl bg-slate-100 animate-pulse aspect-[16/7]" />
+                    <div className="rounded-2xl sm:rounded-3xl bg-slate-100 animate-pulse aspect-[16/10] sm:aspect-[16/7]" />
                 </div>
             </section>
         );
@@ -108,7 +96,6 @@ export default function Hero() {
 
     const currentSlide = slides[currentIndex];
 
-    // Overlay per slide — driven by the admin design tab
     const overlayBg = (() => {
         const o = currentSlide.overlay_opacity / 100;
         switch (currentSlide.overlay_style) {
@@ -129,10 +116,9 @@ export default function Hero() {
 
     return (
         <section className="bg-white">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-                {/* ── The inset hero card ── */}
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-6 py-4 sm:py-6 lg:py-6">
                 <div
-                    className="relative bg-slate-950 overflow-hidden rounded-3xl border border-slate-200"
+                    className="relative bg-slate-950 overflow-hidden rounded-lg sm:rounded-lg lg:rounded-lg border border-slate-200"
                     onMouseEnter={() => setIsPaused(true)}
                     onMouseLeave={() => setIsPaused(false)}
                 >
@@ -149,13 +135,13 @@ export default function Hero() {
                                 <picture>
                                     {slide.mobile_image && (
                                         <source
-                                            media="(max-width: 640px)"
+                                            media="(max-width: 660px)"
                                             srcSet={slide.mobile_image}
                                         />
                                     )}
                                     {slide.tablet_image && (
                                         <source
-                                            media="(max-width: 1024px)"
+                                            media="(max-width: 1044px)"
                                             srcSet={slide.tablet_image}
                                         />
                                     )}
@@ -179,15 +165,15 @@ export default function Hero() {
                     </div>
 
                     {/* ── Content ── */}
-                    <div className="relative z-20 px-6 sm:px-10 py-10 lg:py-14">
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                            <div className="lg:col-span-8 space-y-5">
+                    <div className="relative z-20 px-4 sm:px-10 py-6 sm:py-10 lg:py-14">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
+                            <div className="lg:col-span-8 space-y-3 sm:space-y-5">
                                 {/* Eyebrow */}
                                 {currentSlide.badge && (
                                     <span
-                                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-sm ${isLight
-                                            ? 'bg-slate-900 text-white'
-                                            : 'bg-white text-slate-900'
+                                        className={`inline-flex items-center gap-1.5 text-[11px] sm:text-[13px] font-medium px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-sm ${isLight
+                                            ? 'text-white'
+                                            : 'text-slate-100'
                                             }`}
                                     >
                                         {currentSlide.badge}
@@ -196,20 +182,20 @@ export default function Hero() {
 
                                 {/* Headline */}
                                 <h1
-                                    className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.15] ${textColor}`}
+                                    className={`text-[22px] sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.15] ${textColor}`}
                                 >
                                     {currentSlide.headline}
                                 </h1>
 
                                 {/* Description */}
                                 <p
-                                    className={`text-sm sm:text-base max-w-xl leading-relaxed ${subColor}`}
+                                    className={`text-[13px] sm:text-base max-w-md sm:max-w-xl leading-relaxed ${subColor}`}
                                 >
                                     {currentSlide.description}
                                 </p>
 
                                 {/* CTAs */}
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 pt-1 sm:pt-2">
                                     {currentSlide.primary_cta_text && (
                                         <Link
                                             href={currentSlide.primary_cta_href || '#'}
@@ -231,21 +217,21 @@ export default function Hero() {
                                     )}
                                 </div>
 
-                                {/* Guarantees */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-4 max-w-xl">
+                                {/* Guarantees — 3-across even on mobile */}
+                                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-3 sm:pt-4 max-w-xl">
                                     {guarantees.map(({ icon: Icon, label, sub }) => (
                                         <div
                                             key={label}
-                                            className="flex items-center gap-2 rounded-sm px-2.5 py-2"
+                                            className="flex items-center gap-1.5 sm:gap-2 rounded-sm px-1 sm:px-2.5 py-1.5 sm:py-2"
                                         >
-                                            <div className="p-1.5 rounded-sm shrink-0">
-                                                <Icon className="w-3 h-3 text-blue-100" />
+                                            <div className="p-1 sm:p-1.5 rounded-sm shrink-0">
+                                                <Icon className="w-3 h-3 sm:w-3 sm:h-3 text-blue-100" />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-[11px] font-semibold text-slate-100 leading-tight truncate">
+                                                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-100 leading-tight truncate">
                                                     {label}
                                                 </p>
-                                                <p className="text-[10px] text-slate-100 leading-tight truncate mt-0.5">
+                                                <p className="text-[9px] sm:text-[10px] text-slate-100 leading-tight truncate mt-0.5">
                                                     {sub}
                                                 </p>
                                             </div>
@@ -256,17 +242,17 @@ export default function Hero() {
                         </div>
 
                         {/* ── Controls ── */}
-                        <div className="flex flex-col sm:flex-row items-center justify-between mt-8 pt-6 border-t border-white/10 z-20 relative">
+                        <div className="flex flex-col sm:flex-row items-center justify-between mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/10 z-20 relative gap-3 sm:gap-0">
                             {/* Dots */}
-                            <div className="flex items-center gap-2 mb-4 sm:mb-0">
+                            <div className="flex items-center gap-1.5 sm:gap-2">
                                 {slides.map((slide, index) => (
                                     <button
                                         key={slide.id}
                                         type="button"
                                         onClick={() => setCurrentIndex(index)}
                                         className={`h-1.5 rounded-full transition-all duration-300 ${currentIndex === index
-                                            ? 'w-7 bg-white'
-                                            : 'w-2.5 bg-white/40 hover:bg-white/70'
+                                            ? 'w-6 sm:w-7 bg-white'
+                                            : 'w-2 sm:w-2.5 bg-white/40 hover:bg-white/70'
                                             }`}
                                         aria-label={`Go to slide ${index + 1}`}
                                     />
@@ -278,18 +264,18 @@ export default function Hero() {
                                 <button
                                     type="button"
                                     onClick={handlePrev}
-                                    className="bg-white hover:bg-slate-100 text-slate-900 p-2 rounded-sm transition-colors"
+                                    className="bg-white hover:bg-slate-100 text-slate-900 p-1.5 sm:p-2 rounded-full transition-colors"
                                     aria-label="Previous slide"
                                 >
-                                    <ChevronLeft className="w-4 h-4" />
+                                    <ChevronLeft className="w-5 h-5 sm:w-7 sm:h-7" />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleNext}
-                                    className="bg-white hover:bg-slate-100 text-slate-900 p-2 rounded-sm transition-colors"
+                                    className="bg-white hover:bg-slate-100 text-slate-900 p-1.5 sm:p-2 rounded-full transition-colors"
                                     aria-label="Next slide"
                                 >
-                                    <ChevronRight className="w-4 h-4" />
+                                    <ChevronRight className="w-5 h-5 sm:w-7 sm:h-7" />
                                 </button>
                             </div>
                         </div>

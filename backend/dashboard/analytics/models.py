@@ -2,12 +2,6 @@ from django.db import models
 
 
 class AnalyticsCache(models.Model):
-    """Cached JSON payload for a (tab, range) pair.
-
-    Same shape as dashboard.reports.ReportCache — one cache per analytics
-    sub-tab (traffic / sales / customers / products / channels).
-    """
-
     TAB_CHOICES = [
         ("traffic", "Traffic"),
         ("sales", "Sales"),
@@ -32,12 +26,6 @@ class AnalyticsCache(models.Model):
 
 
 class PageView(models.Model):
-    """One row per storefront page view. Populated by PageViewMiddleware.
-
-    Used for real device breakdown, real pageview counts, and (later)
-    real funnel tracking.
-    """
-
     DEVICE_CHOICES = [
         ("mobile", "Mobile"),
         ("desktop", "Desktop"),

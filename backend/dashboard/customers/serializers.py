@@ -1,22 +1,3 @@
-"""
-DRF serializers. Two directions:
-
-  OUTBOUND — what the admin page reads. Field names match the
-             frontend's TypeScript interfaces exactly.
-
-  INBOUND  — small, focused payloads for actions (block, notes,
-             messages).
-
-NOTE on `dateJoined`:
-    `User.date_joined` is a `DateTimeField`. DRF's `DateField` refuses
-    to coerce a datetime to a date because it would silently drop
-    timezone information — it raises an `AssertionError` at serialization
-    time. Both the list and detail serializers therefore use a
-    `SerializerMethodField` that formats the datetime explicitly with
-    `.date().isoformat()`, which is the `YYYY-MM-DD` shape the frontend
-    expects.
-"""
-
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -36,11 +17,7 @@ from .models import CommunicationLog, CustomerNote, SupportTicket
 User = get_user_model()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Mapping helpers
-# ─────────────────────────────────────────────────────────────────────────────
 def _map_status(user_status: str) -> str:
-    """User.SUSPENDED → Blocked. Everything else → Active."""
     return (
         CustomerStatus.BLOCKED
         if user_status == "SUSPENDED"
@@ -68,12 +45,6 @@ def _display_name(user) -> str:
 
 
 def _location_from_default_address(user) -> str:
-    """
-    Derive a display location from the customer's default address.
-
-    Returns "" when the customer has no address yet — the frontend
-    already handles empty strings gracefully.
-    """
     addr = (
         Address.objects
         .filter(user_id=user.pk)
@@ -86,9 +57,6 @@ def _location_from_default_address(user) -> str:
     return ", ".join(parts)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# List serializer — one row of the table
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerListSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source="pk", read_only=True)
     name = serializers.SerializerMethodField()
@@ -122,8 +90,6 @@ class CustomerListSerializer(serializers.ModelSerializer):
         return _display_name(obj)
 
     def get_avatar(self, obj):
-        # No avatar field exists on User. Return empty string — the
-        # frontend falls back to initials when this is falsy.
         return ""
 
     def get_location(self, obj):
@@ -157,9 +123,6 @@ class CustomerListSerializer(serializers.ModelSerializer):
         return p.segment if p else CustomerSegment.REGULAR
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Nested read serializers
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerOrderSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source="reference", read_only=True)
     orderNumber = serializers.CharField(source="reference", read_only=True)
@@ -319,9 +282,6 @@ class CustomerCommunicationSerializer(serializers.ModelSerializer):
         return obj.created_at.strftime("%Y-%m-%d %H:%M")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detail serializer — the full Customer object
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerDetailSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source="pk", read_only=True)
     name = serializers.SerializerMethodField()
@@ -403,7 +363,6 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
     def get_marketingConsent(self, obj):
         return _map_consent(obj)
 
-    # ── Nested collections ─────────────────────────────────────────────
     def get_orders(self, obj):
         qs = (
             Order.objects
@@ -439,9 +398,6 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         ).data
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Inbound action serializers
-# ─────────────────────────────────────────────────────────────────────────────
 class BlockCustomerSerializer(serializers.Serializer):
     blocked = serializers.BooleanField()
 

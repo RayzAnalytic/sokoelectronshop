@@ -93,6 +93,7 @@ class UnsubscribeThrottle(AnonRateThrottle):
 # POST /api/v1/newsletter/subscribe/
 # ─────────────────────────────────────────────────────────────────────────────
 class SubscribeView(APIView):
+    permission_classes = [AllowAny]
     """
     Idempotent public signup endpoint.
 
@@ -201,6 +202,7 @@ class SubscribeView(APIView):
 # POST /api/v1/newsletter/unsubscribe/
 # ─────────────────────────────────────────────────────────────────────────────
 class UnsubscribeView(APIView):
+    permission_classes = [AllowAny]
     """
     Programmatic unsubscribe for the storefront.
 
@@ -252,6 +254,7 @@ class UnsubscribeView(APIView):
 # GET /api/v1/newsletter/unsubscribe/<uuid:token>/
 # ─────────────────────────────────────────────────────────────────────────────
 class UnsubscribeLinkView(APIView):
+    permission_classes = [AllowAny]
     """
     One-click unsubscribe target used in the footer of every campaign
     email. Renders an HTML confirmation card instead of JSON so the

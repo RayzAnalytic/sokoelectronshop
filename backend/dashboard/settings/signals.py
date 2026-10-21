@@ -17,6 +17,8 @@ The `user_logged_in` handler is intentionally not tied to any settings
 model — it lives here because the settings app already owns LoginEvent.
 """
 
+import logging
+
 from django.contrib.auth.signals import user_logged_in
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
@@ -44,6 +46,9 @@ from .models import (
     LoginEvent,
 )
 from .services import invalidate_settings_cache
+
+
+logger = logging.getLogger(__name__)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -91,13 +96,26 @@ def _on_settings_deleted(sender, **kwargs):
 
 @receiver(user_logged_in, dispatch_uid="settings_record_login")
 def _record_login(sender, request, user, **kwargs):
-    ua = request.META.get("HTTP_USER_AGENT", "")[:200]
-    LoginEvent.objects.create(
-        user=user,
-        ip_address=request.META.get("REMOTE_ADDR"),
-        user_agent=ua,
-        device_label=_short_device(ua),
-    )
+    """
+    Persist a LoginEvent for every successful authentication.
+
+    Wrapped in try/except because this runs *during* the login flow —
+    if the DB write fails (missing column, constraint violation,
+    migration drift), we must NOT 500 the user's login. We log the
+    error and let them in.
+    """
+    try:
+        ua = request.META.get("HTTP_USER_AGENT", "")[:200]
+        LoginEvent.objects.create(
+            user=user,
+            ip_address=request.META.get("REMOTE_ADDR"),
+            user_agent=ua,
+            device_label=_short_device(ua),
+        )
+    except Exception:
+        logger.exception(
+            "Failed to record LoginEvent for user=%s", getattr(user, "pk", None)
+        )
 
 
 def _short_device(ua: str) -> str:

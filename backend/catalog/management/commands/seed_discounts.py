@@ -4,13 +4,6 @@ Seed the Discount table from the frontend's data/discounts.ts.
 Usage:
     python manage.py seed_discounts
     python manage.py seed_discounts --clear
-
-Depends on:
-    * Categories seeded by `seed_catalog`
-    * Products seeded by `seed_catalog`
-
-Missing linked products or categories are logged and skipped — the
-discount is still created, just without that link.
 """
 from __future__ import annotations
 
@@ -31,17 +24,10 @@ from catalog.models import (
 )
 
 
-# Default source for every seed row. Real "campaign" or "clearance"
-# rows are tagged explicitly in the entry below.
 DEFAULT_SOURCE = DiscountSource.CAMPAIGN
 
 
 DISCOUNTS = [
-    # ═══════════════════════════════════════════════════════════════════════
-    # 1 – 11  (existing)
-    # ═══════════════════════════════════════════════════════════════════════
-
-    # ── 1. TV & Home Entertainment Week ──────────────────────────────
     {
         "code": "TVWEEK15",
         "description": "15% off all Smart TVs and home entertainment displays",
@@ -67,8 +53,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["TVs"],
     },
-
-    # ── 2. Laptop Power Days ─────────────────────────────────────────
     {
         "code": "LAPTOP20",
         "description": "20% off premium workstations and ultrabooks",
@@ -94,8 +78,6 @@ DISCOUNTS = [
         "linked_product_ids": ["prod_39xka1", "prd_new_01", "prd_new_08"],
         "linked_categories": [],
     },
-
-    # ── 3. Audio Blowout ─────────────────────────────────────────────
     {
         "code": "AUDIO25",
         "description": "25% off premium headphones and portable speakers",
@@ -121,8 +103,6 @@ DISCOUNTS = [
         "linked_product_ids": ["prod_72ndbc", "prod_66plmw", "prd_new_05"],
         "linked_categories": [],
     },
-
-    # ── 4. Phone & Mobile Deals ──────────────────────────────────────
     {
         "code": "PHONE10",
         "description": "10% off flagship smartphones and mobile accessories",
@@ -148,8 +128,6 @@ DISCOUNTS = [
         "linked_product_ids": ["prod_91klas", "prd_new_02"],
         "linked_categories": [],
     },
-
-    # ── 5. Gaming Accessories Deal ───────────────────────────────────
     {
         "code": "GAME15",
         "description": "15% off gaming controllers and accessories",
@@ -175,8 +153,6 @@ DISCOUNTS = [
         "linked_product_ids": ["prod_54gmrx"],
         "linked_categories": [],
     },
-
-    # ── 6. Welcome Voucher ───────────────────────────────────────────
     {
         "code": "WELCOME500",
         "description": "New buyer welcome voucher — KES 500 off your first order",
@@ -202,8 +178,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 7. Networking Essentials ─────────────────────────────────────
     {
         "code": "NETGEAR12",
         "description": "12% off routers and networking equipment",
@@ -229,8 +203,6 @@ DISCOUNTS = [
         "linked_product_ids": ["prod_21tpac"],
         "linked_categories": [],
     },
-
-    # ── 8. Wearables Week ────────────────────────────────────────────
     {
         "code": "WEAR20",
         "description": "20% off fitness trackers and wearable tech",
@@ -256,8 +228,6 @@ DISCOUNTS = [
         "linked_product_ids": ["prod_88smrt"],
         "linked_categories": [],
     },
-
-    # ── 9. Heritage Day Sale (scheduled) ─────────────────────────────
     {
         "code": "HERITAGEDAY2026",
         "description": "Scheduled national holiday promotion across select categories",
@@ -283,8 +253,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Smartphones", "Audio"],
     },
-
-    # ── 10. Free shipping (hidden) ───────────────────────────────────
     {
         "code": "FREESHIPNAIROBI",
         "description": "Free doorstep delivery for regional orders over KES 3,500",
@@ -310,8 +278,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 11. Summer clearance (expired) ───────────────────────────────
     {
         "code": "SUMMERBLOWOUT",
         "description": "Expired seasonal clearance on portable audio",
@@ -337,12 +303,6 @@ DISCOUNTS = [
         "linked_product_ids": ["prod_66plmw"],
         "linked_categories": [],
     },
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # 12 – 30  (new)
-    # ═══════════════════════════════════════════════════════════════════════
-
-    # ── 12. Smart Home Sale ──────────────────────────────────────────
     {
         "code": "SMARTHOME18",
         "description": "18% off smart home devices, hubs, and sensors",
@@ -368,8 +328,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Networking", "Accessories"],
     },
-
-    # ── 13. Accessories Bundle ──────────────────────────────────────
     {
         "code": "BUNDLEACCESS30",
         "description": "Buy 2 accessories, get 30% off the cheaper one",
@@ -395,8 +353,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Accessories", "Gaming"],
     },
-
-    # ── 14. Speaker Flash Sale ──────────────────────────────────────
     {
         "code": "SPEAKERFLASH",
         "description": "Flash sale — 35% off all Bluetooth and portable speakers",
@@ -422,8 +378,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Speakers"],
     },
-
-    # ── 15. BOGO Gaming ─────────────────────────────────────────────
     {
         "code": "BOGOGAME",
         "description": "Buy one gaming controller, get the second free",
@@ -449,8 +403,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Gaming"],
     },
-
-    # ── 16. Tiered Electronics ──────────────────────────────────────
     {
         "code": "TIEREDELECTRO",
         "description": "Spend KES 100K get 10%, KES 200K get 15%, KES 300K get 20%",
@@ -476,8 +428,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 17. Midnight Madness ────────────────────────────────────────
     {
         "code": "MIDNIGHT25",
         "description": "Midnight madness — 25% off during 10 PM – 2 AM only",
@@ -503,8 +453,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 18. New Customer Welcome ────────────────────────────────────
     {
         "code": "NEWCUST15",
         "description": "15% off first purchase for new customers",
@@ -530,8 +478,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 19. VIP Loyalty Reward ──────────────────────────────────────
     {
         "code": "VIPLOYAL20",
         "description": "20% off for repeat customers with 3+ orders",
@@ -557,8 +503,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 20. TikTok Launch Promo ────────────────────────────────────
     {
         "code": "TIKTOKLAUNCH",
         "description": "TikTok launch exclusive — 22% off selected audio gear",
@@ -585,8 +529,6 @@ DISCOUNTS = [
         "linked_categories": ["Audio"],
         "channels": ["TikTok"],
     },
-
-    # ── 21. WhatsApp Exclusive ─────────────────────────────────────
     {
         "code": "WAEXCLUSIVE10",
         "description": "WhatsApp subscriber exclusive — 10% off any order",
@@ -613,8 +555,6 @@ DISCOUNTS = [
         "linked_categories": [],
         "channels": ["WhatsApp"],
     },
-
-    # ── 22. Back to School ─────────────────────────────────────────
     {
         "code": "BACKTOSCHOOL",
         "description": "Back-to-school savings — 12% off laptops and accessories",
@@ -640,8 +580,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Laptops", "Accessories"],
     },
-
-    # ── 23. Weekend Special ────────────────────────────────────────
     {
         "code": "WEEKEND10",
         "description": "Weekend-only — 10% off every Saturday and Sunday",
@@ -667,8 +605,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 24. Clearance — Old Monitors ───────────────────────────────
     {
         "code": "CLEAR-MONITORS",
         "description": "Clearance — 40% off slow-moving display inventory",
@@ -698,8 +634,6 @@ DISCOUNTS = [
         "is_clearance": True,
         "expires_when_sold_out": True,
     },
-
-    # ── 25. Bulk Buy Savings ───────────────────────────────────────
     {
         "code": "BULKBUY15",
         "description": "Buy 5+ items, save 15% on the order",
@@ -725,8 +659,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": [],
     },
-
-    # ── 26. Premium Headphones ─────────────────────────────────────
     {
         "code": "PREMIUMAUDIO1500",
         "description": "KES 1,500 off premium headphones over KES 20,000",
@@ -752,8 +684,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Audio"],
     },
-
-    # ── 27. Smartphone Upgrade ─────────────────────────────────────
     {
         "code": "UPGRADE18",
         "description": "18% off smartphones when you trade in your old device",
@@ -779,8 +709,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Smartphones"],
     },
-
-    # ── 28. Gaming Bundle ─────────────────────────────────────────
     {
         "code": "GAMINGBUNDLE",
         "description": "Buy a gaming monitor + controller, save KES 3,000",
@@ -806,8 +734,6 @@ DISCOUNTS = [
         "linked_product_ids": [],
         "linked_categories": ["Gaming", "TVs"],
     },
-
-    # ── 29. Free Shipping over 10K ─────────────────────────────────
     {
         "code": "FREESHIP10K",
         "description": "Free nationwide delivery on orders above KES 10,000",
@@ -834,8 +760,6 @@ DISCOUNTS = [
         "linked_categories": [],
         "channels": ["Website", "WhatsApp"],
     },
-
-    # ── 30. End-of-Month Blowout ───────────────────────────────────
     {
         "code": "EOMBLOWOUT",
         "description": "End-of-month blowout — 28% off selected electronics",
@@ -865,7 +789,6 @@ DISCOUNTS = [
 
 
 def _parse_dt(value):
-    """Parse 'YYYY-MM-DD HH:MM' or ISO-8601 into an aware datetime."""
     if not value:
         return None
     s = value.replace(" ", "T").replace("Z", "+00:00")
@@ -924,8 +847,6 @@ class Command(BaseCommand):
                 "deal_title": entry["deal_title"],
                 "badge_text": entry["badge_text"],
                 "priority": entry["priority"],
-
-                # ── Extended model fields (defaults per row, overridable) ──
                 "source": entry.get("source", DEFAULT_SOURCE),
                 "is_automatic": entry.get("is_automatic", False),
                 "is_clearance": entry.get("is_clearance", False),

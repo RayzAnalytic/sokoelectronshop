@@ -1,23 +1,10 @@
-"""
-Admin endpoints for the Direct Orders surface.
-
-Order endpoints are a FILTERED READ over `checkout.Order` — filtered
-by `source__in=["whatsapp", "admin", "phone"]`. This app does not own
-the Order model; it presents a slice of it under a specific URL
-namespace for the TikTok Shop admin page.
-
-The `advance` action is a thin wrapper over
-`checkout.services.change_order_status`, which is the ONLY place
-`Order.status` is mutated. This view does no business logic — it maps
-HTTP to that function and sets `actor=request.user`.
-"""
 from datetime import timedelta
 import os
 import uuid
 
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum, Count
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -28,45 +15,119 @@ from rest_framework.views import APIView
 from checkout.models import Order
 from checkout.services import change_order_status
 
-from .models import Creator, ContentPost, DirectProduct, LiveSession
+from .models import (
+    AttributionLink,
+    AuditLog,
+    Automation,
+    Campaign,
+    ContentPost,
+    Coupon,
+    Creator,
+    CreatorSale,
+    Customer,
+    DeliveryZone,
+    DirectOrder,
+    DirectOrderItem,
+    DirectProduct,
+    Expense,
+    InboxConversation,
+    InboxMessage,
+    InventoryMovement,
+    LiveSession,
+    Location,
+    Notification,
+    PayoutBatch,
+    ProductVariant,
+    PurchaseOrder,
+    ReturnRequest,
+    Review,
+    Supplier,
+    TeamMember,
+)
 from .serializers import (
+    AttributionLinkSerializer,
+    AuditLogSerializer,
+    AutomationSerializer,
+    CampaignSerializer,
     ContentPostSerializer,
+    CouponSerializer,
+    CreatorSaleSerializer,
     CreatorSerializer,
+    CustomerSerializer,
+    DeliveryZoneSerializer,
+    DirectOrderReadSerializer,
     DirectOrderSerializer,
+    DirectOrderStatusSerializer,
+    DirectOrderWriteSerializer,
     DirectProductSerializer,
+    DirectProductWriteSerializer,
+    ExpenseSerializer,
+    InboxConversationSerializer,
+    InboxMessageSerializer,
+    InventoryMovementSerializer,
     LiveSessionSerializer,
-    ProductCreateSerializer,   # NEW — see serializers.py
+    LocationSerializer,
+    NotificationSerializer,
+    PayoutBatchSerializer,
+    ProductCreateSerializer,
+    ProductVariantSerializer,
+    PurchaseOrderSerializer,
+    ReturnRequestSerializer,
+    ReviewSerializer,
+    SupplierSerializer,
+    TeamMemberSerializer,
 )
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Shared queryset
-# ─────────────────────────────────────────────────────────────────────
-
 def _orders_base_qs():
-    """
-    Filter Order to the social channels only. Add new channels here
-    when a new `Order.Source` value lands (e.g. "tiktok" when TikTok
-    Shop launches in Kenya).
-    """
     return (
         Order.objects
-        .filter(source__in=["whatsapp", "admin", "phone"])
         .select_related("user")
-        .prefetch_related("items", "payments", "status_events")
+        .prefetch_related(
+            "items",
+            "payments",
+            "status_events",
+            "creator_sales__creator",
+        )
     )
 
 
-# ═════════════════════════════════════════════════════════════════════
-# File uploads — one endpoint for both images and videos
-# ═════════════════════════════════════════════════════════════════════
+def _apply_order_filters(qs, request):
+    q = (request.query_params.get("q") or "").strip()
+    if q:
+        qs = qs.filter(
+            Q(reference__icontains=q)
+            | Q(contact_email__icontains=q)
+            | Q(contact_phone__icontains=q)
+            | Q(snapshot__full_name__icontains=q)
+        )
 
-# Size limits must match the frontend (see ImageUpload / VideoUpload).
-MAX_IMAGE_BYTES = 5 * 1024 * 1024        #   5 MB
-MAX_VIDEO_BYTES = 100 * 1024 * 1024      # 100 MB
+    source = (request.query_params.get("source") or "").strip().lower()
+    if source:
+        qs = qs.filter(source=source)
 
-# Allowed mime types. Kept narrow on purpose — broader lists invite
-# SVG-based XSS on the image side and unplayable formats on video.
+    date_range = (request.query_params.get("dateRange") or "").strip()
+    now = timezone.now()
+    if date_range == "Today":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        qs = qs.filter(created_at__gte=start)
+    elif date_range == "Yesterday":
+        start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        qs = qs.filter(
+            created_at__gte=start_today - timedelta(days=1),
+            created_at__lt=start_today,
+        )
+    elif date_range == "Last 7 Days":
+        qs = qs.filter(created_at__gte=now - timedelta(days=7))
+    elif date_range == "Last 30 Days":
+        qs = qs.filter(created_at__gte=now - timedelta(days=30))
+
+    return qs
+
+
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_VIDEO_BYTES = 100 * 1024 * 1024
+
 ALLOWED_IMAGE_MIMES = {
     "image/jpeg",
     "image/png",
@@ -75,36 +136,46 @@ ALLOWED_IMAGE_MIMES = {
 }
 ALLOWED_VIDEO_MIMES = {
     "video/mp4",
-    "video/quicktime",   # .mov
+    "video/quicktime",
     "video/webm",
 }
 
 
+def _paginate(qs, request, default_limit=500):
+    try:
+        limit = int(request.query_params.get("limit") or default_limit)
+    except (TypeError, ValueError):
+        limit = default_limit
+    limit = max(1, min(limit, 1000))
+
+    try:
+        offset = int(request.query_params.get("offset") or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    offset = max(0, offset)
+
+    total = qs.count()
+    rows = qs[offset : offset + limit]
+    return rows, total, limit, offset
+
+
+def _paginated_response(serializer_cls, qs, request, **serializer_kwargs):
+    rows, total, limit, offset = _paginate(qs, request)
+    data = serializer_cls(
+        rows, many=True, context={"request": request}, **serializer_kwargs,
+    ).data
+    return Response(
+        {
+            "results": data,
+            "count": total,
+            "limit": limit,
+            "offset": offset,
+            "hasMore": offset + limit < total,
+        }
+    )
+
+
 class UploadView(APIView):
-    """
-    POST /api/v1/dashboard/direct-orders/uploads/
-    multipart/form-data:
-        file: <binary>
-        kind: "image" | "video"
-
-    Response:
-        200 { "url": "https://cdn.example.com/uploads/images/abc.jpg" }
-
-    Storage:
-        Uses Django's `default_storage`, which is `FileSystemStorage` in
-        dev and S3 / Cloudinary / GCS in production if you've configured
-        it. No hardcoded paths.
-
-    Validation:
-        - `kind` must be exactly "image" or "video".
-        - Mime type must be in the allow-list for that kind.
-        - File size must be under the per-kind cap.
-
-    Failure modes:
-        - 400 for missing/invalid input (frontend shows the error and
-          keeps a local data-URL preview so the form stays usable).
-        - 500 for storage errors (frontend shows the same fallback).
-    """
     permission_classes = [IsAdminUser]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -124,7 +195,6 @@ class UploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Size ──
         if kind == "image" and upload.size > MAX_IMAGE_BYTES:
             return Response(
                 {"detail": "Image must be smaller than 5 MB."},
@@ -136,7 +206,6 @@ class UploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Mime type ──
         content_type = (upload.content_type or "").lower()
         allowed = ALLOWED_IMAGE_MIMES if kind == "image" else ALLOWED_VIDEO_MIMES
         if content_type not in allowed:
@@ -145,24 +214,20 @@ class UploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Save ──
-        #
-        # Namespaced by kind so the media bucket stays navigable, and
-        # suffixed with a UUID so two files called "photo.jpg" don't
-        # clobber each other.
         ext = os.path.splitext(upload.name)[1].lower() or self._default_ext(content_type)
         key = f"direct-orders/{kind}s/{uuid.uuid4().hex}{ext}"
 
         try:
             saved_path = default_storage.save(key, upload)
-            url = default_storage.url(saved_path)
-        except Exception as exc:  # noqa: BLE001 — surface as 500 to the client
+            relative = default_storage.url(saved_path)
+            absolute = request.build_absolute_uri(relative)
+        except Exception as exc:
             return Response(
                 {"detail": f"Storage error: {exc}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response({"url": url}, status=status.HTTP_200_OK)
+        return Response({"url": absolute}, status=status.HTTP_200_OK)
 
     @staticmethod
     def _default_ext(content_type: str) -> str:
@@ -177,45 +242,36 @@ class UploadView(APIView):
         }.get(content_type, "")
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Orders
-# ─────────────────────────────────────────────────────────────────────
-
-class DirectOrderListView(APIView):
-    """
-    GET /api/v1/dashboard/direct-orders/orders/
-
-    Query params (all optional):
-        q         — free-text search: reference, contact_email, contact_phone
-        source    — "whatsapp" | "admin" | "phone"
-        dateRange — "Today" | "Yesterday" | "Last 7 Days" | "Last 30 Days"
-        status    — frontend display status label ("Paid", "Shipped", …)
-
-    The `status` filter is applied in Python because the display status
-    is derived from two axes and has no DB column. For small result
-    sets this is fine. If the list grows past ~10k rows, denormalize a
-    `display_status` column on `Order` and filter in the DB.
-    """
+class DirectOrderListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        qs = _orders_base_qs().order_by("-created_at")
+        qs = (
+            DirectOrder.objects
+            .prefetch_related("items")
+            .select_related("creator", "customer")
+            .order_by("-created_at")
+        )
 
         q = (request.query_params.get("q") or "").strip()
         if q:
             qs = qs.filter(
                 Q(reference__icontains=q)
-                | Q(contact_email__icontains=q)
-                | Q(contact_phone__icontains=q)
-                | Q(snapshot__full_name__icontains=q)
+                | Q(customer_name__icontains=q)
+                | Q(customer_phone__icontains=q)
+                | Q(customer_email__icontains=q)
             )
 
         source = (request.query_params.get("source") or "").strip().lower()
-        if source in {"whatsapp", "admin", "phone"}:
+        if source:
             qs = qs.filter(source=source)
 
-        date_range = (request.query_params.get("dateRange") or "").strip()
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
         now = timezone.now()
+        date_range = (request.query_params.get("dateRange") or "").strip()
         if date_range == "Today":
             start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             qs = qs.filter(created_at__gte=start)
@@ -230,48 +286,134 @@ class DirectOrderListView(APIView):
         elif date_range == "Last 30 Days":
             qs = qs.filter(created_at__gte=now - timedelta(days=30))
 
-        # Hard cap. Swap to DRF pagination when the list justifies it.
-        rows = DirectOrderSerializer(qs[:500], many=True).data
+        return _paginated_response(DirectOrderReadSerializer, qs, request)
+
+    def post(self, request):
+        ser = DirectOrderWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        order = ser.save()
+        return Response(
+            DirectOrderReadSerializer(
+                order, context={"request": request},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class DirectOrderDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, reference):
+        return (
+            DirectOrder.objects
+            .select_related("creator", "customer")
+            .prefetch_related("items")
+            .filter(reference=reference)
+            .first()
+        )
+
+    def get(self, request, reference):
+        order = self._get(reference)
+        if not order:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(
+            DirectOrderReadSerializer(
+                order, context={"request": request},
+            ).data,
+        )
+
+    def patch(self, request, reference):
+        order = self._get(reference)
+        if not order:
+            return Response({"detail": "Not found."}, status=404)
+        ser = DirectOrderWriteSerializer(order, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(
+            DirectOrderReadSerializer(
+                order, context={"request": request},
+            ).data,
+        )
+
+    def delete(self, request, reference):
+        order = self._get(reference)
+        if order:
+            order.delete()
+        return Response(status=204)
+
+
+class DirectOrderStatusAdvanceView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, reference):
+        order = DirectOrder.objects.filter(reference=reference).first()
+        if not order:
+            return Response({"detail": "Not found."}, status=404)
+
+        ser = DirectOrderStatusSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        next_status = ser.validated_data["status"]
+
+        order.status = next_status
+
+        if next_status in {"Paid", "Awaiting Shipment", "Shipped", "Delivered"}:
+            order.payment_status = "paid"
+        elif next_status in {"Cancelled", "Returned"}:
+            order.payment_status = "refunded"
+
+        if next_status == "Delivered" and order.delivered_at is None:
+            order.delivered_at = timezone.now()
+
+        order.save(
+            update_fields=[
+                "status", "payment_status", "delivered_at", "updated_at",
+            ]
+        )
+        return Response(
+            DirectOrderReadSerializer(
+                order, context={"request": request},
+            ).data,
+        )
+
+
+class CheckoutOrderListView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = _orders_base_qs().order_by("-created_at")
+        qs = _apply_order_filters(qs, request)
 
         status_filter = (request.query_params.get("status") or "").strip()
+
+        rows = DirectOrderSerializer(
+            qs[:500],
+            many=True,
+            context={"request": request},
+        ).data
+
         if status_filter:
             rows = [r for r in rows if r["status"] == status_filter]
 
         return Response(rows)
 
 
-class DirectOrderDetailView(APIView):
-    """GET /api/v1/dashboard/direct-orders/orders/<reference>/"""
-
+class CheckoutOrderDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request, reference):
         order = _orders_base_qs().filter(reference=reference).first()
         if not order:
             return Response({"detail": "Not found."}, status=404)
-        return Response(DirectOrderSerializer(order).data)
+        return Response(
+            DirectOrderSerializer(
+                order, context={"request": request},
+            ).data,
+        )
 
 
-class DirectOrderAdvanceView(APIView):
-    """
-    POST /api/v1/dashboard/direct-orders/orders/<reference>/advance/
-
-    Body:
-        {
-          "next": "confirmed" | "processing" | "shipped"
-                  | "delivered" | "cancelled" | "returned",
-          "note": "optional free text"
-        }
-
-    Accepts BOTH the backend status keys and the frontend display
-    labels, so the frontend's existing advance buttons keep working
-    without a mapping table on the client. All actual logic lives in
-    `checkout.services.change_order_status` — this view is a pass-
-    through with `actor=request.user`.
-    """
+class CheckoutOrderAdvanceView(APIView):
     permission_classes = [IsAdminUser]
 
-    # Frontend label → backend status key
     FRONTEND_TO_BACKEND = {
         "New": "pending",
         "Awaiting Payment": "pending",
@@ -297,7 +439,6 @@ class DirectOrderAdvanceView(APIView):
         if not raw_next:
             return Response({"detail": "'next' is required."}, status=400)
 
-        # Accept either the display label or the backend key.
         backend_next = self.FRONTEND_TO_BACKEND.get(raw_next, raw_next.lower())
 
         if backend_next not in self.ALLOWED_BACKEND:
@@ -317,42 +458,51 @@ class DirectOrderAdvanceView(APIView):
         )
 
         order.refresh_from_db()
-        return Response(DirectOrderSerializer(order).data)
+        return Response(
+            DirectOrderSerializer(
+                order, context={"request": request},
+            ).data,
+        )
 
-
-# ─────────────────────────────────────────────────────────────────────
-# Creators
-# ─────────────────────────────────────────────────────────────────────
 
 class CreatorListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        # CHANGED: annotate commission totals to avoid N+1 on the list.
-        # Previously `commission_owed` / `commission_paid` ran one SUM
-        # query per row. Now the serializer reads the annotated values
-        # when present (see CreatorSerializer — add an `_annotated` check).
-        #
-        # If you don't want to change the serializer, drop the annotate
-        # and accept the N+1 — it's fine up to a few hundred creators.
-        from django.db.models import Sum, Q as _Q
-        qs = Creator.objects.all().annotate(
-            _commission_owed=Sum(
-                "sales__commission_amount",
-                filter=_Q(sales__paid=False),
-            ),
-            _commission_paid=Sum(
-                "sales__commission_amount",
-                filter=_Q(sales__paid=True),
-            ),
-        ).order_by("-updated_at")
+        qs = (
+            Creator.objects
+            .all()
+            .annotate(
+                _commission_owed=Sum(
+                    "sales__commission_amount",
+                    filter=Q(sales__paid=False),
+                ),
+                _commission_paid=Sum(
+                    "sales__commission_amount",
+                    filter=Q(sales__paid=True),
+                ),
+            )
+            .order_by("-updated_at")
+        )
+
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(handle__icontains=q))
+
         return Response(CreatorSerializer(qs, many=True).data)
 
     def post(self, request):
         ser = CreatorSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         creator = ser.save()
-        return Response(CreatorSerializer(creator).data, status=201)
+        return Response(
+            CreatorSerializer(creator).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class CreatorDetailView(APIView):
@@ -383,25 +533,183 @@ class CreatorDetailView(APIView):
         return Response(status=204)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Content
-# ─────────────────────────────────────────────────────────────────────
+class CreatorSaleListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = (
+            CreatorSale.objects
+            .select_related("creator", "order")
+            .order_by("-attributed_at")
+        )
+
+        creator_id = request.query_params.get("creator")
+        if creator_id:
+            qs = qs.filter(creator_id=creator_id)
+
+        paid = request.query_params.get("paid")
+        if paid is not None and paid != "":
+            qs = qs.filter(paid=paid.lower() in {"1", "true", "yes"})
+
+        return Response(CreatorSaleSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = CreatorSaleSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        sale = ser.save()
+        return Response(
+            CreatorSaleSerializer(sale).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CreatorSaleDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return (
+            CreatorSale.objects
+            .select_related("creator", "order")
+            .filter(pk=pk)
+            .first()
+        )
+
+    def get(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(CreatorSaleSerializer(s).data)
+
+    def patch(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+
+        was_paid = s.paid
+        ser = CreatorSaleSerializer(s, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+
+        if not was_paid and s.paid and s.paid_at is None:
+            s.paid_at = timezone.now()
+            s.save(update_fields=["paid_at"])
+
+        return Response(CreatorSaleSerializer(s).data)
+
+    def delete(self, request, pk):
+        s = self._get(pk)
+        if s:
+            s.delete()
+        return Response(status=204)
+
+
+class PayoutBatchListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = PayoutBatch.objects.all().order_by("-created_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(PayoutBatchSerializer(qs[:200], many=True).data)
+
+    def post(self, request):
+        ser = PayoutBatchSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        sale_ids = request.data.get("saleIds") or []
+        batch = ser.save()
+
+        if sale_ids:
+            CreatorSale.objects.filter(pk__in=sale_ids).update(payout=batch)
+            batch.recompute_totals()
+
+        return Response(
+            PayoutBatchSerializer(batch).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PayoutBatchDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return PayoutBatch.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        b = self._get(pk)
+        if not b:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(PayoutBatchSerializer(b).data)
+
+    def patch(self, request, pk):
+        b = self._get(pk)
+        if not b:
+            return Response({"detail": "Not found."}, status=404)
+
+        previous_status = b.status
+        ser = PayoutBatchSerializer(b, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+
+        if b.status == "Approved" and b.approved_at is None:
+            b.approved_at = timezone.now()
+            b.approved_by = request.user if request.user.is_authenticated else None
+            b.save(update_fields=["approved_at", "approved_by"])
+
+        if b.status == "Paid" and b.paid_at is None:
+            b.paid_at = timezone.now()
+            b.sales.update(
+                paid=True,
+                paid_at=timezone.now(),
+                payout_reference=b.reference,
+            )
+            b.save(update_fields=["paid_at"])
+
+        if previous_status != b.status:
+            AuditLog.objects.create(
+                action="payout",
+                entity="PayoutBatch",
+                entity_id=str(b.pk),
+                summary=f"{b.reference}: {previous_status} → {b.status}",
+                actor=request.user if request.user.is_authenticated else None,
+            )
+
+        return Response(PayoutBatchSerializer(b).data)
+
+    def delete(self, request, pk):
+        b = self._get(pk)
+        if b:
+            b.delete()
+        return Response(status=204)
+
 
 class ContentListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        # CHANGED: `scheduled_date` was renamed to `scheduled_at` in the
-        # model, so the ordering has to match. Using the new name keeps
-        # the "most recently scheduled first" behaviour.
         qs = ContentPost.objects.all().order_by("-scheduled_at", "-created_at")
-        return Response(ContentPostSerializer(qs, many=True).data)
+
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        return Response(
+            ContentPostSerializer(
+                qs, many=True, context={"request": request},
+            ).data,
+        )
 
     def post(self, request):
         ser = ContentPostSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         post = ser.save()
-        return Response(ContentPostSerializer(post).data, status=201)
+        return Response(
+            ContentPostSerializer(
+                post, context={"request": request},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class ContentDetailView(APIView):
@@ -414,7 +722,11 @@ class ContentDetailView(APIView):
         c = self._get(pk)
         if not c:
             return Response({"detail": "Not found."}, status=404)
-        return Response(ContentPostSerializer(c).data)
+        return Response(
+            ContentPostSerializer(
+                c, context={"request": request},
+            ).data,
+        )
 
     def patch(self, request, pk):
         c = self._get(pk)
@@ -423,7 +735,11 @@ class ContentDetailView(APIView):
         ser = ContentPostSerializer(c, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(ContentPostSerializer(c).data)
+        return Response(
+            ContentPostSerializer(
+                c, context={"request": request},
+            ).data,
+        )
 
     def delete(self, request, pk):
         c = self._get(pk)
@@ -432,22 +748,24 @@ class ContentDetailView(APIView):
         return Response(status=204)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Live sessions
-# ─────────────────────────────────────────────────────────────────────
-
 class LiveListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
         qs = LiveSession.objects.all().order_by("-scheduled_start")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
         return Response(LiveSessionSerializer(qs, many=True).data)
 
     def post(self, request):
         ser = LiveSessionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         live = ser.save()
-        return Response(LiveSessionSerializer(live).data, status=201)
+        return Response(
+            LiveSessionSerializer(live).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class LiveDetailView(APIView):
@@ -478,36 +796,48 @@ class LiveDetailView(APIView):
         return Response(status=204)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Direct products (thin wrappers over catalog.Product)
-# ─────────────────────────────────────────────────────────────────────
-
 class DirectProductListCreateView(APIView):
-    """
-    GET  — list the wrapper rows (read-only over the catalog fields).
-    POST — create a catalog.Product AND its DirectProduct wrapper in
-           one transaction, using the flat payload the AddProductModal
-           sends.
-
-    The write path used to hand the payload straight to
-    `DirectProductSerializer`, which has read-only catalog fields — so
-    `name`, `sku`, `price`, etc. were silently dropped. It now uses
-    `ProductCreateSerializer`, which fans the flat shape out into both
-    tables.
-    """
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        qs = DirectProduct.objects.select_related("product").order_by("-updated_at")
-        return Response(DirectProductSerializer(qs, many=True).data)
+        qs = (
+            DirectProduct.objects
+            .select_related("product", "product__brand", "product__category", "supplier")
+            .prefetch_related("product__images", "variants")
+            .order_by("-updated_at")
+        )
+
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(product__name__icontains=q)
+                | Q(product__sku__icontains=q)
+            )
+
+        return Response(
+            DirectProductSerializer(
+                qs, many=True, context={"request": request},
+            ).data,
+        )
 
     def post(self, request):
-        # CHANGED: use the write serializer, not the read serializer.
         ser = ProductCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         wrapper = ser.save()
+        wrapper = (
+            DirectProduct.objects
+            .select_related("product", "product__brand", "product__category", "supplier")
+            .prefetch_related("product__images", "variants")
+            .get(pk=wrapper.pk)
+        )
         return Response(
-            DirectProductSerializer(wrapper).data,
+            DirectProductSerializer(
+                wrapper, context={"request": request},
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -516,37 +846,1174 @@ class DirectProductDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def _get(self, pk):
-        return DirectProduct.objects.select_related("product").filter(pk=pk).first()
+        return (
+            DirectProduct.objects
+            .select_related("product", "product__brand", "product__category", "supplier")
+            .prefetch_related("product__images", "variants")
+            .filter(pk=pk)
+            .first()
+        )
 
     def get(self, request, pk):
         p = self._get(pk)
         if not p:
             return Response({"detail": "Not found."}, status=404)
-        return Response(DirectProductSerializer(p).data)
+        return Response(
+            DirectProductSerializer(
+                p, context={"request": request},
+            ).data,
+        )
 
     def patch(self, request, pk):
-        """
-        PATCH only touches the wrapper fields (status, viral,
-        low_stock_threshold, video_link, linked_to_website). Catalog
-        fields are read-only here by design — mutate them on the
-        catalog product endpoint instead.
-        """
         p = self._get(pk)
         if not p:
             return Response({"detail": "Not found."}, status=404)
-        ser = DirectProductSerializer(p, data=request.data, partial=True)
+        ser = DirectProductWriteSerializer(p, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(DirectProductSerializer(p).data)
+        return Response(
+            DirectProductSerializer(
+                p, context={"request": request},
+            ).data,
+        )
 
     def delete(self, request, pk):
-        """
-        Deleting the wrapper leaves the catalog product intact. If you
-        want delete to cascade to the catalog row, do it explicitly
-        here — the OneToOne has on_delete=CASCADE from wrapper →
-        product only if you construct it the other way around.
-        """
         p = self._get(pk)
         if p:
             p.delete()
         return Response(status=204)
+
+
+class ProductVariantListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = ProductVariant.objects.all().order_by("product_id", "id")
+        product_id = request.query_params.get("product")
+        if product_id:
+            qs = qs.filter(product_id=product_id)
+        return Response(ProductVariantSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = ProductVariantSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        v = ser.save()
+        return Response(
+            ProductVariantSerializer(v).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ProductVariantDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return ProductVariant.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        v = self._get(pk)
+        if not v:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(ProductVariantSerializer(v).data)
+
+    def patch(self, request, pk):
+        v = self._get(pk)
+        if not v:
+            return Response({"detail": "Not found."}, status=404)
+        ser = ProductVariantSerializer(v, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ProductVariantSerializer(v).data)
+
+    def delete(self, request, pk):
+        v = self._get(pk)
+        if v:
+            v.delete()
+        return Response(status=204)
+
+
+class SupplierListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Supplier.objects.all().order_by("name")
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(phone__icontains=q))
+        return Response(SupplierSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = SupplierSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        s = ser.save()
+        return Response(
+            SupplierSerializer(s).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SupplierDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Supplier.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(SupplierSerializer(s).data)
+
+    def patch(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+        ser = SupplierSerializer(s, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(SupplierSerializer(s).data)
+
+    def delete(self, request, pk):
+        s = self._get(pk)
+        if s:
+            s.delete()
+        return Response(status=204)
+
+
+class PurchaseOrderListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = (
+            PurchaseOrder.objects
+            .select_related("supplier")
+            .prefetch_related("items")
+            .order_by("-created_at")
+        )
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(PurchaseOrderSerializer(qs[:200], many=True).data)
+
+    def post(self, request):
+        ser = PurchaseOrderSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        po = ser.save()
+        return Response(
+            PurchaseOrderSerializer(po).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PurchaseOrderDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return (
+            PurchaseOrder.objects
+            .select_related("supplier")
+            .prefetch_related("items")
+            .filter(pk=pk)
+            .first()
+        )
+
+    def get(self, request, pk):
+        po = self._get(pk)
+        if not po:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(PurchaseOrderSerializer(po).data)
+
+    def patch(self, request, pk):
+        po = self._get(pk)
+        if not po:
+            return Response({"detail": "Not found."}, status=404)
+
+        previous_status = po.status
+        ser = PurchaseOrderSerializer(po, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        po = ser.save()
+
+        if po.status == "Received" and po.received_at is None:
+            po.received_at = timezone.now()
+            po.save(update_fields=["received_at"])
+
+            for item in po.items.select_related("product").all():
+                if not item.product_id:
+                    continue
+                InventoryMovement.objects.create(
+                    product_id=item.product_id,
+                    kind="in",
+                    quantity=item.quantity,
+                    unit_cost=item.unit_cost,
+                    reference=po.reference,
+                    notes=f"Received from PO {po.reference}",
+                )
+
+        if previous_status != po.status:
+            AuditLog.objects.create(
+                action="status_change",
+                entity="PurchaseOrder",
+                entity_id=str(po.pk),
+                summary=f"{po.reference}: {previous_status} → {po.status}",
+                actor=request.user if request.user.is_authenticated else None,
+            )
+
+        return Response(PurchaseOrderSerializer(po).data)
+
+    def delete(self, request, pk):
+        po = self._get(pk)
+        if po:
+            po.delete()
+        return Response(status=204)
+
+
+class LocationListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Location.objects.all().order_by("name")
+        return Response(LocationSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = LocationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        loc = ser.save()
+        return Response(
+            LocationSerializer(loc).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class LocationDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Location.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        loc = self._get(pk)
+        if not loc:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(LocationSerializer(loc).data)
+
+    def patch(self, request, pk):
+        loc = self._get(pk)
+        if not loc:
+            return Response({"detail": "Not found."}, status=404)
+        ser = LocationSerializer(loc, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(LocationSerializer(loc).data)
+
+    def delete(self, request, pk):
+        loc = self._get(pk)
+        if loc:
+            loc.delete()
+        return Response(status=204)
+
+
+class InventoryMovementListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = (
+            InventoryMovement.objects
+            .select_related("product", "variant", "location")
+            .order_by("-created_at")
+        )
+
+        product_id = request.query_params.get("product")
+        if product_id:
+            qs = qs.filter(product_id=product_id)
+
+        kind = request.query_params.get("kind")
+        if kind:
+            qs = qs.filter(kind=kind)
+
+        return Response(InventoryMovementSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = InventoryMovementSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        movement = ser.save(
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        return Response(
+            InventoryMovementSerializer(movement).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class InventoryMovementDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, pk):
+        m = InventoryMovement.objects.filter(pk=pk).first()
+        if not m:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(InventoryMovementSerializer(m).data)
+
+
+class InventorySummaryView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = (
+            DirectProduct.objects
+            .select_related("product")
+            .prefetch_related("variants")
+        )
+
+        out_of_stock = []
+        low_stock = []
+        healthy = []
+        total_value = 0
+
+        for product in qs:
+            catalog = getattr(product, "product", None)
+            stock = getattr(catalog, "stock_quantity", 0) if catalog else 0
+            price = getattr(catalog, "price", 0) if catalog else 0
+            threshold = product.low_stock_threshold or 5
+
+            try:
+                total_value += float(price) * int(stock)
+            except Exception:
+                pass
+
+            entry = {
+                "id": product.pk,
+                "name": getattr(catalog, "name", "") if catalog else "",
+                "sku": getattr(catalog, "sku", "") if catalog else "",
+                "stock": stock,
+                "threshold": threshold,
+                "reorderPoint": product.reorder_point,
+            }
+
+            if stock <= 0:
+                out_of_stock.append(entry)
+            elif stock <= threshold:
+                low_stock.append(entry)
+            else:
+                healthy.append(entry)
+
+        return Response(
+            {
+                "totalSkus": qs.count(),
+                "outOfStock": out_of_stock,
+                "lowStock": low_stock,
+                "healthy": healthy,
+                "stockValue": round(total_value, 2),
+            }
+        )
+
+
+class CustomerListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Customer.objects.all().order_by("-last_order_at", "-created_at")
+
+        segment = (request.query_params.get("segment") or "").strip()
+        if segment:
+            qs = qs.filter(segment=segment)
+
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(name__icontains=q)
+                | Q(phone__icontains=q)
+                | Q(email__icontains=q)
+            )
+
+        return _paginated_response(CustomerSerializer, qs, request)
+
+    def post(self, request):
+        ser = CustomerSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        c = ser.save()
+        return Response(
+            CustomerSerializer(c).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CustomerDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Customer.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(CustomerSerializer(c).data)
+
+    def patch(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        ser = CustomerSerializer(c, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(CustomerSerializer(c).data)
+
+    def delete(self, request, pk):
+        c = self._get(pk)
+        if c:
+            c.delete()
+        return Response(status=204)
+
+
+class CustomerStatsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        total = Customer.objects.count()
+        repeat = Customer.objects.filter(total_orders__gte=2).count()
+        vip = Customer.objects.filter(segment="VIP").count()
+        aggregate = Customer.objects.aggregate(spend=Sum("lifetime_spend"))
+        return Response(
+            {
+                "total": total,
+                "repeat": repeat,
+                "vip": vip,
+                "repeatRate": round((repeat / total) * 100, 2) if total else 0,
+                "lifetimeSpend": str(aggregate["spend"] or 0),
+            }
+        )
+
+
+class InboxConversationListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = (
+            InboxConversation.objects
+            .select_related("customer", "assigned_to", "converted_order")
+            .prefetch_related("messages")
+            .order_by("-last_message_at", "-created_at")
+        )
+
+        channel = (request.query_params.get("channel") or "").strip()
+        if channel:
+            qs = qs.filter(channel=channel)
+
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(contact_name__icontains=q)
+                | Q(contact_handle__icontains=q)
+                | Q(subject__icontains=q)
+            )
+
+        return Response(
+            InboxConversationSerializer(qs[:200], many=True).data
+        )
+
+    def post(self, request):
+        ser = InboxConversationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        convo = ser.save()
+        return Response(
+            InboxConversationSerializer(convo).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class InboxConversationDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return (
+            InboxConversation.objects
+            .prefetch_related("messages")
+            .filter(pk=pk)
+            .first()
+        )
+
+    def get(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(InboxConversationSerializer(c).data)
+
+    def patch(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        ser = InboxConversationSerializer(c, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(InboxConversationSerializer(c).data)
+
+    def delete(self, request, pk):
+        c = self._get(pk)
+        if c:
+            c.delete()
+        return Response(status=204)
+
+
+class InboxMessageListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = (
+            InboxMessage.objects
+            .select_related("conversation")
+            .order_by("created_at")
+        )
+        conversation_id = request.query_params.get("conversation")
+        if conversation_id:
+            qs = qs.filter(conversation_id=conversation_id)
+        return Response(InboxMessageSerializer(qs[:1000], many=True).data)
+
+    def post(self, request):
+        ser = InboxMessageSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        message = ser.save(
+            sent_by=request.user if request.user.is_authenticated else None,
+        )
+        return Response(
+            InboxMessageSerializer(message).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class InboxConvertView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        convo = InboxConversation.objects.filter(pk=pk).first()
+        if not convo:
+            return Response({"detail": "Not found."}, status=404)
+
+        order_payload = request.data or {}
+        order_payload.setdefault("customerName", convo.contact_name or "—")
+        order_payload.setdefault("customerPhone", convo.contact_handle or "")
+        order_payload.setdefault("source", "whatsapp")
+
+        ser = DirectOrderWriteSerializer(data=order_payload)
+        ser.is_valid(raise_exception=True)
+        order = ser.save()
+
+        convo.converted_order = order
+        convo.status = "converted"
+        if convo.customer_id is None:
+            try:
+                customer, _ = Customer.objects.get_or_create(
+                    phone=order.customer_phone,
+                    defaults={
+                        "name": order.customer_name,
+                        "email": order.customer_email,
+                    },
+                )
+                convo.customer = customer
+            except Exception:
+                pass
+        convo.save()
+
+        return Response(
+            DirectOrderReadSerializer(
+                order, context={"request": request},
+            ).data,
+        )
+
+
+class TeamMemberListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = TeamMember.objects.all().order_by("name")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        role = (request.query_params.get("role") or "").strip()
+        if role:
+            qs = qs.filter(role=role)
+        return Response(TeamMemberSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = TeamMemberSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        member = ser.save()
+        return Response(
+            TeamMemberSerializer(member).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TeamMemberDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return TeamMember.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        m = self._get(pk)
+        if not m:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(TeamMemberSerializer(m).data)
+
+    def patch(self, request, pk):
+        m = self._get(pk)
+        if not m:
+            return Response({"detail": "Not found."}, status=404)
+        ser = TeamMemberSerializer(m, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(TeamMemberSerializer(m).data)
+
+    def delete(self, request, pk):
+        m = self._get(pk)
+        if m:
+            m.delete()
+        return Response(status=204)
+
+
+class ReturnRequestListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = (
+            ReturnRequest.objects
+            .select_related("order")
+            .order_by("-created_at")
+        )
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(ReturnRequestSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = ReturnRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        if not ser.validated_data.get("reference"):
+            import random
+            ser.validated_data["reference"] = f"RT-{random.randint(10000, 99999)}"
+
+        ret = ser.save()
+        return Response(
+            ReturnRequestSerializer(ret).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ReturnRequestDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return ReturnRequest.objects.select_related("order").filter(pk=pk).first()
+
+    def get(self, request, pk):
+        r = self._get(pk)
+        if not r:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(ReturnRequestSerializer(r).data)
+
+    def patch(self, request, pk):
+        r = self._get(pk)
+        if not r:
+            return Response({"detail": "Not found."}, status=404)
+        ser = ReturnRequestSerializer(r, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ret = ser.save()
+
+        if ret.status in {"Refunded", "Received"} and ret.resolved_at is None:
+            ret.resolved_at = timezone.now()
+            ret.resolved_by = request.user if request.user.is_authenticated else None
+            ret.save(update_fields=["resolved_at", "resolved_by"])
+
+        return Response(ReturnRequestSerializer(ret).data)
+
+    def delete(self, request, pk):
+        r = self._get(pk)
+        if r:
+            r.delete()
+        return Response(status=204)
+
+
+class ExpenseListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Expense.objects.all().order_by("-paid_on", "-created_at")
+
+        category = (request.query_params.get("category") or "").strip()
+        if category:
+            qs = qs.filter(category=category)
+
+        return _paginated_response(ExpenseSerializer, qs, request)
+
+    def post(self, request):
+        ser = ExpenseSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        e = ser.save(
+            recorded_by=request.user if request.user.is_authenticated else None,
+        )
+        return Response(
+            ExpenseSerializer(e).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ExpenseDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Expense.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        e = self._get(pk)
+        if not e:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(ExpenseSerializer(e).data)
+
+    def patch(self, request, pk):
+        e = self._get(pk)
+        if not e:
+            return Response({"detail": "Not found."}, status=404)
+        ser = ExpenseSerializer(e, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ExpenseSerializer(e).data)
+
+    def delete(self, request, pk):
+        e = self._get(pk)
+        if e:
+            e.delete()
+        return Response(status=204)
+
+
+class AutomationListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Automation.objects.all().order_by("-updated_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(AutomationSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = AutomationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        a = ser.save()
+        return Response(
+            AutomationSerializer(a).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AutomationDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Automation.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(AutomationSerializer(a).data)
+
+    def patch(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+        ser = AutomationSerializer(a, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(AutomationSerializer(a).data)
+
+    def delete(self, request, pk):
+        a = self._get(pk)
+        if a:
+            a.delete()
+        return Response(status=204)
+
+
+class NotificationListView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Notification.objects.all().order_by("-created_at")
+        unread = request.query_params.get("unread")
+        if unread and unread.lower() in {"1", "true", "yes"}:
+            qs = qs.filter(read_at__isnull=True)
+        return Response(NotificationSerializer(qs[:200], many=True).data)
+
+
+class NotificationMarkReadView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        n = Notification.objects.filter(pk=pk).first()
+        if not n:
+            return Response({"detail": "Not found."}, status=404)
+        if n.read_at is None:
+            n.read_at = timezone.now()
+            n.save(update_fields=["read_at"])
+        return Response(NotificationSerializer(n).data)
+
+
+class NotificationMarkAllReadView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        Notification.objects.filter(read_at__isnull=True).update(
+            read_at=timezone.now()
+        )
+        return Response({"ok": True})
+
+
+class AuditLogListView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = AuditLog.objects.select_related("actor").order_by("-created_at")
+
+        entity = (request.query_params.get("entity") or "").strip()
+        if entity:
+            qs = qs.filter(entity=entity)
+
+        action = (request.query_params.get("action") or "").strip()
+        if action:
+            qs = qs.filter(action=action)
+
+        return _paginated_response(AuditLogSerializer, qs, request)
+
+
+class ReviewListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Review.objects.all().order_by("-created_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(ReviewSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = ReviewSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        r = ser.save()
+        return Response(
+            ReviewSerializer(r).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ReviewDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Review.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        r = self._get(pk)
+        if not r:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(ReviewSerializer(r).data)
+
+    def patch(self, request, pk):
+        r = self._get(pk)
+        if not r:
+            return Response({"detail": "Not found."}, status=404)
+        ser = ReviewSerializer(r, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ReviewSerializer(r).data)
+
+    def delete(self, request, pk):
+        r = self._get(pk)
+        if r:
+            r.delete()
+        return Response(status=204)
+
+
+class DeliveryZoneListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = DeliveryZone.objects.all().order_by("name")
+        return Response(DeliveryZoneSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = DeliveryZoneSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        z = ser.save()
+        return Response(
+            DeliveryZoneSerializer(z).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class DeliveryZoneDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return DeliveryZone.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        z = self._get(pk)
+        if not z:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(DeliveryZoneSerializer(z).data)
+
+    def patch(self, request, pk):
+        z = self._get(pk)
+        if not z:
+            return Response({"detail": "Not found."}, status=404)
+        ser = DeliveryZoneSerializer(z, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(DeliveryZoneSerializer(z).data)
+
+    def delete(self, request, pk):
+        z = self._get(pk)
+        if z:
+            z.delete()
+        return Response(status=204)
+
+
+class CouponListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Coupon.objects.all().order_by("-created_at")
+        active = request.query_params.get("active")
+        if active and active.lower() in {"1", "true", "yes"}:
+            qs = qs.filter(is_active=True)
+        return Response(CouponSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = CouponSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        c = ser.save()
+        return Response(
+            CouponSerializer(c).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CouponDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Coupon.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(CouponSerializer(c).data)
+
+    def patch(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        ser = CouponSerializer(c, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(CouponSerializer(c).data)
+
+    def delete(self, request, pk):
+        c = self._get(pk)
+        if c:
+            c.delete()
+        return Response(status=204)
+
+
+class CampaignListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Campaign.objects.all().order_by("-created_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(CampaignSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = CampaignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        c = ser.save()
+        return Response(
+            CampaignSerializer(c).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CampaignDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Campaign.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(CampaignSerializer(c).data)
+
+    def patch(self, request, pk):
+        c = self._get(pk)
+        if not c:
+            return Response({"detail": "Not found."}, status=404)
+        ser = CampaignSerializer(c, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(CampaignSerializer(c).data)
+
+    def delete(self, request, pk):
+        c = self._get(pk)
+        if c:
+            c.delete()
+        return Response(status=204)
+
+
+class AttributionLinkListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = AttributionLink.objects.all().order_by("-created_at")
+        creator_id = request.query_params.get("creator")
+        if creator_id:
+            qs = qs.filter(creator_id=creator_id)
+        campaign_id = request.query_params.get("campaign")
+        if campaign_id:
+            qs = qs.filter(campaign_id=campaign_id)
+        return Response(AttributionLinkSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = AttributionLinkSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        a = ser.save()
+        return Response(
+            AttributionLinkSerializer(a).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AttributionLinkDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return AttributionLink.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(AttributionLinkSerializer(a).data)
+
+    def patch(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+        ser = AttributionLinkSerializer(a, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(AttributionLinkSerializer(a).data)
+
+    def delete(self, request, pk):
+        a = self._get(pk)
+        if a:
+            a.delete()
+        return Response(status=204)
+
+
+class AnalyticsSummaryView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        orders = DirectOrder.objects.all()
+        now = timezone.now()
+        start_of_month = now.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0,
+        )
+
+        month_orders = orders.filter(created_at__gte=start_of_month)
+        month_revenue = month_orders.aggregate(
+            total=Sum("total"),
+        )["total"] or 0
+
+        pending_shipment = orders.filter(
+            status__in=["Paid", "Awaiting Shipment"],
+        ).count()
+
+        active_creators = Creator.objects.filter(status="Active").count()
+
+        by_source = list(
+            orders.values("source").annotate(
+                count=Count("id"),
+                revenue=Sum("total"),
+            )
+        )
+
+        by_status = list(
+            orders.values("status").annotate(count=Count("id"))
+        )
+
+        daily = []
+        for i in range(6, -1, -1):
+            day = (now - timedelta(days=i)).date()
+            day_orders = orders.filter(
+                created_at__date=day,
+            )
+            daily.append(
+                {
+                    "day": day.strftime("%a"),
+                    "date": day.isoformat(),
+                    "orders": day_orders.count(),
+                    "revenue": str(
+                        day_orders.aggregate(t=Sum("total"))["t"] or 0
+                    ),
+                }
+            )
+
+        return Response(
+            {
+                "monthOrders": month_orders.count(),
+                "monthRevenue": str(month_revenue),
+                "pendingShipment": pending_shipment,
+                "activeCreators": active_creators,
+                "bySource": by_source,
+                "byStatus": by_status,
+                "daily": daily,
+            }
+        )
+
+
+class FinanceSummaryView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        orders = DirectOrder.objects.all()
+        creators = Creator.objects.all()
+
+        gross = orders.aggregate(t=Sum("total"))["t"] or 0
+        commissions = creators.aggregate(
+            t=Sum("sales__commission_amount", filter=Q(sales__paid=False))
+        )["t"] or 0
+        withholding = float(commissions) * 0.05
+
+        expenses = Expense.objects.aggregate(t=Sum("amount"))["t"] or 0
+
+        net = float(gross) - float(commissions) - withholding - float(expenses)
+
+        return Response(
+            {
+                "grossRevenue": str(gross),
+                "creatorCommissions": str(commissions),
+                "withholdingTax": str(round(withholding, 2)),
+                "expenses": str(expenses),
+                "netRevenue": str(round(net, 2)),
+            }
+        )

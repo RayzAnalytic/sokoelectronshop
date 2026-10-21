@@ -9,11 +9,10 @@ import React, {
 } from 'react';
 import {
   LayoutDashboard,
+  ShoppingBag,
   Package,
-  ClipboardList,
   Video,
-  Radio,
-  Users,
+  Truck,
   BarChart3,
   Wallet,
   Settings as SettingsIcon,
@@ -21,15 +20,12 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  ShoppingBag,
-  DollarSign,
+  Banknote,
   Clock,
-  Truck,
   TrendingUp,
   Eye,
   Heart,
   MessageCircle,
-  Pencil,
   Trash2,
   Calendar,
   Loader2,
@@ -40,6 +36,24 @@ import {
   Image as ImageIcon,
   Film,
   Play,
+  Search,
+  ChevronRight,
+  ChevronDown,
+  Info,
+  Sparkles,
+  Music2,
+  ArrowUpRight,
+  Phone,
+  Mail,
+  Copy,
+  Inbox as InboxIcon,
+  UserRound,
+  Boxes,
+  Receipt,
+  Undo2,
+  UserCog,
+  ExternalLink,
+  Send,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -56,126 +70,83 @@ import {
 
 import { adminApi } from '@/lib/admin-api';
 import type {
+  AdminProduct,
+  AdminBrandRef,
+  AdminCategoryRef,
   AdminDirectProduct,
   AdminDirectProductStatus,
   AdminDirectProductWrite,
   AdminDirectOrder,
   AdminDirectOrderStatus,
   AdminDirectOrderSource,
+  AdminDirectOrderWrite,
   AdminDirectContent,
   AdminDirectContentPlatform,
   AdminDirectContentStatus,
   AdminDirectContentWrite,
   AdminDirectLive,
   AdminDirectLiveStatus,
+  AdminDirectLiveWrite,
   AdminDirectCreator,
   AdminDirectCreatorStatus,
   AdminDirectCreatorWrite,
+  AdminCustomerFull,
+  AdminCustomerStatsFull,
+  AdminInboxConversation,
+  AdminInboxMessage,
+  AdminTeamMember,
+  AdminDirectReturnRequest,
+  AdminPayoutBatch,
+  AdminAnalyticsSummaryResponse,
+  AdminFinanceSummaryResponse,
 } from '@/lib/admin-types';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BRAND (change these two lines to rename the shop everywhere in the UI)
-// ═══════════════════════════════════════════════════════════════════════════
+const SHOP_NAME = 'TikTok Business';
+const PAGE_SIZE = 25;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
-const SHOP_NAME = 'Social Shop';
-const SHOP_BADGE = 'SS';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LOCAL TYPES
-// ═══════════════════════════════════════════════════════════════════════════
+const TT_CYAN = '#25F4EE';
+const TT_PINK = '#FE2C55';
+const TT_BLACK = '#000000';
 
 type Tab =
   | 'Dashboard'
-  | 'Products'
   | 'Orders'
+  | 'Inbox'
+  | 'Customers'
+  | 'Products'
+  | 'Inventory'
   | 'Content'
   | 'LIVE Sessions'
   | 'Creators'
+  | 'Fulfillment'
+  | 'Returns'
   | 'Analytics'
   | 'Finance'
-  | 'Settings';
+  | 'Payouts'
+  | 'Tax'
+  | 'Settings'
+  | 'Team';
 
-/**
- * `AdminDirectLiveWrite` is NOT exported from `@/lib/admin-types` today.
- * We declare it locally so the Schedule-LIVE modal type-checks.
- */
-type AdminDirectLiveWrite = {
-  title: string;
-  hostName?: string;
-  scheduledAt?: string | null;
-  status?: AdminDirectLiveStatus;
-};
-
-/**
- * Local extension: `videoUrl` is NOT on AdminDirectContent / Write today.
- * Add it to admin-types.ts once the backend supports it.
- */
 type ContentWithVideo = AdminDirectContent & { videoUrl?: string | null };
 type ContentWriteWithVideo = AdminDirectContentWrite & {
   videoUrl?: string | null;
 };
 
-/** Local extension: optional product demo video. */
-type ProductWithVideo = AdminDirectProduct & { videoUrl?: string | null };
-type ProductWriteWithVideo = AdminDirectProductWrite & {
-  videoUrl?: string | null;
+type ToastState = {
+  id: number;
+  message: string;
+  variant: 'success' | 'error' | 'info';
+} | null;
+
+type NavItem = { id: Tab; label: string };
+type NavGroup = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[] | null;
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// FILE UPLOAD HELPER
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Upload a file to the backend and return its public URL.
- *
- * The endpoint `/api/admin/uploads/` should:
- *   - accept multipart/form-data with fields: `file` and `kind` ("image"|"video")
- *   - validate mime type + size
- *   - store the file (S3 / Cloudinary / local media dir)
- *   - respond with JSON: { url: "https://..." }
- *
- * If the backend is not ready yet, the upload components fall back to a
- * local data-URL preview so the form is still usable.
- */
-async function uploadFile(
-  file: File,
-  kind: 'image' | 'video',
-): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('kind', kind);
-
-  const res = await fetch('/api/admin/uploads/', {
-    method: 'POST',
-    body: formData,
-    credentials: 'include',
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `Upload failed (${res.status})`);
-  }
-  const data = (await res.json()) as { url?: string };
-  if (!data?.url) throw new Error('Upload response is missing a url');
-  return data.url;
-}
-
-/** Read a file as a data URL (used for local fallback preview). */
-function readAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; //  5 MB
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
-
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
 
 const KES = (n: number | string | null | undefined) => {
   if (n === null || n === undefined) return 'KES —';
@@ -184,13 +155,26 @@ const KES = (n: number | string | null | undefined) => {
   return `KES ${num.toLocaleString('en-KE')}`;
 };
 
-const sourceLabel = (s: AdminDirectOrderSource) =>
-  s === 'whatsapp' ? 'WhatsApp' : s === 'phone' ? 'Phone' : 'Admin';
+const sourceLabel = (s: AdminDirectOrderSource | string) => {
+  if (s === 'whatsapp') return 'WhatsApp';
+  if (s === 'phone') return 'Phone';
+  if (s === 'admin') return 'Admin';
+  if (s === 'live') return 'TikTok LIVE';
+  if (s === 'video_dm') return 'Video DM';
+  if (s === 'bio_link') return 'Bio link';
+  if (s === 'tiktok_dm') return 'TikTok DM';
+  if (s === 'tiktok_comment') return 'TikTok Comment';
+  if (s === 'instagram_dm') return 'Instagram DM';
+  if (s === 'email') return 'Email';
+  return String(s).charAt(0).toUpperCase() + String(s).slice(1);
+};
 
-const formatDate = (iso: string | null) => {
+const formatDate = (iso: string | null | undefined) => {
   if (!iso) return '—';
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return iso;
   try {
-    return new Date(iso).toLocaleDateString('en-KE', {
+    return new Date(ts).toLocaleDateString('en-KE', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -200,137 +184,1135 @@ const formatDate = (iso: string | null) => {
   }
 };
 
-const toLocalInputValue = (iso: string | null | undefined) => {
-  if (!iso) return '';
+const formatDateTime = (iso: string | null | undefined) => {
+  if (!iso) return '—';
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return iso;
   try {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate(),
-    )}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return new Date(ts).toLocaleString('en-KE', {
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   } catch {
-    return '';
+    return iso;
   }
 };
 
-// ── Chart / KPI static data ──
+const initials = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join('');
 
-const REVENUE_CHART_DATA = [
-  { day: 'Mon', revenue: 12400 },
-  { day: 'Tue', revenue: 18900 },
-  { day: 'Wed', revenue: 15200 },
-  { day: 'Thu', revenue: 24500 },
-  { day: 'Fri', revenue: 31200 },
-  { day: 'Sat', revenue: 45000 },
-  { day: 'Sun', revenue: 38400 },
-];
+const cn = (...parts: Array<string | false | null | undefined>) =>
+  parts.filter(Boolean).join(' ');
 
-const ORDERS_BY_SOURCE = [
-  { name: 'WhatsApp', value: 54, color: '#22c55e' },
-  { name: 'Admin', value: 31, color: '#8b5cf6' },
-  { name: 'Phone', value: 15, color: '#3b82f6' },
-];
+const mapCatalogToDirect = (p: AdminProduct): AdminDirectProduct => ({
+  id: p.id as unknown as number,
+  name: p.name,
+  sku: p.slug || '',
+  image: p.images?.[0]?.url || '',
+  price: p.price,
+  compareAtPrice: p.compare_at_price,
+  stockQuantity: p.stock_quantity,
+  category: p.category?.name || '',
+  brand: p.brand?.name || '',
+  directSalesCount: p.sales_count ?? 0,
+  directRevenue: p.sales_volume ?? '0',
+  status: p.is_active ? 'Active' : 'Draft',
+  viral: false,
+  videoLink: '',
+  lowStockThreshold: p.low_stock_threshold ?? 5,
+  linkedToWebsite: true,
+  createdAt: p.created_at,
+  updatedAt: p.updated_at,
+});
 
-const TOOLTIP_STYLE = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #e2e8f0',
-  borderRadius: '2px',
-  color: '#0f172a',
-  fontSize: '13px',
+function TikTokLogo({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M20.5 7.5a6.8 6.8 0 0 1-3.2-.8v7.5a5.6 5.6 0 1 1-5.6-5.6c.24 0 .47.02.7.05v2.87a2.85 2.85 0 0 0-2.15 2.75 2.8 2.8 0 1 0 5.6 0V2.5h2.9c.1.85.36 1.66.78 2.4a6.8 6.8 0 0 0 2.97 2.4v2.2Z"
+        fill={TT_CYAN}
+        transform="translate(-1.5, -0.5)"
+      />
+      <path
+        d="M20.5 7.5a6.8 6.8 0 0 1-3.2-.8v7.5a5.6 5.6 0 1 1-5.6-5.6c.24 0 .47.02.7.05v2.87a2.85 2.85 0 0 0-2.15 2.75 2.8 2.8 0 1 0 5.6 0V2.5h2.9c.1.85.36 1.66.78 2.4a6.8 6.8 0 0 0 2.97 2.4v2.2Z"
+        fill={TT_PINK}
+        opacity="0.85"
+      />
+      <path
+        d="M20.5 7.5a6.8 6.8 0 0 1-3.2-.8v7.5a5.6 5.6 0 1 1-5.6-5.6c.24 0 .47.02.7.05v2.87a2.85 2.85 0 0 0-2.15 2.75 2.8 2.8 0 1 0 5.6 0V2.5h2.9c.1.85.36 1.66.78 2.4a6.8 6.8 0 0 0 2.97 2.4v2.2Z"
+        fill={TT_BLACK}
+        transform="translate(0.5, 0.5)"
+      />
+    </svg>
+  );
+}
+
+const inputCls =
+  'w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed';
+
+const btnPrimary =
+  'inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-2.5 py-1.5 text-[13px] rounded-sm shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-950/30 disabled:opacity-60 disabled:cursor-not-allowed';
+
+const btnSecondary =
+  'inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-2.5 py-1.5 text-[13px] rounded-sm shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-950/10 disabled:opacity-60 disabled:cursor-not-allowed';
+
+const btnDanger =
+  'inline-flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-medium px-2.5 py-1.5 text-[13px] rounded-sm shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600/30 disabled:opacity-60 disabled:cursor-not-allowed';
+
+const iconBtn =
+  'inline-flex items-center justify-center h-7 w-7 rounded-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-950/20';
+
+type BadgeVariant =
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'info'
+  | 'neutral'
+  | 'brand';
+
+const badgeVariantCls: Record<BadgeVariant, string> = {
+  success: 'bg-white text-slate-700 border-slate-200',
+  warning: 'bg-white text-slate-700 border-slate-200',
+  danger: 'bg-white text-slate-700 border-slate-200',
+  info: 'bg-white text-slate-700 border-slate-200',
+  neutral: 'bg-white text-slate-700 border-slate-200',
+  brand: 'bg-white text-slate-900 border-slate-300 font-semibold',
 };
 
-// ── Badge class helpers ──
+function StatusBadge({
+  variant,
+  children,
+  dot,
+}: {
+  variant: BadgeVariant;
+  children: React.ReactNode;
+  dot?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 px-1.5 py-0.5 border rounded-sm text-[13px] font-medium whitespace-nowrap',
+        badgeVariantCls[variant],
+      )}
+    >
+      {dot && (
+        <span
+          className={cn(
+            'h-1.5 w-1.5 rounded-full',
+            variant === 'success' && 'bg-emerald-500',
+            variant === 'warning' && 'bg-amber-500',
+            variant === 'danger' && 'bg-red-500',
+            variant === 'info' && 'bg-blue-500',
+            variant === 'neutral' && 'bg-slate-400',
+            variant === 'brand' && 'bg-blue-950',
+          )}
+        />
+      )}
+      {children}
+    </span>
+  );
+}
 
-const productStatusBadge = (s: AdminDirectProductStatus) =>
-  s === 'Active'
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-    : s === 'Draft'
-      ? 'bg-slate-100 text-slate-600 border-slate-200'
-      : 'bg-amber-50 text-amber-700 border-amber-100';
+const productStatusVariant = (s: AdminDirectProductStatus): BadgeVariant =>
+  s === 'Active' ? 'success' : s === 'Draft' ? 'neutral' : 'warning';
 
-const orderStatusBadge = (s: AdminDirectOrderStatus) =>
+const orderStatusVariant = (s: AdminDirectOrderStatus): BadgeVariant =>
   s === 'Delivered'
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+    ? 'success'
     : s === 'Shipped' || s === 'Awaiting Shipment'
-      ? 'bg-blue-50 text-blue-950 border-blue-100'
+      ? 'info'
       : s === 'Paid'
-        ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+        ? 'info'
         : s === 'Cancelled' || s === 'Returned'
-          ? 'bg-red-50 text-red-700 border-red-100'
-          : 'bg-amber-50 text-amber-700 border-amber-100';
+          ? 'danger'
+          : 'warning';
 
-const contentStatusBadge = (s: AdminDirectContentStatus) =>
-  s === 'Posted'
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-    : s === 'Scheduled'
-      ? 'bg-blue-50 text-blue-950 border-blue-100'
-      : s === 'Archived'
-        ? 'bg-slate-100 text-slate-600 border-slate-200'
-        : 'bg-slate-50 text-slate-600 border-slate-200';
+const contentStatusVariant = (s: AdminDirectContentStatus): BadgeVariant =>
+  s === 'Posted' ? 'success' : s === 'Scheduled' ? 'info' : 'neutral';
 
-const liveStatusBadge = (s: AdminDirectLiveStatus) =>
+const liveStatusVariant = (s: AdminDirectLiveStatus): BadgeVariant =>
   s === 'Live'
-    ? 'bg-red-50 text-red-700 border-red-100'
+    ? 'danger'
     : s === 'Ended'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+      ? 'success'
       : s === 'Cancelled'
-        ? 'bg-slate-100 text-slate-600 border-slate-200'
-        : 'bg-blue-50 text-blue-950 border-blue-100';
+        ? 'neutral'
+        : 'info';
 
-const creatorStatusBadge = (s: AdminDirectCreatorStatus) =>
-  s === 'Active'
-    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-    : 'bg-slate-100 text-slate-600 border-slate-200';
+const creatorStatusVariant = (s: AdminDirectCreatorStatus): BadgeVariant =>
+  s === 'Active' ? 'success' : 'neutral';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TABS
-// ═══════════════════════════════════════════════════════════════════════════
+const RETURN_STATUS_VARIANT = (
+  s: AdminDirectReturnRequest['status'],
+): BadgeVariant =>
+  s === 'Refunded'
+    ? 'success'
+    : s === 'Received'
+      ? 'info'
+      : s === 'Approved'
+        ? 'info'
+        : s === 'Rejected'
+          ? 'danger'
+          : 'warning';
 
-const TABS: {
-  id: Tab;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}[] = [
-    { id: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'Products', label: 'Products', icon: Package },
-    { id: 'Orders', label: 'Orders', icon: ClipboardList },
-    { id: 'Content', label: 'Content', icon: Video },
-    { id: 'LIVE Sessions', label: 'LIVE Sessions', icon: Radio },
-    { id: 'Creators', label: 'Creators', icon: Users },
-    { id: 'Analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'Finance', label: 'Finance', icon: Wallet },
-    { id: 'Settings', label: 'Settings', icon: SettingsIcon },
+const PAYOUT_STATUS_VARIANT = (
+  s: AdminPayoutBatch['status'],
+): BadgeVariant =>
+  s === 'Paid'
+    ? 'success'
+    : s === 'Failed'
+      ? 'danger'
+      : s === 'Approved'
+        ? 'info'
+        : s === 'Pending'
+          ? 'warning'
+          : 'neutral';
+
+const TOOLTIP_STYLE: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 2,
+  color: '#0f172a',
+  fontSize: '13px',
+  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+  padding: '6px 10px',
+};
+
+const NAV_GROUPS: NavGroup[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, items: null },
+  {
+    id: 'sales',
+    label: 'Sales',
+    icon: ShoppingBag,
+    items: [
+      { id: 'Orders', label: 'Orders' },
+      { id: 'Inbox', label: 'Inbox' },
+      { id: 'Customers', label: 'Customers' },
+      { id: 'Fulfillment', label: 'Fulfillment' },
+      { id: 'Returns', label: 'Returns & Refunds' },
+    ],
+  },
+  {
+    id: 'catalog',
+    label: 'Catalog',
+    icon: Package,
+    items: [
+      { id: 'Products', label: 'Products' },
+      { id: 'Inventory', label: 'Inventory' },
+    ],
+  },
+  {
+    id: 'content',
+    label: 'Content',
+    icon: Video,
+    items: [
+      { id: 'Content', label: 'Content Calendar' },
+      { id: 'LIVE Sessions', label: 'LIVE Sessions' },
+      { id: 'Creators', label: 'Creators' },
+    ],
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    icon: BarChart3,
+    items: [{ id: 'Analytics', label: 'Overview' }],
+  },
+  {
+    id: 'finance',
+    label: 'Finance',
+    icon: Wallet,
+    items: [
+      { id: 'Finance', label: 'Overview' },
+      { id: 'Payouts', label: 'Creator Payouts' },
+      { id: 'Tax', label: 'Tax & Compliance' },
+    ],
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: SettingsIcon,
+    items: [
+      { id: 'Settings', label: 'General' },
+      { id: 'Team', label: 'Team & Roles' },
+    ],
+  },
+];
+
+function useObjectUrl(file: File | null) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) {
+      setUrl(null);
+      return;
+    }
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return url;
+}
+
+function useDebounced<T>(value: T, ms = 300): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+async function uploadFile(file: File, kind: 'image' | 'video'): Promise<string> {
+  const res = await adminApi.directOrders.uploads[kind](file);
+  if (!res?.url) throw new Error('Upload response missing url');
+  return res.url;
+}
+
+function Thumb({
+  src,
+  alt = '',
+  className,
+  fallbackIcon,
+}: {
+  src?: string | null;
+  alt?: string;
+  className?: string;
+  fallbackIcon?: React.ReactNode;
+}) {
+  if (!src) {
+    return (
+      <span
+        className={cn(
+          'flex items-center justify-center bg-slate-100 border border-slate-200 text-slate-400 rounded-sm shrink-0',
+          className,
+        )}
+      >
+        {fallbackIcon}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      className={cn(
+        'object-cover border border-slate-200 rounded-sm shrink-0 bg-slate-50',
+        className,
+      )}
+    />
+  );
+}
+
+function Avatar({ name, className }: { name: string; className?: string }) {
+  const colors = [
+    'bg-slate-900',
+    'bg-slate-700',
+    'bg-slate-600',
+    'bg-slate-800',
+    'bg-slate-500',
+    'bg-slate-700',
   ];
+  const idx = (name || '?')
+    .split('')
+    .reduce((a, c) => a + c.charCodeAt(0), 0);
+  return (
+    <span
+      className={cn(
+        'flex items-center justify-center text-white text-[13px] font-semibold rounded-sm shrink-0',
+        colors[idx % colors.length],
+        className,
+      )}
+    >
+      {initials(name) || '?'}
+    </span>
+  );
+}
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[13px] font-semibold text-slate-500 uppercase tracking-wider">
+      {children}
+    </p>
+  );
+}
 
-export default function SocialShopPage() {
+function FormField({
+  label,
+  helper,
+  required,
+  children,
+}: {
+  label: string;
+  helper?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[13px] font-medium text-slate-700">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children}
+      {helper && <p className="text-[13px] text-slate-500">{helper}</p>}
+    </div>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  action?: { label: string; onClick: () => void; icon?: React.ReactNode };
+}) {
+  return (
+    <div className="max-w-sm mx-auto my-6 bg-white border border-slate-200 rounded-sm p-2 text-center">
+      <span className="w-10 h-10 rounded-sm bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+        {icon}
+      </span>
+      <h3 className="mt-2 text-[13px] font-semibold text-slate-900">{title}</h3>
+      {description && (
+        <p className="mt-1 text-[13px] text-slate-500 leading-relaxed">
+          {description}
+        </p>
+      )}
+      {action && (
+        <button onClick={action.onClick} className={cn(btnPrimary, 'mt-2')}>
+          {action.icon}
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={cn('animate-pulse bg-slate-100 rounded-sm', className)} />;
+}
+
+function TabSkeleton() {
+  return (
+    <div className="space-y-2">
+      <Skeleton className="h-12 w-full" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-16" />
+        ))}
+      </div>
+      <Skeleton className="h-56 w-full" />
+    </div>
+  );
+}
+
+function Modal({
+  onClose,
+  title,
+  subtitle,
+  widthClass = 'max-w-2xl',
+  children,
+}: {
+  onClose: () => void;
+  title: string;
+  subtitle: string;
+  widthClass?: string;
+  children: React.ReactNode;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    previouslyFocused.current = document.activeElement as HTMLElement | null;
+    const t = setTimeout(() => panelRef.current?.focus(), 0);
+    return () => {
+      clearTimeout(t);
+      previouslyFocused.current?.focus?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const root = panelRef.current;
+      if (!root) return;
+      const focusables = root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-2"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          'bg-white border border-slate-200 w-full rounded-sm max-h-[92vh] flex flex-col outline-none',
+          widthClass,
+        )}
+        style={{ animation: 'modalIn 180ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+      >
+        <div className="px-2 py-2 border-b border-slate-200 flex items-start justify-between gap-2 shrink-0">
+          <div className="min-w-0">
+            <h3
+              id="modal-title"
+              className="text-[13px] font-semibold text-slate-900 truncate"
+            >
+              {title}
+            </h3>
+            <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close dialog"
+            className={iconBtn}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-2 py-2">{children}</div>
+      </div>
+      <style jsx global>{`
+        @keyframes modalIn {
+          from {
+            opacity: 0;
+            transform: scale(0.96) translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function ModalFooter({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-end gap-2 pt-2 mt-2 border-t border-slate-200">
+      {children}
+    </div>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  description,
+  confirmLabel = 'Confirm',
+  variant = 'danger',
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  variant?: 'danger' | 'primary';
+  onCancel: () => void;
+  onConfirm: () => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const handle = async () => {
+    setBusy(true);
+    try {
+      await onConfirm();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      onClose={onCancel}
+      title={title}
+      subtitle={description}
+      widthClass="max-w-sm"
+    >
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button onClick={onCancel} className={btnSecondary} disabled={busy}>
+          Cancel
+        </button>
+        <button
+          onClick={() => void handle()}
+          disabled={busy}
+          className={variant === 'danger' ? btnDanger : btnPrimary}
+        >
+          {busy && <Loader2 className="w-3 h-3 animate-spin" />}
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function ImageUpload({
+  label,
+  helper,
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  helper?: string;
+  value: string;
+  onChange: (url: string) => void;
+  required?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const blobUrl = useObjectUrl(file);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const preview = blobUrl || value;
+  const handlePick = () => inputRef.current?.click();
+
+  const handleFile = async (f: File) => {
+    setError(null);
+    if (!f.type.startsWith('image/')) {
+      setError('Please choose an image file (JPG, PNG, WEBP).');
+      return;
+    }
+    if (f.size > MAX_IMAGE_BYTES) {
+      setError('Image must be smaller than 5 MB.');
+      return;
+    }
+    setFile(f);
+    setUploading(true);
+    try {
+      const url = await uploadFile(f, 'image');
+      onChange(url);
+      setFile(null);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? `${e.message} — preview kept locally until you retry.`
+          : 'Upload failed. Preview kept locally.',
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) void handleFile(f);
+  };
+
+  const clear = () => {
+    onChange('');
+    setFile(null);
+    setError(null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  return (
+    <div className="space-y-1">
+      <label className="block text-[13px] font-medium text-slate-700">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+        onClick={handlePick}
+        className="relative cursor-pointer border-2 border-dashed border-slate-200 rounded-sm hover:border-slate-400 hover:bg-slate-50 aspect-video flex items-center justify-center overflow-hidden bg-slate-50 transition-colors group"
+      >
+        {preview ? (
+          <>
+            <img src={preview} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/30 transition-colors flex items-center justify-center">
+              <span className="opacity-0 group-hover:opacity-100 bg-white text-slate-900 text-[13px] font-medium px-2 py-1 rounded-sm shadow-md transition-opacity">
+                Click to replace
+              </span>
+            </div>
+            {uploading && (
+              <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center px-2 py-2">
+            {uploading ? (
+              <Loader2 className="w-5 h-5 text-slate-400 mx-auto animate-spin" />
+            ) : (
+              <UploadCloud className="w-5 h-5 text-slate-400 mx-auto" />
+            )}
+            <p className="text-[13px] font-medium text-slate-700 mt-1.5">
+              {uploading ? 'Uploading…' : 'Click or drop an image here'}
+            </p>
+            <p className="text-[13px] text-slate-400 mt-0.5">
+              JPG, PNG or WEBP — up to 5 MB
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 pt-0.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePick();
+          }}
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-700 hover:text-slate-900"
+        >
+          <ImageIcon className="w-3 h-3" />
+          {preview ? 'Replace image' : 'Choose image'}
+        </button>
+        {preview && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              clear();
+            }}
+            className="inline-flex items-center gap-1 text-[13px] font-medium text-red-600 hover:text-red-700"
+          >
+            <X className="w-3 h-3" />
+            Remove
+          </button>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleFile(f);
+        }}
+      />
+
+      {helper && !error && (
+        <p className="text-[13px] text-slate-500">{helper}</p>
+      )}
+      {error && <p className="text-[13px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function VideoUpload({
+  label,
+  helper,
+  value,
+  onChange,
+  required,
+  poster,
+}: {
+  label: string;
+  helper?: string;
+  value: string;
+  onChange: (url: string) => void;
+  required?: boolean;
+  poster?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const blobUrl = useObjectUrl(file);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const preview = blobUrl || value;
+  const handlePick = () => inputRef.current?.click();
+
+  const handleFile = async (f: File) => {
+    setError(null);
+    if (!f.type.startsWith('video/')) {
+      setError('Please choose a video file (MP4, MOV, WEBM).');
+      return;
+    }
+    if (f.size > MAX_VIDEO_BYTES) {
+      setError('Video must be smaller than 100 MB.');
+      return;
+    }
+    setFile(f);
+    setUploading(true);
+    try {
+      const url = await uploadFile(f, 'video');
+      onChange(url);
+      setFile(null);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? `${e.message} — preview kept locally until you retry.`
+          : 'Upload failed. Preview kept locally.',
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) void handleFile(f);
+  };
+
+  const clear = () => {
+    onChange('');
+    setFile(null);
+    setError(null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  return (
+    <div className="space-y-1">
+      <label className="block text-[13px] font-medium text-slate-700">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+        className="relative border-2 border-dashed border-slate-200 rounded-sm hover:border-slate-400 overflow-hidden bg-slate-50 transition-colors"
+      >
+        {preview ? (
+          <div className="relative">
+            <video
+              src={preview}
+              poster={poster || undefined}
+              controls
+              playsInline
+              className="w-full aspect-video bg-black object-contain"
+            />
+            {uploading && (
+              <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            onClick={handlePick}
+            className="cursor-pointer text-center px-2 py-6"
+          >
+            {uploading ? (
+              <Loader2 className="w-6 h-6 text-slate-400 mx-auto animate-spin" />
+            ) : (
+              <Film className="w-6 h-6 text-slate-400 mx-auto" />
+            )}
+            <p className="text-[13px] font-medium text-slate-700 mt-1.5">
+              {uploading ? 'Uploading video…' : 'Click or drop a video here'}
+            </p>
+            <p className="text-[13px] text-slate-400 mt-0.5">
+              MP4, MOV or WEBM — up to 100 MB
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 pt-0.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePick();
+          }}
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-700 hover:text-slate-900"
+        >
+          <Film className="w-3 h-3" />
+          {preview ? 'Replace video' : 'Choose video'}
+        </button>
+        {preview && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              clear();
+            }}
+            className="inline-flex items-center gap-1 text-[13px] font-medium text-red-600 hover:text-red-700"
+          >
+            <X className="w-3 h-3" />
+            Remove
+          </button>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleFile(f);
+        }}
+      />
+
+      {helper && !error && (
+        <p className="text-[13px] text-slate-500">{helper}</p>
+      )}
+      {error && <p className="text-[13px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function Toast({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
+  if (!toast) return null;
+  const styles = {
+    success: {
+      bg: 'bg-white border-slate-200',
+      icon: <CheckCircle2 className="w-4 h-4 text-slate-700 shrink-0" />,
+    },
+    error: {
+      bg: 'bg-white border-red-200',
+      icon: <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />,
+    },
+    info: {
+      bg: 'bg-white border-slate-200',
+      icon: <Info className="w-4 h-4 text-slate-700 shrink-0" />,
+    },
+  }[toast.variant];
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        'fixed bottom-3 right-3 z-[130] px-2 py-2 border rounded-sm flex items-center gap-2 text-[13px] text-slate-900 max-w-xs',
+        styles.bg,
+      )}
+      style={{ animation: 'toastIn 200ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+    >
+      {styles.icon}
+      <span className="flex-1">{toast.message}</span>
+      <button
+        onClick={onClose}
+        aria-label="Dismiss"
+        className="text-slate-400 hover:text-slate-700"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+      <style jsx global>{`
+        @keyframes toastIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function NavDropdown({
+  group,
+  activeTab,
+  onSelect,
+}: {
+  group: NavGroup;
+  activeTab: Tab;
+  onSelect: (t: Tab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const Icon = group.icon;
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  if (!group.items) {
+    const active = activeTab === group.id;
+    return (
+      <button
+        onClick={() => onSelect(group.id as Tab)}
+        className={cn(
+          'relative inline-flex items-center gap-1.5 px-2.5 py-2 text-[13px] font-medium whitespace-nowrap transition-colors',
+          active ? 'text-slate-900' : 'text-slate-500 hover:text-slate-800',
+        )}
+      >
+        <Icon className="w-3.5 h-3.5" />
+        {group.label}
+        {active && (
+          <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-blue-950" />
+        )}
+      </button>
+    );
+  }
+
+  const isGroupActive = group.items.some((i) => i.id === activeTab);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          'relative inline-flex items-center gap-1.5 px-2.5 py-2 text-[13px] font-medium whitespace-nowrap transition-colors',
+          isGroupActive
+            ? 'text-slate-900'
+            : 'text-slate-500 hover:text-slate-800',
+        )}
+      >
+        <Icon className="w-3.5 h-3.5" />
+        {group.label}
+        <ChevronDown
+          className={cn('w-3 h-3 transition-transform', open && 'rotate-180')}
+        />
+        {isGroupActive && (
+          <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-blue-950" />
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-sm shadow-2xl min-w-[220px] z-[120] py-1"
+          style={{ animation: 'menuIn 140ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+        >
+          {group.items.map((item) => {
+            const active = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                role="menuitem"
+                onClick={() => {
+                  onSelect(item.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'w-full text-left px-2 py-1.5 text-[13px] flex items-center justify-between gap-2 transition-colors',
+                  active
+                    ? 'bg-blue-950 text-white'
+                    : 'text-slate-700 hover:bg-slate-50',
+                )}
+              >
+                <span>{item.label}</span>
+                {active && <ChevronRight className="w-3 h-3" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <style jsx global>{`
+        @keyframes menuIn {
+          from {
+            opacity: 0;
+            transform: translateY(-4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default function TikTokBusinessPage() {
   const [tab, setTab] = useState<Tab>('Dashboard');
 
   const [products, setProducts] = useState<AdminDirectProduct[]>([]);
+  const [brands, setBrands] = useState<AdminBrandRef[]>([]);
+  const [categories, setCategories] = useState<AdminCategoryRef[]>([]);
   const [orders, setOrders] = useState<AdminDirectOrder[]>([]);
   const [content, setContent] = useState<AdminDirectContent[]>([]);
   const [lives, setLives] = useState<AdminDirectLive[]>([]);
   const [creators, setCreators] = useState<AdminDirectCreator[]>([]);
+  const [customers, setCustomers] = useState<AdminCustomerFull[]>([]);
+  const [customerStats, setCustomerStats] =
+    useState<AdminCustomerStatsFull | null>(null);
+  const [inbox, setInbox] = useState<AdminInboxConversation[]>([]);
+  const [team, setTeam] = useState<AdminTeamMember[]>([]);
+  const [returns, setReturns] = useState<AdminDirectReturnRequest[]>([]);
+  const [payouts, setPayouts] = useState<AdminPayoutBatch[]>([]);
+  const [analyticsSummary, setAnalyticsSummary] =
+    useState<AdminAnalyticsSummaryResponse | null>(null);
+  const [financeSummary, setFinanceSummary] =
+    useState<AdminFinanceSummaryResponse | null>(null);
+  const [loggedRefs, setLoggedRefs] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
   const [logOrderOpen, setLogOrderOpen] = useState(false);
   const [addProductOpen, setAddProductOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<AdminDirectOrder | null>(
     null,
   );
-
   const [addContentOpen, setAddContentOpen] = useState(false);
   const [scheduleLiveOpen, setScheduleLiveOpen] = useState(false);
   const [addCreatorOpen, setAddCreatorOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
 
-  // ═══ DATA LOADING ═══
+  const showToast = useCallback(
+    (message: string, variant: 'success' | 'error' | 'info' = 'success') => {
+      setToast({ id: Date.now(), message, variant });
+    },
+    [],
+  );
 
   const loadAll = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -338,18 +1320,58 @@ export default function SocialShopPage() {
     setLoadError(null);
 
     const results = await Promise.allSettled([
-      adminApi.directOrders.products.list(),
+      adminApi.products.list(),
+      adminApi.brands.refs(),
+      adminApi.categories.refs(),
       adminApi.directOrders.orders.list(),
+      adminApi.directOrders.logged.list(),
       adminApi.directOrders.content.list(),
       adminApi.directOrders.lives.list(),
       adminApi.directOrders.creators.list(),
+      adminApi.directOrders.customers.stats(),
+      adminApi.directOrders.customers.list({ limit: 200 }),
+      adminApi.directOrders.inbox.list(),
+      adminApi.directOrders.team.list(),
+      adminApi.directOrders.returns.list(),
+      adminApi.directOrders.payouts.list(),
+      adminApi.directOrders.analytics.summary(),
+      adminApi.directOrders.finance.summary(),
     ]);
 
-    if (results[0].status === 'fulfilled') setProducts(results[0].value);
-    if (results[1].status === 'fulfilled') setOrders(results[1].value);
-    if (results[2].status === 'fulfilled') setContent(results[2].value);
-    if (results[3].status === 'fulfilled') setLives(results[3].value);
-    if (results[4].status === 'fulfilled') setCreators(results[4].value);
+    if (results[0].status === 'fulfilled') {
+      setProducts(results[0].value.map(mapCatalogToDirect));
+    }
+    if (results[1].status === 'fulfilled') setBrands(results[1].value);
+    if (results[2].status === 'fulfilled') setCategories(results[2].value);
+
+    const checkoutOrders =
+      results[3].status === 'fulfilled' ? results[3].value : [];
+    const loggedOrders =
+      results[4].status === 'fulfilled' ? results[4].value : [];
+    if (
+      results[3].status === 'fulfilled' ||
+      results[4].status === 'fulfilled'
+    ) {
+      setOrders([...loggedOrders, ...checkoutOrders]);
+      setLoggedRefs(new Set(loggedOrders.map((o) => o.reference)));
+    }
+
+    if (results[5].status === 'fulfilled') setContent(results[5].value);
+    if (results[6].status === 'fulfilled') setLives(results[6].value);
+    if (results[7].status === 'fulfilled') setCreators(results[7].value);
+    if (results[8].status === 'fulfilled') setCustomerStats(results[8].value);
+    if (results[9].status === 'fulfilled') {
+      const v = results[9].value;
+      setCustomers(Array.isArray(v) ? v : v.results ?? []);
+    }
+    if (results[10].status === 'fulfilled') setInbox(results[10].value);
+    if (results[11].status === 'fulfilled') setTeam(results[11].value);
+    if (results[12].status === 'fulfilled') setReturns(results[12].value);
+    if (results[13].status === 'fulfilled') setPayouts(results[13].value);
+    if (results[14].status === 'fulfilled')
+      setAnalyticsSummary(results[14].value);
+    if (results[15].status === 'fulfilled')
+      setFinanceSummary(results[15].value);
 
     const allFailed = results.every((r) => r.status === 'rejected');
     if (allFailed) {
@@ -357,7 +1379,7 @@ export default function SocialShopPage() {
       setLoadError(
         first.reason instanceof Error
           ? first.reason.message
-          : 'Failed to load shop data',
+          : `Failed to load ${SHOP_NAME} data`,
       );
     }
 
@@ -371,11 +1393,10 @@ export default function SocialShopPage() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3200);
+    const t = setTimeout(() => setToast(null), 3600);
     return () => clearTimeout(t);
   }, [toast]);
 
-  // ── Escape-to-close + body scroll lock ──
   useEffect(() => {
     const anyModal =
       logOrderOpen ||
@@ -383,11 +1404,14 @@ export default function SocialShopPage() {
       addContentOpen ||
       scheduleLiveOpen ||
       addCreatorOpen ||
-      !!selectedOrder;
+      !!selectedOrder ||
+      !!confirmState;
     if (!anyModal) return;
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (selectedOrder) setSelectedOrder(null);
+      if (confirmState) setConfirmState(null);
+      else if (selectedOrder) setSelectedOrder(null);
       else if (logOrderOpen) setLogOrderOpen(false);
       else if (addProductOpen) setAddProductOpen(false);
       else if (addContentOpen) setAddContentOpen(false);
@@ -407,9 +1431,8 @@ export default function SocialShopPage() {
     scheduleLiveOpen,
     addCreatorOpen,
     selectedOrder,
+    confirmState,
   ]);
-
-  // ═══ DERIVED STATS ═══
 
   const stats = useMemo(() => {
     const ordersMonth = orders.length;
@@ -417,186 +1440,389 @@ export default function SocialShopPage() {
     const pendingShipment = orders.filter(
       (o) => o.status === 'Paid' || o.status === 'Awaiting Shipment',
     ).length;
-    const activeCreators = creators.filter((c) => c.status === 'Active').length;
+    const activeCreators = creators.filter(
+      (c) => c.status === 'Active',
+    ).length;
     return { ordersMonth, revenue, pendingShipment, activeCreators };
   }, [orders, creators]);
 
-  // ═══ MUTATIONS ═══
+  const handleAddProduct = useCallback(
+    async (payload: AdminDirectProductWrite) => {
+      try {
+        const created = await adminApi.products.create({
+          name: payload.name,
+          description: '',
+          brand_id: payload.brandId ?? brands[0]?.id ?? 0,
+          category_id: payload.categoryId ?? categories[0]?.id ?? 0,
+          price: payload.price,
+          compare_at_price: payload.compareAtPrice ?? null,
+          stock_quantity: payload.stockQuantity ?? 0,
+          low_stock_threshold: payload.lowStockThreshold ?? 5,
+          is_active: payload.status === 'Active',
+          images: payload.image
+            ? [{ url: payload.image, is_primary: true, sort_order: 0 }]
+            : [],
+        });
+        const mapped = mapCatalogToDirect(created);
+        setProducts((prev) => [mapped, ...prev]);
+        showToast(`"${created.name}" added to catalog`);
+        setAddProductOpen(false);
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Failed to create product',
+          'error',
+        );
+      }
+    },
+    [showToast, brands, categories],
+  );
 
-  const handleAddProduct = async (payload: AdminDirectProductWrite) => {
-    try {
-      const created = await adminApi.directOrders.products.create(payload);
-      setProducts((prev) => [created, ...prev]);
-      setToast(`"${created.name}" added to ${SHOP_NAME} products`);
-      setAddProductOpen(false);
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : 'Failed to create product');
-    }
-  };
-
-  const handleDeleteProduct = async (id: number, name: string) => {
-    if (!confirm(`Remove "${name}" from ${SHOP_NAME} products?`)) return;
-    try {
-      await adminApi.directOrders.products.remove(id);
-      setProducts((prev) => prev.filter((p) => p.id !== id));
-      setToast(`"${name}" removed`);
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : 'Failed to remove product');
-    }
-  };
-
-  const advanceOrderStatus = async (
-    reference: string,
-    next: AdminDirectOrderStatus,
-  ) => {
-    try {
-      const updated = await adminApi.directOrders.orders.advance(reference, {
-        status: next,
+  const handleDeleteProduct = useCallback(
+    (id: number | string, name: string) => {
+      setConfirmState({
+        title: `Remove "${name}"?`,
+        description:
+          'This will remove the product from your catalog. Past orders that referenced it are not affected.',
+        confirmLabel: 'Remove product',
+        onConfirm: async () => {
+          try {
+            await adminApi.products.remove(String(id));
+            setProducts((prev) =>
+              prev.filter((p) => String(p.id) !== String(id)),
+            );
+            showToast(`"${name}" removed`);
+          } catch (e) {
+            showToast(
+              e instanceof Error ? e.message : 'Failed to remove product',
+              'error',
+            );
+          } finally {
+            setConfirmState(null);
+          }
+        },
       });
+    },
+    [showToast],
+  );
+
+  const advanceOrderStatus = useCallback(
+    async (reference: string, next: AdminDirectOrderStatus) => {
+      const isLogged = loggedRefs.has(reference);
+      const prevOrders = orders;
       setOrders((prev) =>
-        prev.map((o) => (o.reference === reference ? updated : o)),
+        prev.map((o) =>
+          o.reference === reference ? { ...o, status: next } : o,
+        ),
       );
-      if (selectedOrder?.reference === reference) setSelectedOrder(updated);
-      setToast(`Order moved to "${next}"`);
-    } catch (e) {
-      setToast(
-        e instanceof Error ? e.message : 'Failed to update order status',
+      setSelectedOrder((prev) =>
+        prev?.reference === reference ? { ...prev, status: next } : prev,
       );
-    }
-  };
 
-  const handleLogOrder = (newOrder: AdminDirectOrder) => {
-    setOrders((prev) => [newOrder, ...prev]);
-    setToast(`Order ${newOrder.reference} logged locally`);
-    setLogOrderOpen(false);
-  };
+      try {
+        const updated = isLogged
+          ? await adminApi.directOrders.logged.advance(reference, {
+              status: next,
+            })
+          : await adminApi.directOrders.orders.advance(reference, {
+              status: next,
+            });
 
-  const handleAddContent = async (payload: AdminDirectContentWrite) => {
-    try {
-      const created = await adminApi.directOrders.content.create(payload);
-      setContent((prev) => [created, ...prev]);
-      setToast(`Content "${created.title}" added`);
-      setAddContentOpen(false);
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : 'Failed to add content');
-    }
-  };
+        setOrders((prev) =>
+          prev.map((o) => (o.reference === reference ? updated : o)),
+        );
+        if (selectedOrder?.reference === reference) setSelectedOrder(updated);
+        showToast(`Order moved to "${next}"`);
+      } catch (e) {
+        setOrders(prevOrders);
+        showToast(
+          e instanceof Error ? e.message : 'Failed to update order status',
+          'error',
+        );
+      }
+    },
+    [orders, selectedOrder, loggedRefs, showToast],
+  );
 
-  const handleScheduleLive = async (payload: AdminDirectLiveWrite) => {
-    try {
-      const created = await adminApi.directOrders.lives.create(payload);
-      setLives((prev) => [created, ...prev]);
-      setToast(`LIVE "${created.title}" scheduled`);
-      setScheduleLiveOpen(false);
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : 'Failed to schedule LIVE');
-    }
-  };
+  const handleLogOrder = useCallback(
+    async (newOrder: AdminDirectOrder) => {
+      setOrders((prev) => [newOrder, ...prev]);
+      setLoggedRefs((prev) => new Set(prev).add(newOrder.reference));
+      setLogOrderOpen(false);
 
-  const handleAddCreator = async (payload: AdminDirectCreatorWrite) => {
-    try {
-      const created = await adminApi.directOrders.creators.create(payload);
-      setCreators((prev) => [created, ...prev]);
-      setToast(`Creator "${created.name}" added`);
-      setAddCreatorOpen(false);
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : 'Failed to add creator');
-    }
-  };
+      try {
+        const payload: AdminDirectOrderWrite = {
+          customerName: newOrder.customerName,
+          customerPhone: newOrder.customerPhone,
+          customerEmail: newOrder.customerEmail,
+          source: newOrder.source,
+          status: newOrder.status,
+          paymentMethod: newOrder.paymentMethod,
+          notes: newOrder.notes,
+          items: newOrder.items.map((it) => ({
+            productId: Number(it.productId) || undefined,
+            productName: it.productName,
+            sku: it.sku,
+            image: it.image,
+            qty: it.quantity,
+            price: it.price,
+          })),
+        };
 
-  // ═══ RENDER ═══
+        const created = await adminApi.directOrders.logged.create(payload);
+
+        setOrders((prev) =>
+          prev.map((o) => (o.reference === newOrder.reference ? created : o)),
+        );
+        setLoggedRefs((prev) => {
+          const next = new Set(prev);
+          next.delete(newOrder.reference);
+          next.add(created.reference);
+          return next;
+        });
+        showToast(`Order ${created.reference} saved`);
+      } catch (e) {
+        setOrders((prev) =>
+          prev.filter((o) => o.reference !== newOrder.reference),
+        );
+        setLoggedRefs((prev) => {
+          const next = new Set(prev);
+          next.delete(newOrder.reference);
+          return next;
+        });
+        showToast(
+          e instanceof Error ? e.message : 'Failed to save order',
+          'error',
+        );
+      }
+    },
+    [showToast],
+  );
+
+  const handleAddContent = useCallback(
+    async (payload: AdminDirectContentWrite) => {
+      try {
+        const created = await adminApi.directOrders.content.create(payload);
+        setContent((prev) => [created, ...prev]);
+        showToast(`Content "${created.title}" added`);
+        setAddContentOpen(false);
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Failed to add content',
+          'error',
+        );
+      }
+    },
+    [showToast],
+  );
+
+  const handleScheduleLive = useCallback(
+    async (payload: AdminDirectLiveWrite) => {
+      try {
+        const created = await adminApi.directOrders.lives.create(payload);
+        setLives((prev) => [created, ...prev]);
+        showToast(`LIVE "${created.title}" scheduled`);
+        setScheduleLiveOpen(false);
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Failed to schedule LIVE',
+          'error',
+        );
+      }
+    },
+    [showToast],
+  );
+
+  const handleAddCreator = useCallback(
+    async (payload: AdminDirectCreatorWrite) => {
+      try {
+        const created = await adminApi.directOrders.creators.create(payload);
+        setCreators((prev) => [created, ...prev]);
+        showToast(`Creator "${created.name}" added`);
+        setAddCreatorOpen(false);
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Failed to add creator',
+          'error',
+        );
+      }
+    },
+    [showToast],
+  );
+
+  const handleConvertInbox = useCallback(
+    async (conversation: AdminInboxConversation) => {
+      try {
+        const created = await adminApi.directOrders.inbox.convert(
+          conversation.id,
+          {
+            customerName: conversation.contactName,
+            customerPhone: conversation.contactHandle,
+            source: 'whatsapp',
+            items: [],
+          },
+        );
+        setOrders((prev) => [created, ...prev]);
+        setInbox((prev) =>
+          prev.map((c) =>
+            c.id === conversation.id
+              ? {
+                  ...c,
+                  status: 'converted',
+                  convertedOrder: created.id ? Number(created.id) : null,
+                }
+              : c,
+          ),
+        );
+        showToast(
+          `Order ${created.reference} created from ${conversation.contactName}`,
+        );
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Failed to convert conversation',
+          'error',
+        );
+      }
+    },
+    [showToast],
+  );
+
+  const handleSendInboxReply = useCallback(
+    async (conversation: AdminInboxConversation, body: string) => {
+      try {
+        const msg = await adminApi.directOrders.inbox.messages.create({
+          conversation: conversation.id,
+          direction: 'out',
+          body,
+        });
+        setInbox((prev) =>
+          prev.map((c) =>
+            c.id === conversation.id
+              ? { ...c, messages: [...(c.messages ?? []), msg] }
+              : c,
+          ),
+        );
+        showToast('Reply sent');
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Failed to send reply',
+          'error',
+        );
+      }
+    },
+    [showToast],
+  );
+
+  const handlePayoutCreators = useCallback(
+    async (creatorIds: number[]) => {
+      if (creatorIds.length === 0) return;
+      try {
+        const batch = await adminApi.directOrders.payouts.create({
+          status: 'Pending',
+          payoutMethod: 'M-Pesa',
+          notes: `Creator payout batch (${creatorIds.length})`,
+        });
+        setPayouts((prev) => [batch, ...prev]);
+        setCreators((prev) =>
+          prev.map((c) =>
+            creatorIds.includes(c.id)
+              ? { ...c, commissionOwed: '0', commissionPaid: c.commissionOwed }
+              : c,
+          ),
+        );
+        showToast(`Payout batch ${batch.reference} created`);
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Failed to create payout batch',
+          'error',
+        );
+      }
+    },
+    [showToast],
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-      {toast && (
-        <div className="fixed bottom-3 right-3 z-[120] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>{toast}</span>
-          <button
-            onClick={() => setToast(null)}
-            aria-label="Dismiss"
-            className="text-slate-400 hover:text-white"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+    <div className="min-h-screen bg-white text-slate-900 antialiased">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[200] focus:bg-blue-950 focus:text-white focus:px-3 focus:py-1.5 focus:text-[13px] focus:rounded-sm"
+      >
+        Skip to content
+      </a>
 
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-9 h-9 rounded-sm bg-slate-900 text-white flex items-center justify-center font-semibold text-[13px] shrink-0">
-              {SHOP_BADGE}
-            </span>
-            <div className="min-w-0">
-              <h1 className="text-[15px] font-semibold text-slate-900 truncate">
-                {SHOP_NAME}
-              </h1>
-              <p className="text-[13px] text-slate-500 truncate">
-                Manage your social orders, products, content, and creators — all
-                in one place.
-              </p>
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
+        <div className="max-w-[1700px] mx-auto px-0.5 lg:px-0.5">
+          <div className="py-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-9 h-9 rounded-sm bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                <TikTokLogo className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <h1 className="text-[13px] font-semibold text-slate-900 truncate leading-tight">
+                  {SHOP_NAME}
+                </h1>
+                <p className="text-[13px] text-slate-500 truncate mt-0.5">
+                  Orders, products, content & creators — one dashboard.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => void loadAll(true)}
+                disabled={refreshing || loading}
+                className={btnSecondary}
+                aria-label="Refresh data"
+              >
+                <RefreshCw
+                  className={cn('w-3 h-3', refreshing && 'animate-spin')}
+                />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <button
+                onClick={() => setLogOrderOpen(true)}
+                className={btnPrimary}
+              >
+                <Plus className="w-3 h-3" />
+                <span className="hidden sm:inline">Log New Order</span>
+                <span className="sm:hidden">Order</span>
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => void loadAll(true)}
-              disabled={refreshing || loading}
-              aria-label="Refresh"
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-2 rounded-sm text-[13px] disabled:opacity-60"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
-              />
-              Refresh
-            </button>
-            <button
-              onClick={() => setLogOrderOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Log New Order
-            </button>
-          </div>
-        </div>
 
-        <div className="max-w-[1600px] mx-auto px-3 pb-0">
-          <div className="flex items-center gap-0.5 overflow-x-auto -mb-px">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium whitespace-nowrap border-b-2 transition ${active
-                      ? 'border-slate-900 text-slate-900'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
+          <nav
+            aria-label="Sections"
+            className="relative flex flex-wrap items-center gap-0.5 -mb-px"
+          >
+            {NAV_GROUPS.map((group) => (
+              <NavDropdown
+                key={group.id}
+                group={group}
+                activeTab={tab}
+                onSelect={setTab}
+              />
+            ))}
+          </nav>
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+      <main
+        id="main"
+        className="max-w-[1700px] mx-auto px-0.5 lg:px-0.5 py-2 space-y-2 bg-white"
+      >
         {loadError && (
-          <div className="bg-red-50 border border-red-200 rounded-sm p-3 flex items-start gap-2">
+          <div className="bg-white border border-red-200 rounded-sm p-2 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium text-red-900">
+              <p className="text-[13px] font-semibold text-slate-900">
                 Couldn&apos;t load {SHOP_NAME} data
               </p>
-              <p className="text-[13px] text-red-800 mt-0.5">{loadError}</p>
+              <p className="text-[13px] text-slate-600 mt-0.5">{loadError}</p>
             </div>
             <button
               onClick={() => void loadAll(true)}
-              className="text-[13px] font-medium text-red-900 hover:underline"
+              className="text-[13px] font-medium text-slate-900 hover:underline shrink-0"
             >
               Retry
             </button>
@@ -604,10 +1830,7 @@ export default function SocialShopPage() {
         )}
 
         {loading ? (
-          <div className="bg-white border border-slate-200 rounded-sm p-12 flex items-center justify-center gap-2 text-slate-500">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-[13px]">Loading {SHOP_NAME} data…</span>
-          </div>
+          <TabSkeleton />
         ) : (
           <>
             {tab === 'Dashboard' && (
@@ -621,7 +1844,47 @@ export default function SocialShopPage() {
                 onScheduleLive={() => setScheduleLiveOpen(true)}
                 onGoToOrders={() => setTab('Orders')}
                 onGoToProducts={() => setTab('Products')}
+                onGoToPayouts={() => setTab('Payouts')}
               />
+            )}
+
+            {tab === 'Orders' && (
+              <OrdersTab
+                orders={orders}
+                loggedRefs={loggedRefs}
+                onSelectOrder={setSelectedOrder}
+                onAdvance={(ref, next) => void advanceOrderStatus(ref, next)}
+                onLogOrder={() => setLogOrderOpen(true)}
+              />
+            )}
+
+            {tab === 'Inbox' && (
+              <InboxTab
+                conversations={inbox}
+                onConvert={handleConvertInbox}
+                onReply={handleSendInboxReply}
+              />
+            )}
+
+            {tab === 'Customers' && (
+              <CustomersTab
+                customers={customers}
+                customerStats={customerStats}
+                orders={orders}
+              />
+            )}
+
+            {tab === 'Fulfillment' && (
+              <FulfillmentTab
+                orders={orders}
+                loggedRefs={loggedRefs}
+                onSelectOrder={setSelectedOrder}
+                onAdvance={(ref, next) => void advanceOrderStatus(ref, next)}
+              />
+            )}
+
+            {tab === 'Returns' && (
+              <ReturnsTab returns={returns} orders={orders} />
             )}
 
             {tab === 'Products' && (
@@ -632,14 +1895,7 @@ export default function SocialShopPage() {
               />
             )}
 
-            {tab === 'Orders' && (
-              <OrdersTab
-                orders={orders}
-                onSelectOrder={setSelectedOrder}
-                onAdvance={advanceOrderStatus}
-                onLogOrder={() => setLogOrderOpen(true)}
-              />
-            )}
+            {tab === 'Inventory' && <InventoryTab products={products} />}
 
             {tab === 'Content' && (
               <ContentTab
@@ -662,11 +1918,33 @@ export default function SocialShopPage() {
               />
             )}
 
-            {tab === 'Analytics' && <AnalyticsTab />}
-            {tab === 'Finance' && (
-              <FinanceTab orders={orders} creators={creators} />
+            {tab === 'Analytics' && (
+              <AnalyticsTab
+                summary={analyticsSummary}
+                orders={orders}
+                creators={creators}
+              />
             )}
+
+            {tab === 'Finance' && (
+              <FinanceTab summary={financeSummary} creators={creators} />
+            )}
+
+            {tab === 'Payouts' && (
+              <PayoutsTab
+                creators={creators}
+                payouts={payouts}
+                onPay={handlePayoutCreators}
+              />
+            )}
+
+            {tab === 'Tax' && (
+              <TaxTab summary={financeSummary} creators={creators} />
+            )}
+
             {tab === 'Settings' && <SettingsTab />}
+
+            {tab === 'Team' && <TeamTab team={team} />}
           </>
         )}
       </main>
@@ -674,7 +1952,7 @@ export default function SocialShopPage() {
       {logOrderOpen && (
         <LogOrderModal
           onClose={() => setLogOrderOpen(false)}
-          onSubmit={handleLogOrder}
+          onSubmit={(o) => void handleLogOrder(o)}
           products={products}
         />
       )}
@@ -683,6 +1961,8 @@ export default function SocialShopPage() {
         <AddProductModal
           onClose={() => setAddProductOpen(false)}
           onSubmit={handleAddProduct}
+          brands={brands}
+          categories={categories}
         />
       )}
 
@@ -710,360 +1990,77 @@ export default function SocialShopPage() {
       {selectedOrder && (
         <OrderDrawer
           order={selectedOrder}
+          isLogged={loggedRefs.has(selectedOrder.reference)}
           onClose={() => setSelectedOrder(null)}
           onAdvance={(next) =>
             void advanceOrderStatus(selectedOrder.reference, next)
           }
         />
       )}
+
+      {confirmState && (
+        <ConfirmDialog
+          title={confirmState.title}
+          description={confirmState.description}
+          confirmLabel={confirmState.confirmLabel}
+          onCancel={() => setConfirmState(null)}
+          onConfirm={confirmState.onConfirm}
+        />
+      )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// UPLOAD COMPONENTS (new)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Reusable image picker + uploader.
- *
- * Shows a click-to-select tile; on file select it:
- *   1. shows an instant local preview via FileReader
- *   2. uploads to /api/admin/uploads/ and swaps in the real URL
- *   3. falls back to the data-URL if the upload endpoint fails
- */
-function ImageUpload({
+function KpiCard({
   label,
-  helper,
   value,
-  onChange,
-  required,
+  icon,
 }: {
   label: string;
-  helper?: string;
   value: string;
-  onChange: (url: string) => void;
-  required?: boolean;
+  icon: React.ReactNode;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handlePick = () => inputRef.current?.click();
-
-  const handleFile = async (file: File) => {
-    setError(null);
-
-    if (!file.type.startsWith('image/')) {
-      setError('Please choose an image file (JPG, PNG, WEBP…).');
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError('Image must be smaller than 5 MB.');
-      return;
-    }
-
-    // 1) instant local preview
-    let localPreview = '';
-    try {
-      localPreview = await readAsDataURL(file);
-      onChange(localPreview);
-    } catch {
-      /* ignore – we'll still try to upload */
-    }
-
-    // 2) upload to backend
-    setUploading(true);
-    try {
-      const url = await uploadFile(file, 'image');
-      onChange(url);
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? `${e.message} — preview kept locally until you retry.`
-          : 'Upload failed. Preview kept locally.',
-      );
-      // we keep the localPreview so the form is still usable
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) void handleFile(file);
-  };
-
-  const clear = () => {
-    onChange('');
-    setError(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
   return (
-    <div>
-      <label className="block text-[12px] font-medium text-slate-700 mb-1">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
-        onClick={handlePick}
-        className="relative cursor-pointer border-2 border-dashed border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-sm aspect-video flex items-center justify-center overflow-hidden bg-slate-50 transition"
-      >
-        {value ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={value}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-            {uploading && (
-              <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-white animate-spin" />
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-center px-3 py-6">
-            {uploading ? (
-              <Loader2 className="w-6 h-6 text-slate-400 mx-auto animate-spin" />
-            ) : (
-              <UploadCloud className="w-6 h-6 text-slate-400 mx-auto" />
-            )}
-            <p className="text-[12px] font-medium text-slate-700 mt-2">
-              {uploading ? 'Uploading…' : 'Click or drop an image here'}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              JPG, PNG or WEBP — up to 5 MB
-            </p>
-          </div>
-        )}
+    <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center gap-2 hover:border-slate-300 transition-all">
+      <span className="w-8 h-8 flex items-center justify-center shrink-0 rounded-sm bg-slate-100 text-slate-700">
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold text-slate-500 uppercase tracking-wide truncate">
+          {label}
+        </p>
+        <p className="text-base font-bold text-slate-900 leading-tight truncate tabular-nums">
+          {value}
+        </p>
       </div>
-
-      {/* Action row */}
-      <div className="flex items-center gap-2 mt-1.5">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handlePick();
-          }}
-          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-slate-700 hover:underline"
-        >
-          <ImageIcon className="w-3 h-3" />
-          {value ? 'Replace image' : 'Choose image'}
-        </button>
-        {value && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              clear();
-            }}
-            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:underline"
-          >
-            <X className="w-3 h-3" />
-            Remove
-          </button>
-        )}
-      </div>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleFile(file);
-        }}
-      />
-
-      {helper && !error && (
-        <p className="text-[11px] text-slate-500 mt-1">{helper}</p>
-      )}
-      {error && (
-        <p className="text-[11px] text-red-600 mt-1">{error}</p>
-      )}
     </div>
   );
 }
 
-/**
- * Reusable video picker + uploader. Same pattern as ImageUpload but
- * renders an inline <video> player for the preview.
- */
-function VideoUpload({
-  label,
-  helper,
-  value,
-  onChange,
-  required,
-  poster,
+function QuickAction({
+  icon,
+  title,
+  onClick,
 }: {
-  label: string;
-  helper?: string;
-  value: string;
-  onChange: (url: string) => void;
-  required?: boolean;
-  poster?: string;
+  icon: React.ReactNode;
+  title: string;
+  onClick: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handlePick = () => inputRef.current?.click();
-
-  const handleFile = async (file: File) => {
-    setError(null);
-
-    if (!file.type.startsWith('video/')) {
-      setError('Please choose a video file (MP4, MOV, WEBM…).');
-      return;
-    }
-    if (file.size > MAX_VIDEO_BYTES) {
-      setError('Video must be smaller than 100 MB.');
-      return;
-    }
-
-    let localPreview = '';
-    try {
-      localPreview = await readAsDataURL(file);
-      onChange(localPreview);
-    } catch {
-      /* ignore */
-    }
-
-    setUploading(true);
-    try {
-      const url = await uploadFile(file, 'video');
-      onChange(url);
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? `${e.message} — preview kept locally until you retry.`
-          : 'Upload failed. Preview kept locally.',
-      );
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) void handleFile(file);
-  };
-
-  const clear = () => {
-    onChange('');
-    setError(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
   return (
-    <div>
-      <label className="block text-[12px] font-medium text-slate-700 mb-1">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
-        className="relative border-2 border-dashed border-slate-200 hover:border-slate-300 rounded-sm overflow-hidden bg-slate-50 transition"
-      >
-        {value ? (
-          <div className="relative">
-            <video
-              src={value}
-              poster={poster || undefined}
-              controls
-              playsInline
-              className="w-full aspect-video bg-black object-contain"
-            />
-            {uploading && (
-              <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-white animate-spin" />
-              </div>
-            )}
-          </div>
-        ) : (
-          <div
-            onClick={handlePick}
-            className="cursor-pointer text-center px-3 py-10"
-          >
-            {uploading ? (
-              <Loader2 className="w-7 h-7 text-slate-400 mx-auto animate-spin" />
-            ) : (
-              <Film className="w-7 h-7 text-slate-400 mx-auto" />
-            )}
-            <p className="text-[12px] font-medium text-slate-700 mt-2">
-              {uploading ? 'Uploading video…' : 'Click or drop a video here'}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              MP4, MOV or WEBM — up to 100 MB
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 mt-1.5">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handlePick();
-          }}
-          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-slate-700 hover:underline"
-        >
-          <Film className="w-3 h-3" />
-          {value ? 'Replace video' : 'Choose video'}
-        </button>
-        {value && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              clear();
-            }}
-            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-red-600 hover:underline"
-          >
-            <X className="w-3 h-3" />
-            Remove
-          </button>
-        )}
-      </div>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="video/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleFile(file);
-        }}
-      />
-
-      {helper && !error && (
-        <p className="text-[11px] text-slate-500 mt-1">{helper}</p>
-      )}
-      {error && (
-        <p className="text-[11px] text-red-600 mt-1">{error}</p>
-      )}
-    </div>
+    <button
+      onClick={onClick}
+      className="w-full text-left border border-slate-200 rounded-sm hover:border-slate-300 hover:bg-slate-50 p-2 flex items-center gap-2 transition-all group"
+    >
+      <span className="w-7 h-7 rounded-sm bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 group-hover:bg-blue-950 group-hover:text-white transition-colors">
+        {icon}
+      </span>
+      <span className="text-[13px] font-medium text-slate-800 flex-1 truncate">
+        {title}
+      </span>
+      <ChevronRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+    </button>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: DASHBOARD
-// ═══════════════════════════════════════════════════════════════════════════
 
 function DashboardTab({
   stats,
@@ -1075,6 +2072,7 @@ function DashboardTab({
   onScheduleLive,
   onGoToOrders,
   onGoToProducts,
+  onGoToPayouts,
 }: {
   stats: {
     ordersMonth: number;
@@ -1090,6 +2088,7 @@ function DashboardTab({
   onScheduleLive: () => void;
   onGoToOrders: () => void;
   onGoToProducts: () => void;
+  onGoToPayouts: () => void;
 }) {
   const overdue = orders.filter(
     (o) => o.status === 'Awaiting Shipment' || o.status === 'Paid',
@@ -1103,31 +2102,16 @@ function DashboardTab({
 
   if (orders.length === 0 && products.length === 0) {
     return (
-      <div className="max-w-xl mx-auto my-8 bg-white border border-slate-200 rounded-sm p-6 text-center space-y-3">
-        <span className="w-12 h-12 rounded-sm bg-slate-900 text-white flex items-center justify-center mx-auto">
-          <ShoppingBag className="w-6 h-6" />
-        </span>
-        <h2 className="text-[15px] font-semibold text-slate-900">
-          No activity yet. Start by adding a product or logging your first
-          order.
-        </h2>
-        <div className="flex justify-center gap-2 pt-1">
-          <button
-            onClick={onAddProduct}
-            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-          >
-            <Package className="w-3.5 h-3.5" />
-            Add Product
-          </button>
-          <button
-            onClick={onCreateOrder}
-            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Log New Order
-          </button>
-        </div>
-      </div>
+      <EmptyState
+        icon={<ShoppingBag className="w-5 h-5" />}
+        title="No TikTok activity yet"
+        description="Start by adding a product or logging your first order."
+        action={{
+          label: 'Log New Order',
+          onClick: onCreateOrder,
+          icon: <Plus className="w-3 h-3" />,
+        }}
+      />
     );
   }
 
@@ -1137,108 +2121,109 @@ function DashboardTab({
         <KpiCard
           label="Orders"
           value={String(stats.ordersMonth)}
-          helper="Total orders logged from social channels this month"
-          icon={<ClipboardList className="w-4 h-4" />}
-          tint="bg-blue-50 text-blue-950"
+          icon={<ShoppingBag className="w-4 h-4" />}
         />
         <KpiCard
           label="Revenue"
           value={KES(stats.revenue)}
-          helper="Total sales from social-sourced orders (KES)"
-          icon={<DollarSign className="w-4 h-4" />}
-          tint="bg-emerald-50 text-emerald-700"
+          icon={<Banknote className="w-4 h-4" />}
         />
         <KpiCard
           label="Pending Shipment"
           value={String(stats.pendingShipment)}
-          helper="Orders paid but not yet shipped"
           icon={<Truck className="w-4 h-4" />}
-          tint="bg-amber-50 text-amber-700"
         />
         <KpiCard
           label="Active Creators"
           value={String(stats.activeCreators)}
-          helper="Creators currently promoting your products"
-          icon={<Users className="w-4 h-4" />}
-          tint="bg-purple-50 text-purple-700"
+          icon={<UserRound className="w-4 h-4" />}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-sm">
-          <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+          <div className="px-2 py-2 border-b border-slate-200">
             <p className="text-[13px] font-semibold text-slate-900">
-              Action Needed
+              Action needed
             </p>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Items that need your attention right now — overdue shipments,
-              out-of-stock products, and unpaid creator commissions.
+              Overdue shipments, low stock, and unpaid creator commissions.
             </p>
           </div>
-          <div className="p-3 space-y-2">
+          <div className="p-2 space-y-2">
             {overdue.length === 0 &&
               lowStock.length === 0 &&
               unpaidCommissions.length === 0 && (
-                <p className="text-[13px] text-slate-500 py-6 text-center">
-                  You&apos;re all caught up. Nothing needs your attention right
-                  now.
-                </p>
+                <div className="py-6 text-center">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
+                  <p className="text-[13px] font-medium text-slate-700 mt-1.5">
+                    You&apos;re all caught up
+                  </p>
+                  <p className="text-[13px] text-slate-500 mt-0.5">
+                    Nothing needs your attention right now.
+                  </p>
+                </div>
               )}
 
             {overdue.length > 0 && (
-              <div className="border border-amber-200 bg-amber-50 rounded-sm p-2 flex items-start gap-2">
-                <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div className="border border-slate-200 rounded-sm p-2 flex items-start gap-2">
+                <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-amber-900">
+                  <p className="text-[13px] font-medium text-slate-900">
                     {overdue.length} order{overdue.length > 1 ? 's' : ''}{' '}
                     awaiting shipment
                   </p>
-                  <p className="text-[13px] text-amber-800 mt-0.5">
-                    Customers paid but the items haven&apos;t been dispatched
-                    yet.
+                  <p className="text-[13px] text-slate-500 mt-0.5">
+                    Customers paid but items aren&apos;t dispatched yet.
                   </p>
                   <button
                     onClick={onGoToOrders}
-                    className="text-[13px] font-medium text-amber-900 hover:underline mt-1"
+                    className="text-[13px] font-medium text-slate-900 hover:underline mt-1 inline-flex items-center gap-1"
                   >
-                    View orders →
+                    View orders <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
               </div>
             )}
 
             {lowStock.length > 0 && (
-              <div className="border border-red-200 bg-red-50 rounded-sm p-2 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="border border-slate-200 rounded-sm p-2 flex items-start gap-2">
+                <AlertCircle className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-red-900">
+                  <p className="text-[13px] font-medium text-slate-900">
                     {lowStock.length} product{lowStock.length > 1 ? 's' : ''}{' '}
                     running low
                   </p>
-                  <p className="text-[13px] text-red-800 mt-0.5">
+                  <p className="text-[13px] text-slate-500 mt-0.5 truncate">
                     {lowStock.map((p) => p.name).join(' · ')}
                   </p>
                   <button
                     onClick={onGoToProducts}
-                    className="text-[13px] font-medium text-red-900 hover:underline mt-1"
+                    className="text-[13px] font-medium text-slate-900 hover:underline mt-1 inline-flex items-center gap-1"
                   >
-                    Update stock →
+                    Update stock <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
               </div>
             )}
 
             {unpaidCommissions.length > 0 && (
-              <div className="border border-blue-200 bg-blue-50 rounded-sm p-2 flex items-start gap-2">
-                <Wallet className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+              <div className="border border-slate-200 rounded-sm p-2 flex items-start gap-2">
+                <Wallet className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-blue-950">
+                  <p className="text-[13px] font-medium text-slate-900">
                     {unpaidCommissions.length} creator commission
                     {unpaidCommissions.length > 1 ? 's' : ''} unpaid
                   </p>
-                  <p className="text-[13px] text-blue-800 mt-0.5">
+                  <p className="text-[13px] text-slate-500 mt-0.5 truncate">
                     {unpaidCommissions.map((c) => c.name).join(' · ')}
                   </p>
+                  <button
+                    onClick={onGoToPayouts}
+                    className="text-[13px] font-medium text-slate-900 hover:underline mt-1 inline-flex items-center gap-1"
+                  >
+                    Open payouts <ChevronRight className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
             )}
@@ -1246,35 +2231,31 @@ function DashboardTab({
         </div>
 
         <div className="bg-white border border-slate-200 rounded-sm">
-          <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+          <div className="px-2 py-2 border-b border-slate-200">
             <p className="text-[13px] font-semibold text-slate-900">
-              Quick Actions
+              Quick actions
             </p>
           </div>
-          <div className="p-3 space-y-2">
+          <div className="p-2 grid grid-cols-2 gap-2">
             <QuickAction
-              icon={<ClipboardList className="w-3.5 h-3.5" />}
-              title="Log New Order"
-              description="Record a sale that came from social media"
+              icon={<ShoppingBag className="w-3.5 h-3.5" />}
+              title="Log Order"
               onClick={onCreateOrder}
             />
             <QuickAction
               icon={<Package className="w-3.5 h-3.5" />}
               title="Add Product"
-              description="Add an item you promote on social media"
               onClick={onAddProduct}
             />
             <QuickAction
-              icon={<Radio className="w-3.5 h-3.5" />}
+              icon={<Video className="w-3.5 h-3.5" />}
               title="Schedule LIVE"
-              description="Plan an upcoming livestream session"
               onClick={onScheduleLive}
             />
             <QuickAction
               icon={<Wallet className="w-3.5 h-3.5" />}
-              title="Record Payment"
-              description="Log a creator commission payment"
-              onClick={() => { }}
+              title="Payouts"
+              onClick={onGoToPayouts}
             />
           </div>
         </div>
@@ -1283,70 +2264,6 @@ function DashboardTab({
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  helper,
-  icon,
-  tint,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-  icon: React.ReactNode;
-  tint: string;
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium text-slate-500 truncate">
-          {label}
-        </p>
-        <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
-          {value}
-        </p>
-        <p className="text-[12px] text-slate-400 mt-0.5">{helper}</p>
-      </div>
-      <span
-        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${tint}`}
-      >
-        {icon}
-      </span>
-    </div>
-  );
-}
-
-function QuickAction({
-  icon,
-  title,
-  description,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full text-left border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-sm p-2 flex items-start gap-2 transition"
-    >
-      <span className="w-7 h-7 rounded-sm bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium text-slate-900">{title}</p>
-        <p className="text-[12px] text-slate-500 mt-0.5">{description}</p>
-      </div>
-    </button>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: PRODUCTS
-// ═══════════════════════════════════════════════════════════════════════════
-
 function ProductsTab({
   products,
   onAddProduct,
@@ -1354,84 +2271,113 @@ function ProductsTab({
 }: {
   products: AdminDirectProduct[];
   onAddProduct: () => void;
-  onDeleteProduct: (id: number, name: string) => void;
+  onDeleteProduct: (id: number | string, name: string) => void;
 }) {
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounced(query, 250);
+  const [visible, setVisible] = useState(PAGE_SIZE);
+
+  const filtered = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.sku || '').toLowerCase().includes(q) ||
+        (p.brand || '').toLowerCase().includes(q) ||
+        (p.category || '').toLowerCase().includes(q),
+    );
+  }, [products, debouncedQuery]);
+
+  const shown = filtered.slice(0, visible);
+
   return (
-    <div className="space-y-3">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
-        <div>
-          <p className="text-[13px] font-semibold text-slate-900">
-            {SHOP_NAME} Products
-          </p>
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <Package className="w-3.5 h-3.5 text-slate-400" />
+            TikTok Products
+          </h2>
           <p className="text-[13px] text-slate-500 mt-0.5">
-            Products you promote on social media. Keep prices, stock, and
-            details updated here.
+            Products from your store catalog.
           </p>
         </div>
-        <button
-          onClick={onAddProduct}
-          className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px] shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Product
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="relative hidden md:block">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setVisible(PAGE_SIZE);
+              }}
+              placeholder="Search products…"
+              className={cn(inputCls, 'w-48 pl-7')}
+            />
+          </div>
+          <button onClick={onAddProduct} className={btnPrimary}>
+            <Plus className="w-3 h-3" />
+            Add Product
+          </button>
+        </div>
       </div>
 
       {products.length === 0 ? (
         <EmptyState
-          icon={<Package className="w-6 h-6" />}
-          title="No products added yet. Add your first product to start tracking sales and content."
+          icon={<Package className="w-5 h-5" />}
+          title="No products added yet"
+          description="Add your first product to start tracking TikTok sales and stock."
           action={{
             label: 'Add Product',
             onClick: onAddProduct,
-            icon: <Plus className="w-3.5 h-3.5" />,
+            icon: <Plus className="w-3 h-3" />,
           }}
         />
       ) : (
-        <>
-          <p className="text-[13px] text-slate-500 px-1">
-            These are the products you actively promote on social media. Stock
-            levels here are separate from your website unless you link them.
-          </p>
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">Product</th>
-                    <th className="py-2 px-3 font-medium">SKU</th>
-                    <th className="py-2 px-3 font-medium text-right">Price</th>
-                    <th className="py-2 px-3 font-medium text-right">Stock</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                    <th className="py-2 px-3 font-medium text-right">
-                      Direct sales
-                    </th>
-                    <th className="py-2 px-3 w-20"></th>
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 font-medium">Product</th>
+                  <th className="py-2 px-2 font-medium">SKU</th>
+                  <th className="py-2 px-2 font-medium text-right">Price</th>
+                  <th className="py-2 px-2 font-medium text-right">Stock</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                  <th className="py-2 px-2 font-medium text-right">Sales</th>
+                  <th className="py-2 px-2 w-16"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {shown.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="py-6 text-center text-slate-400 text-[13px]"
+                    >
+                      No products match &ldquo;{query}&rdquo;.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {products.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-3">
+                ) : (
+                  shown.map((p, idx) => (
+                    <tr
+                      key={`${p.id}-${idx}`}
+                      className="hover:bg-slate-50 transition-colors"
+                    >
+                      <td className="py-2 px-2">
                         <div className="flex items-center gap-2">
-                          {p.image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={p.image}
-                              alt=""
-                              className="w-9 h-9 rounded-sm object-cover border border-slate-200 shrink-0"
-                            />
-                          ) : (
-                            <span className="w-9 h-9 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                              <Package className="w-4 h-4 text-slate-400" />
-                            </span>
-                          )}
+                          <Thumb
+                            src={p.image}
+                            className="w-8 h-8"
+                            fallbackIcon={<Package className="w-3.5 h-3.5" />}
+                          />
                           <div className="min-w-0">
                             <p className="font-medium text-slate-900 truncate max-w-xs">
                               {p.name}
                             </p>
                             {(p.brand || p.category) && (
-                              <p className="text-[12px] text-slate-400 truncate">
+                              <p className="text-[13px] text-slate-400 truncate">
                                 {[p.brand, p.category]
                                   .filter(Boolean)
                                   .join(' · ')}
@@ -1440,111 +2386,238 @@ function ProductsTab({
                           </div>
                         </div>
                       </td>
-                      <td className="py-2 px-3 font-mono text-slate-500">
+                      <td className="py-2 px-2 font-mono text-[13px] text-slate-500">
                         {p.sku || '—'}
                       </td>
-                      <td className="py-2 px-3 text-right">
-                        <span className="font-medium text-slate-900">
+                      <td className="py-2 px-2 text-right">
+                        <span className="font-medium text-slate-900 tabular-nums">
                           {KES(p.price)}
                         </span>
                         {p.compareAtPrice && (
-                          <span className="block text-[12px] text-slate-400 line-through">
+                          <span className="block text-[13px] text-slate-400 line-through tabular-nums">
                             {KES(p.compareAtPrice)}
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-right">
+                      <td className="py-2 px-2 text-right">
                         <span
-                          className={
+                          className={cn(
+                            'tabular-nums',
                             p.stockQuantity === 0
-                              ? 'text-red-600 font-medium'
+                              ? 'text-red-600 font-semibold'
                               : p.stockQuantity <= 5
-                                ? 'text-amber-700 font-medium'
-                                : 'text-slate-700'
-                          }
+                                ? 'text-amber-700 font-semibold'
+                                : 'text-slate-700',
+                          )}
                         >
                           {p.stockQuantity}
                         </span>
                       </td>
-                      <td className="py-2 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${productStatusBadge(p.status)}`}
-                        >
+                      <td className="py-2 px-2">
+                        <StatusBadge variant={productStatusVariant(p.status)} dot>
                           {p.status}
-                        </span>
+                        </StatusBadge>
                       </td>
-                      <td className="py-2 px-3 text-right">
-                        <p className="font-medium text-slate-900">
+                      <td className="py-2 px-2 text-right">
+                        <p className="font-medium text-slate-900 tabular-nums">
                           {p.directSalesCount}
                         </p>
-                        <p className="text-[12px] text-slate-400">
+                        <p className="text-[13px] text-slate-400 tabular-nums">
                           {KES(p.directRevenue)}
                         </p>
                       </td>
-                      <td className="py-2 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="py-2 px-2">
+                        <div className="flex items-center justify-end">
                           <button
-                            className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500"
-                            aria-label="Edit"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
+                            className={iconBtn}
+                            aria-label={`Delete ${p.name}`}
                             onClick={() => onDeleteProduct(p.id, p.name)}
-                            className="p-1.5 rounded-sm hover:bg-red-50 text-slate-500 hover:text-red-600"
-                            aria-label="Delete"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        </>
+          {visible < filtered.length && (
+            <div className="border-t border-slate-200 p-2 text-center">
+              <button
+                onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                className={btnSecondary}
+              >
+                Load {Math.min(PAGE_SIZE, filtered.length - visible)} more
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: ORDERS
-// ═══════════════════════════════════════════════════════════════════════════
+function InventoryTab({ products }: { products: AdminDirectProduct[] }) {
+  const buckets = useMemo(() => {
+    const out = {
+      out: [] as AdminDirectProduct[],
+      low: [] as AdminDirectProduct[],
+      ok: [] as AdminDirectProduct[],
+    };
+    products.forEach((p) => {
+      if (p.stockQuantity === 0) out.out.push(p);
+      else if (p.stockQuantity <= 5) out.low.push(p);
+      else out.ok.push(p);
+    });
+    return out;
+  }, [products]);
 
-const ORDER_TABS: {
-  id: AdminDirectOrderStatus | 'All';
-  label: string;
-  helper: string;
-}[] = [
-    { id: 'All', label: 'All', helper: "Every order you've logged" },
-    { id: 'New', label: 'New', helper: 'Just logged, not yet confirmed' },
-    {
-      id: 'Awaiting Payment',
-      label: 'Awaiting Payment',
-      helper: 'Order placed, payment not received',
-    },
-    { id: 'Paid', label: 'Paid', helper: 'Payment confirmed, ready to ship' },
-    {
-      id: 'Awaiting Shipment',
-      label: 'Awaiting Shipment',
-      helper: 'Paid but not yet dispatched',
-    },
-    { id: 'Shipped', label: 'Shipped', helper: 'On the way to the customer' },
-    { id: 'Delivered', label: 'Delivered', helper: 'Customer has received the order' },
-    { id: 'Cancelled', label: 'Cancelled', helper: 'Order was cancelled' },
-    { id: 'Returned', label: 'Returned', helper: 'Customer returned the item' },
-  ];
+  const totalValue = products.reduce(
+    (a, p) => a + Number(p.price || 0) * p.stockQuantity,
+    0,
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+          <Boxes className="w-3.5 h-3.5 text-slate-400" />
+          Inventory
+        </h2>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          Stock position across all catalog products.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <KpiCard
+          label="Total SKUs"
+          value={String(products.length)}
+          icon={<Package className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Out of Stock"
+          value={String(buckets.out.length)}
+          icon={<AlertCircle className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Low Stock"
+          value={String(buckets.low.length)}
+          icon={<Clock className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Stock Value"
+          value={KES(totalValue)}
+          icon={<Banknote className="w-4 h-4" />}
+        />
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <th className="py-2 px-2 font-medium">Product</th>
+                <th className="py-2 px-2 font-medium">SKU</th>
+                <th className="py-2 px-2 font-medium text-right">On hand</th>
+                <th className="py-2 px-2 font-medium text-right">
+                  Unit price
+                </th>
+                <th className="py-2 px-2 font-medium text-right">Value</th>
+                <th className="py-2 px-2 font-medium">Health</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {products.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-slate-400 text-[13px]">
+                    No inventory yet.
+                  </td>
+                </tr>
+              ) : (
+                products.map((p, idx) => {
+                  const value = Number(p.price || 0) * p.stockQuantity;
+                  const health =
+                    p.stockQuantity === 0
+                      ? {
+                          label: 'Out of stock',
+                          variant: 'danger' as BadgeVariant,
+                        }
+                      : p.stockQuantity <= 5
+                        ? { label: 'Low', variant: 'warning' as BadgeVariant }
+                        : {
+                            label: 'Healthy',
+                            variant: 'success' as BadgeVariant,
+                          };
+                  return (
+                    <tr
+                      key={`${p.id}-${idx}`}
+                      className="hover:bg-slate-50"
+                    >
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          <Thumb
+                            src={p.image}
+                            className="w-7 h-7"
+                            fallbackIcon={<Package className="w-3 h-3" />}
+                          />
+                          <p className="font-medium text-slate-900 truncate max-w-xs">
+                            {p.name}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 font-mono text-[13px] text-slate-500">
+                        {p.sku || '—'}
+                      </td>
+                      <td className="py-2 px-2 text-right tabular-nums text-slate-700">
+                        {p.stockQuantity}
+                      </td>
+                      <td className="py-2 px-2 text-right tabular-nums text-slate-700">
+                        {KES(p.price)}
+                      </td>
+                      <td className="py-2 px-2 text-right tabular-nums font-medium text-slate-900">
+                        {KES(value)}
+                      </td>
+                      <td className="py-2 px-2">
+                        <StatusBadge variant={health.variant} dot>
+                          {health.label}
+                        </StatusBadge>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ORDER_TABS: { id: AdminDirectOrderStatus | 'All'; label: string }[] = [
+  { id: 'All', label: 'All' },
+  { id: 'New', label: 'New' },
+  { id: 'Awaiting Payment', label: 'Awaiting Payment' },
+  { id: 'Paid', label: 'Paid' },
+  { id: 'Awaiting Shipment', label: 'Awaiting Shipment' },
+  { id: 'Shipped', label: 'Shipped' },
+  { id: 'Delivered', label: 'Delivered' },
+  { id: 'Cancelled', label: 'Cancelled' },
+  { id: 'Returned', label: 'Returned' },
+];
 
 function OrdersTab({
   orders,
+  loggedRefs,
   onSelectOrder,
   onAdvance,
   onLogOrder,
 }: {
   orders: AdminDirectOrder[];
+  loggedRefs: Set<string>;
   onSelectOrder: (o: AdminDirectOrder) => void;
   onAdvance: (reference: string, next: AdminDirectOrderStatus) => void;
   onLogOrder: () => void;
@@ -1552,44 +2625,75 @@ function OrdersTab({
   const [statusFilter, setStatusFilter] = useState<
     AdminDirectOrderStatus | 'All'
   >('All');
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounced(query, 250);
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
-  const filtered =
-    statusFilter === 'All'
-      ? orders
-      : orders.filter((o) => o.status === statusFilter);
+  const filtered = useMemo(() => {
+    let list =
+      statusFilter === 'All'
+        ? orders
+        : orders.filter((o) => o.status === statusFilter);
+    const q = debouncedQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (o) =>
+          o.reference.toLowerCase().includes(q) ||
+          o.customerName.toLowerCase().includes(q) ||
+          (o.customerPhone || '').toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [orders, statusFilter, debouncedQuery]);
+
+  const shown = filtered.slice(0, visible);
 
   return (
-    <div className="space-y-3">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
-        <div>
-          <p className="text-[13px] font-semibold text-slate-900">Orders</p>
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <ShoppingBag className="w-3.5 h-3.5 text-slate-400" />
+            Orders
+          </h2>
           <p className="text-[13px] text-slate-500 mt-0.5">
-            Log and track every sale that comes from social media — videos,
-            LIVE sessions, or DMs.
+            Log and track every sale from TikTok.
           </p>
         </div>
-        <button
-          onClick={onLogOrder}
-          className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px] shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Log New Order
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="relative hidden md:block">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setVisible(PAGE_SIZE);
+              }}
+              placeholder="Search orders…"
+              className={cn(inputCls, 'w-48 pl-7')}
+            />
+          </div>
+          <button onClick={onLogOrder} className={btnPrimary}>
+            <Plus className="w-3 h-3" />
+            Log New Order
+          </button>
+        </div>
       </div>
 
       {orders.length === 0 ? (
         <EmptyState
-          icon={<ClipboardList className="w-6 h-6" />}
-          title="No orders logged yet. When a customer buys through social media, log the order here."
+          icon={<ShoppingBag className="w-5 h-5" />}
+          title="No orders logged yet"
+          description="When a customer buys through TikTok, log the order here."
           action={{
             label: 'Log New Order',
             onClick: onLogOrder,
-            icon: <Plus className="w-3.5 h-3.5" />,
+            icon: <Plus className="w-3 h-3" />,
           }}
         />
       ) : (
         <>
-          <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex items-center gap-0.5 overflow-x-auto">
+          <div className="bg-white border border-slate-200 rounded-sm p-1 flex items-center gap-0.5 overflow-x-auto">
             {ORDER_TABS.map((s) => {
               const count =
                 s.id === 'All'
@@ -1599,19 +2703,25 @@ function OrdersTab({
               return (
                 <button
                   key={s.id}
-                  onClick={() => setStatusFilter(s.id)}
-                  title={s.helper}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-[12px] font-medium whitespace-nowrap transition ${active
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
-                    }`}
+                  onClick={() => {
+                    setStatusFilter(s.id);
+                    setVisible(PAGE_SIZE);
+                  }}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 text-[13px] font-medium whitespace-nowrap rounded-sm transition-colors',
+                    active
+                      ? 'bg-blue-950 text-white'
+                      : 'text-slate-600 hover:bg-slate-100',
+                  )}
                 >
                   {s.label}
                   <span
-                    className={`inline-block px-1.5 py-0.5 rounded-sm text-[11px] font-medium ${active
+                    className={cn(
+                      'inline-block px-1 py-0.5 text-[13px] font-semibold tabular-nums rounded-sm',
+                      active
                         ? 'bg-white/20 text-white'
-                        : 'bg-slate-100 text-slate-500'
-                      }`}
+                        : 'bg-slate-100 text-slate-500',
+                    )}
                   >
                     {count}
                   </span>
@@ -1624,74 +2734,83 @@ function OrdersTab({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">Order</th>
-                    <th className="py-2 px-3 font-medium">Customer</th>
-                    <th className="py-2 px-3 font-medium">Items</th>
-                    <th className="py-2 px-3 font-medium text-right">Total</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                    <th className="py-2 px-3 w-32"></th>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                    <th className="py-2 px-2 font-medium">Order</th>
+                    <th className="py-2 px-2 font-medium">Customer</th>
+                    <th className="py-2 px-2 font-medium">Items</th>
+                    <th className="py-2 px-2 font-medium text-right">Total</th>
+                    <th className="py-2 px-2 font-medium">Status</th>
+                    <th className="py-2 px-2 w-28"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filtered.length === 0 ? (
+                  {shown.length === 0 ? (
                     <tr>
                       <td
                         colSpan={6}
-                        className="py-12 text-center text-slate-400 text-[13px]"
+                        className="py-6 text-center text-slate-400 text-[13px]"
                       >
-                        No orders with status &ldquo;{statusFilter}&rdquo;.
+                        No orders match your filters.
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((o) => {
+                    shown.map((o, idx) => {
                       const firstItem = o.items[0];
+                      const isLogged = loggedRefs.has(o.reference);
                       return (
                         <tr
-                          key={o.reference}
+                          key={`${o.reference}-${idx}`}
                           onClick={() => onSelectOrder(o)}
                           className="hover:bg-slate-50 cursor-pointer transition-colors"
                         >
-                          <td className="py-2 px-3 font-mono font-medium text-slate-900">
-                            {o.reference}
+                          <td className="py-2 px-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-medium text-slate-900">
+                                {o.reference}
+                              </span>
+                              {isLogged && (
+                                <span
+                                  title="Manually logged"
+                                  className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-sm text-[13px] font-medium bg-white text-slate-600 border border-slate-200"
+                                >
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  Logged
+                                </span>
+                              )}
+                            </div>
                           </td>
-                          <td className="py-2 px-3">
-                            <p className="text-slate-800">{o.customerName}</p>
-                            <p className="text-[12px] text-slate-400">
+                          <td className="py-2 px-2">
+                            <p className="text-slate-800 truncate max-w-[160px]">
+                              {o.customerName}
+                            </p>
+                            <p className="text-[13px] text-slate-400">
                               {sourceLabel(o.source)}
                             </p>
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              {firstItem?.image ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={firstItem.image}
-                                  alt=""
-                                  className="w-8 h-8 rounded-sm object-cover border border-slate-200 shrink-0"
-                                />
-                              ) : (
-                                <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
-                              )}
-                              <span className="text-slate-600 truncate max-w-[220px]">
+                              <Thumb
+                                src={firstItem?.image}
+                                className="w-7 h-7"
+                                fallbackIcon={<Package className="w-3 h-3" />}
+                              />
+                              <span className="text-slate-600 truncate max-w-[200px]">
                                 {firstItem?.productName || '—'}
                                 {o.items.length > 1 &&
                                   ` +${o.items.length - 1}`}
                               </span>
                             </div>
                           </td>
-                          <td className="py-2 px-3 text-right font-medium text-slate-900">
+                          <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums">
                             {KES(o.total)}
                           </td>
-                          <td className="py-2 px-3">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${orderStatusBadge(o.status)}`}
-                            >
+                          <td className="py-2 px-2">
+                            <StatusBadge variant={orderStatusVariant(o.status)} dot>
                               {o.status}
-                            </span>
+                            </StatusBadge>
                           </td>
                           <td
-                            className="py-2 px-3"
+                            className="py-2 px-2"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {o.status === 'Paid' && (
@@ -1699,7 +2818,7 @@ function OrdersTab({
                                 onClick={() =>
                                   onAdvance(o.reference, 'Awaiting Shipment')
                                 }
-                                className="px-2.5 py-1.5 rounded-sm bg-slate-900 hover:bg-slate-800 text-white font-medium text-[12px]"
+                                className={btnPrimary}
                               >
                                 Mark shipped
                               </button>
@@ -1709,7 +2828,7 @@ function OrdersTab({
                                 onClick={() =>
                                   onAdvance(o.reference, 'Shipped')
                                 }
-                                className="px-2.5 py-1.5 rounded-sm bg-slate-900 hover:bg-slate-800 text-white font-medium text-[12px]"
+                                className={btnPrimary}
                               >
                                 Ship
                               </button>
@@ -1719,9 +2838,9 @@ function OrdersTab({
                                 onClick={() =>
                                   onAdvance(o.reference, 'Delivered')
                                 }
-                                className="px-2.5 py-1.5 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[12px]"
+                                className={btnSecondary}
                               >
-                                Mark delivered
+                                Delivered
                               </button>
                             )}
                           </td>
@@ -1732,6 +2851,16 @@ function OrdersTab({
                 </tbody>
               </table>
             </div>
+            {visible < filtered.length && (
+              <div className="border-t border-slate-200 p-2 text-center">
+                <button
+                  onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                  className={btnSecondary}
+                >
+                  Load {Math.min(PAGE_SIZE, filtered.length - visible)} more
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -1739,9 +2868,666 @@ function OrdersTab({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: CONTENT
-// ═══════════════════════════════════════════════════════════════════════════
+function InboxTab({
+  conversations,
+  onConvert,
+  onReply,
+}: {
+  conversations: AdminInboxConversation[];
+  onConvert: (c: AdminInboxConversation) => void | Promise<void>;
+  onReply: (c: AdminInboxConversation, body: string) => void | Promise<void>;
+}) {
+  const [active, setActive] = useState<number | null>(
+    conversations[0]?.id ?? null,
+  );
+  const [reply, setReply] = useState('');
+
+  useEffect(() => {
+    if (conversations.length === 0) {
+      setActive(null);
+      return;
+    }
+    if (active === null || !conversations.some((c) => c.id === active)) {
+      setActive(conversations[0].id);
+    }
+  }, [conversations, active]);
+
+  const current = conversations.find((c) => c.id === active) ?? null;
+
+  const channelLabel = (c: AdminInboxConversation['channel']) => {
+    if (c === 'whatsapp') return 'WhatsApp';
+    if (c === 'tiktok_dm') return 'TikTok DM';
+    if (c === 'tiktok_comment') return 'TikTok Comment';
+    if (c === 'instagram_dm') return 'Instagram DM';
+    if (c === 'phone') return 'Phone';
+    if (c === 'email') return 'Email';
+    return c;
+  };
+
+  const channelVariant = (
+    c: AdminInboxConversation['channel'],
+  ): BadgeVariant => {
+    if (c === 'whatsapp') return 'success';
+    if (c === 'tiktok_dm' || c === 'instagram_dm') return 'info';
+    if (c === 'tiktok_comment') return 'neutral';
+    if (c === 'phone') return 'warning';
+    return 'neutral';
+  };
+
+  if (conversations.length === 0) {
+    return (
+      <EmptyState
+        icon={<InboxIcon className="w-5 h-5" />}
+        title="No conversations yet"
+        description="When customers reach out through WhatsApp, TikTok DMs or comments, they'll land here."
+      />
+    );
+  }
+
+  const unread = conversations.reduce((a, c) => a + (c.unreadCount || 0), 0);
+
+  const handleSend = async () => {
+    if (!current || !reply.trim()) return;
+    const body = reply.trim();
+    setReply('');
+    await onReply(current, body);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <InboxIcon className="w-3.5 h-3.5 text-slate-400" />
+            Inbox
+          </h2>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            WhatsApp, TikTok DMs, and comments in one place.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge variant="info" dot>
+            {unread} unread
+          </StatusBadge>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-sm grid grid-cols-1 lg:grid-cols-[340px_1fr] min-h-[520px] overflow-hidden">
+        <div className="border-r border-slate-200 overflow-y-auto">
+          {conversations.map((m) => {
+            const isActive = m.id === active;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setActive(m.id)}
+                className={cn(
+                  'w-full text-left px-2 py-2 border-b border-slate-100 flex items-start gap-2 transition-colors',
+                  isActive ? 'bg-slate-50' : 'hover:bg-slate-50',
+                )}
+              >
+                <Avatar
+                  name={m.contactName || m.contactHandle || '?'}
+                  className="w-8 h-8 mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] font-medium text-slate-900 truncate">
+                      {m.contactName || m.contactHandle || 'Unknown'}
+                    </p>
+                    <span className="text-[13px] text-slate-400 shrink-0">
+                      {m.lastMessageAt ? formatDateTime(m.lastMessageAt) : ''}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <StatusBadge variant={channelVariant(m.channel)}>
+                      {channelLabel(m.channel)}
+                    </StatusBadge>
+                    {m.unreadCount > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-sm bg-blue-950 text-white text-[13px] font-semibold">
+                        {m.unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[13px] text-slate-500 truncate mt-1">
+                    {m.messages?.[m.messages.length - 1]?.body ||
+                      m.subject ||
+                      'No messages yet'}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col">
+          {current ? (
+            <>
+              <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Avatar
+                    name={current.contactName || current.contactHandle || '?'}
+                    className="w-8 h-8"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-slate-900 truncate">
+                      {current.contactName || 'Unknown'}
+                    </p>
+                    <p className="text-[13px] text-slate-500 truncate">
+                      {current.contactHandle}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    className={btnSecondary}
+                    onClick={() => {
+                      if (current.contactHandle) {
+                        window.location.href = `tel:${current.contactHandle}`;
+                      }
+                    }}
+                  >
+                    <Phone className="w-3 h-3" />
+                    Call
+                  </button>
+                  <button
+                    className={btnPrimary}
+                    onClick={() => void onConvert(current)}
+                    disabled={current.status === 'converted'}
+                  >
+                    <ShoppingBag className="w-3 h-3" />
+                    {current.status === 'converted'
+                      ? 'Converted'
+                      : 'Convert to order'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                {(current.messages ?? []).length === 0 ? (
+                  <p className="text-[13px] text-slate-400 text-center py-6">
+                    No messages yet.
+                  </p>
+                ) : (
+                  (current.messages ?? []).map((msg: AdminInboxMessage) => (
+                    <div
+                      key={msg.id}
+                      className={cn(
+                        'max-w-[75%] text-[13px] px-2 py-2 rounded-sm',
+                        msg.direction === 'out'
+                          ? 'ml-auto bg-blue-950 text-white rounded-tr-none'
+                          : 'bg-slate-100 text-slate-800 rounded-tl-none',
+                      )}
+                    >
+                      {msg.body}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t border-slate-200 p-2 flex items-center gap-2">
+                <input
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleSend();
+                    }
+                  }}
+                  placeholder="Type a reply…"
+                  className={cn(inputCls, 'flex-1')}
+                />
+                <button
+                  className={btnPrimary}
+                  onClick={() => void handleSend()}
+                  disabled={!reply.trim()}
+                >
+                  <Send className="w-3 h-3" />
+                  Send
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-[13px] text-slate-400">Select a conversation</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomersTab({
+  customers,
+  customerStats,
+  orders,
+}: {
+  customers: AdminCustomerFull[];
+  customerStats: AdminCustomerStatsFull | null;
+  orders: AdminDirectOrder[];
+}) {
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounced(query, 250);
+
+  const filtered = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.phone || '').toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q),
+    );
+  }, [customers, debouncedQuery]);
+
+  const totalSpend = customers.reduce(
+    (a, c) => a + Number(c.lifetimeSpend || 0),
+    0,
+  );
+  const repeatRate =
+    customerStats?.repeatRate ??
+    (customers.length === 0
+      ? 0
+      : Math.round(
+          (customers.filter((c) => c.totalOrders >= 2).length /
+            customers.length) *
+            100,
+        ));
+
+  const customerOrderMap = useMemo(() => {
+    const map = new Map<string, string>();
+    orders.forEach((o) => {
+      const key = o.customerPhone || o.customerName;
+      const existing = map.get(key);
+      if (!existing || Date.parse(o.createdAt) > Date.parse(existing)) {
+        map.set(key, o.createdAt);
+      }
+    });
+    return map;
+  }, [orders]);
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <UserRound className="w-3.5 h-3.5 text-slate-400" />
+            Customers
+          </h2>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            Everyone who bought from your TikTok channels.
+          </p>
+        </div>
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search customers…"
+            className={cn(inputCls, 'w-56 pl-7')}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <KpiCard
+          label="Customers"
+          value={String(customerStats?.total ?? customers.length)}
+          icon={<UserRound className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Repeat rate"
+          value={`${repeatRate}%`}
+          icon={<TrendingUp className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="VIP customers"
+          value={String(
+            customerStats?.vip ??
+              customers.filter((c) => c.segment === 'VIP').length,
+          )}
+          icon={<Sparkles className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Lifetime spend"
+          value={KES(customerStats?.lifetimeSpend ?? totalSpend)}
+          icon={<Banknote className="w-4 h-4" />}
+        />
+      </div>
+
+      {customers.length === 0 ? (
+        <EmptyState
+          icon={<UserRound className="w-5 h-5" />}
+          title="No customers yet"
+          description="Customers will appear once you log orders."
+        />
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 font-medium">Customer</th>
+                  <th className="py-2 px-2 font-medium">Contact</th>
+                  <th className="py-2 px-2 font-medium">Segment</th>
+                  <th className="py-2 px-2 font-medium text-center">Orders</th>
+                  <th className="py-2 px-2 font-medium text-right">Spend</th>
+                  <th className="py-2 px-2 font-medium">Last order</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-slate-400 text-[13px]">
+                      No customers match &ldquo;{query}&rdquo;.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((c) => {
+                    const segmentVariant: BadgeVariant =
+                      c.segment === 'VIP'
+                        ? 'brand'
+                        : c.segment === 'Repeat'
+                          ? 'info'
+                          : c.segment === 'COD Risk' ||
+                              c.segment === 'Inactive'
+                            ? 'danger'
+                            : 'neutral';
+                    const key = c.phone || c.name;
+                    const lastOrderIso =
+                      c.lastOrderAt || customerOrderMap.get(key) || null;
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50">
+                        <td className="py-2 px-2">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={c.name} className="w-7 h-7" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-900 truncate max-w-[200px]">
+                                {c.name}
+                              </p>
+                              {c.county && (
+                                <p className="text-[13px] text-slate-400 truncate">
+                                  {c.county}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2 px-2">
+                          <p className="text-slate-700">{c.phone || '—'}</p>
+                          {c.email && (
+                            <p className="text-[13px] text-slate-400 truncate max-w-[180px]">
+                              {c.email}
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-2 px-2">
+                          <StatusBadge variant={segmentVariant} dot>
+                            {c.segment}
+                          </StatusBadge>
+                        </td>
+                        <td className="py-2 px-2 text-center tabular-nums text-slate-700">
+                          {c.totalOrders}
+                        </td>
+                        <td className="py-2 px-2 text-right tabular-nums font-medium text-slate-900">
+                          {KES(c.lifetimeSpend)}
+                        </td>
+                        <td className="py-2 px-2 text-slate-500">
+                          {formatDate(lastOrderIso)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FulfillmentTab({
+  orders,
+  loggedRefs,
+  onSelectOrder,
+  onAdvance,
+}: {
+  orders: AdminDirectOrder[];
+  loggedRefs: Set<string>;
+  onSelectOrder: (o: AdminDirectOrder) => void;
+  onAdvance: (reference: string, next: AdminDirectOrderStatus) => void;
+}) {
+  const queue = orders.filter(
+    (o) =>
+      o.status === 'Paid' ||
+      o.status === 'Awaiting Shipment' ||
+      o.status === 'Shipped',
+  );
+
+  const columns: {
+    id: AdminDirectOrderStatus;
+    label: string;
+    variant: BadgeVariant;
+  }[] = [
+    { id: 'Paid', label: 'Paid — pack', variant: 'info' },
+    { id: 'Awaiting Shipment', label: 'Ready to ship', variant: 'warning' },
+    { id: 'Shipped', label: 'In transit', variant: 'info' },
+    { id: 'Delivered', label: 'Delivered', variant: 'success' },
+  ];
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+          <Truck className="w-3.5 h-3.5 text-slate-400" />
+          Fulfillment
+        </h2>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          Pack, ship, and confirm deliveries. {queue.length} orders in the queue.
+        </p>
+      </div>
+
+      {queue.length === 0 ? (
+        <EmptyState
+          icon={<Truck className="w-5 h-5" />}
+          title="Nothing to fulfill"
+          description="Orders that are paid but not yet delivered will appear here."
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+          {columns.map((col) => {
+            const items = queue.filter((o) => o.status === col.id);
+            return (
+              <div
+                key={col.id}
+                className="bg-white border border-slate-200 rounded-sm flex flex-col"
+              >
+                <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between">
+                  <StatusBadge variant={col.variant} dot>
+                    {col.label}
+                  </StatusBadge>
+                  <span className="text-[13px] text-slate-500 tabular-nums">
+                    {items.length}
+                  </span>
+                </div>
+                <div className="p-2 space-y-2 flex-1 min-h-[120px]">
+                  {items.length === 0 ? (
+                    <p className="text-[13px] text-slate-400 text-center py-4">
+                      Empty
+                    </p>
+                  ) : (
+                    items.map((o) => (
+                      <button
+                        key={o.reference}
+                        onClick={() => onSelectOrder(o)}
+                        className="w-full text-left border border-slate-200 rounded-sm hover:border-slate-300 hover:bg-slate-50 p-2 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-mono text-[13px] font-medium text-slate-900">
+                            {o.reference}
+                          </span>
+                          {loggedRefs.has(o.reference) && (
+                            <Sparkles className="w-3 h-3 text-slate-400" />
+                          )}
+                        </div>
+                        <p className="text-[13px] text-slate-600 truncate mt-0.5">
+                          {o.customerName}
+                        </p>
+                        <p className="text-[13px] text-slate-400 tabular-nums mt-0.5">
+                          {KES(o.total)}
+                        </p>
+                        {col.id === 'Paid' && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAdvance(o.reference, 'Awaiting Shipment');
+                            }}
+                            className="mt-1 inline-block text-[13px] font-medium text-slate-900 hover:underline"
+                          >
+                            Mark packed
+                          </span>
+                        )}
+                        {col.id === 'Awaiting Shipment' && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAdvance(o.reference, 'Shipped');
+                            }}
+                            className="mt-1 inline-block text-[13px] font-medium text-slate-900 hover:underline"
+                          >
+                            Dispatch
+                          </span>
+                        )}
+                        {col.id === 'Shipped' && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAdvance(o.reference, 'Delivered');
+                            }}
+                            className="mt-1 inline-block text-[13px] font-medium text-slate-900 hover:underline"
+                          >
+                            Mark delivered
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReturnsTab({
+  returns,
+  orders,
+}: {
+  returns: AdminDirectReturnRequest[];
+  orders: AdminDirectOrder[];
+}) {
+  const returnedValue = returns.reduce(
+    (a, r) => a + Number(r.refundAmount || 0),
+    0,
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+          <Undo2 className="w-3.5 h-3.5 text-slate-400" />
+          Returns & Refunds
+        </h2>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          Cancelled and returned orders, with the value affected.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <KpiCard
+          label="Returns"
+          value={String(returns.filter((r) => r.status !== 'Rejected').length)}
+          icon={<Undo2 className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Pending"
+          value={String(returns.filter((r) => r.status === 'Requested').length)}
+          icon={<Clock className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Value affected"
+          value={KES(returnedValue)}
+          icon={<Banknote className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Return rate"
+          value={`${
+            orders.length === 0
+              ? 0
+              : Math.round((returns.length / orders.length) * 100)
+          }%`}
+          icon={<BarChart3 className="w-4 h-4" />}
+        />
+      </div>
+
+      {returns.length === 0 ? (
+        <EmptyState
+          icon={<Undo2 className="w-5 h-5" />}
+          title="No returns or cancellations"
+          description="This is the healthiest place to be. Keep it up."
+        />
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 font-medium">Reference</th>
+                  <th className="py-2 px-2 font-medium">Order</th>
+                  <th className="py-2 px-2 font-medium">Reason</th>
+                  <th className="py-2 px-2 font-medium text-right">Refund</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {returns.map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50">
+                    <td className="py-2 px-2 font-mono font-medium text-slate-900">
+                      {r.reference}
+                    </td>
+                    <td className="py-2 px-2 font-mono text-slate-700">
+                      {r.orderReference}
+                    </td>
+                    <td className="py-2 px-2 text-slate-500">
+                      {r.reasonDetail || r.reason}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums text-slate-900">
+                      {KES(r.refundAmount)}
+                    </td>
+                    <td className="py-2 px-2">
+                      <StatusBadge
+                        variant={RETURN_STATUS_VARIANT(r.status)}
+                        dot
+                      >
+                        {r.status}
+                      </StatusBadge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ContentTab({
   content,
@@ -1751,131 +3537,116 @@ function ContentTab({
   onAddContent: () => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
         <div>
-          <p className="text-[13px] font-semibold text-slate-900">Content</p>
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <Video className="w-3.5 h-3.5 text-slate-400" />
+            Content
+          </h2>
           <p className="text-[13px] text-slate-500 mt-0.5">
-            Plan, schedule, and track the videos and posts that promote your
-            products.
+            Plan, schedule, and track TikTok videos.
           </p>
         </div>
-        <button
-          onClick={onAddContent}
-          className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px] shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
+        <button onClick={onAddContent} className={btnPrimary}>
+          <Plus className="w-3 h-3" />
           Add Content
         </button>
       </div>
 
       {content.length === 0 ? (
         <EmptyState
-          icon={<Video className="w-6 h-6" />}
-          title="No content planned yet. Create your first post idea to get started."
+          icon={<Video className="w-5 h-5" />}
+          title="No TikTok content planned yet"
+          description="Create your first video idea to start tracking what works."
           action={{
             label: 'Add Content',
             onClick: onAddContent,
-            icon: <Plus className="w-3.5 h-3.5" />,
+            icon: <Plus className="w-3 h-3" />,
           }}
         />
       ) : (
-        <>
-          <p className="text-[13px] text-slate-500 px-1">
-            Track every video or photo post you create. Enter performance
-            numbers after posting to see what works best.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {content.map((cRaw) => {
-              const c = cRaw as ContentWithVideo;
-              return (
-                <div
-                  key={c.id}
-                  className="bg-white border border-slate-200 rounded-sm overflow-hidden"
-                >
-                  <div className="relative aspect-video w-full bg-slate-900">
-                    {c.videoUrl ? (
-                      <video
-                        src={c.videoUrl}
-                        poster={c.thumbnailUrl || undefined}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="w-full h-full object-cover bg-black"
-                      />
-                    ) : c.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={c.thumbnailUrl}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Video className="w-8 h-8 text-slate-500" />
-                      </div>
-                    )}
-                    <span
-                      className={`absolute top-2 left-2 px-2 py-0.5 rounded-sm text-[12px] font-medium backdrop-blur-sm border ${contentStatusBadge(c.status)}`}
-                    >
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+          {content.map((cRaw) => {
+            const c = cRaw as ContentWithVideo;
+            return (
+              <div
+                key={c.id}
+                className="bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-slate-300 transition-all"
+              >
+                <div className="relative aspect-video w-full bg-slate-900">
+                  {c.videoUrl ? (
+                    <video
+                      src={c.videoUrl}
+                      poster={c.thumbnailUrl || undefined}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-cover bg-black"
+                    />
+                  ) : c.thumbnailUrl ? (
+                    <Thumb
+                      src={c.thumbnailUrl}
+                      className="!w-full !h-full !border-0"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Video className="w-6 h-6 text-slate-500" />
+                    </div>
+                  )}
+                  <div className="absolute top-1.5 left-1.5">
+                    <StatusBadge variant={contentStatusVariant(c.status)} dot>
                       {c.status}
-                    </span>
-                    <span className="absolute top-2 right-2 bg-slate-900/80 text-white px-2 py-0.5 rounded-sm text-[12px] font-medium backdrop-blur-sm inline-flex items-center gap-1">
-                      {c.videoUrl && <Play className="w-3 h-3" />}
+                    </StatusBadge>
+                  </div>
+                  <div className="absolute top-1.5 right-1.5">
+                    <span className="bg-slate-900/80 text-white px-1.5 py-0.5 rounded-sm text-[13px] font-medium backdrop-blur-sm inline-flex items-center gap-1">
+                      {c.videoUrl && <Play className="w-2.5 h-2.5" />}
+                      <Music2 className="w-2.5 h-2.5" />
                       {c.platform}
                     </span>
                   </div>
-                  <div className="p-2 space-y-1.5">
-                    <p className="text-[13px] font-medium text-slate-900 truncate">
-                      {c.title}
-                    </p>
-                    {c.scheduledAt && (
-                      <p className="text-[12px] text-slate-400 inline-flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(c.scheduledAt)}
-                      </p>
-                    )}
-                    {c.caption && (
-                      <p className="text-[12px] text-blue-800 truncate">
-                        {c.caption}
-                      </p>
-                    )}
-                    {c.productName && (
-                      <p className="text-[12px] text-slate-500 truncate">
-                        Features: {c.productName}
-                      </p>
-                    )}
-                    {c.status === 'Posted' && (
-                      <div className="flex items-center gap-3 pt-1.5 border-t border-slate-100 mt-1 text-[12px]">
-                        <span className="inline-flex items-center gap-1 text-slate-600">
-                          <Eye className="w-3 h-3" />
-                          {c.views.toLocaleString()}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-slate-600">
-                          <Heart className="w-3 h-3" />
-                          {c.likes.toLocaleString()}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-slate-600">
-                          <MessageCircle className="w-3 h-3" />
-                          {c.comments}
-                        </span>
-                      </div>
-                    )}
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </>
+                <div className="p-2 space-y-1">
+                  <p className="text-[13px] font-medium text-slate-900 truncate">
+                    {c.title}
+                  </p>
+                  {c.scheduledAt && (
+                    <p className="text-[13px] text-slate-400 inline-flex items-center gap-1">
+                      <Calendar className="w-2.5 h-2.5" />
+                      {formatDate(c.scheduledAt)}
+                    </p>
+                  )}
+                  {c.caption && (
+                    <p className="text-[13px] text-slate-500 truncate">
+                      {c.caption}
+                    </p>
+                  )}
+                  {c.status === 'Posted' && (
+                    <div className="flex items-center gap-3 pt-1.5 border-t border-slate-100 mt-1.5 text-[13px]">
+                      <span className="inline-flex items-center gap-1 text-slate-600">
+                        <Eye className="w-2.5 h-2.5" />
+                        {c.views.toLocaleString()}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-slate-600">
+                        <Heart className="w-2.5 h-2.5" />
+                        {c.likes.toLocaleString()}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-slate-600">
+                        <MessageCircle className="w-2.5 h-2.5" />
+                        {c.comments}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: LIVE SESSIONS
-// ═══════════════════════════════════════════════════════════════════════════
 
 function LiveTab({
   lives,
@@ -1885,106 +3656,89 @@ function LiveTab({
   onScheduleLive: () => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
         <div>
-          <p className="text-[13px] font-semibold text-slate-900">
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <Video className="w-3.5 h-3.5 text-slate-400" />
             LIVE Sessions
-          </p>
+          </h2>
           <p className="text-[13px] text-slate-500 mt-0.5">
-            Plan and track your livestream selling sessions.
+            Plan and track TikTok livestream selling sessions.
           </p>
         </div>
-        <button
-          onClick={onScheduleLive}
-          className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px] shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
+        <button onClick={onScheduleLive} className={btnPrimary}>
+          <Plus className="w-3 h-3" />
           Schedule LIVE
         </button>
       </div>
 
       {lives.length === 0 ? (
         <EmptyState
-          icon={<Radio className="w-6 h-6" />}
-          title="No LIVE sessions scheduled. Plan your first livestream to start selling live."
+          icon={<Video className="w-5 h-5" />}
+          title="No LIVE sessions scheduled"
+          description="Plan your first TikTok livestream to start selling live."
           action={{
             label: 'Schedule LIVE',
             onClick: onScheduleLive,
-            icon: <Plus className="w-3.5 h-3.5" />,
+            icon: <Plus className="w-3 h-3" />,
           }}
         />
       ) : (
-        <>
-          <p className="text-[13px] text-slate-500 px-1">
-            Track every livestream you run. Record the results after each
-            session to see what works.
-          </p>
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">Session</th>
-                    <th className="py-2 px-3 font-medium">Scheduled</th>
-                    <th className="py-2 px-3 font-medium text-center">
-                      Peak viewers
-                    </th>
-                    <th className="py-2 px-3 font-medium text-center">Orders</th>
-                    <th className="py-2 px-3 font-medium text-right">Revenue</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 font-medium">Session</th>
+                  <th className="py-2 px-2 font-medium">Scheduled</th>
+                  <th className="py-2 px-2 font-medium text-center">
+                    Peak viewers
+                  </th>
+                  <th className="py-2 px-2 font-medium text-center">Orders</th>
+                  <th className="py-2 px-2 font-medium text-right">Revenue</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {lives.map((l) => (
+                  <tr
+                    key={l.id}
+                    className="hover:bg-slate-50 transition-colors"
+                  >
+                    <td className="py-2 px-2">
+                      <p className="font-medium text-slate-900">{l.title}</p>
+                      <p className="text-[13px] text-slate-400">
+                        {l.hostName || '—'}
+                      </p>
+                    </td>
+                    <td className="py-2 px-2 text-slate-600">
+                      {formatDateTime(l.scheduledAt)}
+                    </td>
+                    <td className="py-2 px-2 text-center text-slate-700 tabular-nums">
+                      {l.peakViewers ? l.peakViewers.toLocaleString() : '—'}
+                    </td>
+                    <td className="py-2 px-2 text-center text-slate-700 tabular-nums">
+                      {l.ordersGenerated || '—'}
+                    </td>
+                    <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums">
+                      {Number(l.revenue || 0) ? KES(l.revenue) : '—'}
+                    </td>
+                    <td className="py-2 px-2">
+                      <StatusBadge variant={liveStatusVariant(l.status)} dot>
+                        {l.status}
+                      </StatusBadge>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {lives.map((l) => (
-                    <tr key={l.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-3">
-                        <p className="font-medium text-slate-900">{l.title}</p>
-                        <p className="text-[12px] text-slate-400">
-                          {l.hostName || '—'}
-                        </p>
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        {l.scheduledAt
-                          ? new Date(l.scheduledAt).toLocaleString('en-KE', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })
-                          : '—'}
-                      </td>
-                      <td className="py-2 px-3 text-center text-slate-700">
-                        {l.peakViewers ? l.peakViewers.toLocaleString() : '—'}
-                      </td>
-                      <td className="py-2 px-3 text-center text-slate-700">
-                        {l.ordersCount || '—'}
-                      </td>
-                      <td className="py-2 px-3 text-right font-medium text-emerald-700">
-                        {Number(l.revenue || 0) ? KES(l.revenue) : '—'}
-                      </td>
-                      <td className="py-2 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${liveStatusBadge(l.status)}`}
-                        >
-                          {l.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: CREATORS
-// ═══════════════════════════════════════════════════════════════════════════
 
 function CreatorsTab({
   creators,
@@ -1994,252 +3748,99 @@ function CreatorsTab({
   onAddCreator: () => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
         <div>
-          <p className="text-[13px] font-semibold text-slate-900">Creators</p>
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <UserRound className="w-3.5 h-3.5 text-slate-400" />
+            Creators
+          </h2>
           <p className="text-[13px] text-slate-500 mt-0.5">
-            Track the creators who promote your products and manage their
-            commissions.
+            Track creators and manage their commissions.
           </p>
         </div>
-        <button
-          onClick={onAddCreator}
-          className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px] shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
+        <button onClick={onAddCreator} className={btnPrimary}>
+          <Plus className="w-3 h-3" />
           Add Creator
         </button>
       </div>
 
       {creators.length === 0 ? (
         <EmptyState
-          icon={<Users className="w-6 h-6" />}
-          title="No creators added yet. Add a creator to start tracking their sales and commissions."
+          icon={<UserRound className="w-5 h-5" />}
+          title="No creators added yet"
+          description="Add a TikTok creator to start tracking their sales and commissions."
           action={{
             label: 'Add Creator',
             onClick: onAddCreator,
-            icon: <Plus className="w-3.5 h-3.5" />,
+            icon: <Plus className="w-3 h-3" />,
           }}
         />
       ) : (
-        <>
-          <p className="text-[13px] text-slate-500 px-1">
-            These are the creators you work with. Track their sales, calculate
-            commissions, and record payments here.
-          </p>
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">Creator</th>
-                    <th className="py-2 px-3 font-medium">Platform</th>
-                    <th className="py-2 px-3 font-medium text-center">Rate</th>
-                    <th className="py-2 px-3 font-medium text-center">Orders</th>
-                    <th className="py-2 px-3 font-medium text-right">Owed</th>
-                    <th className="py-2 px-3 font-medium text-right">Revenue</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {creators.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-2">
-                          {c.avatar ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={c.avatar}
-                              alt=""
-                              className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
-                            />
-                          ) : (
-                            <span className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                              <Users className="w-3.5 h-3.5 text-slate-400" />
-                            </span>
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-medium text-slate-900">
-                              {c.name}
-                            </p>
-                            <p className="text-[12px] text-slate-400 font-mono">
-                              {c.handle}
-                            </p>
-                          </div>
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 font-medium">Creator</th>
+                  <th className="py-2 px-2 font-medium">Platform</th>
+                  <th className="py-2 px-2 font-medium text-center">Rate</th>
+                  <th className="py-2 px-2 font-medium text-center">Orders</th>
+                  <th className="py-2 px-2 font-medium text-right">Owed</th>
+                  <th className="py-2 px-2 font-medium text-right">Revenue</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {creators.map((c) => (
+                  <tr
+                    key={c.id}
+                    className="hover:bg-slate-50 transition-colors"
+                  >
+                    <td className="py-2 px-2">
+                      <div className="flex items-center gap-2">
+                        <Thumb
+                          src={c.avatar}
+                          className="w-7 h-7"
+                          fallbackIcon={<UserRound className="w-3.5 h-3.5" />}
+                        />
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-900">{c.name}</p>
+                          <p className="text-[13px] text-slate-400 font-mono">
+                            {c.handle}
+                          </p>
                         </div>
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        {c.platform || '—'}
-                      </td>
-                      <td className="py-2 px-3 text-center text-slate-700">
-                        {c.commissionRate}%
-                      </td>
-                      <td className="py-2 px-3 text-center text-slate-700">
-                        {c.ordersCount}
-                      </td>
-                      <td className="py-2 px-3 text-right font-medium text-amber-700">
-                        {Number(c.commissionOwed || 0)
-                          ? KES(c.commissionOwed)
-                          : '—'}
-                      </td>
-                      <td className="py-2 px-3 text-right text-slate-700">
-                        {KES(c.revenue)}
-                      </td>
-                      <td className="py-2 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${creatorStatusBadge(c.status)}`}
-                        >
-                          {c.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    </td>
+                    <td className="py-2 px-2 text-slate-600">
+                      {c.platform || '—'}
+                    </td>
+                    <td className="py-2 px-2 text-center text-slate-700 tabular-nums">
+                      {c.commissionRate}%
+                    </td>
+                    <td className="py-2 px-2 text-center text-slate-700 tabular-nums">
+                      {c.ordersCount}
+                    </td>
+                    <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums">
+                      {Number(c.commissionOwed || 0)
+                        ? KES(c.commissionOwed)
+                        : '—'}
+                    </td>
+                    <td className="py-2 px-2 text-right text-slate-700 tabular-nums">
+                      {KES(c.revenue)}
+                    </td>
+                    <td className="py-2 px-2">
+                      <StatusBadge variant={creatorStatusVariant(c.status)} dot>
+                        {c.status}
+                      </StatusBadge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </>
+        </div>
       )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: ANALYTICS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function AnalyticsTab() {
-  return (
-    <div className="space-y-3">
-      <div className="bg-white border border-slate-200 rounded-sm p-2">
-        <p className="text-[13px] font-semibold text-slate-900">Analytics</p>
-        <p className="text-[13px] text-slate-500 mt-0.5">
-          Track how your social activity translates into sales.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <KpiCard
-          label="Total Revenue"
-          value={KES(148250)}
-          helper="All sales from social-sourced orders"
-          icon={<DollarSign className="w-4 h-4" />}
-          tint="bg-emerald-50 text-emerald-700"
-        />
-        <KpiCard
-          label="Total Orders"
-          value="286"
-          helper="Number of orders from social media"
-          icon={<ClipboardList className="w-4 h-4" />}
-          tint="bg-blue-50 text-blue-950"
-        />
-        <KpiCard
-          label="Average Order Value"
-          value={KES(5184)}
-          helper="Average amount spent per order"
-          icon={<TrendingUp className="w-4 h-4" />}
-          tint="bg-purple-50 text-purple-700"
-        />
-        <KpiCard
-          label="Creator Commissions"
-          value={KES(30350)}
-          helper="Total commissions earned by creators"
-          icon={<Users className="w-4 h-4" />}
-          tint="bg-amber-50 text-amber-700"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-          <p className="text-[13px] font-semibold text-slate-900">
-            Revenue Trend
-          </p>
-          <p className="text-[12px] text-slate-500">
-            Your revenue over the last 30 days
-          </p>
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={REVENUE_CHART_DATA}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
-                <YAxis stroke="#94a3b8" fontSize={12} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#0f172a"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-          <p className="text-[13px] font-semibold text-slate-900">
-            Orders by Source
-          </p>
-          <p className="text-[12px] text-slate-500">
-            Where your orders come from — WhatsApp, admin, or phone
-          </p>
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={ORDERS_BY_SOURCE}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={85}
-                  paddingAngle={4}
-                  dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}%`}
-                >
-                  {ORDERS_BY_SOURCE.map((e, i) => (
-                    <Cell key={i} fill={e.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-blue-50 border border-blue-200 rounded-sm p-3 space-y-2">
-        <p className="text-[13px] font-semibold text-blue-950">
-          Manual Metrics
-        </p>
-        <p className="text-[13px] text-blue-800">
-          Social platforms don&apos;t share view and follower data with your
-          website, so enter these numbers manually each week to track your
-          reach.
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          <ManualField
-            label="Weekly Views"
-            helper="Total views on your content this week"
-            value="70300"
-          />
-          <ManualField
-            label="Followers Gained"
-            helper="New followers this week"
-            value="1240"
-          />
-          <ManualField
-            label="Profile Visits"
-            helper="How many people visited your profile"
-            value="8420"
-          />
-          <ManualField
-            label="Link Clicks"
-            helper="How many people clicked the link to your website"
-            value="1860"
-          />
-        </div>
-      </div>
     </div>
   );
 }
@@ -2254,177 +3855,222 @@ function ManualField({
   value: string;
 }) {
   return (
-    <div className="bg-white border border-blue-100 rounded-sm p-2">
-      <label className="block text-[12px] font-medium text-slate-700 mb-1">
+    <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <label className="block text-[13px] font-medium text-slate-700 mb-1">
         {label}
       </label>
       <input
         type="text"
         defaultValue={value}
-        className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+        className={inputCls}
       />
-      <p className="text-[11px] text-slate-500 mt-1">{helper}</p>
+      <p className="text-[13px] text-slate-500 mt-1">{helper}</p>
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: FINANCE
-// ═══════════════════════════════════════════════════════════════════════════
-
-function FinanceTab({
+function AnalyticsTab({
+  summary,
   orders,
   creators,
 }: {
+  summary: AdminAnalyticsSummaryResponse | null;
   orders: AdminDirectOrder[];
   creators: AdminDirectCreator[];
 }) {
-  const gross = orders.reduce((a, o) => a + Number(o.total || 0), 0);
-  const commissions = creators.reduce(
+  const daily = summary?.daily ?? [];
+  const bySource = summary?.bySource ?? [];
+  const byStatus = summary?.byStatus ?? [];
+
+  const totalRevenue = orders.reduce((a, o) => a + Number(o.total || 0), 0);
+  const totalOrders = orders.length;
+  const avgOrder = totalOrders === 0 ? 0 : totalRevenue / totalOrders;
+  const commissionTotal = creators.reduce(
     (a, c) => a + Number(c.commissionOwed || 0),
     0,
   );
-  const withholding = Math.round(commissions * 0.05);
-  const net = gross - commissions - withholding;
+
+  const pieColors = ['#0f172a', '#334155', '#64748b', '#94a3b8', '#cbd5e1'];
+  const sourceData = bySource.length
+    ? bySource.map((s, i) => ({
+        name: s.source,
+        value: s.count,
+        color: pieColors[i % pieColors.length],
+      }))
+    : [];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="bg-white border border-slate-200 rounded-sm p-2">
-        <p className="text-[13px] font-semibold text-slate-900">Finance</p>
+        <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+          <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
+          Analytics
+        </h2>
         <p className="text-[13px] text-slate-500 mt-0.5">
-          Track revenue, creator commissions, and tax obligations from social
-          sales.
+          Track how TikTok activity translates into sales.
         </p>
       </div>
 
-      {orders.length === 0 ? (
-        <EmptyState
-          icon={<Wallet className="w-6 h-6" />}
-          title="No financial data yet. Finance records will appear once you log orders and creator payments."
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <KpiCard
+          label="Total Revenue"
+          value={KES(summary?.monthRevenue ?? totalRevenue)}
+          icon={<Banknote className="w-4 h-4" />}
         />
-      ) : (
-        <>
-          <div className="bg-white border border-slate-200 rounded-sm">
-            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
-              <p className="text-[13px] font-semibold text-slate-900">
-                Revenue Summary
-              </p>
-              <p className="text-[13px] text-slate-500 mt-0.5">
-                A breakdown of your income after creator commissions and tax
-                deductions.
-              </p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              <FinanceLine
-                label="Gross Revenue"
-                helper="Total sales from orders"
-                value={KES(gross)}
-              />
-              <FinanceLine
-                label="Less: Creator Commissions"
-                helper="Total owed to creators"
-                value={`− ${KES(commissions)}`}
-                negative
-              />
-              <FinanceLine
-                label="Less: Withholding Tax"
-                helper="5% tax deducted on creator income"
-                value={`− ${KES(withholding)}`}
-                negative
-              />
-              <FinanceLine
-                label="Net Revenue"
-                helper="What remains after deductions"
-                value={KES(net)}
-                emphasis
-              />
-            </div>
-          </div>
+        <KpiCard
+          label="Total Orders"
+          value={String(summary?.monthOrders ?? totalOrders)}
+          icon={<ShoppingBag className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Avg. Order Value"
+          value={KES(Math.round(avgOrder))}
+          icon={<TrendingUp className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Creator Commissions"
+          value={KES(commissionTotal)}
+          icon={<UserRound className="w-4 h-4" />}
+        />
+      </div>
 
-          <div className="bg-white border border-slate-200 rounded-sm">
-            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <div>
-                <p className="text-[13px] font-semibold text-slate-900">
-                  Commission Ledger
-                </p>
-                <p className="text-[13px] text-slate-500 mt-0.5">
-                  Every commission you owe or have paid to creators. Export this
-                  for your records.
-                </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+        <div className="bg-white border border-slate-200 rounded-sm p-2">
+          <p className="text-[13px] font-semibold text-slate-900">
+            Revenue Trend
+          </p>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            TikTok revenue over the recent period
+          </p>
+          <div className="h-52 w-full mt-2">
+            {daily.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[13px] text-slate-400">
+                No data yet
               </div>
-              <button className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]">
-                <Download className="w-3.5 h-3.5" />
-                Export
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2 px-3 font-medium">Creator</th>
-                    <th className="py-2 px-3 font-medium text-right">Owed</th>
-                    <th className="py-2 px-3 font-medium text-right">Revenue</th>
-                    <th className="py-2 px-3 font-medium text-center">Rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {creators.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-3">
-                        <p className="font-medium text-slate-900">{c.name}</p>
-                        <p className="text-[12px] text-slate-400 font-mono">
-                          {c.handle}
-                        </p>
-                      </td>
-                      <td className="py-2 px-3 text-right font-medium text-amber-700">
-                        {Number(c.commissionOwed || 0)
-                          ? KES(c.commissionOwed)
-                          : '—'}
-                      </td>
-                      <td className="py-2 px-3 text-right text-slate-700">
-                        {KES(c.revenue)}
-                      </td>
-                      <td className="py-2 px-3 text-center text-slate-700">
-                        {c.commissionRate}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={daily}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="day"
+                    stroke="#94a3b8"
+                    fontSize={13}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#94a3b8"
+                    fontSize={13}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#0f172a"
+                    strokeWidth={2}
+                    dot={{ r: 2.5, fill: '#0f172a', stroke: '#0f172a' }}
+                    activeDot={{ r: 4, fill: '#334155', stroke: '#334155' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
+        </div>
 
-          <div className="bg-white border border-slate-200 rounded-sm">
-            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
-              <p className="text-[13px] font-semibold text-slate-900">
-                Tax Compliance
-              </p>
-              <p className="text-[13px] text-slate-500 mt-0.5">
-                Social income is taxable in Kenya. This section helps you track
-                what you owe and generate reports for KRA.
-              </p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              <FinanceLine
-                label="Total Income"
-                helper="All revenue earned through social channels"
-                value={KES(gross)}
-              />
-              <FinanceLine
-                label="Withholding Tax Deducted"
-                helper="5% deducted on creator earnings"
-                value={KES(withholding)}
-              />
-            </div>
-            <div className="p-2 border-t border-slate-100">
-              <button className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px]">
-                <Download className="w-3.5 h-3.5" />
-                KRA Export
-              </button>
-            </div>
+        <div className="bg-white border border-slate-200 rounded-sm p-2">
+          <p className="text-[13px] font-semibold text-slate-900">
+            How Orders Arrived
+          </p>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            Which TikTok entry point brought the customer in
+          </p>
+          <div className="h-52 w-full mt-2">
+            {sourceData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[13px] text-slate-400">
+                No data yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={sourceData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={70}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                    labelLine={false}
+                  >
+                    {sourceData.map((e, i) => (
+                      <Cell key={i} fill={e.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
-        </>
+        </div>
+      </div>
+
+      {byStatus.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-sm p-2">
+          <p className="text-[13px] font-semibold text-slate-900">
+            Order Status
+          </p>
+          <div className="mt-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {byStatus.map((s) => (
+              <div
+                key={s.status}
+                className="border border-slate-200 rounded-sm p-2 flex items-center justify-between"
+              >
+                <span className="text-[13px] text-slate-600">{s.status}</span>
+                <span className="text-[13px] font-semibold tabular-nums text-slate-900">
+                  {s.count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
+
+      <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+        <div>
+          <p className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-slate-500" />
+            Manual Metrics
+          </p>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            TikTok doesn&apos;t share views/followers — enter manually.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <ManualField
+            label="Weekly Views"
+            helper="Total views this week"
+            value="0"
+          />
+          <ManualField
+            label="Followers Gained"
+            helper="New followers this week"
+            value="0"
+          />
+          <ManualField
+            label="Profile Visits"
+            helper="Profile visitors"
+            value="0"
+          />
+          <ManualField
+            label="Bio Link Clicks"
+            helper="Bio link taps"
+            value="0"
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -2443,22 +4089,29 @@ function FinanceLine({
   emphasis?: boolean;
 }) {
   return (
-    <div className="px-3 py-2 flex items-center justify-between gap-3">
+    <div className="px-2 py-2 flex items-center justify-between gap-2">
       <div className="min-w-0">
         <p
-          className={`text-[13px] ${emphasis ? 'font-semibold text-slate-900' : 'font-medium text-slate-800'}`}
+          className={cn(
+            'text-[13px]',
+            emphasis
+              ? 'font-semibold text-slate-900'
+              : 'font-medium text-slate-800',
+          )}
         >
           {label}
         </p>
-        <p className="text-[12px] text-slate-500 mt-0.5">{helper}</p>
+        <p className="text-[13px] text-slate-500 mt-0.5">{helper}</p>
       </div>
       <p
-        className={`text-[13px] font-medium whitespace-nowrap ${negative
-            ? 'text-amber-700'
+        className={cn(
+          'text-[13px] font-medium whitespace-nowrap tabular-nums',
+          negative
+            ? 'text-slate-600'
             : emphasis
-              ? 'text-emerald-700'
-              : 'text-slate-900'
-          }`}
+              ? 'text-slate-900 font-semibold'
+              : 'text-slate-900',
+        )}
       >
         {value}
       </p>
@@ -2466,33 +4119,561 @@ function FinanceLine({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB: SETTINGS
-// ═══════════════════════════════════════════════════════════════════════════
+function FinanceTab({
+  summary,
+  creators,
+}: {
+  summary: AdminFinanceSummaryResponse | null;
+  creators: AdminDirectCreator[];
+}) {
+  const gross = Number(summary?.grossRevenue ?? 0);
+  const commissions =
+    Number(summary?.creatorCommissions ?? 0) ||
+    creators.reduce((a, c) => a + Number(c.commissionOwed || 0), 0);
+  const withholding = Number(summary?.withholdingTax ?? 0);
+  const expenses = Number(summary?.expenses ?? 0);
+  const net =
+    Number(summary?.netRevenue ?? 0) ||
+    gross - commissions - withholding - expenses;
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+          <Wallet className="w-3.5 h-3.5 text-slate-400" />
+          Finance
+        </h2>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          Revenue, creator commissions, and tax obligations.
+        </p>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="px-2 py-2 border-b border-slate-200">
+          <p className="text-[13px] font-semibold text-slate-900">
+            Revenue Summary
+          </p>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            Income after commissions and tax deductions.
+          </p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <FinanceLine
+            label="Gross Revenue"
+            helper="Total sales from TikTok orders"
+            value={KES(gross)}
+          />
+          <FinanceLine
+            label="Less: Creator Commissions"
+            helper="Total owed to creators"
+            value={`- ${KES(commissions)}`}
+            negative
+          />
+          <FinanceLine
+            label="Less: Withholding Tax"
+            helper="5% tax on creator income"
+            value={`- ${KES(withholding)}`}
+            negative
+          />
+          {expenses > 0 && (
+            <FinanceLine
+              label="Less: Expenses"
+              helper="Operating expenses recorded"
+              value={`- ${KES(expenses)}`}
+              negative
+            />
+          )}
+          <FinanceLine
+            label="Net Revenue"
+            helper="What remains after deductions"
+            value={KES(net)}
+            emphasis
+          />
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[13px] font-semibold text-slate-900">
+              Commission Ledger
+            </p>
+            <p className="text-[13px] text-slate-500 mt-0.5">
+              What you owe or have paid to creators.
+            </p>
+          </div>
+          <button className={btnSecondary}>
+            <Download className="w-3 h-3" />
+            Export
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <th className="py-2 px-2 font-medium">Creator</th>
+                <th className="py-2 px-2 font-medium text-right">Owed</th>
+                <th className="py-2 px-2 font-medium text-right">Revenue</th>
+                <th className="py-2 px-2 font-medium text-center">Rate</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {creators.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-slate-400 text-[13px]">
+                    No creators yet.
+                  </td>
+                </tr>
+              ) : (
+                creators.map((c) => (
+                  <tr
+                    key={c.id}
+                    className="hover:bg-slate-50 transition-colors"
+                  >
+                    <td className="py-2 px-2">
+                      <p className="font-medium text-slate-900">{c.name}</p>
+                      <p className="text-[13px] text-slate-400 font-mono">
+                        {c.handle}
+                      </p>
+                    </td>
+                    <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums">
+                      {Number(c.commissionOwed || 0)
+                        ? KES(c.commissionOwed)
+                        : '—'}
+                    </td>
+                    <td className="py-2 px-2 text-right text-slate-700 tabular-nums">
+                      {KES(c.revenue)}
+                    </td>
+                    <td className="py-2 px-2 text-center text-slate-700 tabular-nums">
+                      {c.commissionRate}%
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PayoutsTab({
+  creators,
+  payouts,
+  onPay,
+}: {
+  creators: AdminDirectCreator[];
+  payouts: AdminPayoutBatch[];
+  onPay: (creatorIds: number[]) => void | Promise<void>;
+}) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const totalOwed = creators.reduce(
+    (a, c) => a + Number(c.commissionOwed || 0),
+    0,
+  );
+  const selectedTotal = creators
+    .filter((c) => selected.has(c.id))
+    .reduce((a, c) => a + Number(c.commissionOwed || 0), 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <Receipt className="w-3.5 h-3.5 text-slate-400" />
+            Creator Payouts
+          </h2>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            Batch and record M-Pesa payouts to your creators.
+          </p>
+        </div>
+        <button
+          className={btnPrimary}
+          disabled={selected.size === 0}
+          onClick={() => {
+            void onPay(Array.from(selected));
+            setSelected(new Set());
+          }}
+        >
+          <Banknote className="w-3 h-3" />
+          Pay selected ({selected.size})
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <KpiCard
+          label="Creators"
+          value={String(creators.length)}
+          icon={<UserRound className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Total owed"
+          value={KES(totalOwed)}
+          icon={<Wallet className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Selected batch"
+          value={KES(selectedTotal)}
+          icon={<Receipt className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Payout batches"
+          value={String(payouts.length)}
+          icon={<Banknote className="w-4 h-4" />}
+        />
+      </div>
+
+      {creators.length === 0 ? (
+        <EmptyState
+          icon={<Receipt className="w-5 h-5" />}
+          title="No creators to pay"
+          description="Add creators first to start running payouts."
+        />
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 w-10"></th>
+                  <th className="py-2 px-2 font-medium">Creator</th>
+                  <th className="py-2 px-2 font-medium text-right">Owed</th>
+                  <th className="py-2 px-2 font-medium text-right">Revenue</th>
+                  <th className="py-2 px-2 font-medium text-center">Rate</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {creators.map((c) => {
+                  const owed = Number(c.commissionOwed || 0);
+                  const checked = selected.has(c.id);
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="py-2 px-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={owed <= 0}
+                          onChange={() => toggle(c.id)}
+                          className="accent-blue-950"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          <Thumb
+                            src={c.avatar}
+                            className="w-7 h-7"
+                            fallbackIcon={<UserRound className="w-3 h-3" />}
+                          />
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-900">
+                              {c.name}
+                            </p>
+                            <p className="text-[13px] text-slate-400 font-mono">
+                              {c.handle}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums">
+                        {owed > 0 ? KES(owed) : '—'}
+                      </td>
+                      <td className="py-2 px-2 text-right text-slate-700 tabular-nums">
+                        {KES(c.revenue)}
+                      </td>
+                      <td className="py-2 px-2 text-center text-slate-700 tabular-nums">
+                        {c.commissionRate}%
+                      </td>
+                      <td className="py-2 px-2">
+                        <StatusBadge
+                          variant={owed > 0 ? 'warning' : 'success'}
+                          dot
+                        >
+                          {owed > 0 ? 'Pending' : 'Settled'}
+                        </StatusBadge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {payouts.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="px-2 py-2 border-b border-slate-200">
+            <p className="text-[13px] font-semibold text-slate-900">
+              Payout Batches
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 font-medium">Reference</th>
+                  <th className="py-2 px-2 font-medium">Method</th>
+                  <th className="py-2 px-2 font-medium text-center">Items</th>
+                  <th className="py-2 px-2 font-medium text-right">Total</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                  <th className="py-2 px-2 font-medium">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payouts.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="py-2 px-2 font-mono font-medium text-slate-900">
+                      {p.reference}
+                    </td>
+                    <td className="py-2 px-2 text-slate-600">
+                      {p.payoutMethod || '—'}
+                    </td>
+                    <td className="py-2 px-2 text-center tabular-nums text-slate-700">
+                      {p.itemsCount}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums text-slate-900">
+                      {KES(p.totalAmount)}
+                    </td>
+                    <td className="py-2 px-2">
+                      <StatusBadge
+                        variant={PAYOUT_STATUS_VARIANT(p.status)}
+                        dot
+                      >
+                        {p.status}
+                      </StatusBadge>
+                    </td>
+                    <td className="py-2 px-2 text-slate-500">
+                      {formatDate(p.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaxTab({
+  summary,
+  creators,
+}: {
+  summary: AdminFinanceSummaryResponse | null;
+  creators: AdminDirectCreator[];
+}) {
+  const gross = Number(summary?.grossRevenue ?? 0);
+  const commissions =
+    Number(summary?.creatorCommissions ?? 0) ||
+    creators.reduce((a, c) => a + Number(c.commissionOwed || 0), 0);
+  const withholding = Number(summary?.withholdingTax ?? 0);
+  const vat = Math.round(gross * 0.16);
+
+  return (
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+          <Receipt className="w-3.5 h-3.5 text-slate-400" />
+          Tax & Compliance
+        </h2>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          Social income is taxable in Kenya. Track what you owe KRA.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <KpiCard
+          label="Total income"
+          value={KES(gross)}
+          icon={<Banknote className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Withholding tax"
+          value={KES(withholding)}
+          icon={<Receipt className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Estimated VAT (16%)"
+          value={KES(vat)}
+          icon={<TrendingUp className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Commissions paid"
+          value={KES(commissions)}
+          icon={<UserRound className="w-4 h-4" />}
+        />
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="px-2 py-2 border-b border-slate-200">
+          <p className="text-[13px] font-semibold text-slate-900">
+            Tax obligations summary
+          </p>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            Auto-calculated from your TikTok orders and creator payouts.
+          </p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <FinanceLine
+            label="Total Income"
+            helper="All revenue earned through TikTok"
+            value={KES(gross)}
+          />
+          <FinanceLine
+            label="Withholding Tax Deducted"
+            helper="5% deducted on creator earnings"
+            value={KES(withholding)}
+          />
+          <FinanceLine
+            label="Estimated VAT (16%)"
+            helper="If you are VAT-registered"
+            value={KES(vat)}
+          />
+          <FinanceLine
+            label="Net Position After Tax"
+            helper="Gross less withholding and VAT"
+            value={KES(gross - withholding - vat)}
+            emphasis
+          />
+        </div>
+        <div className="px-2 py-2 border-t border-slate-100 flex items-center gap-2">
+          <button className={btnPrimary}>
+            <Download className="w-3 h-3" />
+            KRA export
+          </button>
+          <button className={btnSecondary}>
+            <ExternalLink className="w-3 h-3" />
+            Open iTax
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+      <div className="px-2 py-2 border-b border-slate-200">
+        <p className="text-[13px] font-semibold text-slate-900">{title}</p>
+        <p className="text-[13px] text-slate-500 mt-0.5">{description}</p>
+      </div>
+      <div className="p-2">{children}</div>
+    </div>
+  );
+}
+
+function SettingsField({
+  label,
+  helper,
+  defaultValue,
+  disabled,
+}: {
+  label: string;
+  helper: string;
+  defaultValue: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-[13px] font-medium text-slate-700 mb-1">
+        {label}
+      </label>
+      <input
+        type="text"
+        defaultValue={defaultValue}
+        disabled={disabled}
+        className={inputCls}
+      />
+      <p className="text-[13px] text-slate-500 mt-1">{helper}</p>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  helper,
+  defaultOn,
+}: {
+  label: string;
+  helper: string;
+  defaultOn?: boolean;
+}) {
+  const [on, setOn] = useState(!!defaultOn);
+  return (
+    <label className="flex items-start justify-between gap-2 cursor-pointer border border-slate-200 rounded-sm p-2 hover:bg-slate-50 transition-colors">
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium text-slate-900">{label}</p>
+        <p className="text-[13px] text-slate-500 mt-0.5">{helper}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={() => setOn((v) => !v)}
+        className={cn(
+          'relative inline-flex h-4 w-8 shrink-0 rounded-full transition-colors mt-0.5',
+          on ? 'bg-blue-950' : 'bg-slate-200',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform',
+            on && 'translate-x-4',
+          )}
+        />
+      </button>
+    </label>
+  );
+}
 
 function SettingsTab() {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="bg-white border border-slate-200 rounded-sm p-2">
-        <p className="text-[13px] font-semibold text-slate-900">Settings</p>
+        <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+          <SettingsIcon className="w-3.5 h-3.5 text-slate-400" />
+          Settings
+        </h2>
         <p className="text-[13px] text-slate-500 mt-0.5">
-          Configure your shop profile, team access, and preferences.
+          Configure your TikTok profile, preferences, and notifications.
         </p>
       </div>
 
       <SettingsSection
-        title="Shop Profile"
-        description="Basic information about your shop. This appears on reports and packing slips."
+        title="TikTok Profile"
+        description="Your account details. These appear on reports and packing slips."
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <SettingsField
-            label="Shop Name"
+            label="Business Name"
             helper="Your business name as it appears to customers"
             defaultValue="SokoFlow Official"
           />
           <SettingsField
-            label="Social Handle"
-            helper="Your main social account username"
+            label="TikTok Handle"
+            helper="Your TikTok username (include the @)"
             defaultValue="@sokoflow.ke"
           />
           <SettingsField
@@ -2530,23 +4711,13 @@ function SettingsTab() {
       </SettingsSection>
 
       <SettingsSection
-        title="Team Access"
-        description="Control who on your team can access orders, products, and financial data."
-      >
-        <p className="text-[13px] text-slate-500">
-          Team access is managed from the main account settings. Contact your
-          administrator.
-        </p>
-      </SettingsSection>
-
-      <SettingsSection
         title="Notifications"
-        description="Choose which events should trigger an alert. You can receive notifications by email, WhatsApp, or SMS."
+        description="Choose which events should trigger an alert."
       >
         <div className="space-y-2">
           <ToggleRow
             label="New Order Logged"
-            helper="Get notified when a new order is added"
+            helper="Get notified when a new TikTok order is added"
             defaultOn
           />
           <ToggleRow
@@ -2561,7 +4732,7 @@ function SettingsTab() {
           />
           <ToggleRow
             label="LIVE Reminder"
-            helper="Get reminded before a scheduled LIVE session"
+            helper="Get reminded before a scheduled TikTok LIVE"
             defaultOn
           />
         </div>
@@ -2570,82 +4741,84 @@ function SettingsTab() {
   );
 }
 
-function SettingsSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
+function TeamTab({ team }: { team: AdminTeamMember[] }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm">
-      <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
-        <p className="text-[13px] font-semibold text-slate-900">{title}</p>
-        <p className="text-[13px] text-slate-500 mt-0.5">{description}</p>
+    <div className="space-y-2">
+      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
+            <UserCog className="w-3.5 h-3.5 text-slate-400" />
+            Team & Roles
+          </h2>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            People who can access and manage this workspace.
+          </p>
+        </div>
+        <button className={btnPrimary}>
+          <Plus className="w-3 h-3" />
+          Invite member
+        </button>
       </div>
-      <div className="p-3">{children}</div>
+
+      {team.length === 0 ? (
+        <EmptyState
+          icon={<UserCog className="w-5 h-5" />}
+          title="No team members yet"
+          description="Invite teammates to help manage TikTok orders, content, and payouts."
+        />
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <th className="py-2 px-2 font-medium">Member</th>
+                  <th className="py-2 px-2 font-medium">Email</th>
+                  <th className="py-2 px-2 font-medium">Role</th>
+                  <th className="py-2 px-2 font-medium">Last active</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {team.map((m) => (
+                  <tr key={m.id} className="hover:bg-slate-50">
+                    <td className="py-2 px-2">
+                      <div className="flex items-center gap-2">
+                        <Avatar name={m.name} className="w-7 h-7" />
+                        <p className="font-medium text-slate-900">{m.name}</p>
+                      </div>
+                    </td>
+                    <td className="py-2 px-2 text-slate-600">{m.email}</td>
+                    <td className="py-2 px-2">
+                      <StatusBadge variant="neutral">{m.role}</StatusBadge>
+                    </td>
+                    <td className="py-2 px-2 text-slate-500">
+                      {m.lastActiveAt ? formatDateTime(m.lastActiveAt) : '—'}
+                    </td>
+                    <td className="py-2 px-2">
+                      <StatusBadge
+                        variant={
+                          m.status === 'Active'
+                            ? 'success'
+                            : m.status === 'Invited'
+                              ? 'warning'
+                              : 'danger'
+                        }
+                        dot
+                      >
+                        {m.status}
+                      </StatusBadge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-function SettingsField({
-  label,
-  helper,
-  defaultValue,
-  disabled,
-}: {
-  label: string;
-  helper: string;
-  defaultValue: string;
-  disabled?: boolean;
-}) {
-  return (
-    <div>
-      <label className="block text-[12px] font-medium text-slate-700 mb-1">
-        {label}
-      </label>
-      <input
-        type="text"
-        defaultValue={defaultValue}
-        disabled={disabled}
-        className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
-      />
-      <p className="text-[11px] text-slate-500 mt-1">{helper}</p>
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  helper,
-  defaultOn,
-}: {
-  label: string;
-  helper: string;
-  defaultOn?: boolean;
-}) {
-  const [on, setOn] = useState(!!defaultOn);
-  return (
-    <label className="flex items-start justify-between gap-3 cursor-pointer border border-slate-200 rounded-sm p-2 hover:bg-slate-50">
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium text-slate-900">{label}</p>
-        <p className="text-[12px] text-slate-500 mt-0.5">{helper}</p>
-      </div>
-      <input
-        type="checkbox"
-        checked={on}
-        onChange={(e) => setOn(e.target.checked)}
-        className="h-4 w-4 mt-1 rounded-sm border-slate-300 text-slate-900 focus:ring-slate-900 shrink-0"
-      />
-    </label>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODALS / DRAWERS
-// ═══════════════════════════════════════════════════════════════════════════
 
 function LogOrderModal({
   onClose,
@@ -2679,11 +4852,11 @@ function LogOrderModal({
     e.preventDefault();
     if (!customerName.trim() || !product) return;
 
-    const nowIso = new Date().toISOString();
-    const reference = `#SS-${Math.floor(90000 + Math.random() * 9999)}`;
+    const nowIsoStr = new Date().toISOString();
+    const reference = `#TT-${Math.floor(90000 + Math.random() * 9999)}`;
 
     const order: AdminDirectOrder = {
-      id: `local-${Date.now()}`,
+      id: `pending-${Date.now()}`,
       reference,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -2715,8 +4888,8 @@ function LogOrderModal({
       creatorName: '',
       commission: '0',
       notes: notes.trim(),
-      createdAt: nowIso,
-      updatedAt: nowIso,
+      createdAt: nowIsoStr,
+      updatedAt: nowIsoStr,
       deliveredAt: null,
     };
     onSubmit(order);
@@ -2727,177 +4900,169 @@ function LogOrderModal({
   return (
     <Modal
       onClose={onClose}
-      title="Log New Order"
-      subtitle="Record a sale that came from social media"
+      title="Log New TikTok Order"
+      subtitle="Record a sale that came from TikTok"
       widthClass="max-w-2xl"
     >
-      <form
-        id="log-order-form"
-        onSubmit={handleSubmit}
-        className="space-y-3 text-[13px]"
-      >
+      <form id="log-order-form" onSubmit={handleSubmit} className="space-y-2">
         {products.length === 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-            <p className="text-[13px] text-amber-900">
+          <div className="bg-white border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-slate-700">
               You need at least one product before you can log an order.
             </p>
           </div>
         )}
 
-        <SectionLabel>Customer Information</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Enter the buyer&apos;s details so you can contact them about delivery
-          and payment.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField
-            label="Customer Name"
-            helper="Full name of the buyer"
-            required
-          >
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
+        <div className="space-y-2">
+          <SectionLabel>Customer Information</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <FormField
+              label="Customer Name"
+              helper="Full name of the buyer"
               required
-              className={inputCls}
-            />
-          </FormField>
-          <FormField
-            label="Phone Number"
-            helper="Used for delivery updates via WhatsApp"
-            required
-          >
-            <input
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
+            >
+              <input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                required
+                className={inputCls}
+              />
+            </FormField>
+            <FormField
+              label="Phone Number"
+              helper="Used for WhatsApp updates"
               required
-              className={inputCls}
-              placeholder="+254 …"
-            />
-          </FormField>
-          <FormField label="Email" helper="Optional. Used for receipts.">
-            <input
-              value={customerEmail}
-              onChange={(e) => setCustomerEmail(e.target.value)}
-              className={inputCls}
-              placeholder="name@example.com"
-            />
-          </FormField>
-          <FormField
-            label="Source"
-            helper="Where did this order come from? WhatsApp, admin, or phone"
-          >
-            <select
-              value={source}
-              onChange={(e) =>
-                setSource(e.target.value as AdminDirectOrderSource)
-              }
-              className={inputCls}
             >
-              <option value="whatsapp">WhatsApp</option>
-              <option value="admin">Admin</option>
-              <option value="phone">Phone</option>
-            </select>
-          </FormField>
+              <input
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                required
+                className={inputCls}
+                placeholder="+254 …"
+              />
+            </FormField>
+            <FormField label="Email" helper="Optional">
+              <input
+                value={customerEmail}
+                onChange={(e) => setCustomerEmail(e.target.value)}
+                className={inputCls}
+                placeholder="name@example.com"
+              />
+            </FormField>
+            <FormField label="Where did it come in?" helper="TikTok entry point">
+              <select
+                value={source}
+                onChange={(e) =>
+                  setSource(e.target.value as AdminDirectOrderSource)
+                }
+                className={inputCls}
+              >
+                <option value="whatsapp">Bio link → WhatsApp</option>
+                <option value="video_dm">Video DM</option>
+                <option value="live">TikTok LIVE</option>
+                <option value="admin">Admin</option>
+                <option value="phone">Phone call</option>
+              </select>
+            </FormField>
+          </div>
         </div>
 
-        <SectionLabel>Order Details</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Select the product and quantity. The price fills in automatically but
-          you can adjust it.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <FormField label="Product" required>
-            <select
-              value={productId}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                setProductId(id);
-                const p = products.find((x) => x.id === id);
-                if (p) setPrice(String(p.price));
-              }}
-              className={inputCls}
-              disabled={products.length === 0}
+        <div className="space-y-2">
+          <SectionLabel>Order Details</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <FormField label="Product" required>
+              <select
+                value={productId}
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  setProductId(id);
+                  const p = products.find((x) => x.id === id);
+                  if (p) setPrice(String(p.price));
+                }}
+                className={inputCls}
+                disabled={products.length === 0}
+              >
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Quantity" required>
+              <input
+                type="number"
+                min={1}
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value) || 1)}
+                className={inputCls}
+              />
+            </FormField>
+            <FormField
+              label="Unit Price (KES)"
+              helper="Adjust if discounted"
+              required
             >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Quantity" required>
-            <input
-              type="number"
-              min={1}
-              value={qty}
-              onChange={(e) => setQty(Number(e.target.value) || 1)}
-              className={inputCls}
-            />
-          </FormField>
-          <FormField
-            label="Unit Price (KES)"
-            helper="Adjust if you gave a discount"
-            required
-          >
-            <input
-              type="number"
-              min={0}
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className={inputCls}
-            />
-          </FormField>
-        </div>
-        <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between">
-          <span className="text-[12px] text-slate-500">Total</span>
-          <span className="text-[15px] font-bold text-slate-900">
-            {KES(total)}
-          </span>
-        </div>
-
-        <SectionLabel>Payment</SectionLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField label="Payment Method" required>
-            <select
-              value={paymentMethod}
-              onChange={(e) =>
-                setPaymentMethod(e.target.value as 'MPESA' | 'COD')
-              }
-              className={inputCls}
-            >
-              <option value="MPESA">M-Pesa</option>
-              <option value="COD">Cash on Delivery</option>
-            </select>
-          </FormField>
-          <FormField label="Initial Status">
-            <select
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as AdminDirectOrderStatus)
-              }
-              className={inputCls}
-            >
-              <option value="New">New</option>
-              <option value="Awaiting Payment">Awaiting Payment</option>
-              <option value="Paid">Paid</option>
-              <option value="Awaiting Shipment">Awaiting Shipment</option>
-              <option value="Shipped">Shipped</option>
-              <option value="Delivered">Delivered</option>
-            </select>
-          </FormField>
+              <input
+                type="number"
+                min={0}
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className={inputCls}
+              />
+            </FormField>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between">
+            <span className="text-[13px] text-slate-500 font-medium uppercase tracking-wide">
+              Total
+            </span>
+            <span className="text-base font-bold text-slate-900 tabular-nums">
+              {KES(total)}
+            </span>
+          </div>
         </div>
 
-        <FormField
-          label="Notes"
-          helper="Anything you want to remember about this order"
-        >
+        <div className="space-y-2">
+          <SectionLabel>Payment</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <FormField label="Payment Method" required>
+              <select
+                value={paymentMethod}
+                onChange={(e) =>
+                  setPaymentMethod(e.target.value as 'MPESA' | 'COD')
+                }
+                className={inputCls}
+              >
+                <option value="MPESA">M-Pesa</option>
+                <option value="COD">Cash on Delivery</option>
+              </select>
+            </FormField>
+            <FormField label="Initial Status">
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(e.target.value as AdminDirectOrderStatus)
+                }
+                className={inputCls}
+              >
+                <option value="New">New</option>
+                <option value="Awaiting Payment">Awaiting Payment</option>
+                <option value="Paid">Paid</option>
+                <option value="Awaiting Shipment">Awaiting Shipment</option>
+                <option value="Shipped">Shipped</option>
+                <option value="Delivered">Delivered</option>
+              </select>
+            </FormField>
+          </div>
+        </div>
+
+        <FormField label="Notes" helper="Anything you want to remember">
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className={inputCls}
+            className={cn(inputCls, 'resize-none')}
           />
         </FormField>
       </form>
@@ -2910,9 +5075,9 @@ function LogOrderModal({
           type="submit"
           form="log-order-form"
           disabled={!canSubmit}
-          className={`${btnPrimary} disabled:opacity-60 disabled:cursor-not-allowed`}
+          className={btnPrimary}
         >
-          <CheckCircle2 className="w-3.5 h-3.5" />
+          <CheckCircle2 className="w-3 h-3" />
           Log order
         </button>
       </ModalFooter>
@@ -2920,15 +5085,21 @@ function LogOrderModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// AddProductModal — now with real image upload
-// ─────────────────────────────────────────────────────────────
+type AddProductPayload = AdminDirectProductWrite & {
+  brandId?: number;
+  categoryId?: number;
+};
+
 function AddProductModal({
   onClose,
   onSubmit,
+  brands,
+  categories,
 }: {
   onClose: () => void;
   onSubmit: (p: AdminDirectProductWrite) => Promise<void> | void;
+  brands: AdminBrandRef[];
+  categories: AdminCategoryRef[];
 }) {
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -2936,166 +5107,195 @@ function AddProductModal({
   const [price, setPrice] = useState('0');
   const [compareAtPrice, setCompareAtPrice] = useState('');
   const [stockQuantity, setStockQuantity] = useState('0');
-  const [category, setCategory] = useState('');
-  const [brand, setBrand] = useState('');
-  const [commissionRate, setCommissionRate] = useState('10');
+  const [categoryId, setCategoryId] = useState<number>(
+    categories[0]?.id ?? 0,
+  );
+  const [brandId, setBrandId] = useState<number>(brands[0]?.id ?? 0);
   const [status, setStatus] = useState<AdminDirectProductStatus>('Draft');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (brands.length && !brandId) setBrandId(brands[0].id);
+  }, [brands, brandId]);
+  useEffect(() => {
+    if (categories.length && !categoryId) setCategoryId(categories[0].id);
+  }, [categories, categoryId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({
+      const payload: AddProductPayload = {
         name: name.trim(),
         sku: sku.trim() || undefined,
         image: image || undefined,
         price: price.trim() || '0',
         compareAtPrice: compareAtPrice.trim() || null,
         stockQuantity: Number(stockQuantity) || 0,
-        category: category.trim() || undefined,
-        brand: brand.trim() || undefined,
-        commissionRate: Number(commissionRate) || 0,
         status,
-      });
+        brandId,
+        categoryId,
+      };
+      await onSubmit(payload as AdminDirectProductWrite);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const canSubmit = !!name.trim() && brandId > 0 && categoryId > 0;
+
   return (
     <Modal
       onClose={onClose}
-      title="Add Product"
-      subtitle="Add an item you promote on social media"
+      title="Add Catalog Product"
+      subtitle="Add an item to your store catalog"
       widthClass="max-w-2xl"
     >
       <form
         id="add-product-form"
         onSubmit={handleSubmit}
-        className="space-y-3 text-[13px]"
+        className="space-y-2"
       >
-        <SectionLabel>Product Image</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Upload the photo customers will see first. This is what appears on
-          your product list and order records.
-        </p>
-        <ImageUpload
-          label="Product Photo"
-          helper="Square or portrait works best for social media."
-          value={image}
-          onChange={setImage}
-        />
+        {brands.length === 0 && (
+          <div className="bg-white border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-slate-700">
+              You need at least one brand in your catalog before adding a
+              product.
+            </p>
+          </div>
+        )}
+        {categories.length === 0 && (
+          <div className="bg-white border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-slate-700">
+              You need at least one category in your catalog before adding a
+              product.
+            </p>
+          </div>
+        )}
 
-        <SectionLabel>Basic Information</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Enter the product details exactly as you want them to appear when
-          someone asks about this item.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField
-            label="Product Name"
-            helper="Write it the way a customer would search for it"
-            required
-          >
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className={inputCls}
-            />
-          </FormField>
-          <FormField
-            label="SKU"
-            helper="Your internal product code. Leave blank to auto-generate"
-          >
-            <input
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-              className={inputCls}
-              placeholder="Auto"
-            />
-          </FormField>
-          <FormField label="Brand">
-            <input
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              className={inputCls}
-            />
-          </FormField>
-          <FormField label="Category">
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className={inputCls}
-            />
-          </FormField>
+        <div className="space-y-2">
+          <SectionLabel>Product Image</SectionLabel>
+          <ImageUpload
+            label="Product Photo"
+            helper="JPG, PNG or WEBP — up to 5 MB."
+            value={image}
+            onChange={setImage}
+          />
         </div>
 
-        <SectionLabel>Pricing &amp; Stock</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Set your selling price and track how much stock you have available for
-          orders.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <FormField label="Price (KES)" required>
-            <input
-              type="number"
-              min={0}
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className={inputCls}
-            />
-          </FormField>
-          <FormField
-            label="Compare-at Price"
-            helper="Original price shown crossed out"
-          >
-            <input
-              type="number"
-              min={0}
-              value={compareAtPrice}
-              onChange={(e) => setCompareAtPrice(e.target.value)}
-              className={inputCls}
-              placeholder="Optional"
-            />
-          </FormField>
-          <FormField label="Stock">
-            <input
-              type="number"
-              min={0}
-              value={stockQuantity}
-              onChange={(e) => setStockQuantity(e.target.value)}
-              className={inputCls}
-            />
-          </FormField>
-          <FormField
-            label="Commission Rate (%)"
-            helper="How much you pay a creator per sale"
-          >
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={commissionRate}
-              onChange={(e) => setCommissionRate(e.target.value)}
-              className={inputCls}
-            />
-          </FormField>
-          <FormField label="Status">
-            <select
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as AdminDirectProductStatus)
-              }
-              className={inputCls}
+        <div className="space-y-2">
+          <SectionLabel>Basic Information</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <FormField
+              label="Product Name"
+              helper="Customer-facing name"
+              required
             >
-              <option value="Draft">Draft — Not yet visible or active</option>
-              <option value="Active">Active — Currently promoted</option>
-              <option value="Archived">Archived — No longer promoted</option>
-            </select>
-          </FormField>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className={inputCls}
+              />
+            </FormField>
+            <FormField label="SKU" helper="Internal code">
+              <input
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                className={inputCls}
+                placeholder="Optional"
+              />
+            </FormField>
+            <FormField label="Brand" required>
+              <select
+                value={brandId}
+                onChange={(e) => setBrandId(Number(e.target.value))}
+                className={inputCls}
+                disabled={brands.length === 0}
+              >
+                {brands.length === 0 ? (
+                  <option value={0}>No brands available</option>
+                ) : (
+                  brands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </FormField>
+            <FormField label="Category" required>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(Number(e.target.value))}
+                className={inputCls}
+                disabled={categories.length === 0}
+              >
+                {categories.length === 0 ? (
+                  <option value={0}>No categories available</option>
+                ) : (
+                  categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </FormField>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <SectionLabel>Pricing &amp; Stock</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <FormField label="Price (KES)" required>
+              <input
+                type="number"
+                min={0}
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className={inputCls}
+              />
+            </FormField>
+            <FormField
+              label="Compare-at Price"
+              helper="Original price shown crossed out"
+            >
+              <input
+                type="number"
+                min={0}
+                value={compareAtPrice}
+                onChange={(e) => setCompareAtPrice(e.target.value)}
+                className={inputCls}
+                placeholder="Optional"
+              />
+            </FormField>
+            <FormField label="Stock">
+              <input
+                type="number"
+                min={0}
+                value={stockQuantity}
+                onChange={(e) => setStockQuantity(e.target.value)}
+                className={inputCls}
+              />
+            </FormField>
+            <FormField label="Status">
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(e.target.value as AdminDirectProductStatus)
+                }
+                className={inputCls}
+              >
+                <option value="Draft">Draft</option>
+                <option value="Active">Active</option>
+                <option value="Archived">Archived</option>
+              </select>
+            </FormField>
+          </div>
         </div>
       </form>
 
@@ -3106,13 +5306,13 @@ function AddProductModal({
         <button
           type="submit"
           form="add-product-form"
-          disabled={submitting || !name.trim()}
-          className={`${btnPrimary} disabled:opacity-60 disabled:cursor-not-allowed`}
+          disabled={submitting || !canSubmit}
+          className={btnPrimary}
         >
           {submitting ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 h-3" />
           )}
           {submitting ? 'Adding…' : 'Add product'}
         </button>
@@ -3121,9 +5321,6 @@ function AddProductModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// AddContentModal — now with real image AND video upload
-// ─────────────────────────────────────────────────────────────
 function AddContentModal({
   onClose,
   onSubmit,
@@ -3132,9 +5329,6 @@ function AddContentModal({
   onSubmit: (c: AdminDirectContentWrite) => Promise<void> | void;
 }) {
   const [title, setTitle] = useState('');
-  const [platform, setPlatform] = useState<AdminDirectContentPlatform>(
-    'tiktok' as AdminDirectContentPlatform,
-  );
   const [status, setStatus] = useState<AdminDirectContentStatus>('Draft');
   const [scheduledAt, setScheduledAt] = useState('');
   const [caption, setCaption] = useState('');
@@ -3150,15 +5344,12 @@ function AddContentModal({
     try {
       const payload: ContentWriteWithVideo = {
         title: title.trim(),
-        platform,
+        platform: 'TikTok' as AdminDirectContentPlatform,
         status,
-        scheduledAt: scheduledAt
-          ? new Date(scheduledAt).toISOString()
-          : null,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         caption: caption.trim() || undefined,
         thumbnailUrl: thumbnailUrl || undefined,
         productName: productName.trim() || undefined,
-        // NOTE: add `videoUrl` to AdminDirectContentWrite on the backend.
         videoUrl: videoUrl || null,
       };
       await onSubmit(payload as AdminDirectContentWrite);
@@ -3170,134 +5361,102 @@ function AddContentModal({
   return (
     <Modal
       onClose={onClose}
-      title="Add Content"
-      subtitle="Upload the video or image post that promotes your products"
+      title="Add TikTok Video"
+      subtitle="Upload the video or cover image that promotes your products"
       widthClass="max-w-3xl"
     >
       <form
         id="add-content-form"
         onSubmit={handleSubmit}
-        className="space-y-4 text-[13px]"
+        className="space-y-2"
       >
-        <SectionLabel>Video (recommended)</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Upload the actual video you posted (or plan to post). People need to
-          see the video — not just a picture — so this is the most important
-          part of your content.
-        </p>
-        <VideoUpload
-          label="Content Video"
-          helper="MP4, MOV or WEBM — up to 100 MB. The thumbnail below will be used as the poster."
-          value={videoUrl}
-          onChange={setVideoUrl}
-          poster={thumbnailUrl || undefined}
-        />
-
-        <SectionLabel>Thumbnail / Cover Image</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Optional. Used as the video poster and on the content card when no
-          video is present.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
-          <ImageUpload
-            label="Cover Image"
-            helper="JPG, PNG or WEBP — up to 5 MB."
-            value={thumbnailUrl}
-            onChange={setThumbnailUrl}
+        <div className="space-y-2">
+          <SectionLabel>Video (recommended)</SectionLabel>
+          <VideoUpload
+            label="TikTok Video"
+            helper="MP4, MOV or WEBM — up to 100 MB."
+            value={videoUrl}
+            onChange={setVideoUrl}
+            poster={thumbnailUrl || undefined}
           />
-          <div className="text-[12px] text-slate-500 leading-relaxed">
-            <p className="font-medium text-slate-700 mb-1">Tips</p>
-            <ul className="list-disc pl-4 space-y-1">
-              <li>Landscape (16:9) looks best on desktop cards.</li>
-              <li>Portrait (9:16) matches what you post on TikTok.</li>
-              <li>If you skip the video, an image post still works fine.</li>
-            </ul>
+        </div>
+
+        <div className="space-y-2">
+          <SectionLabel>Thumbnail / Cover Image</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
+            <ImageUpload
+              label="Cover Image"
+              helper="JPG, PNG or WEBP — up to 5 MB."
+              value={thumbnailUrl}
+              onChange={setThumbnailUrl}
+            />
+            <div className="text-[13px] text-slate-500 leading-relaxed bg-slate-50 border border-slate-200 rounded-sm p-2">
+              <p className="font-semibold text-slate-700 mb-1">Tips</p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>Portrait (9:16) is what TikTok expects.</li>
+                <li>The cover shows in the player before play.</li>
+                <li>If you skip the video, a cover still works.</li>
+              </ul>
+            </div>
           </div>
         </div>
 
-        <SectionLabel>Content Details</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Describe the post so you can track its performance later.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField
-            label="Title"
-            helper="A short name for this piece of content"
-            required
-          >
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className={inputCls}
-              placeholder="e.g. Unboxing — Ankara Tote Bag"
-            />
-          </FormField>
-          <FormField label="Platform" helper="Where will this be posted?">
-            <select
-              value={platform as string}
-              onChange={(e) =>
-                setPlatform(e.target.value as AdminDirectContentPlatform)
-              }
-              className={inputCls}
+        <div className="space-y-2">
+          <SectionLabel>Content Details</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <FormField label="Title" required>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                className={inputCls}
+                placeholder="e.g. Unboxing — Ankara Tote Bag"
+              />
+            </FormField>
+            <FormField label="Scheduled Date" helper="Optional">
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className={inputCls}
+              />
+            </FormField>
+            <FormField label="Status">
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(e.target.value as AdminDirectContentStatus)
+                }
+                className={inputCls}
+              >
+                <option value="Draft">Draft</option>
+                <option value="Scheduled">Scheduled</option>
+                <option value="Posted">Posted</option>
+                <option value="Archived">Archived</option>
+              </select>
+            </FormField>
+            <FormField
+              label="Featured Product"
+              helper="Which product does this promote?"
             >
-              <option value="tiktok">TikTok</option>
-              <option value="instagram">Instagram</option>
-              <option value="facebook">Facebook</option>
-              <option value="youtube">YouTube</option>
-            </select>
-          </FormField>
-          <FormField
-            label="Scheduled Date"
-            helper="Optional. Leave blank for an unscheduled idea."
-          >
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className={inputCls}
+              <input
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                className={inputCls}
+                placeholder="e.g. Ankara Tote Bag"
+              />
+            </FormField>
+          </div>
+          <FormField label="Caption" helper="Text that goes with the video">
+            <textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              rows={2}
+              className={cn(inputCls, 'resize-none')}
+              placeholder="Write your TikTok caption here…"
             />
-          </FormField>
-          <FormField label="Status">
-            <select
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as AdminDirectContentStatus)
-              }
-              className={inputCls}
-            >
-              <option value="Draft">Draft — Idea, not ready yet</option>
-              <option value="Scheduled">Scheduled — Ready to post</option>
-              <option value="Posted">Posted — Already published</option>
-              <option value="Archived">Archived — Old content</option>
-            </select>
           </FormField>
         </div>
-
-        <FormField
-          label="Caption"
-          helper="The text that goes with your post"
-        >
-          <textarea
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            rows={2}
-            className={inputCls}
-            placeholder="Write your caption here…"
-          />
-        </FormField>
-
-        <FormField
-          label="Featured Product"
-          helper="Which product does this content promote?"
-        >
-          <input
-            value={productName}
-            onChange={(e) => setProductName(e.target.value)}
-            className={inputCls}
-            placeholder="e.g. Ankara Tote Bag"
-          />
-        </FormField>
       </form>
 
       <ModalFooter>
@@ -3308,12 +5467,12 @@ function AddContentModal({
           type="submit"
           form="add-content-form"
           disabled={submitting || !title.trim()}
-          className={`${btnPrimary} disabled:opacity-60 disabled:cursor-not-allowed`}
+          className={btnPrimary}
         >
           {submitting ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 h-3" />
           )}
           {submitting ? 'Adding…' : 'Add content'}
         </button>
@@ -3322,9 +5481,6 @@ function AddContentModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Schedule LIVE modal (unchanged)
-// ─────────────────────────────────────────────────────────────
 function ScheduleLiveModal({
   onClose,
   onSubmit,
@@ -3340,15 +5496,13 @@ function ScheduleLiveModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !scheduledAt) return;
     setSubmitting(true);
     try {
       await onSubmit({
         title: title.trim(),
         hostName: hostName.trim() || undefined,
-        scheduledAt: scheduledAt
-          ? new Date(scheduledAt).toISOString()
-          : null,
+        scheduledAt: new Date(scheduledAt).toISOString(),
         status,
       });
     } finally {
@@ -3359,71 +5513,60 @@ function ScheduleLiveModal({
   return (
     <Modal
       onClose={onClose}
-      title="Schedule LIVE"
-      subtitle="Plan an upcoming livestream selling session"
+      title="Schedule TikTok LIVE"
+      subtitle="Plan an upcoming TikTok livestream selling session"
       widthClass="max-w-xl"
     >
       <form
         id="schedule-live-form"
         onSubmit={handleSubmit}
-        className="space-y-3 text-[13px]"
+        className="space-y-2"
       >
-        <SectionLabel>Session Details</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Give your livestream a name and set the time. You can update results
-          after it ends.
-        </p>
-        <div className="grid grid-cols-1 gap-3">
-          <FormField
-            label="Session Title"
-            helper="A short name customers will recognise"
-            required
-          >
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className={inputCls}
-              placeholder="e.g. Friday Flash Sale — Beauty"
-            />
-          </FormField>
-          <FormField
-            label="Host Name"
-            helper="Who is going to run the livestream?"
-          >
-            <input
-              value={hostName}
-              onChange={(e) => setHostName(e.target.value)}
-              className={inputCls}
-              placeholder="e.g. Amina"
-            />
-          </FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField
-              label="Scheduled Date & Time"
-              helper="When will you go live?"
-            >
+        <div className="space-y-2">
+          <SectionLabel>Session Details</SectionLabel>
+          <div className="grid grid-cols-1 gap-2">
+            <FormField label="Session Title" required>
               <input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
                 className={inputCls}
+                placeholder="e.g. Friday Flash Sale — Beauty"
               />
             </FormField>
-            <FormField label="Status">
-              <select
-                value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value as AdminDirectLiveStatus)
-                }
+            <FormField label="Host Name" helper="Who is running the LIVE?">
+              <input
+                value={hostName}
+                onChange={(e) => setHostName(e.target.value)}
                 className={inputCls}
-              >
-                <option value="Scheduled">Scheduled</option>
-                <option value="Live">Live now</option>
-                <option value="Ended">Ended</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
+                placeholder="e.g. Amina"
+              />
             </FormField>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <FormField label="Scheduled Date & Time" required>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  required
+                  className={inputCls}
+                />
+              </FormField>
+              <FormField label="Status">
+                <select
+                  value={status}
+                  onChange={(e) =>
+                    setStatus(e.target.value as AdminDirectLiveStatus)
+                  }
+                  className={inputCls}
+                >
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Live">Live now</option>
+                  <option value="Ended">Ended</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </FormField>
+            </div>
           </div>
         </div>
       </form>
@@ -3435,13 +5578,13 @@ function ScheduleLiveModal({
         <button
           type="submit"
           form="schedule-live-form"
-          disabled={submitting || !title.trim()}
-          className={`${btnPrimary} disabled:opacity-60 disabled:cursor-not-allowed`}
+          disabled={submitting || !title.trim() || !scheduledAt}
+          className={btnPrimary}
         >
           {submitting ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 h-3" />
           )}
           {submitting ? 'Scheduling…' : 'Schedule LIVE'}
         </button>
@@ -3450,9 +5593,6 @@ function ScheduleLiveModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Add Creator modal (unchanged)
-// ─────────────────────────────────────────────────────────────
 function AddCreatorModal({
   onClose,
   onSubmit,
@@ -3463,7 +5603,6 @@ function AddCreatorModal({
   const [name, setName] = useState('');
   const [handle, setHandle] = useState('');
   const [avatar, setAvatar] = useState('');
-  const [platform, setPlatform] = useState('TikTok');
   const [commissionRate, setCommissionRate] = useState('10');
   const [status, setStatus] = useState<AdminDirectCreatorStatus>('Active');
   const [submitting, setSubmitting] = useState(false);
@@ -3477,7 +5616,7 @@ function AddCreatorModal({
         name: name.trim(),
         handle: handle.trim(),
         avatar: avatar.trim() || undefined,
-        platform,
+        platform: 'TikTok',
         commissionRate: Number(commissionRate) || 0,
         status,
       } as AdminDirectCreatorWrite);
@@ -3489,90 +5628,67 @@ function AddCreatorModal({
   return (
     <Modal
       onClose={onClose}
-      title="Add Creator"
+      title="Add TikTok Creator"
       subtitle="Add a creator you work with and set their commission"
       widthClass="max-w-xl"
     >
       <form
         id="add-creator-form"
         onSubmit={handleSubmit}
-        className="space-y-3 text-[13px]"
+        className="space-y-2"
       >
-        <SectionLabel>Creator Details</SectionLabel>
-        <p className="text-[12px] text-slate-500 -mt-2">
-          Enter the creator&apos;s public details and the rate you agreed on.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField label="Full Name" required>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className={inputCls}
-              placeholder="e.g. Amina Wanjiku"
-            />
-          </FormField>
-          <FormField
-            label="Handle"
-            helper="Their username on the platform (include the @)"
-            required
-          >
-            <input
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              required
-              className={inputCls}
-              placeholder="@amina.ke"
-            />
-          </FormField>
-          <FormField
-            label="Avatar URL"
-            helper="Optional. Link to their profile picture."
-          >
-            <input
-              value={avatar}
-              onChange={(e) => setAvatar(e.target.value)}
-              className={inputCls}
-              placeholder="https://…"
-            />
-          </FormField>
-          <FormField label="Platform">
-            <select
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              className={inputCls}
-            >
-              <option value="TikTok">TikTok</option>
-              <option value="Instagram">Instagram</option>
-              <option value="YouTube">YouTube</option>
-              <option value="Facebook">Facebook</option>
-            </select>
-          </FormField>
-          <FormField
-            label="Commission Rate (%)"
-            helper="The percentage you pay this creator per sale"
-          >
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={commissionRate}
-              onChange={(e) => setCommissionRate(e.target.value)}
-              className={inputCls}
-            />
-          </FormField>
-          <FormField label="Status">
-            <select
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as AdminDirectCreatorStatus)
-              }
-              className={inputCls}
-            >
-              <option value="Active">Active — Currently working with us</option>
-              <option value="Inactive">Inactive — Not currently working</option>
-            </select>
-          </FormField>
+        <div className="space-y-2">
+          <SectionLabel>Creator Details</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <FormField label="Full Name" required>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className={inputCls}
+                placeholder="e.g. Amina Wanjiku"
+              />
+            </FormField>
+            <FormField label="TikTok Handle" helper="Include the @" required>
+              <input
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                required
+                className={inputCls}
+                placeholder="@amina.ke"
+              />
+            </FormField>
+            <FormField label="Avatar URL" helper="Optional">
+              <input
+                value={avatar}
+                onChange={(e) => setAvatar(e.target.value)}
+                className={inputCls}
+                placeholder="https://…"
+              />
+            </FormField>
+            <FormField label="Commission Rate (%)" helper="Per TikTok sale">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={commissionRate}
+                onChange={(e) => setCommissionRate(e.target.value)}
+                className={inputCls}
+              />
+            </FormField>
+            <FormField label="Status">
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(e.target.value as AdminDirectCreatorStatus)
+                }
+                className={inputCls}
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </FormField>
+          </div>
         </div>
       </form>
 
@@ -3584,12 +5700,12 @@ function AddCreatorModal({
           type="submit"
           form="add-creator-form"
           disabled={submitting || !name.trim() || !handle.trim()}
-          className={`${btnPrimary} disabled:opacity-60 disabled:cursor-not-allowed`}
+          className={btnPrimary}
         >
           {submitting ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 h-3" />
           )}
           {submitting ? 'Adding…' : 'Add creator'}
         </button>
@@ -3600,10 +5716,12 @@ function AddCreatorModal({
 
 function OrderDrawer({
   order,
+  isLogged,
   onClose,
   onAdvance,
 }: {
   order: AdminDirectOrder;
+  isLogged: boolean;
   onClose: () => void;
   onAdvance: (next: AdminDirectOrderStatus) => void;
 }) {
@@ -3622,249 +5740,218 @@ function OrderDrawer({
 
   const firstItem = order.items[0];
 
+  const handleWhatsApp = () => {
+    if (!order.customerPhone) return;
+    const digits = order.customerPhone.replace(/[^\d]/g, '');
+    const text = encodeURIComponent(
+      `Hi ${order.customerName}, about your order ${order.reference} (${KES(order.total)}). `,
+    );
+    window.open(`https://wa.me/${digits}?text=${text}`, '_blank');
+  };
+
+  const handleCall = () => {
+    if (!order.customerPhone) return;
+    window.location.href = `tel:${order.customerPhone}`;
+  };
+
+  const handleEmail = () => {
+    if (!order.customerEmail) return;
+    window.location.href = `mailto:${order.customerEmail}?subject=Order ${order.reference}`;
+  };
+
+  const handleCopyRef = async () => {
+    try {
+      await navigator.clipboard.writeText(order.reference);
+    } catch {
+      /* clipboard may be blocked */
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex justify-end"
+      className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex justify-end"
       onClick={onClose}
+      role="presentation"
     >
       <div
-        className="bg-white border-l border-slate-200 w-full max-w-md h-full flex flex-col shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="order-drawer-title"
+        className="bg-white border-l border-slate-200 w-full max-w-md h-full flex flex-col rounded-l-sm shadow-2xl"
         onClick={(e) => e.stopPropagation()}
+        style={{ animation: 'drawerIn 200ms cubic-bezier(0.16, 1, 0.3, 1)' }}
       >
-        <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
+        <style jsx global>{`
+          @keyframes drawerIn {
+            from {
+              transform: translateX(20px);
+              opacity: 0;
+            }
+            to {
+              transform: translateX(0);
+              opacity: 1;
+            }
+          }
+        `}</style>
+
+        <div className="flex items-start justify-between px-2 py-2 border-b border-slate-200 shrink-0">
           <div className="min-w-0">
-            <p className="text-[12px] text-slate-500">Order</p>
-            <p className="text-[15px] font-semibold font-mono text-slate-900 mt-0.5 truncate">
-              {order.reference}
-            </p>
+            <p className="text-[13px] text-slate-500">Order</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p
+                id="order-drawer-title"
+                className="text-[13px] font-semibold font-mono text-slate-900 truncate"
+              >
+                {order.reference}
+              </p>
+              <button
+                onClick={() => void handleCopyRef()}
+                aria-label="Copy reference"
+                className="text-slate-400 hover:text-slate-700"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            </div>
+            {isLogged && (
+              <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[13px] font-medium bg-white text-slate-600 border border-slate-200">
+                <Sparkles className="w-2.5 h-2.5" />
+                Manually logged
+              </span>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={onClose} aria-label="Close" className={iconBtn}>
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
+        <div className="flex-1 overflow-y-auto p-2 space-y-2 text-[13px]">
           <div className="border border-slate-200 rounded-sm p-2 flex items-center gap-2">
-            {firstItem?.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={firstItem.image}
-                alt=""
-                className="w-14 h-14 rounded-sm object-cover border border-slate-200 shrink-0"
-              />
-            ) : (
-              <span className="w-14 h-14 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
-            )}
+            <Thumb
+              src={firstItem?.image}
+              className="w-12 h-12"
+              fallbackIcon={<Package className="w-4 h-4" />}
+            />
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] text-slate-500">Items</p>
+              <p className="text-[13px] text-slate-500">Items</p>
               <p className="font-medium text-slate-900 mt-0.5">
                 {firstItem?.productName || '—'} ×{firstItem?.quantity ?? 0}
               </p>
-              <p className="text-[12px] text-slate-400 mt-0.5">
+              <p className="text-[13px] text-slate-400 mt-0.5">
                 From {sourceLabel(order.source)}
               </p>
             </div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1">
-            <p className="text-[12px] text-slate-500">Customer</p>
+            <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide">
+              Customer
+            </p>
             <p className="font-medium text-slate-900">{order.customerName}</p>
             {order.customerPhone && (
-              <p className="text-slate-600">{order.customerPhone}</p>
+              <p className="text-slate-600 inline-flex items-center gap-1.5">
+                <Phone className="w-3 h-3 text-slate-400" />
+                {order.customerPhone}
+              </p>
             )}
             {order.customerEmail && (
-              <p className="text-slate-500 font-mono text-[12px]">
+              <p className="text-slate-500 text-[13px] inline-flex items-center gap-1.5">
+                <Mail className="w-3 h-3 text-slate-400" />
                 {order.customerEmail}
               </p>
             )}
           </div>
 
-          <div className="border border-slate-200 rounded-sm p-2 space-y-1">
-            <p className="text-[12px] text-slate-500">Payment</p>
-            <p className="text-slate-800">{order.paymentMethod}</p>
-            <p className="text-slate-500 text-[12px]">
-              Status: {order.paymentStatus}
-            </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="border border-slate-200 rounded-sm p-2">
+              <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide mb-1">
+                Payment
+              </p>
+              <p className="text-slate-800">{order.paymentMethod}</p>
+              <p className="text-slate-500 text-[13px] mt-0.5 capitalize">
+                {order.paymentStatus}
+              </p>
+            </div>
+            <div className="border border-slate-200 rounded-sm p-2">
+              <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide mb-1">
+                Status
+              </p>
+              <StatusBadge variant={orderStatusVariant(order.status)} dot>
+                {order.status}
+              </StatusBadge>
+            </div>
           </div>
 
-          <div className="border border-slate-200 rounded-sm p-2 space-y-1">
-            <p className="text-[12px] text-slate-500">Status</p>
-            <span
-              className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[12px] ${orderStatusBadge(order.status)}`}
-            >
-              {order.status}
+          <div className="bg-blue-950 text-white rounded-sm p-2 flex items-center justify-between">
+            <span className="text-[13px] uppercase tracking-wide opacity-80">
+              Total
             </span>
-          </div>
-
-          <div className="bg-slate-900 text-white rounded-sm p-2 flex items-center justify-between">
-            <span className="text-[12px]">Total</span>
-            <span className="font-semibold text-emerald-400">
+            <span className="font-semibold text-white text-base tabular-nums">
               {KES(order.total)}
             </span>
           </div>
 
           {order.notes && (
             <div className="border border-slate-200 rounded-sm p-2 space-y-1">
-              <p className="text-[12px] text-slate-500">Notes</p>
-              <p className="text-slate-700 whitespace-pre-wrap">
+              <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide">
+                Notes
+              </p>
+              <p className="text-slate-700 whitespace-pre-wrap text-[13px]">
                 {order.notes}
               </p>
             </div>
           )}
 
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            <button className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded-sm text-[12px]">
-              <MessageCircle className="w-3.5 h-3.5" />
-              Send WhatsApp Update
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              onClick={handleWhatsApp}
+              disabled={!order.customerPhone}
+              className={btnSecondary}
+            >
+              <MessageCircle className="w-3 h-3" />
+              WhatsApp
             </button>
-            <button className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded-sm text-[12px]">
-              <Printer className="w-3.5 h-3.5" />
-              Print Packing Slip
+            <button
+              onClick={handleCall}
+              disabled={!order.customerPhone}
+              className={btnSecondary}
+            >
+              <Phone className="w-3 h-3" />
+              Call
+            </button>
+            <button
+              onClick={handleEmail}
+              disabled={!order.customerEmail}
+              className={btnSecondary}
+            >
+              <Mail className="w-3 h-3" />
+              Email
+            </button>
+            <button onClick={handlePrint} className={btnSecondary}>
+              <Printer className="w-3 h-3" />
+              Print slip
             </button>
           </div>
         </div>
 
-        <div className="px-3 py-2 border-t border-slate-200 flex gap-2 shrink-0">
-          <button
-            onClick={onClose}
-            className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
-          >
+        <div className="px-2 py-2 border-t border-slate-200 flex gap-2 shrink-0">
+          <button onClick={onClose} className={cn(btnSecondary, 'flex-1')}>
             Close
           </button>
           {nextStatus && (
             <button
               onClick={() => onAdvance(nextStatus)}
-              className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 rounded-sm text-[13px]"
+              className={cn(btnPrimary, 'flex-1')}
             >
+              <ArrowUpRight className="w-3 h-3" />
               Move to &ldquo;{nextStatus}&rdquo;
             </button>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SMALL SHARED PIECES
-// ═══════════════════════════════════════════════════════════════════════════
-
-const inputCls =
-  'w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950';
-
-const btnPrimary =
-  'inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-2 rounded-sm text-[13px]';
-
-const btnSecondary =
-  'inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]';
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[12px] font-semibold text-slate-500 uppercase tracking-wide pt-1">
-      {children}
-    </p>
-  );
-}
-
-function FormField({
-  label,
-  helper,
-  required,
-  children,
-}: {
-  label: string;
-  helper?: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="block text-[12px] font-medium text-slate-700 mb-1">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-      {helper && <p className="text-[11px] text-slate-500 mt-1">{helper}</p>}
-    </div>
-  );
-}
-
-function Modal({
-  onClose,
-  title,
-  subtitle,
-  widthClass = 'max-w-2xl',
-  children,
-}: {
-  onClose: () => void;
-  title: string;
-  subtitle: string;
-  widthClass?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
-      onClick={onClose}
-    >
-      <div
-        className={`bg-white border border-slate-200 rounded-sm w-full ${widthClass} max-h-[92vh] flex flex-col shadow-xl`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-slate-900 truncate">
-              {title}
-            </h3>
-            <p className="text-[13px] text-slate-500 truncate">{subtitle}</p>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function ModalFooter({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-3 py-2 border-t border-slate-200 flex items-center justify-end gap-2 -mx-3 -mb-3 mt-3 sticky bottom-0 bg-white">
-      {children}
-    </div>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  action,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  action?: { label: string; onClick: () => void; icon?: React.ReactNode };
-}) {
-  return (
-    <div className="max-w-xl mx-auto my-8 bg-white border border-slate-200 rounded-sm p-6 text-center space-y-3">
-      <span className="w-12 h-12 rounded-sm bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
-        {icon}
-      </span>
-      <p className="text-[13px] text-slate-600">{title}</p>
-      {action && (
-        <button onClick={action.onClick} className={btnPrimary}>
-          {action.icon}
-          {action.label}
-        </button>
-      )}
     </div>
   );
 }

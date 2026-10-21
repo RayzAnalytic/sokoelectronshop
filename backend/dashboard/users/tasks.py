@@ -1,5 +1,3 @@
-# dashboard/users/tasks.py
-
 from celery import shared_task
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -10,15 +8,6 @@ from django.utils import timezone
 from .models import InviteStatus, StaffInvite
 
 
-# ─────────────────────────────────────────────────────────────
-# Email helper — mirrors authentication/views.py::_send_html_email
-#
-# Anymail routes every Django email through SendGrid's v3 API. The
-# backend is configured in settings; this file just builds the
-# message and calls .send(). Never import `sendgrid` directly — the
-# SDK bypasses Anymail, ignores the sandbox setting, and duplicates
-# configuration.
-# ─────────────────────────────────────────────────────────────
 def _send_html_email(
     subject: str,
     text_body: str,
@@ -37,13 +26,6 @@ def _send_html_email(
 
 
 def _inviter_name(user) -> str:
-    """
-    Compose a display name for the user who sent an invite.
-
-    The project's custom User model has no `.name` and no
-    `get_full_name()` — build from first_name + last_name, then
-    fall back to email, then a generic label.
-    """
     if not user:
         return "The team"
 
@@ -57,9 +39,6 @@ def _inviter_name(user) -> str:
     return email or "The team"
 
 
-# ─────────────────────────────────────────────────────────────
-# Staff invite email
-# ─────────────────────────────────────────────────────────────
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_invite_email(self, invite_id):
     try:
@@ -67,8 +46,6 @@ def send_invite_email(self, invite_id):
     except StaffInvite.DoesNotExist:
         return
 
-    # No-op for anything that isn't a fresh pending invite. Retries
-    # shouldn't resurrect a cancelled or already-accepted link.
     if invite.status != InviteStatus.PENDING:
         return
 
@@ -90,8 +67,6 @@ def send_invite_email(self, invite_id):
         "shop_name":  settings.SHOP_NAME,
     }
 
-    # Render from the template if it exists; fall back to inline HTML
-    # so a missing template doesn't burn 3 retries and drop the email.
     try:
         html = render_to_string("users/staff_invite.html", context)
     except Exception:
@@ -118,7 +93,6 @@ def send_invite_email(self, invite_id):
 
 
 def _fallback_invite_html(ctx: dict) -> str:
-    """Minimal HTML for when the template file isn't deployed yet."""
     department_line = (
         f'<p style="color:#475569;margin:4px 0;">Department: '
         f'<strong>{ctx["department"]}</strong></p>'
@@ -155,14 +129,6 @@ def _fallback_invite_html(ctx: dict) -> str:
     """
 
 
-# ─────────────────────────────────────────────────────────────
-# Password reset email
-#
-# Uses the auth app's PasswordResetToken so both staff and customer
-# reset flows create the same kind of row and use the same URL:
-#     {FRONTEND_URL}/auth/reset-password?token=<token>
-#     {FRONTEND_URL}/admin/reset-password?token=<token>   (staff)
-# ─────────────────────────────────────────────────────────────
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_password_reset_email(self, user_id):
     User = get_user_model()
@@ -173,8 +139,6 @@ def send_password_reset_email(self, user_id):
 
     from authentication.models import PasswordResetToken
 
-    # Invalidate any previous outstanding tokens — only the newest
-    # link should be live, matching ForgotPasswordView's behaviour.
     PasswordResetToken.objects.filter(
         user=user, used_at__isnull=True,
     ).update(used_at=timezone.now())
@@ -233,17 +197,7 @@ def send_password_reset_email(self, user_id):
         raise self.retry(exc=exc)
 
 
-# ─────────────────────────────────────────────────────────────
-# Housekeeping — sweep expired unaccepted invites
-#
-# Marks PENDING invites as EXPIRED; doesn't delete. Preserves the
-# audit trail and matches InviteStatus. Runs hourly via Celery Beat.
-# ─────────────────────────────────────────────────────────────
 @shared_task
 def sweep_expired_invites():
-    """
-    Flip every PENDING invite whose `expires_at` has passed to
-    EXPIRED. Returns the number of rows affected.
-    """
     count = StaffInvite.expire_overdue()
     return {"expired": count}

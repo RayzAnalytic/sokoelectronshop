@@ -1,8 +1,8 @@
-# catalog/views/products.py
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 
 from account.models import Review as AccountReview
 
@@ -11,20 +11,12 @@ from catalog.serializers import (
     ProductDetailSerializer,
     ProductListSerializer,
     ReviewSerializer,
+    ReviewCreateSerializer,
 )
 from catalog import services
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared helpers
-# ─────────────────────────────────────────────────────────────────────────────
 def _currency() -> str:
-    """
-    Read the shop's currency from the cached settings bundle.
-
-    Fails safe to KES during migrations / cold boot so management
-    commands and tests that touch views don't crash.
-    """
     try:
         from dashboard.settings.services import get_settings_bundle
         return get_settings_bundle()['general'].currency
@@ -33,41 +25,18 @@ def _currency() -> str:
 
 
 def _attach_currency(response):
-    """Add the shop currency header to any Response object."""
     response['X-Shop-Currency'] = _currency()
     return response
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Pagination
-# ─────────────────────────────────────────────────────────────────────────────
 class ProductPagination(PageNumberPagination):
     page_size = 8
     page_size_query_param = "page_size"
     max_page_size = 100
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Products — list
-# ─────────────────────────────────────────────────────────────────────────────
 class ProductListView(generics.ListAPIView):
-    """
-    GET /api/catalog/products/
-
-    Query params:
-      ?search=       free text (name / brand / category)
-      ?category=     exact category name or "All"
-      ?brand=        exact brand name or "All"
-      ?price_range=  0-10000 | 10000-50000 | 50000-100000 | 100000-plus | All
-      ?stock=        In Stock | Low Stock | Out of Stock | All
-      ?sort_by=      featured | price-low | price-high | rating | newest
-      ?page=1&page_size=8
-
-    The service applies `inventory.hide_out_of_stock` and
-    `inventory.allow_backorders` from Settings → Store inside
-    `services.get_products()`, so this view does not touch those
-    settings directly.
-    """
+    permission_classes = [AllowAny]
     serializer_class = ProductListSerializer
     pagination_class = ProductPagination
 
@@ -86,22 +55,8 @@ class ProductListView(generics.ListAPIView):
         return _attach_currency(super().list(request, *args, **kwargs))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Products — detail
-# ─────────────────────────────────────────────────────────────────────────────
 class ProductDetailView(APIView):
-    """
-    GET /api/catalog/products/<product_id>/
-
-    Does NOT apply the hide filter — a customer who followed a direct
-    link should still see the product page (rendered as "out of stock"
-    or "pre-order"). The hide rule is a discoverability filter, not a
-    content-access filter.
-
-    The serializer emits `currency`, `stockLabel`, `lowStock`, and
-    `weightUnit` so the frontend can format everything without a
-    second request.
-    """
+    permission_classes = [AllowAny]
 
     def get(self, request, product_id):
         product = services.get_product_by_id(product_id)
@@ -110,6 +65,9 @@ class ProductDetailView(APIView):
                 {"detail": "Product not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        services.increment_product_views(product.id)
+
         related = services.get_related_products(product)
         serializer = ProductDetailSerializer(
             product,
@@ -118,17 +76,40 @@ class ProductDetailView(APIView):
         return _attach_currency(Response(serializer.data))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Products — related rail
-# ─────────────────────────────────────────────────────────────────────────────
-class RelatedProductsView(generics.ListAPIView):
-    """
-    GET /api/catalog/products/<product_id>/related/
+class ProductLookupView(APIView):
+    permission_classes = [AllowAny]
 
-    Applies the hide filter (via `services.get_related_products`) because
-    these are suggestions, not the user's direct target — showing a
-    sold-out product in a recommendations rail is pointless.
-    """
+    def get(self, request):
+        sku = (request.query_params.get("sku") or "").strip()
+        barcode = (request.query_params.get("barcode") or "").strip()
+
+        if not sku and not barcode:
+            return Response(
+                {"detail": "Provide either `sku` or `barcode`."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        product = None
+        if sku:
+            product = services.get_product_by_sku(sku)
+        if product is None and barcode:
+            product = services.get_product_by_barcode(barcode)
+
+        if not product:
+            return Response(
+                {"detail": "Product not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = ProductListSerializer(
+            product,
+            context={"request": request},
+        )
+        return _attach_currency(Response(serializer.data))
+
+
+class RelatedProductsView(generics.ListAPIView):
+    permission_classes = [AllowAny]
     serializer_class = ProductListSerializer
     pagination_class = None
 
@@ -142,35 +123,14 @@ class RelatedProductsView(generics.ListAPIView):
         return _attach_currency(super().list(request, *args, **kwargs))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Products — reviews (public, read-only)
-# ─────────────────────────────────────────────────────────────────────────────
 class ProductReviewListView(APIView):
-    """
-    GET /api/catalog/products/<product_id>/reviews/
+    permission_classes = [AllowAny]
 
-    Public, read-only. Returns every PUBLISHED review for the product,
-    newest first.
-
-    The source model is `account.Review`, not the old `catalog.Review` —
-    the latter was removed when the customer review write path moved to
-    `/api/v1/account/reviews/`. That move was necessary because reviews
-    need a User FK (for ownership, moderation, and notification) that
-    `catalog.Review` never had.
-
-    Settings awareness:
-        `reviews.reviews_enabled` from Settings → Store is honored inside
-        `services.get_reviews_for_product()` — when the shop owner turns
-        reviews off, this endpoint returns `[]` without any branching here.
-
-    The POST method this view used to expose is gone. Customers submit
-    reviews through `POST /api/v1/account/reviews/`, which uses
-    `account.serializers.ReviewWriteSerializer` to handle order lookup,
-    verified-purchase computation, and moderation state.
-    """
+    def _get_product(self, product_id):
+        return services.get_product_by_id(product_id)
 
     def get(self, request, product_id):
-        product = services.get_product_by_id(product_id)
+        product = self._get_product(product_id)
         if not product:
             return Response(
                 {"detail": "Product not found."},
@@ -181,3 +141,45 @@ class ProductReviewListView(APIView):
         return _attach_currency(Response(
             ReviewSerializer(qs, many=True, context={"request": request}).data
         ))
+
+    def post(self, request, product_id):
+        product = self._get_product(product_id)
+        if not product:
+            return Response(
+                {"detail": "Product not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = ReviewCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        primary_image = ""
+        first_img = product.images.first()
+        if first_img is not None:
+            if first_img.external_url:
+                primary_image = first_img.external_url
+            elif first_img.image:
+                primary_image = request.build_absolute_uri(first_img.image.url)
+
+        user = request.user if request.user.is_authenticated else None
+
+        review = AccountReview.objects.create(
+            user=user,
+            guest_author_name="" if user else serializer.validated_data["author"],
+            product_id=product.id,
+            product_name=product.name,
+            product_slug=product.slug,
+            product_image=primary_image,
+            product_brand=product.brand.name if product.brand_id else "",
+            rating=serializer.validated_data["rating"],
+            title=serializer.validated_data.get("title", ""),
+            body=serializer.validated_data["body"],
+            status=AccountReview.Status.PUBLISHED,
+            is_verified_purchase=False,
+        )
+
+        return _attach_currency(Response(
+            ReviewSerializer(review, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        ))
+     

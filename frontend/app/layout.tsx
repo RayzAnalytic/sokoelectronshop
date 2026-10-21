@@ -17,12 +17,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'RazeAnaly Store — Buy Phones, TVs, Laptops,,, Online',
-    template: '%s | RazeAnaly Store',
+    default: 'Razestore — Buy Phones, TVs, Laptops,,, Online',
+    template: '%s | RazeStore',
   },
   description:
     'Shop phones, TVs, laptops, and more. Fast delivery, secure payments, easy returns.',
-  metadataBase: new URL('https://yourstore.com'),
+  metadataBase: new URL('https://Razestore.com'),
   openGraph: {
     type: 'website',
     siteName: 'Your Store',

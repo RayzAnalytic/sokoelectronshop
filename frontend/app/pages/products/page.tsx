@@ -1,4 +1,3 @@
-// app/pages/products/page.tsx
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -31,9 +30,6 @@ import {
     type ProductsQuery,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
     if (v === null || v === undefined) return 0;
     return typeof v === 'number' ? v : Number(v);
@@ -58,9 +54,23 @@ const PRICE_RANGES = [
 
 const STOCK_OPTIONS = ['All', 'In Stock', 'Low Stock', 'Out of Stock'] as const;
 
-// ─────────────────────────────────────────────────────────────
-// Public page — Suspense wrapper (useSearchParams)
-// ─────────────────────────────────────────────────────────────
+type StockKind = 'in' | 'low' | 'out' | 'unknown';
+
+function normalizeStock(raw: string | undefined): StockKind {
+    const s = (raw || '').toLowerCase().replace(/[_\s-]/g, '');
+    if (s === 'instock' || s === 'in') return 'in';
+    if (s === 'lowstock' || s === 'low') return 'low';
+    if (s === 'outofstock' || s === 'out' || s === 'soldout') return 'out';
+    return 'unknown';
+}
+
+const STOCK_STYLES: Record<StockKind, { bg: string; label: string }> = {
+    in:      { bg: 'bg-green-600 text-white',   label: 'In Stock' },
+    low:     { bg: 'bg-orange-500 text-white',  label: 'Low Stock' },
+    out:     { bg: 'bg-red-600 text-white',     label: 'Out of Stock' },
+    unknown: { bg: 'bg-slate-500 text-white',   label: 'Unknown' },
+};
+
 export default function ProductsPage() {
     return (
         <Suspense fallback={null}>
@@ -69,26 +79,24 @@ export default function ProductsPage() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────
-// The actual page
-// ─────────────────────────────────────────────────────────────
 function ProductsPageInner() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const openId = searchParams.get('open');
 
-    // ── Filter / sort state ───────────────────────────────────
-    const [searchQuery, setSearchQuery] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const initialSearch = searchParams.get('q') ?? '';
+
+    const [searchQuery, setSearchQuery] = useState(initialSearch);
+    const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedBrand, setSelectedBrand] = useState('All');
     const [selectedPriceRange, setSelectedPriceRange] = useState('All');
     const [selectedStock, setSelectedStock] = useState<string>('All');
     const [sortBy, setSortBy] = useState<ProductsQuery['sort_by']>('featured');
     const [currentPage, setCurrentPage] = useState(1);
+    const [reloadKey, setReloadKey] = useState(0);
 
-    // ── Data ──────────────────────────────────────────────────
     const [products, setProducts] = useState<CatalogProduct[]>([]);
     const [totalCount, setTotalCount] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -97,14 +105,12 @@ function ProductsPageInner() {
     const [categories, setCategories] = useState<string[]>(['All']);
     const [brands, setBrands] = useState<string[]>(['All']);
 
-    // ── Modal state ───────────────────────────────────────────
     const [activeProductDetail, setActiveProductDetail] =
         useState<CatalogProductDetail | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [cartAddingId, setCartAddingId] = useState<string | null>(null);
 
-    // ── Reviews state ─────────────────────────────────────────
     const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
     const [reviews, setReviews] = useState<CatalogReview[]>([]);
     const [reviewsLoading, setReviewsLoading] = useState(false);
@@ -120,13 +126,18 @@ function ProductsPageInner() {
 
     const addItem = useCart((s) => s.addItem);
 
-    // ── Debounce search input ─────────────────────────────────
+    useEffect(() => {
+        const urlQ = searchParams.get('q') ?? '';
+        setSearchQuery(urlQ);
+        setDebouncedSearch(urlQ);
+        setCurrentPage(1);
+    }, [searchParams]);
+
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
         return () => clearTimeout(t);
     }, [searchQuery]);
 
-    // ── Fetch categories + brands once ────────────────────────
     useEffect(() => {
         const ctrl = new AbortController();
         Promise.all([
@@ -137,13 +148,10 @@ function ProductsPageInner() {
                 setCategories(['All', ...cats.map((c) => c.name)]);
                 setBrands(['All', ...brs.map((b) => b.name)]);
             })
-            .catch(() => {
-                /* non-fatal — dropdowns fall back to 'All' */
-            });
+            .catch(() => {});
         return () => ctrl.abort();
     }, []);
 
-    // ── Fetch products whenever filters change ────────────────
     useEffect(() => {
         const ctrl = new AbortController();
         setLoading(true);
@@ -189,9 +197,9 @@ function ProductsPageInner() {
         selectedStock,
         sortBy,
         currentPage,
+        reloadKey,
     ]);
 
-    // ── Detail modal driven by ?open= ─────────────────────────
     useEffect(() => {
         if (!openId) {
             setActiveProductDetail(null);
@@ -209,7 +217,6 @@ function ProductsPageInner() {
             .catch((err: unknown) => {
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setActiveProductDetail(null);
-                // Unknown product — strip the query param
                 router.replace(pathname, { scroll: false });
             })
             .finally(() => setDetailLoading(false));
@@ -217,7 +224,6 @@ function ProductsPageInner() {
         return () => ctrl.abort();
     }, [openId, router, pathname]);
 
-    // ── Fetch reviews when sub-modal opens ────────────────────
     useEffect(() => {
         if (!reviewsModalOpen || !activeProductDetail) return;
         const ctrl = new AbortController();
@@ -232,7 +238,6 @@ function ProductsPageInner() {
         return () => ctrl.abort();
     }, [reviewsModalOpen, activeProductDetail]);
 
-    // ── URL helpers for the modal ─────────────────────────────
     const openProductInUrl = (id: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('open', id);
@@ -252,24 +257,21 @@ function ProductsPageInner() {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     };
 
-    // ── Derived pagination ────────────────────────────────────
     const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
 
-    // ── Reviews derived ───────────────────────────────────────
     const averageReviewRating = useMemo(() => {
         if (reviews.length === 0) return 0;
         const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
         return Math.round((sum / reviews.length) * 10) / 10;
     }, [reviews]);
 
-    // ── Add to cart ───────────────────────────────────────────
     const handleAddToCart = useCallback(
         async (product: CatalogProduct, e?: React.MouseEvent): Promise<void> => {
             if (e) {
                 e.preventDefault();
                 e.stopPropagation();
             }
-            if (product.stock === 'Out of Stock') return;
+            if (normalizeStock(product.stock) === 'out') return;
 
             setCartAddingId(product.id);
             try {
@@ -295,7 +297,6 @@ function ProductsPageInner() {
         [addItem],
     );
 
-    // ── Modal open/close handlers ─────────────────────────────
     const handleOpenDetails = (product: CatalogProduct) => {
         openProductInUrl(product.id);
     };
@@ -314,7 +315,6 @@ function ProductsPageInner() {
         setReviewsModalOpen(false);
     };
 
-    // ── Submit review ─────────────────────────────────────────
     const handleSubmitReview = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!activeProductDetail) return;
@@ -337,13 +337,10 @@ function ProductsPageInner() {
             setReviewSubmitted(true);
             setReviewForm({ author: '', rating: 5, title: '', body: '' });
 
-            // Refresh the detail so rating/reviewCount aggregates update
             catalogApi.products
                 .detail(activeProductDetail.id)
                 .then(setActiveProductDetail)
-                .catch(() => {
-                    /* non-fatal */
-                });
+                .catch(() => {});
         } catch {
             setReviewError('Could not submit review. Please try again.');
         } finally {
@@ -351,7 +348,6 @@ function ProductsPageInner() {
         }
     };
 
-    // ── Clear filters ─────────────────────────────────────────
     const clearAllFilters = () => {
         setSearchQuery('');
         setDebouncedSearch('');
@@ -370,9 +366,6 @@ function ProductsPageInner() {
         selectedStock !== 'All' ||
         searchQuery.trim() !== '';
 
-    // ─────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans relative">
             <div
@@ -381,31 +374,30 @@ function ProductsPageInner() {
                         : ''
                     }`}
             >
-                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    {/* Breadcrumb */}
-                    <nav className="flex items-center space-x-2 text-[13px] text-slate-500 mb-4">
+                <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-6 py-4 sm:py-6">
+                    <nav className="flex items-center space-x-1.5 sm:space-x-2 text-[12px] sm:text-[13px] text-slate-500 mb-3 sm:mb-3">
                         <Link href="/" className="hover:text-slate-900 flex items-center space-x-1">
                             <Home className="w-3.5 h-3.5" />
                             <span>Home</span>
                         </Link>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-slate-900 font-medium">Products Catalog</span>
+                        <span className="text-slate-900 font-medium truncate">
+                            Products Catalog
+                        </span>
                     </nav>
 
-                    {/* Heading */}
-                    <div className="mb-5 border-b border-slate-200 pb-6">
-                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                    <div className="mb-4 sm:mb-4 border-b border-slate-200 pb-4 sm:pb-4">
+                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">
                             Electronics &amp; Hardware Catalog
                         </h1>
-                        <p className="text-[13px] text-slate-600 mt-0.5">
+                        <p className="text-[12px] sm:text-[13px] text-slate-600 mt-0.5 leading-relaxed">
                             Browse our complete inventory of certified electronics,
                             high-performance workstations, and smart accessories.
                         </p>
                     </div>
 
-                    {/* Filters */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 mb-4 space-y-2">
-                        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 mb-3 space-y-2">
+                        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
@@ -416,7 +408,7 @@ function ProductsPageInner() {
                                         setCurrentPage(1);
                                     }}
                                     placeholder="Search products by name, brand, or category..."
-                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-200 focus:ring-1 focus:ring-blue-200"
+                                    className="w-full pl-10 pr-12 py-2.5 bg-white border border-slate-300 rounded text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-200 focus:ring-1 focus:ring-blue-200"
                                 />
                                 {searchQuery && (
                                     <button
@@ -432,10 +424,11 @@ function ProductsPageInner() {
                                 )}
                             </div>
 
-                            <div className="flex items-center space-x-2 shrink-0">
-                                <span className="text-[13px] font-medium text-slate-700 flex items-center space-x-1">
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[12px] sm:text-[13px] font-medium text-slate-700 flex items-center space-x-1 whitespace-nowrap">
                                     <ArrowUpDown className="w-3.5 h-3.5" />
-                                    <span>Sort by:</span>
+                                    <span className="hidden sm:inline">Sort by:</span>
+                                    <span className="sm:hidden">Sort</span>
                                 </span>
                                 <select
                                     value={sortBy}
@@ -443,7 +436,7 @@ function ProductsPageInner() {
                                         setSortBy(e.target.value as ProductsQuery['sort_by']);
                                         setCurrentPage(1);
                                     }}
-                                    className="bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="flex-1 md:flex-initial bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
                                     <option value="featured">Featured</option>
                                     <option value="price-low">Price: Low to High</option>
@@ -454,9 +447,9 @@ function ProductsPageInner() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-200">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 pt-3 sm:pt-3 border-t border-slate-200">
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                                     Category
                                 </label>
                                 <select
@@ -465,7 +458,7 @@ function ProductsPageInner() {
                                         setSelectedCategory(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
                                     {categories.map((cat) => (
                                         <option key={cat} value={cat}>
@@ -475,7 +468,7 @@ function ProductsPageInner() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                                     Brand
                                 </label>
                                 <select
@@ -484,7 +477,7 @@ function ProductsPageInner() {
                                         setSelectedBrand(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
                                     {brands.map((brand) => (
                                         <option key={brand} value={brand}>
@@ -494,8 +487,8 @@ function ProductsPageInner() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                                    Price Range
+                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    Price
                                 </label>
                                 <select
                                     value={selectedPriceRange}
@@ -503,7 +496,7 @@ function ProductsPageInner() {
                                         setSelectedPriceRange(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
                                     {PRICE_RANGES.map((range) => (
                                         <option key={range.value} value={range.value}>
@@ -513,8 +506,8 @@ function ProductsPageInner() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                                    Availability
+                                <label className="block text-[12px] sm:text-[12px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                    Stock
                                 </label>
                                 <select
                                     value={selectedStock}
@@ -522,7 +515,7 @@ function ProductsPageInner() {
                                         setSelectedStock(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
                                 >
                                     {STOCK_OPTIONS.map((stock) => (
                                         <option key={stock} value={stock}>
@@ -534,9 +527,9 @@ function ProductsPageInner() {
                         </div>
 
                         {hasActiveFilters && (
-                            <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-[13px]">
-                                <div className="flex items-center space-x-2 text-slate-600 flex-wrap gap-y-1">
-                                    <span className="font-medium">Active Filters:</span>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-slate-200 text-[12px] sm:text-[13px]">
+                                <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 text-slate-600">
+                                    <span className="font-medium">Active:</span>
                                     {selectedCategory !== 'All' && (
                                         <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
                                             Category: {selectedCategory}
@@ -549,7 +542,7 @@ function ProductsPageInner() {
                                     )}
                                     {selectedPriceRange !== 'All' && (
                                         <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
-                                            Price Range: {selectedPriceRange}
+                                            Price: {selectedPriceRange}
                                         </span>
                                     )}
                                     {selectedStock !== 'All' && (
@@ -558,15 +551,15 @@ function ProductsPageInner() {
                                         </span>
                                     )}
                                     {searchQuery && (
-                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
-                                            Search: &ldquo;{searchQuery}&rdquo;
+                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800 max-w-[200px] truncate">
+                                            &ldquo;{searchQuery}&rdquo;
                                         </span>
                                     )}
                                 </div>
                                 <button
                                     type="button"
                                     onClick={clearAllFilters}
-                                    className="text-blue-950 font-medium hover:underline text-[13px]"
+                                    className="text-blue-950 font-medium hover:underline text-[12px] sm:text-[13px] self-start sm:self-auto whitespace-nowrap"
                                 >
                                     Reset All Filters
                                 </button>
@@ -574,9 +567,8 @@ function ProductsPageInner() {
                         )}
                     </div>
 
-                    {/* Count */}
-                    <div className="flex items-center justify-between mb-6">
-                        <p className="text-[13px] text-slate-600">
+                    <div className="flex items-center justify-between mb-4 sm:mb-6">
+                        <p className="text-[12px] sm:text-[13px] text-slate-600">
                             Showing{' '}
                             <span className="font-semibold text-slate-900">
                                 {products.length}
@@ -589,14 +581,13 @@ function ProductsPageInner() {
                         </p>
                     </div>
 
-                    {/* Error state */}
                     {loadError && !loading && (
                         <div className="text-center py-12 bg-red-50 border border-red-200 rounded-sm mb-8">
                             <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
                             <p className="text-[13px] text-red-700 mb-3">{loadError}</p>
                             <button
                                 type="button"
-                                onClick={() => setCurrentPage((p) => p)}
+                                onClick={() => setReloadKey((k) => k + 1)}
                                 className="bg-blue-950 text-white px-4 py-2 rounded text-[13px] font-medium hover:bg-blue-900"
                             >
                                 Retry
@@ -604,16 +595,15 @@ function ProductsPageInner() {
                         </div>
                     )}
 
-                    {/* Loading skeleton */}
                     {loading && products.length === 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-8">
                             {Array.from({ length: ITEMS_PER_PAGE }).map((_, i) => (
                                 <div
                                     key={i}
                                     className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
                                 >
-                                    <div className="aspect-[16/10] bg-slate-100" />
-                                    <div className="p-3 space-y-2">
+                                    <div className="aspect-[20/16] bg-slate-100" />
+                                    <div className="p-2 sm:p-3 space-y-2">
                                         <div className="h-3 bg-slate-100 rounded w-1/3" />
                                         <div className="h-4 bg-slate-100 rounded w-3/4" />
                                         <div className="h-3 bg-slate-100 rounded w-1/2" />
@@ -623,9 +613,8 @@ function ProductsPageInner() {
                         </div>
                     )}
 
-                    {/* Product Grid */}
                     {!loading && products.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-8">
                             {products.map((product) => {
                                 const isAdding = cartAddingId === product.id;
                                 const price = toNum(product.price);
@@ -636,20 +625,24 @@ function ProductsPageInner() {
                                 const discountPercentage =
                                     product.discountPercentage ?? null;
 
+                                const stockKind = normalizeStock(product.stock);
+                                const stock = STOCK_STYLES[stockKind];
+                                const isOutOfStock = stockKind === 'out';
+
                                 return (
                                     <div
                                         key={product.id}
                                         className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
                                     >
                                         <div>
-                                            <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
+                                            <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
                                                 <img
                                                     src={product.images[0] ?? '/placeholder.jpeg'}
                                                     alt={product.name}
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                 />
                                                 {discountPercentage && (
-                                                    <span className="absolute top-2 left-2 z-10 bg-red-600 text-white font-semibold text-[10px] px-2 py-0.5 rounded shadow-xs">
+                                                    <span className="absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-10 bg-red-600 text-white font-semibold text-[11px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded shadow-sm">
                                                         -{discountPercentage}%
                                                     </span>
                                                 )}
@@ -665,41 +658,36 @@ function ProductsPageInner() {
                                                     stockCount={product.stockQuantity}
                                                     stock={product.stock}
                                                     size="sm"
-                                                    className="absolute top-2 right-2 z-10"
+                                                    className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 z-10"
                                                 />
                                                 <span
-                                                    className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stock === 'In Stock'
-                                                            ? 'bg-emerald-100 text-emerald-800'
-                                                            : product.stock === 'Low Stock'
-                                                                ? 'bg-amber-100 text-amber-800'
-                                                                : 'bg-red-100 text-red-800'
-                                                        }`}
+                                                    className={`absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 z-10 text-[11px] sm:text-[12px] font-semibold px-1.5 sm:px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
                                                 >
-                                                    {product.stock}
+                                                    {stock.label}
                                                 </span>
                                             </div>
 
-                                            <div className="p-3 pb-2">
-                                                <div className="flex items-center justify-between">
-                                                    <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                                            <div className="p-2 sm:p-2 pb-1 sm:pb-2">
+                                                <div className="flex items-center justify-between gap-1">
+                                                    <p className="text-[12px] sm:text-[11px] font-medium text-slate-500 uppercase tracking-wide truncate">
                                                         {product.brand}
                                                     </p>
-                                                    <p className="text-[11px] text-slate-400">
+                                                    <p className="text-[12px] sm:text-[11px] text-slate-400 truncate">
                                                         {product.category}
                                                     </p>
                                                 </div>
-                                                <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-1 mt-0.5 mb-1">
+                                                <h3 className="text-[12px] sm:text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mt-0.5 mb-1 leading-tight">
                                                     {product.name}
                                                 </h3>
                                                 {Number(product.rating) > 0 && (
-                                                    <div className="flex items-center space-x-1 mb-2">
+                                                    <div className="flex items-center space-x-1 mb-1">
                                                         <div className="flex items-center text-amber-500">
-                                                            <Star className="w-3.5 h-3.5 fill-current" />
+                                                            <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-current" />
                                                         </div>
-                                                        <span className="text-[12px] font-medium text-slate-800">
+                                                        <span className="text-[11px] sm:text-[12px] font-medium text-slate-800">
                                                             {toNum(product.rating).toFixed(1)}
                                                         </span>
-                                                        <span className="text-[11px] text-slate-500">
+                                                        <span className="text-[12px] sm:text-[11px] text-slate-500">
                                                             ({product.reviewCount})
                                                         </span>
                                                     </div>
@@ -707,38 +695,35 @@ function ProductsPageInner() {
                                             </div>
                                         </div>
 
-                                        <div className="p-3 pt-0 mt-auto">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-baseline space-x-2">
-                                                    <span className="text-sm font-bold text-slate-900">
-                                                        {formatKES(price)}
+                                        <div className="p-2 sm:p-2 pt-0 mt-auto">
+                                            <div className="flex items-baseline flex-wrap gap-x-1.5 mb-1">
+                                                <span className="text-[13px] sm:text-sm font-bold text-slate-900">
+                                                    {formatKES(price)}
+                                                </span>
+                                                {comparePrice !== null && (
+                                                    <span className="text-[10px] sm:text-[11px] text-slate-500 line-through">
+                                                        {formatKES(comparePrice)}
                                                     </span>
-                                                    {comparePrice !== null && (
-                                                        <span className="text-[11px] text-slate-500 line-through">
-                                                            {formatKES(comparePrice)}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                )}
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-1.5">
+                                            <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
                                                 <button
                                                     type="button"
                                                     onClick={() => handleOpenDetails(product)}
-                                                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2 px-2 rounded text-[13px] transition duration-150 flex items-center justify-center space-x-1"
+                                                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-1.5 sm:py-2 px-1 rounded text-[11px] sm:text-[13px] transition duration-150 flex items-center justify-center space-x-1"
+                                                    aria-label="View details"
                                                 >
                                                     <Eye className="w-3.5 h-3.5" />
-                                                    <span>Details</span>
+                                                    <span className="hidden sm:inline">Details</span>
                                                 </button>
 
                                                 <button
                                                     type="button"
                                                     onClick={(e) => handleAddToCart(product, e)}
-                                                    disabled={
-                                                        isAdding ||
-                                                        product.stock === 'Out of Stock'
-                                                    }
-                                                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded text-[13px] transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
+                                                    disabled={isAdding || isOutOfStock}
+                                                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-1.5 sm:py-2 px-1 rounded text-[11px] sm:text-[13px] transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
+                                                    aria-label="Add to cart"
                                                 >
                                                     {isAdding ? (
                                                         <>
@@ -761,14 +746,13 @@ function ProductsPageInner() {
                                                                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                                                                 />
                                                             </svg>
-                                                            <span>...</span>
                                                         </>
-                                                    ) : product.stock === 'Out of Stock' ? (
-                                                        <span>Sold Out</span>
+                                                    ) : isOutOfStock ? (
+                                                        <span className="truncate">Sold Out</span>
                                                     ) : (
                                                         <>
                                                             <ShoppingCart className="w-3.5 h-3.5" />
-                                                            <span>Cart</span>
+                                                            <span className="hidden sm:inline">Cart</span>
                                                         </>
                                                     )}
                                                 </button>
@@ -780,13 +764,12 @@ function ProductsPageInner() {
                         </div>
                     )}
 
-                    {/* Empty state */}
                     {!loading && !loadError && products.length === 0 && (
                         <div className="text-center py-16 bg-slate-50 border border-slate-200 rounded-sm mb-12">
                             <h3 className="text-lg font-bold text-slate-900 mb-1">
                                 No products found
                             </h3>
-                            <p className="text-[13px] text-slate-600 mb-4">
+                            <p className="text-[13px] text-slate-600 mb-4 px-4">
                                 We couldn&apos;t find any items matching your selected filters
                                 or search criteria.
                             </p>
@@ -800,16 +783,16 @@ function ProductsPageInner() {
                         </div>
                     )}
 
-                    {/* Pagination */}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-center space-x-2 pb-12">
+                        <div className="flex items-center justify-center gap-1 sm:gap-2 pb-12 flex-wrap">
                             <button
                                 type="button"
                                 onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="px-3 py-2 text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Previous
+                                <span className="hidden sm:inline">Previous</span>
+                                <span className="sm:hidden">Prev</span>
                             </button>
 
                             {Array.from({ length: totalPages }).map((_, idx) => {
@@ -819,7 +802,7 @@ function ProductsPageInner() {
                                         key={pageNumber}
                                         type="button"
                                         onClick={() => setCurrentPage(pageNumber)}
-                                        className={`w-9 h-9 text-[13px] rounded font-medium transition ${currentPage === pageNumber
+                                        className={`w-8 h-8 sm:w-9 sm:h-9 text-[12px] sm:text-[13px] rounded font-medium transition ${currentPage === pageNumber
                                                 ? 'bg-blue-950 text-white'
                                                 : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
                                             }`}
@@ -835,7 +818,7 @@ function ProductsPageInner() {
                                     setCurrentPage((p) => Math.min(p + 1, totalPages))
                                 }
                                 disabled={currentPage === totalPages}
-                                className="px-3 py-2 text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Next
                             </button>
@@ -844,30 +827,29 @@ function ProductsPageInner() {
                 </main>
             </div>
 
-            {/* PRODUCT DETAILS MODAL */}
             {activeProductDetail && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-6xl rounded-sm shadow-2xl border border-slate-200 overflow-hidden relative max-h-[95vh] flex flex-col">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
-                            <div>
-                                <span className="text-xs font-semibold text-blue-950 uppercase">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/70 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-6xl rounded-sm shadow-2xl border border-slate-200 overflow-hidden relative max-h-[95vh] sm:max-h-[95vh] flex flex-col">
+                        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+                            <div className="min-w-0">
+                                <span className="text-[10px] sm:text-xs font-semibold text-blue-950 uppercase truncate block">
                                     {activeProductDetail.brand} • {activeProductDetail.category}
                                 </span>
-                                <h2 className="text-lg font-bold text-slate-900">
+                                <h2 className="text-base sm:text-lg font-bold text-slate-900">
                                     Product Specification
                                 </h2>
                             </div>
                             <button
                                 type="button"
                                 onClick={handleCloseDetails}
-                                className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                                className="p-1.5 sm:p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition shrink-0"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
                         <div className="overflow-y-auto flex-1">
-                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
                                 <div className="space-y-3">
                                     <div className="relative aspect-[4/3] w-full rounded-sm bg-slate-100 overflow-hidden border border-slate-200">
                                         <img
@@ -897,7 +879,7 @@ function ProductsPageInner() {
                                             className="absolute top-3 right-3 z-10"
                                         />
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                                         {activeProductDetail.images.map((imgUrl, imgIdx) => (
                                             <button
                                                 key={imgIdx}
@@ -920,14 +902,14 @@ function ProductsPageInner() {
 
                                 <div className="flex flex-col justify-between">
                                     <div>
-                                        <h3 className="text-xl font-bold text-slate-900 mb-2">
+                                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">
                                             {activeProductDetail.name}
                                         </h3>
 
                                         <button
                                             type="button"
                                             onClick={() => setReviewsModalOpen(true)}
-                                            className="flex items-center space-x-1.5 mb-4 group/rating hover:opacity-80 transition"
+                                            className="flex items-center space-x-1.5 mb-4 group/rating hover:opacity-80 transition flex-wrap"
                                             aria-label="View all reviews"
                                         >
                                             <div className="flex items-center text-amber-500">
@@ -936,14 +918,14 @@ function ProductsPageInner() {
                                             <span className="text-sm font-semibold text-slate-800 underline-offset-2 group-hover/rating:underline">
                                                 {toNum(activeProductDetail.rating).toFixed(1)}
                                             </span>
-                                            <span className="text-xs text-slate-500">
-                                                ({activeProductDetail.reviewCount} verified reviews)
+                                            <span className="text-[12px] text-slate-500">
+                                                ({activeProductDetail.reviewCount} reviews)
                                             </span>
                                             <MessageSquare className="w-3.5 h-3.5 text-slate-400 ml-1" />
                                         </button>
 
-                                        <div className="flex items-baseline space-x-3 mb-4">
-                                            <span className="text-2xl font-bold text-slate-900">
+                                        <div className="flex items-baseline flex-wrap gap-2 sm:gap-3 mb-4">
+                                            <span className="text-xl sm:text-2xl font-bold text-slate-900">
                                                 {formatKES(toNum(activeProductDetail.price))}
                                             </span>
                                             {activeProductDetail.compareAtPrice !== null && (
@@ -954,29 +936,26 @@ function ProductsPageInner() {
                                                 </span>
                                             )}
                                             <span
-                                                className={`text-xs font-medium px-2 py-0.5 ${activeProductDetail.stock === 'In Stock'
-                                                        ? 'bg-emerald-100 text-emerald-800'
-                                                        : 'bg-amber-100 text-amber-800'
-                                                    }`}
+                                                className={`text-[11px] sm:text-xs font-semibold px-2 py-0.5 rounded ${STOCK_STYLES[normalizeStock(activeProductDetail.stock)].bg}`}
                                             >
-                                                {activeProductDetail.stock}
+                                                {STOCK_STYLES[normalizeStock(activeProductDetail.stock)].label}
                                             </span>
                                         </div>
 
-                                        <p className="text-sm text-slate-600 mb-6 leading-relaxed whitespace-pre-line">
+                                        <p className="text-[13px] sm:text-sm text-slate-600 mb-6 leading-relaxed whitespace-pre-line">
                                             {activeProductDetail.description}
                                         </p>
 
                                         {activeProductDetail.features.length > 0 && (
                                             <div className="mb-4">
-                                                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
+                                                <h4 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
                                                     Key Highlights
                                                 </h4>
                                                 <ul className="space-y-1">
                                                     {activeProductDetail.features.map((f, i) => (
                                                         <li
                                                             key={i}
-                                                            className="text-xs text-slate-600 flex items-start gap-1.5"
+                                                            className="text-[12px] sm:text-xs text-slate-600 flex items-start gap-1.5"
                                                         >
                                                             <span className="w-1.5 h-1.5 bg-blue-950 rounded-full mt-1.5 shrink-0" />
                                                             <span>{f}</span>
@@ -988,10 +967,10 @@ function ProductsPageInner() {
 
                                         {Object.keys(activeProductDetail.specs).length > 0 && (
                                             <div className="mb-6">
-                                                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
+                                                <h4 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
                                                     Specifications
                                                 </h4>
-                                                <div className="grid grid-cols-2 gap-1.5 text-xs">
+                                                <div className="grid grid-cols-2 gap-1.5 text-[12px] sm:text-xs">
                                                     {Object.entries(
                                                         activeProductDetail.specs,
                                                     ).map(([k, v]) => (
@@ -999,7 +978,7 @@ function ProductsPageInner() {
                                                             key={k}
                                                             className="bg-slate-50 p-1.5 rounded border border-slate-200"
                                                         >
-                                                            <span className="text-slate-400 block text-[11px]">
+                                                            <span className="text-slate-400 block text-[10px] sm:text-[11px]">
                                                                 {k}
                                                             </span>
                                                             <span className="font-semibold text-slate-800">
@@ -1011,23 +990,23 @@ function ProductsPageInner() {
                                             </div>
                                         )}
 
-                                        <div className="space-y-2 mb-6 text-xs text-slate-600 border-t border-b border-slate-100 py-3">
+                                        <div className="space-y-2 mb-6 text-[12px] sm:text-xs text-slate-600 border-t border-b border-slate-100 py-3">
                                             <div className="flex items-center space-x-2">
-                                                <ShieldCheck className="w-4 h-4 text-blue-950" />
+                                                <ShieldCheck className="w-4 h-4 text-blue-950 shrink-0" />
                                                 <span>1 Year Manufacturer Warranty Included</span>
                                             </div>
                                             <div className="flex items-center space-x-2">
-                                                <Truck className="w-4 h-4 text-blue-950" />
+                                                <Truck className="w-4 h-4 text-blue-950 shrink-0" />
                                                 <span>Fast Express Delivery Available</span>
                                             </div>
                                             <div className="flex items-center space-x-2">
-                                                <RotateCcw className="w-4 h-4 text-blue-950" />
+                                                <RotateCcw className="w-4 h-4 text-blue-950 shrink-0" />
                                                 <span>30-Day Hassle-Free Return Policy</span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center space-x-3 pt-4 border-t border-slate-200">
+                                    <div className="flex items-center gap-2 sm:gap-3 pt-4 border-t border-slate-200">
                                         <button
                                             type="button"
                                             onClick={async () => {
@@ -1035,9 +1014,9 @@ function ProductsPageInner() {
                                                 handleCloseDetails();
                                             }}
                                             disabled={
-                                                activeProductDetail.stock === 'Out of Stock'
+                                                normalizeStock(activeProductDetail.stock) === 'out'
                                             }
-                                            className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-sm transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                                            className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-[13px] sm:text-sm transition flex items-center justify-center space-x-2 disabled:opacity-50"
                                         >
                                             <ShoppingCart className="w-4 h-4" />
                                             <span>Add to Cart</span>
@@ -1045,7 +1024,7 @@ function ProductsPageInner() {
                                         <button
                                             type="button"
                                             onClick={handleCloseDetails}
-                                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2.5 px-4 rounded text-sm transition"
+                                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2.5 px-3 sm:px-4 rounded text-[13px] sm:text-sm transition"
                                         >
                                             Close
                                         </button>
@@ -1054,17 +1033,17 @@ function ProductsPageInner() {
                             </div>
 
                             {activeProductDetail.relatedProducts.length > 0 && (
-                                <div className="px-6 pb-6 border-t border-slate-100 pt-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                                <div className="px-3 sm:px-6 pb-6 border-t border-slate-100 pt-4 sm:pt-6">
+                                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                                        <h4 className="text-[13px] sm:text-sm font-bold text-slate-900 uppercase tracking-wide">
                                             You may also like
                                         </h4>
-                                        <span className="text-[11px] text-slate-400">
-                                            {activeProductDetail.relatedProducts.length} related items
+                                        <span className="text-[10px] sm:text-[11px] text-slate-400">
+                                            {activeProductDetail.relatedProducts.length} related
                                         </span>
                                     </div>
 
-                                    <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                                    <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2 -mx-1 px-1">
                                         {activeProductDetail.relatedProducts.map((rp) => {
                                             const rpPrice = toNum(rp.price);
                                             const rpCompare =
@@ -1084,9 +1063,9 @@ function ProductsPageInner() {
                                                     key={rp.id}
                                                     type="button"
                                                     onClick={() => handleSelectRelated(rp.id)}
-                                                    className="shrink-0 w-40 text-left group/rel"
+                                                    className="shrink-0 w-32 sm:w-40 text-left group/rel"
                                                 >
-                                                    <div className="aspect-[4/3] rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
+                                                    <div className="aspect-[20/16] rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
                                                         <img
                                                             src={rp.images[0] ?? '/placeholder.jpeg'}
                                                             alt={rp.name}
@@ -1098,13 +1077,13 @@ function ProductsPageInner() {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-[11px] font-medium text-slate-500 uppercase mt-2 truncate">
+                                                    <p className="text-[10px] sm:text-[11px] font-medium text-slate-500 uppercase mt-1.5 truncate">
                                                         {rp.brand}
                                                     </p>
-                                                    <p className="text-[12px] font-semibold text-slate-900 truncate group-hover/rel:text-blue-950">
+                                                    <p className="text-[11px] sm:text-[12px] font-semibold text-slate-900 truncate group-hover/rel:text-blue-950">
                                                         {rp.name}
                                                     </p>
-                                                    <p className="text-[12px] font-bold text-slate-900 mt-0.5">
+                                                    <p className="text-[11px] sm:text-[12px] font-bold text-slate-900 mt-0.5">
                                                         {formatKES(rpPrice)}
                                                     </p>
                                                 </button>
@@ -1118,51 +1097,50 @@ function ProductsPageInner() {
                 </div>
             )}
 
-            {/* REVIEWS SUB-MODAL */}
             {activeProductDetail && reviewsModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-6 bg-black/70 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-3xl rounded-sm shadow-2xl border border-slate-200 overflow-hidden relative max-h-[90vh] flex flex-col">
-                        <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+                        <div className="flex items-start justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
                             <div className="min-w-0">
-                                <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+                                <p className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold text-slate-500">
                                     Reviews for
                                 </p>
-                                <h2 className="text-base font-bold text-slate-900 truncate">
+                                <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
                                     {activeProductDetail.name}
                                 </h2>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setReviewsModalOpen(false)}
-                                className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition shrink-0"
+                                className="p-1.5 sm:p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition shrink-0"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto flex-1 p-5 space-y-5">
-                            <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-sm p-4">
-                                <div className="text-center">
-                                    <p className="text-3xl font-bold text-slate-900">
+                        <div className="overflow-y-auto flex-1 p-3 sm:p-5 space-y-4 sm:space-y-5">
+                            <div className="flex items-center gap-3 sm:gap-4 bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-4">
+                                <div className="text-center shrink-0">
+                                    <p className="text-2xl sm:text-3xl font-bold text-slate-900">
                                         {averageReviewRating.toFixed(1)}
                                     </p>
                                     <div className="flex justify-center text-amber-500 mt-1">
                                         {Array.from({ length: 5 }).map((_, i) => (
                                             <Star
                                                 key={i}
-                                                className={`w-3.5 h-3.5 ${i < Math.round(averageReviewRating)
+                                                className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${i < Math.round(averageReviewRating)
                                                         ? 'fill-current'
                                                         : 'text-slate-300'
                                                     }`}
                                             />
                                         ))}
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mt-1">
+                                    <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1">
                                         {reviews.length} reviews
                                     </p>
                                 </div>
-                                <div className="flex-1 border-l border-slate-200 pl-4">
-                                    <p className="text-[12px] text-slate-600">
+                                <div className="flex-1 border-l border-slate-200 pl-3 sm:pl-4 min-w-0">
+                                    <p className="text-[12px] text-slate-600 leading-relaxed">
                                         Based on verified purchases and community submissions.
                                     </p>
                                     <p className="text-[11px] text-slate-500 mt-1">
@@ -1173,14 +1151,14 @@ function ProductsPageInner() {
 
                             <form
                                 onSubmit={handleSubmitReview}
-                                className="bg-white border border-slate-200 rounded-sm p-4 space-y-3"
+                                className="bg-white border border-slate-200 rounded-sm p-3 sm:p-4 space-y-3"
                             >
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-bold text-slate-900">
+                                    <h3 className="text-[13px] sm:text-sm font-bold text-slate-900">
                                         Write a review
                                     </h3>
                                     {reviewSubmitted && (
-                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                        <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
                                             <CheckCircle2 className="w-3 h-3" />
                                             Submitted
                                         </span>
@@ -1195,7 +1173,7 @@ function ProductsPageInner() {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
                                             Your name
                                         </label>
                                         <input
@@ -1210,11 +1188,11 @@ function ProductsPageInner() {
                                             placeholder="e.g. Jane W."
                                             required
                                             maxLength={120}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[12px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
                                             Rating
                                         </label>
                                         <div className="flex items-center gap-1">
@@ -1244,7 +1222,7 @@ function ProductsPageInner() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
                                         Title (optional)
                                     </label>
                                     <input
@@ -1258,12 +1236,12 @@ function ProductsPageInner() {
                                         }
                                         placeholder="Summarize your experience"
                                         maxLength={200}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[12px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
                                         Your review
                                     </label>
                                     <textarea
@@ -1277,7 +1255,7 @@ function ProductsPageInner() {
                                         }
                                         placeholder="Tell others what you think…"
                                         required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[12px] sm:text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     />
                                 </div>
 
@@ -1285,7 +1263,7 @@ function ProductsPageInner() {
                                     <button
                                         type="submit"
                                         disabled={reviewSubmitting}
-                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-50"
+                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-[12px] sm:text-xs transition disabled:opacity-50"
                                     >
                                         <Send className="w-3.5 h-3.5" />
                                         {reviewSubmitting ? 'Posting…' : 'Post review'}
@@ -1294,16 +1272,16 @@ function ProductsPageInner() {
                             </form>
 
                             <div className="space-y-3">
-                                <h3 className="text-sm font-bold text-slate-900">
+                                <h3 className="text-[13px] sm:text-sm font-bold text-slate-900">
                                     All reviews ({reviews.length})
                                 </h3>
 
                                 {reviewsLoading && (
-                                    <p className="text-xs text-slate-500">Loading reviews…</p>
+                                    <p className="text-[12px] text-slate-500">Loading reviews…</p>
                                 )}
 
                                 {!reviewsLoading && reviews.length === 0 && (
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-[12px] text-slate-500">
                                         No reviews yet. Be the first to review this product.
                                     </p>
                                 )}
@@ -1315,7 +1293,7 @@ function ProductsPageInner() {
                                     >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
-                                                <p className="text-xs font-semibold text-slate-900 truncate">
+                                                <p className="text-[12px] font-semibold text-slate-900 truncate">
                                                     {review.author}
                                                     {review.verified && (
                                                         <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
@@ -1324,7 +1302,7 @@ function ProductsPageInner() {
                                                         </span>
                                                     )}
                                                 </p>
-                                                <div className="flex items-center gap-1 mt-0.5">
+                                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                                     {Array.from({ length: 5 }).map((_, i) => (
                                                         <Star
                                                             key={i}
@@ -1340,7 +1318,7 @@ function ProductsPageInner() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-xs font-semibold text-slate-800">
+                                        <p className="text-[12px] font-semibold text-slate-800">
                                             {review.title}
                                         </p>
                                         <p className="text-[12px] text-slate-600 leading-relaxed">

@@ -1,8 +1,3 @@
-// lib/admin-types.ts
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Products
-// ─────────────────────────────────────────────────────────────────────────────
 export interface AdminProductImage {
     id?: number;
     url: string;
@@ -85,9 +80,31 @@ export interface AdminProductWrite {
     specs?: Record<string, string>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SEO — shared by Categories and Brands
-// ─────────────────────────────────────────────────────────────────────────────
+export interface AdminProductVariant {
+    id: number;
+    name: string;
+    sku: string;
+    size: string;
+    color: string;
+    priceDelta: string;
+    stockQuantity: number;
+    imageUrl: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminProductVariantWrite {
+    name: string;
+    sku?: string;
+    size?: string;
+    color?: string;
+    priceDelta?: string | number;
+    stockQuantity?: number;
+    imageUrl?: string;
+    isActive?: boolean;
+}
+
 export interface AdminSEO {
     metaTitle: string;
     metaDescription: string;
@@ -95,9 +112,6 @@ export interface AdminSEO {
     canonicalUrl: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Categories — admin shape (nested tree + SEO)
-// ─────────────────────────────────────────────────────────────────────────────
 export interface AdminCategory {
     id: number;
     name: string;
@@ -127,25 +141,19 @@ export interface AdminCategoryWrite {
     icon_name?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Brands — admin shape
-// ─────────────────────────────────────────────────────────────────────────────
 export interface AdminBrand {
     id: number;
     name: string;
     slug: string;
     logo: string | null;
     is_active: boolean;
-
     description: string;
     websiteUrl: string;
     featured: boolean;
     productsCount: number;
-
     salesTotal: number;
     salesGrowth: number;
     customersCount: number;
-
     seo: AdminSEO;
     created_at: string;
     updated_at: string;
@@ -162,10 +170,6 @@ export interface AdminBrandWrite {
     status?: 'Active' | 'Inactive';
     seo?: Partial<AdminSEO>;
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// NEWSLETTER
-// ═════════════════════════════════════════════════════════════════════════════
 
 export interface AdminSubscriberListRef {
     id: number;
@@ -339,10 +343,6 @@ export interface AdminAnalyticsSummary {
     avg_unsub_rate: number;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// CUSTOMERS (admin mini-CRM)
-// ═════════════════════════════════════════════════════════════════════════════
-
 export type AdminCustomerStatus = 'Active' | 'Blocked';
 
 export type AdminCustomerSegment =
@@ -507,10 +507,6 @@ export interface AdminAddressWrite {
     isDefault?: boolean;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// ORDERS (admin fulfillment view)
-// ═════════════════════════════════════════════════════════════════════════════
-
 export type AdminOrderStatus =
     | 'pending'
     | 'confirmed'
@@ -611,6 +607,9 @@ export interface AdminOrderItem {
     quantity: number;
     subtotal: string;
     image: string;
+    serial_number: string;
+    imei: string;
+    warranty_months: number;
 }
 
 export interface AdminOrderStatusEvent {
@@ -632,7 +631,8 @@ export interface AdminOrderPayment {
     | 'SUCCESS'
     | 'FAILED'
     | 'CANCELLED'
-    | 'TIMEOUT';
+    | 'TIMEOUT'
+    | 'REVERSED';
     amount: string;
     phone_number: string;
     mpesa_receipt_number: string;
@@ -647,43 +647,33 @@ export interface AdminOrderPayment {
 export interface AdminOrderDetail {
     id: string;
     reference: string;
-
     customer_name: string;
     customer_phone: string;
     customer_email: string;
-
     status: AdminOrderStatus;
     status_label: string;
     payment_status: AdminOrderPaymentStatus;
     payment_status_label: string;
     payment_method: string;
-
     subtotal: string;
     discount: string;
     shipping: string;
     tax: string;
     total: string;
-
     coupon_code: string;
-
     notes: string;
     internal_notes: string;
-
     delivery_method: string;
     estimated_delivery: string;
-
     courier: string;
     tracking_number: string;
-
     contact_email: string;
     contact_phone: string;
-
     items: AdminOrderItem[];
     timeline: AdminOrderStatusEvent[];
     payments: AdminOrderPayment[];
-
     snapshot: Record<string, unknown>;
-
+    verify_token: string;
     created_at: string;
     updated_at: string;
 }
@@ -717,9 +707,36 @@ export interface AdminOrderExportResponse {
     csv: string;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// SUPPLIERS
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminQRVerifyItem {
+    id: number | string;
+    product_id?: string;
+    name: string;
+    brand?: string;
+    price: string | number;
+    quantity: number;
+    subtotal: string | number;
+    image?: string;
+    serial_number?: string;
+    imei?: string;
+    warranty_months?: number;
+}
+
+export interface AdminQRVerifyResponse {
+    reference: string;
+    customer_name: string;
+    customer_phone: string;
+    customer_email: string;
+    status: string;
+    status_label: string;
+    payment_status: 'unpaid' | 'paid' | 'refunded' | 'failed';
+    payment_status_label: string;
+    payment_method: string;
+    mpesa_receipt_number: string | null;
+    total: string | number;
+    created_at: string;
+    items: AdminQRVerifyItem[];
+    fulfilled: boolean;
+}
 
 export type AdminSupplierStatus = 'Active' | 'Inactive';
 
@@ -777,29 +794,23 @@ export interface AdminSupplierActivity {
 
 export interface AdminSupplier {
     id: number;
-
     name: string;
     company: string;
     type: AdminSupplierType;
-
     phone: string;
     email: string;
     website: string;
-
     country: string;
     county: string;
     city: string;
     address: string;
-
     taxPin: string;
     regNumber: string;
     paymentTerms: string;
     paymentMethod: string;
-
     notes: string;
     status: AdminSupplierStatus;
     createdAt: string;
-
     products: AdminSupplierProduct[];
     purchases: AdminPurchase[];
     activity: AdminSupplierActivity[];
@@ -848,9 +859,32 @@ export interface AdminPurchaseInput {
     status?: AdminPurchaseStatus;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// INVENTORY
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminSupplierFull {
+    id: number;
+    name: string;
+    phone: string;
+    email: string;
+    address: string;
+    contactPerson: string;
+    paymentTerms: string;
+    taxPin: string;
+    isActive: boolean;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminSupplierFullWrite {
+    name: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    contactPerson?: string;
+    paymentTerms?: string;
+    taxPin?: string;
+    isActive?: boolean;
+    notes?: string;
+}
 
 export type AdminStockStatus = 'In Stock' | 'Low Stock' | 'Out of Stock';
 
@@ -900,9 +934,47 @@ export interface AdminInventoryAdjustInput {
     notes?: string;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// REVIEWS (moderation)
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminInventoryMovement {
+    id: number;
+    productId: number;
+    variantId: number | null;
+    locationId: number | null;
+    kind: 'in' | 'out' | 'adjustment' | 'damaged' | 'return' | 'transfer';
+    quantity: number;
+    unitCost: string;
+    reference: string;
+    notes: string;
+    createdBy: number | null;
+    createdAt: string;
+}
+
+export interface AdminInventoryMovementWrite {
+    productId: number;
+    variantId?: number | null;
+    locationId?: number | null;
+    kind?: 'in' | 'out' | 'adjustment' | 'damaged' | 'return' | 'transfer';
+    quantity: number;
+    unitCost?: string;
+    reference?: string;
+    notes?: string;
+}
+
+export interface AdminInventorySummaryItem {
+    id: number;
+    name: string;
+    sku: string;
+    stock: number;
+    threshold: number;
+    reorderPoint: number;
+}
+
+export interface AdminInventorySummary {
+    totalSkus: number;
+    outOfStock: AdminInventorySummaryItem[];
+    lowStock: AdminInventorySummaryItem[];
+    healthy: AdminInventorySummaryItem[];
+    stockValue: number;
+}
 
 export type AdminReviewStatus = 'Pending' | 'Approved' | 'Rejected';
 export type AdminReviewFlagStatus = 'none' | 'flagged' | 'resolved';
@@ -917,33 +989,25 @@ export interface AdminReviewReply {
 
 export interface AdminReview {
     id: string;
-
     productId: string;
     productName: string;
     productImage: string;
     productSlug: string;
     productBrand: string;
-
     customerId: string;
     customerName: string;
     customerEmail: string;
-
     rating: AdminReviewRating;
     comment: string;
     title: string;
     images: string[];
-
     date: string;
-
     status: AdminReviewStatus;
     rejectionReason: string;
     verifiedPurchase: boolean;
-
     flagStatus: AdminReviewFlagStatus;
     flagReason: string;
-
     helpfulCount: number;
-
     replies: AdminReviewReply[];
 }
 
@@ -990,9 +1054,34 @@ export interface AdminBulkReviewWrite {
     reason?: string;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// DISCOUNTS (dashboard promotions)
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminReviewFull {
+    id: number;
+    productId: number | null;
+    orderId: number | null;
+    customerId: number | null;
+    rating: number;
+    title: string;
+    body: string;
+    mediaUrl: string;
+    status: 'Pending' | 'Approved' | 'Rejected';
+    isUgc: boolean;
+    rightsGranted: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminReviewFullWrite {
+    productId?: number | null;
+    orderId?: number | null;
+    customerId?: number | null;
+    rating?: number;
+    title?: string;
+    body?: string;
+    mediaUrl?: string;
+    status?: 'Pending' | 'Approved' | 'Rejected';
+    isUgc?: boolean;
+    rightsGranted?: boolean;
+}
 
 export type AdminDiscountStatus =
     | 'Active'
@@ -1043,43 +1132,34 @@ export type AdminDiscountPromotionType =
 
 export interface AdminDiscount {
     id: number;
-
     code: string;
     description: string;
     dealTitle: string;
     badgeText: string;
-
     type: AdminDiscountType;
     value: string;
     minOrder: number;
     maxCap: number;
     promotionType: AdminDiscountPromotionType;
-
     usageLimit: number;
     perCustomer: number;
     usageCount: number;
-
     startDate: string;
     endDate: string | null;
-
     appliesTo: AdminDiscountAppliesTo;
     eligibility: AdminDiscountEligibility | string;
     targetAudience: string;
     linkedProductIds: string[];
     linkedCategories: string[];
-
     status: AdminDiscountStatus;
-
     source: AdminDiscountSource;
     isAutomatic: boolean;
     isClearance: boolean;
     expiresWhenSoldOut: boolean;
-
     image: string;
     displayOnDealsPage: boolean;
     isMostDeal: boolean;
     priority: number;
-
     channels: AdminDiscountChannel[];
     tiktokVideo: string;
 }
@@ -1089,36 +1169,28 @@ export interface AdminDiscountWrite {
     description?: string;
     dealTitle?: string;
     badgeText?: string;
-
     type: AdminDiscountType;
     value: string;
     minOrder?: number;
     maxCap?: number;
     promotionType?: AdminDiscountPromotionType;
-
     usageLimit?: number;
     perCustomer?: number;
-
     startDate: string;
     endDate?: string | null;
-
     appliesTo: AdminDiscountAppliesTo;
     eligibility?: AdminDiscountEligibility | string;
     targetAudience?: string;
     linkedCategories?: string[];
     linkedProductIds?: string[];
-
     status?: AdminDiscountStatus;
-
     isAutomatic?: boolean;
     isClearance?: boolean;
     expiresWhenSoldOut?: boolean;
-
     image?: string;
     displayOnDealsPage?: boolean;
     isMostDeal?: boolean;
     priority?: number;
-
     channels?: AdminDiscountChannel[];
     tiktokVideo?: string;
 }
@@ -1192,10 +1264,6 @@ export interface AdminDiscountRules {
     actions: AdminDiscountRule[];
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// TRANSACTIONS (financial ledger)
-// ═════════════════════════════════════════════════════════════════════════════
-
 export type AdminTransactionStatus =
     | 'Success'
     | 'Pending'
@@ -1225,30 +1293,21 @@ export interface AdminTransactionReversal {
 
 export interface AdminTransaction {
     id: string;
-
     ref: string;
     orderNumber: string;
-
     amount: string;
     fee: string;
-
     phoneNumber: string;
-
     status: AdminTransactionStatus;
     responseCode: string;
     responseDesc: string;
-
     date: string;
-
     customerName: string;
     customerEmail: string;
-
     merchantRequestId: string;
     checkoutRequestId: string;
-
     payload: Record<string, unknown>;
     timeline: AdminTransactionTimelineEvent[];
-
     method: AdminTransactionMethod;
     settledAt: string | null;
     reversals: AdminTransactionReversal[];
@@ -1295,10 +1354,6 @@ export interface AdminReconcileWrite {
 export interface AdminBulkExportWrite {
     ids: string[];
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// SHIPPING (admin configuration + tracking)
-// ═════════════════════════════════════════════════════════════════════════════
 
 export type AdminKenyaRegions = Record<string, string[]>;
 
@@ -1407,9 +1462,270 @@ export interface AdminCourierTestResult {
     message: string;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// WHATSAPP (business messaging)
-// ═════════════════════════════════════════════════════════════════════════════
+export type AdminReturnStatus =
+    | 'REQUESTED'
+    | 'UNDER_REVIEW'
+    | 'APPROVED'
+    | 'REJECTED'
+    | 'AWAITING_ITEM'
+    | 'ITEM_RECEIVED'
+    | 'CLOSED';
+
+export type AdminRefundStatus =
+    | 'NONE'
+    | 'PENDING'
+    | 'PROCESSING'
+    | 'COMPLETED'
+    | 'FAILED';
+
+export type AdminRefundMethod =
+    | 'original'
+    | 'store_credit'
+    | 'bank_transfer'
+    | 'manual';
+
+export type AdminReturnItemCondition =
+    | 'unopened'
+    | 'opened'
+    | 'damaged'
+    | 'defective';
+
+export interface AdminReturnCustomer {
+    name: string;
+    email: string;
+    phone: string;
+}
+
+export interface AdminReturnItem {
+    id: number;
+    productName: string;
+    sku: string;
+    qty: number;
+    price: string;
+    image: string;
+    condition: AdminReturnItemCondition;
+}
+
+export interface AdminReturnRequest {
+    id: number;
+    code: string;
+    orderId: string;
+    customer: AdminReturnCustomer;
+    reason: string;
+    reasonId: number | null;
+    notes: string;
+    internalNotes: string;
+    status: AdminReturnStatus;
+    refundStatus: AdminRefundStatus;
+    refundMethod: AdminRefundMethod;
+    originalAmount: string;
+    refundAmount: string;
+    address: string;
+    tracking: string;
+    requestedAt: string;
+    resolvedAt: string | null;
+    items: AdminReturnItem[];
+}
+
+export interface AdminReturnReason {
+    id: number;
+    label: string;
+    description: string;
+    requiresPhoto: boolean;
+    active: boolean;
+    order: number;
+}
+
+export interface AdminReturnReasonWrite {
+    label: string;
+    description?: string;
+    requiresPhoto?: boolean;
+    active?: boolean;
+    order?: number;
+}
+
+export interface AdminRefundRecord {
+    id: number;
+    returnCode: string;
+    orderId: string;
+    customer: string;
+    amount: string;
+    method: AdminRefundMethod;
+    status: AdminRefundStatus;
+    reference: string;
+    createdAt: string;
+    completedAt: string | null;
+}
+
+export interface AdminReturnStats {
+    pending: number;
+    approved: number;
+    refunded30d: number;
+    completed30d: number;
+    avgDays: number;
+}
+
+export interface AdminReturnHistoryPoint {
+    month: string;
+    returns: number;
+    refunded: number;
+    rate: string;
+}
+
+export interface AdminReturnSettings {
+    returnWindowDays: number;
+    autoApproveUnder: string;
+    restockingFeePct: string;
+    notifyEmail: boolean;
+    notifySms: boolean;
+    notifyPush: boolean;
+}
+
+export interface AdminReturnSettingsWrite {
+    returnWindowDays?: number;
+    autoApproveUnder?: string;
+    restockingFeePct?: string;
+    notifyEmail?: boolean;
+    notifySms?: boolean;
+    notifyPush?: boolean;
+}
+
+export interface AdminReturnFilters {
+    q?: string;
+    status?: AdminReturnStatus | 'ALL';
+    refund_status?: AdminRefundStatus | 'ALL';
+    sort?: 'recent' | 'oldest' | 'amount_high' | 'amount_low';
+}
+
+export interface AdminReturnStatusWrite {
+    status: AdminReturnStatus;
+}
+
+export interface AdminReturnRefundMethodWrite {
+    refund_method: AdminRefundMethod;
+}
+
+export interface AdminReturnRefundWrite {
+    method?: AdminRefundMethod;
+    reference?: string;
+    note?: string;
+}
+
+export interface AdminReturnPatchWrite {
+    internalNotes?: string;
+    refundMethod?: AdminRefundMethod;
+    status?: AdminReturnStatus;
+}
+
+export interface AdminReturnRejectWrite {
+    note?: string;
+}
+
+export interface AdminReturnItemWrite {
+    product_name: string;
+    sku?: string;
+    qty: number;
+    price: string;
+    image?: string;
+    condition?: AdminReturnItemCondition;
+}
+
+export interface AdminReturnCreateWrite {
+    order_id: string;
+    reason_id?: number | null;
+    reason_text?: string;
+    notes?: string;
+    items: AdminReturnItemWrite[];
+}
+
+export interface AdminDirectReturnRequest {
+    id: number;
+    reference: string;
+    orderId: number;
+    orderReference: string;
+    status: 'Requested' | 'Approved' | 'Rejected' | 'Received' | 'Refunded';
+    reason: 'damaged' | 'wrong_item' | 'not_as_described' | 'late_delivery' | 'changed_mind' | 'other';
+    reasonDetail: string;
+    refundAmount: string;
+    restock: boolean;
+    restockedAt: string | null;
+    resolvedBy: number | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminDirectReturnRequestWrite {
+    orderId: number;
+    status?: 'Requested' | 'Approved' | 'Rejected' | 'Received' | 'Refunded';
+    reason?: 'damaged' | 'wrong_item' | 'not_as_described' | 'late_delivery' | 'changed_mind' | 'other';
+    reasonDetail?: string;
+    refundAmount?: string;
+    restock?: boolean;
+}
+
+export type AdminPaymentEnvironment = 'sandbox' | 'production';
+
+export interface AdminPaymentConfig {
+    enabled: boolean;
+    environment: AdminPaymentEnvironment;
+    shortcode: string;
+    callback_url: string;
+    consumer_key_masked: string;
+    consumer_secret_masked: string;
+    passkey_masked: string;
+    has_consumer_key: boolean;
+    has_consumer_secret: boolean;
+    has_passkey: boolean;
+    min_amount_kes: string;
+    max_amount_kes: string;
+    transaction_fee_kes: string;
+    auto_capture: boolean;
+    auto_refund: boolean;
+    last_rotated_at: string | null;
+}
+
+export interface AdminPaymentConfigWrite {
+    enabled?: boolean;
+    environment?: AdminPaymentEnvironment;
+    shortcode?: string;
+    callback_url?: string;
+    consumer_key?: string;
+    consumer_secret?: string;
+    passkey?: string;
+    min_amount_kes?: string;
+    max_amount_kes?: string;
+    transaction_fee_kes?: string;
+    auto_capture?: boolean;
+    auto_refund?: boolean;
+}
+
+export interface AdminPaymentTestResult {
+    ok: boolean;
+    message: string;
+    checked_at: string;
+}
+
+export interface AdminPaymentSummary {
+    total_records: number;
+    success_count: number;
+    pending_count: number;
+    failed_count: number;
+    refund_pending_count: number;
+    total_volume: string;
+    total_pending: string;
+    total_failed: string;
+    total_fees: string;
+    today_volume: string;
+    success_rate: number;
+}
+
+export interface AdminPaymentTransactionFilters {
+    q?: string;
+    status?: AdminTransactionStatus | 'ALL' | '';
+    method?: AdminTransactionMethod | 'ALL' | '';
+    limit?: number;
+}
 
 export type WhatsAppQualityScore = 'GREEN' | 'YELLOW' | 'RED';
 
@@ -1436,6 +1752,23 @@ export type WhatsAppMessageStatus =
     | 'READ'
     | 'FAILED';
 
+export type WhatsAppMessageType =
+    | 'text'
+    | 'template'
+    | 'interactive'
+    | 'image'
+    | 'document'
+    | 'audio'
+    | 'video'
+    | 'sticker'
+    | 'location'
+    | 'contacts'
+    | 'product'
+    | 'catalog'
+    | 'cart'
+    | 'order'
+    | 'unknown';
+
 export type WhatsAppOptInStatus = 'SUBSCRIBED' | 'UNSUBSCRIBED';
 
 export type WhatsAppAutomationStatus = 'ACTIVE' | 'PAUSED' | 'DRAFT';
@@ -1446,7 +1779,8 @@ export type WhatsAppBroadcastStatus =
     | 'SENDING'
     | 'PAUSED'
     | 'COMPLETED'
-    | 'FAILED';
+    | 'FAILED'
+    | 'CANCELLED';
 
 export type WhatsAppCartSessionStatus =
     | 'CREATED'
@@ -1461,62 +1795,394 @@ export type WhatsAppCartSessionStatus =
 export type WhatsAppVerificationStatus =
     | 'VERIFIED'
     | 'UNVERIFIED'
-    | 'PENDING';
+    | 'PENDING'
+    | 'NOT_VERIFIED';
 
 export type WhatsAppAutomationRecipients =
     | 'CUSTOMER'
     | 'ADMIN_TEAM'
     | 'BOTH';
 
+export type WhatsAppCatalogSyncStatus =
+    | 'NOT_SYNCED'
+    | 'SYNCING'
+    | 'SYNCED'
+    | 'OUT_OF_DATE'
+    | 'FAILED'
+    | 'REJECTED';
+
+export type WhatsAppCatalogReviewStatus =
+    | 'PENDING'
+    | 'APPROVED'
+    | 'REJECTED';
+
+export type WhatsAppCatalogEligibilityRule =
+    | 'ALL_ACTIVE'
+    | 'IN_STOCK_ONLY'
+    | 'HAS_IMAGE'
+    | 'TAGGED_WHATSAPP'
+    | 'MANUAL';
+
+export type WhatsAppCatalogDefaultSort =
+    | 'PINNED_FIRST'
+    | 'POPULAR'
+    | 'PRICE_ASC'
+    | 'PRICE_DESC'
+    | 'NEWEST';
+
 export interface AdminWhatsAppAccount {
-    id: number;
-    wabaId: string;
-    phoneNumberId: string;
-    displayPhone: string;
-    businessName: string;
-    qualityScore: WhatsAppQualityScore;
-    messagingLimit: string;
+    id: number | null;
     isActive: boolean;
-    tokenExpiresAt: string | null;
-    tokenDaysLeft: number | null;
-    verifiedName: string;
+    displayPhone: string;
+    displayName: string;
+    businessName: string;
+    about: string;
+    address: string;
+    email: string;
+    website: string;
+    vertical: string;
+    profilePictureUrl: string;
+    phoneNumberId: string;
+    wabaId: string;
+    businessId: string;
+    qualityScore: WhatsAppQualityScore | 'UNKNOWN';
+    messagingLimit: string;
+    messagingLimitTier: string;
     verificationStatus: WhatsAppVerificationStatus;
-    updatedAt: string;
+    reviewStatus: 'APPROVED' | 'PENDING' | 'REJECTED';
+    twoStepPin: boolean;
+    officialBusinessAccount: boolean;
+    tokenDaysLeft: number | null;
+    tokenExpiresAt: string | null;
+    webhookUrl: string;
+    webhookVerifyToken: string;
+    webhookFields: string[];
+    lastSyncedAt: string | null;
+    lastError: string;
+    hasCatalog: boolean;
+    qualityHistory: Array<{ date: string; score: string }>;
+    healthChecks: Array<{
+        id: number;
+        at: string;
+        ok: boolean;
+        latencyMs: number;
+        error: string;
+    }>;
 }
 
 export interface AdminWhatsAppAccountWrite {
-    wabaId: string;
-    phoneNumberId: string;
-    displayPhone: string;
+    wabaId?: string;
+    phoneNumberId?: string;
+    displayPhone?: string;
     businessName?: string;
-    accessToken: string;
+    accessToken?: string;
     appSecret?: string;
-    verifyToken: string;
+    verifyToken?: string;
+    about?: string;
+    address?: string;
+    email?: string;
+    website?: string;
+    vertical?: string;
+    profilePictureUrl?: string;
+    webhookUrl?: string;
+    webhookVerifyToken?: string;
+    webhookFields?: string[];
     tokenExpiresAt?: string | null;
+}
+
+export interface AdminWhatsAppCatalogCounts {
+    total: number;
+    eligible: number;
+    synced: number;
+    syncing: number;
+    outOfDate: number;
+    failed: number;
+    linked: number;
+    unlinked: number;
+    inStock: number;
+    pinned: number;
+    removed: number;
+}
+
+export interface AdminWhatsAppCatalog {
+    id: number | null;
+    name: string;
+    metaCatalogId: string;
+    connected: boolean;
+    autoSync: boolean;
+    eligibilityRule: WhatsAppCatalogEligibilityRule;
+    syncFrequencyMinutes: number;
+    hidePrice: boolean;
+    defaultSort: WhatsAppCatalogDefaultSort;
+    excludeOutOfStock: boolean;
+    lastFullSyncAt: string | null;
+    lastSyncAdded: number;
+    lastSyncUpdated: number;
+    lastSyncFailed: number;
+    lastError: string;
+    itemCounts: AdminWhatsAppCatalogCounts;
+    updatedAt: string | null;
+}
+
+export interface AdminWhatsAppCatalogUpdate {
+    name?: string;
+    autoSync?: boolean;
+    eligibilityRule?: WhatsAppCatalogEligibilityRule;
+    syncFrequencyMinutes?: number;
+    hidePrice?: boolean;
+    defaultSort?: WhatsAppCatalogDefaultSort;
+    excludeOutOfStock?: boolean;
+    connected?: boolean;
+}
+
+export interface AdminWhatsAppCatalogCreateWrite {
+    name?: string;
+}
+
+export interface AdminWhatsAppCatalogItem {
+    id: number;
+    catalogId: number;
+    retailerId: string;
+    metaProductId: string;
+    storeProductId: number | null;
+    storeCategoryId: number | null;
+    storeProductName: string | null;
+    storeProductSlug: string | null;
+    isLinked: boolean;
+    isRemoved: boolean;
+    isBrowsable: boolean;
+    name: string;
+    displayTitle: string;
+    description: string;
+    displayDescription: string;
+    price: string;
+    salePrice: string | null;
+    effectivePrice: string;
+    currency: string;
+    imageUrl: string;
+    customImageUrl: string;
+    displayImageUrl: string;
+    productUrl: string;
+    category: string;
+    brand: string;
+    tags: string[];
+    inStock: boolean;
+    stockQuantity: number;
+    eligible: boolean;
+    pinned: boolean;
+    sortOrder: number;
+    hidePrice: boolean;
+    isPriceHidden: boolean;
+    customTitle: string;
+    customDescription: string;
+    viewCount: number;
+    addToCartCount: number;
+    removedAt: string | null;
+    syncStatus: WhatsAppCatalogSyncStatus;
+    reviewStatus: WhatsAppCatalogReviewStatus | null;
+    rejectionReason: string;
+    lastError: string;
+    lastSyncedAt: string | null;
+    updatedAt: string;
+}
+
+export interface AdminWhatsAppCatalogItemFilters {
+    search?: string;
+    syncStatus?: WhatsAppCatalogSyncStatus | '';
+    category?: string;
+    eligibleOnly?: boolean;
+    linkedOnly?: boolean;
+    unlinkedOnly?: boolean;
+}
+
+export interface AdminWhatsAppCatalogItemUpdate {
+    eligible?: boolean;
+    pinned?: boolean;
+    sortOrder?: number;
+    hidePrice?: boolean;
+    customTitle?: string;
+    customDescription?: string;
+    customImageUrl?: string;
+}
+
+export interface AdminWhatsAppCatalogItemLinkWrite {
+    store_product_id?: number;
+    store_category_id?: number;
+    retailer_id?: string;
+    auto_sync_now?: boolean;
+}
+
+export interface AdminWhatsAppCatalogItemUnlinkWrite {
+    ids: number[];
+    remove_item?: boolean;
+}
+
+export interface AdminWhatsAppCatalogBulkWrite {
+    ids: number[];
+    patch: AdminWhatsAppCatalogItemUpdate;
+}
+
+export interface AdminWhatsAppCatalogSyncSummary {
+    added: number;
+    updated: number;
+    failed: number;
+}
+
+export interface AdminWhatsAppCatalogManualAddWrite {
+    product_ids: number[];
+}
+
+export interface AdminWhatsAppCatalogManualAddResponse {
+    added: number;
+    skipped: number;
+    item_ids: number[];
+}
+
+export interface AdminWhatsAppCatalogReorderWrite {
+    ordered_ids: number[];
+}
+
+export interface AdminWhatsAppCatalogReorderResponse {
+    updated: number;
+}
+
+export interface AdminWhatsAppTopProduct {
+    id: string;
+    name: string;
+    units: number;
+    revenueKes: number;
+}
+
+export interface AdminWhatsAppRecoveryByProduct {
+    name: string;
+    recovered: number;
+}
+
+export interface AdminWhatsAppCommerceStats {
+    messagesSentToday: number;
+    abandonedCartsRecovered: number;
+    ordersFromWhatsApp: number;
+    ordersRevenueKes: number;
+    averageResponseMin: number;
+    productViews: number;
+    addToCartRate: number;
+    topProducts: AdminWhatsAppTopProduct[];
+    recoveryByProduct: AdminWhatsAppRecoveryByProduct[];
+}
+
+export interface AdminWhatsAppSettings {
+    id?: number;
+    businessHours: Record<string, unknown>;
+    timezone: string;
+    notifications: Record<string, unknown>;
+    routing: 'ROUND_ROBIN' | 'LOAD_BASED' | 'MANUAL';
+    slaFirstResponseMin: number;
+    slaResolutionMin: number;
+    optOutKeywords: string[];
+    defaultLanguage: string;
+    csatEnabled: boolean;
+    dataRetentionDays: number;
+    welcomeMessage: string;
+    awayMessage: string;
+}
+
+export interface AdminWhatsAppSettingsUpdate {
+    business_hours?: Record<string, unknown>;
+    timezone?: string;
+    notifications?: Record<string, unknown>;
+    routing?: 'ROUND_ROBIN' | 'LOAD_BASED' | 'MANUAL';
+    sla_first_response_min?: number;
+    sla_resolution_min?: number;
+    opt_out_keywords?: string[];
+    default_language?: string;
+    csat_enabled?: boolean;
+    data_retention_days?: number;
+    welcome_message?: string;
+    away_message?: string;
+}
+
+export type AdminWhatsAppTeamRole = 'ADMIN' | 'AGENT' | 'VIEWER';
+
+export interface AdminWhatsAppTeamMember {
+    id: number;
+    userId: number;
+    name: string;
+    email: string;
+    role: AdminWhatsAppTeamRole;
+    online: boolean;
+    lastSeenAt: string | null;
+    activeConversations: number;
+}
+
+export interface AdminWhatsAppTeamMemberWrite {
+    userId: number;
+    role?: AdminWhatsAppTeamRole;
+}
+
+export interface AdminWhatsAppTeamMemberUpdate {
+    role?: AdminWhatsAppTeamRole;
+    online?: boolean;
+}
+
+export interface AdminWhatsAppAuditEntry {
+    id: number;
+    actor: number | null;
+    actorName: string;
+    action: string;
+    target: string;
+    payload: Record<string, unknown>;
+    timestamp: string | null;
+}
+
+export type AdminWhatsAppNotificationType =
+    | 'message'
+    | 'template'
+    | 'order'
+    | 'broadcast'
+    | 'system'
+    | 'quality';
+
+export interface AdminWhatsAppNotification {
+    id: number;
+    type: AdminWhatsAppNotificationType;
+    title: string;
+    body: string;
+    linkTab: string;
+    read: boolean;
+    payload: Record<string, unknown>;
+    timestamp: string | null;
 }
 
 export interface AdminWhatsAppContact {
     id: number;
     waId: string;
-    profileName: string;
+    profileName: string | null;
+    email: string;
     userId: number | null;
-    isVerified: boolean;
-    optInStatus: WhatsAppOptInStatus;
     tags: string[];
+    attributes: Record<string, unknown>;
     notes: string;
+    optInStatus: WhatsAppOptInStatus;
+    optInSource: string;
+    optInAt: string | null;
     lastInboundAt: string | null;
-    createdAt: string;
+    isVerified: boolean;
+    isBlocked: boolean;
+    orderCount: number;
+    totalSpent: string;
+    productAffinity: Record<string, unknown>;
+    createdAt: string | null;
 }
 
 export interface AdminWhatsAppContactDetail extends AdminWhatsAppContact {
-    conversations: AdminWhatsAppConversation[];
-    orders: Array<{
+    conversations?: AdminWhatsAppConversation[];
+    orders?: Array<{
         reference: string;
         total: string;
         status: string;
         createdAt: string;
     }>;
-    cartSessions: Array<{
+    cartSessions?: Array<{
         token: string;
         status: WhatsAppCartSessionStatus;
         createdAt: string;
@@ -1531,37 +2197,95 @@ export interface AdminWhatsAppContactFilters {
 }
 
 export interface AdminWhatsAppContactWrite {
+    profileName?: string;
+    email?: string;
     tags?: string[];
+    attributes?: Record<string, unknown>;
     notes?: string;
     optInStatus?: WhatsAppOptInStatus;
+    isBlocked?: boolean;
+    isVerified?: boolean;
+}
+
+export interface AdminWhatsAppContactBulkWrite {
+    ids: number[];
+    patch: Partial<AdminWhatsAppContactWrite>;
+}
+
+export interface AdminWhatsAppContactImportWrite {
+    rows: Array<Record<string, unknown>>;
+}
+
+export interface AdminWhatsAppContactImportResult {
+    added: number;
+    skipped: number;
 }
 
 export interface AdminWhatsAppMessage {
     id: number;
     waMessageId: string | null;
     direction: WhatsAppMessageDirection;
-    type: string;
+    type: WhatsAppMessageType;
     body: string;
     status: WhatsAppMessageStatus;
     errorMessage: string;
     timestamp: string;
+    mediaId: string;
+    mediaUrl: string;
+    mimeType: string;
+    filename: string;
+    templateName: string;
+    templateParams: string[];
+    productRefs: string[];
+    cartItems: Array<{
+        retailer_id?: string;
+        name: string;
+        qty: number;
+        price: string;
+    }>;
+    interactiveButtons: Array<{ id?: string; text: string }>;
+    replyToId: number | null;
+    reactions: Array<{ emoji: string; by?: string }>;
+    author: number | null;
+    authorName: string | null;
+    isInternalNote: boolean;
+}
+
+export interface AdminWhatsAppMessageWrite {
+    body: string;
+    isNote?: boolean;
 }
 
 export interface AdminWhatsAppConversation {
     id: number;
     contact: AdminWhatsAppContact;
     status: WhatsAppConversationStatus;
+    priority: 'LOW' | 'NORMAL' | 'HIGH';
     assignedTo: number | null;
-    assignedToName: string;
+    assignedToName: string | null;
     lastMessageAt: string | null;
-    createdAt: string;
     lastMessagePreview: string;
+    lastInboundAt: string | null;
+    firstMessageAt: string | null;
+    firstResponseAt: string | null;
+    resolvedAt: string | null;
+    windowOpen: boolean;
+    serviceWindowExpiresAt: string | null;
+    botPaused: boolean;
+    starred: boolean;
+    unreadCount: number;
+    tags: string[];
+    slaFirstResponseDueAt: string | null;
+    slaResolutionDueAt: string | null;
+    slaBreached: boolean;
+    csat: number | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
-export interface AdminWhatsAppConversationDetail
-    extends AdminWhatsAppConversation {
+export interface AdminWhatsAppConversationDetail extends AdminWhatsAppConversation {
     messages: AdminWhatsAppMessage[];
-    windowOpen: boolean;
+    notes: string;
 }
 
 export interface AdminWhatsAppConversationFilters {
@@ -1571,25 +2295,55 @@ export interface AdminWhatsAppConversationFilters {
     tag?: string;
 }
 
-export interface AdminWhatsAppMessageWrite {
-    body: string;
-}
-
 export interface AdminWhatsAppAssignWrite {
     userId: number | null;
 }
 
 export interface AdminWhatsAppResolveWrite {
+    csat?: number;
     note?: string;
 }
 
 export interface AdminWhatsAppTagWrite {
-    tag: string;
-    action: 'add' | 'remove';
+    tags: string[];
 }
 
 export interface AdminWhatsAppNoteWrite {
-    text: string;
+    text?: string;
+    note?: string;
+}
+
+export interface AdminWhatsAppSendProductsWrite {
+    retailerIds: string[];
+    headerText?: string;
+    body?: string;
+}
+
+export interface AdminWhatsAppSendCartWrite {
+    items: Array<{
+        retailer_id: string;
+        name: string;
+        qty: number;
+        price: string;
+    }>;
+    checkoutUrl?: string;
+}
+
+export type AdminWhatsAppSendMediaWrite =
+    | { kind: 'image' | 'video' | 'document'; file: File; caption?: string }
+    | { kind: 'image' | 'video' | 'document'; url: string; caption?: string };
+
+export type AdminWhatsAppSendImageWrite =
+    | { file: File; caption?: string }
+    | { imageUrl: string; caption?: string };
+
+export interface AdminWhatsAppSendInteractiveWrite {
+    body: string;
+    buttons: Array<{ text: string }>;
+}
+
+export interface AdminWhatsAppReactWrite {
+    emoji: string;
 }
 
 export interface AdminWhatsAppTemplate {
@@ -1600,71 +2354,135 @@ export interface AdminWhatsAppTemplate {
     status: WhatsAppTemplateStatus;
     quality: WhatsAppQualityScore | 'UNKNOWN';
     components: unknown[];
+    bodyText: string;
     metaTemplateId: string;
+    rejectionReason: string;
+    attachedCatalogItemIds: string[];
+    hasProductAttachment: boolean;
+    isPaused: boolean;
+    sentCount: number;
+    deliveredCount: number;
+    readCount: number;
+    repliedCount: number;
+    version: number;
     lastSyncedAt: string | null;
+    createdAt: string | null;
     updatedAt: string;
 }
 
 export interface AdminWhatsAppTemplateWrite {
     name: string;
-    language: string;
+    language?: string;
     category: WhatsAppTemplateCategory;
     components: unknown[];
+    attachedCatalogItemIds?: string[];
 }
 
 export interface AdminWhatsAppTemplateSyncResult {
     added: number;
     updated: number;
-    total: number;
+    removed: number;
 }
 
 export interface AdminWhatsAppAutomation {
     id: number;
     name: string;
     trigger: string;
+    triggerLabel: string;
     templateId: number | null;
     templateName: string;
     delayMinutes: number;
     recipients: WhatsAppAutomationRecipients;
     conditions: string;
     status: WhatsAppAutomationStatus;
+    steps: Array<{
+        id: number;
+        position: number;
+        kind: string;
+        config: Record<string, unknown>;
+    }>;
     messagesSent: number;
-    lastTriggered: string | null;
+    lastTriggeredAt: string | null;
+    runs: Array<{
+        id: number;
+        at: string;
+        status: string;
+        durationMs: number;
+        error: string;
+    }>;
     createdAt: string;
+    updatedAt: string;
 }
 
 export interface AdminWhatsAppAutomationWrite {
     name: string;
     trigger: string;
-    templateId: number;
+    templateId?: number | null;
+    templateName?: string;
     delayMinutes: number;
     recipients: WhatsAppAutomationRecipients;
     conditions?: string;
+    status?: WhatsAppAutomationStatus;
+    steps?: Array<{
+        position?: number;
+        kind: string;
+        config?: Record<string, unknown>;
+    }>;
 }
 
 export interface AdminWhatsAppAutomationToggleWrite {
-    note?: string;
+    status?: WhatsAppAutomationStatus;
 }
+
+export type WhatsAppBroadcastAudience =
+    | 'ALL_OPTED_IN'
+    | 'VIP'
+    | 'REPEAT_BUYERS'
+    | 'NAIROBI'
+    | 'BOUGHT_PRODUCT'
+    | 'VIEWED_NOT_BOUGHT'
+    | 'CUSTOM'
+    | 'SEGMENT';
 
 export interface AdminWhatsAppBroadcast {
     id: number;
     campaignName: string;
+    templateId: number | null;
     templateName: string;
-    audienceLabel: string;
+    audience: WhatsAppBroadcastAudience;
+    audienceRuleRef: string;
+    segmentId: number | null;
+    audienceCount: number;
+    attachedCatalogItemIds: string[];
+    hasProductAttachment: boolean;
+    variableMapping: Record<string, unknown>;
+    abTest: boolean;
     recipients: number;
     delivered: number;
     read: number;
     replied: number;
-    scheduledAt: string | null;
+    failed: number;
+    estimatedCostKes: string;
+    actualCostKes: string;
     sentAt: string | null;
+    scheduledAt: string | null;
+    completedAt: string | null;
     status: WhatsAppBroadcastStatus;
+    lastError: string;
     createdAt: string;
+    updatedAt: string;
 }
 
 export interface AdminWhatsAppBroadcastWrite {
     campaignName: string;
     templateName: string;
-    audience: string;
+    audience: WhatsAppBroadcastAudience;
+    audienceRuleRef?: string;
+    segmentId?: number | null;
+    customFilter?: Record<string, unknown>;
+    attachedCatalogItemIds?: string[];
+    variableMapping?: Record<string, unknown>;
+    abTest?: boolean;
     scheduledAt?: string | null;
 }
 
@@ -1680,7 +2498,99 @@ export interface AdminWhatsAppBroadcastStats {
     read: number;
     replied: number;
     failed: number;
-    percentComplete: number;
+    pending: number;
+}
+
+export interface AdminWhatsAppSegment {
+    id: number;
+    name: string;
+    description: string;
+    rules: Array<Record<string, unknown>>;
+    count: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminWhatsAppSegmentWrite {
+    name: string;
+    description?: string;
+    rules?: Array<Record<string, unknown>>;
+}
+
+export interface AdminWhatsAppQuickReply {
+    id: number;
+    shortcut: string;
+    title: string;
+    body: string;
+    category: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminWhatsAppQuickReplyWrite {
+    shortcut: string;
+    title: string;
+    body: string;
+    category?: string;
+}
+
+export interface AdminWhatsAppOrderItem {
+    product_id: string;
+    name: string;
+    qty: number;
+    priceKes: number;
+}
+
+export interface AdminWhatsAppOrder {
+    id: number;
+    orderNumber: string;
+    contactId: number | null;
+    contactName: string;
+    phone: string;
+    contactWaId: string;
+    conversationId: number | null;
+    checkoutOrderId: number | null;
+    items: AdminWhatsAppOrderItem[];
+    subtotal: string;
+    total: string;
+    currency: string;
+    status: string;
+    paymentMethod: string;
+    paymentRef: string;
+    deliveryAddress: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminWhatsAppOrderUpdate {
+    status?: string;
+    payment_method?: string;
+    payment_ref?: string;
+    delivery_address?: string;
+}
+
+export interface AdminWhatsAppWebhookEvent {
+    id: number;
+    type: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+    status: 'DELIVERED' | 'FAILED' | 'RETRYING';
+    attempts: number;
+    signatureValid: boolean;
+    latencyMs: number;
+    error: string;
+    receivedAt: string | null;
+}
+
+export interface AdminWhatsAppInvoice {
+    id: number;
+    periodStart: string;
+    periodEnd: string;
+    amountKes: string;
+    currency: string;
+    status: 'PAID' | 'PENDING' | 'OVERDUE';
+    issuedAt: string;
+    pdfUrl: string;
 }
 
 export interface AdminWhatsAppAnalyticsSummary {
@@ -1692,8 +2602,6 @@ export interface AdminWhatsAppAnalyticsSummary {
     deliveryRate: number;
     readRate: number;
     responseRate: number;
-    periodStart: string;
-    periodEnd: string;
 }
 
 export interface AdminWhatsAppAnalyticsSeries {
@@ -1708,11 +2616,28 @@ export interface AdminWhatsAppAnalyticsSeries {
 
 export interface AdminWhatsAppCostBreakdown {
     buckets: Array<{
-        name: 'Utility' | 'Marketing' | 'Authentication' | 'Service (Free)';
+        name: string;
         value: number;
         color: string;
     }>;
-    totalKes: string;
+    total: number;
+    currency: string;
+}
+
+export interface AdminWhatsAppAnalyticsFunnelStage {
+    stage: string;
+    count: number;
+}
+
+export interface AdminWhatsAppAgentLeaderboardRow {
+    id: number;
+    userId: number;
+    name: string;
+    messages: number;
+    avgResponseMin: number;
+    csat: number;
+    slaRate: number;
+    resolved: number;
 }
 
 export interface AdminWhatsAppBillingSummary {
@@ -1741,21 +2666,61 @@ export interface AdminWhatsAppOtpConfirmWrite {
 }
 
 export interface AdminWhatsAppOtpConfirmResult {
-    verified: boolean;
-    waId: string;
-    contactId: number;
+    status: string;
+    wa_id: string;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// SOCIAL MEDIA HUB
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminWhatsAppBotNodeOption {
+    id: string;
+    label: string;
+    next_id?: string;
+}
+
+export interface AdminWhatsAppBotNode {
+    id: number;
+    flowId: number;
+    key: string;
+    kind: string;
+    title: string;
+    body: string;
+    options: AdminWhatsAppBotNodeOption[];
+    config: Record<string, unknown>;
+    positionX: number;
+    positionY: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminWhatsAppBotNodeWrite {
+    key: string;
+    kind: string;
+    title: string;
+    body?: string;
+    options?: AdminWhatsAppBotNodeOption[];
+    config?: Record<string, unknown>;
+    position?: { x: number; y: number };
+}
+
+export interface AdminWhatsAppBotFlow {
+    id: number | null;
+    name: string;
+    isPublished: boolean;
+    entryNodeKey: string;
+    nodes: AdminWhatsAppBotNode[];
+}
+
+export interface AdminWhatsAppBotFlowWrite {
+    name?: string;
+    entry_node_key?: string;
+    is_published?: boolean;
+    nodes?: AdminWhatsAppBotNodeWrite[];
+}
 
 export type AdminSocialPlatform =
     | 'Facebook'
     | 'Instagram'
     | 'TikTok'
-    | 'YouTube'
-    | 'X';
+    | 'YouTube';
 
 export interface AdminSocialAccount {
     id: AdminSocialPlatform;
@@ -1763,6 +2728,56 @@ export interface AdminSocialAccount {
     handle: string;
     connected: boolean;
     avatarBg: string;
+    avatarUrl?: string;
+    followers?: number;
+}
+
+export interface AdminSocialAccountDetail {
+    id: AdminSocialPlatform;
+    platform: AdminSocialPlatform;
+    handle: string;
+    display_name: string;
+    platform_user_id: string;
+    is_connected: boolean;
+    is_token_expired: boolean;
+    is_token_expiring_soon: boolean;
+    connected_at: string | null;
+    token_expires_at: string | null;
+    last_synced_at: string | null;
+    scopes: string[];
+    followers: number;
+    avatar_url: string;
+    last_error: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialAccountCapabilities {
+    supports_comments: boolean;
+    supports_direct_messages: boolean;
+    supports_mentions: boolean;
+    supports_demographics: boolean;
+    supports_best_times: boolean;
+    supports_boost: boolean;
+    supports_delete_post: boolean;
+    supports_edit_caption: boolean;
+    supports_first_comment: boolean;
+    supports_stories: boolean;
+    supports_reels: boolean;
+    supports_shorts: boolean;
+    supports_carousel: boolean;
+    max_caption_length: number;
+    max_media_count: number;
+    max_video_duration_sec: number;
+    requires_video: boolean;
+}
+
+export interface AdminSocialPaginated<T> {
+    results: T[];
+    page: number;
+    page_size: number;
+    total: number;
+    has_more: boolean;
 }
 
 export interface AdminSocialScheduledPost {
@@ -1772,6 +2787,8 @@ export interface AdminSocialScheduledPost {
     scheduledTime: string;
     productTag?: string | null;
     mediaUrl?: string | null;
+    campaign?: string;
+    status?: string;
 }
 
 export interface AdminSocialPublishedPost {
@@ -1783,21 +2800,390 @@ export interface AdminSocialPublishedPost {
     comments: number;
     shares: number;
     reach: number;
+    status?: string;
+    errorMessage?: string;
+    platformUrl?: string;
+    platformPostId?: string;
+    impressions?: number;
+    saves?: number;
+    videoViews?: number;
+    watchTimeSec?: number;
+    linkClicks?: number;
+    profileVisits?: number;
+    followerDelta?: number;
+    engagementRate?: number;
+}
+
+export interface AdminSocialMediaFolder {
+    id: number;
+    name: string;
+    slug: string;
+    parent_id: number | null;
+    created_at: string;
 }
 
 export interface AdminSocialMedia {
     id: number;
     url: string;
     mediaType: 'IMAGE' | 'VIDEO';
+    media_type?: 'IMAGE' | 'VIDEO';
     filename: string;
+    name?: string;
     sizeBytes: number;
+    size?: number;
     sortOrder: number;
+    sort_order?: number;
+    title?: string;
+    tags?: string[];
+    folder_id?: number | null;
+    width?: number;
+    height?: number;
+    durationSeconds?: number;
+    duration_seconds?: number;
+    usedIn?: number[];
+    created_at?: string;
+}
+
+export interface AdminSocialQueueSlot {
+    id: number;
+    name: string;
+    kind: 'STANDARD' | 'EVERGREEN';
+    days: string[];
+    timeOfDay: string;
+    timezone: string;
+    platforms: AdminSocialPlatform[];
+    isActive: boolean;
+    created_at: string;
+}
+
+export interface AdminSocialQueueSlotWrite {
+    name: string;
+    kind?: 'STANDARD' | 'EVERGREEN';
+    days: string[];
+    timeOfDay: string;
+    timezone?: string;
+    platforms: AdminSocialPlatform[];
+    isActive?: boolean;
+}
+
+export interface AdminSocialEvergreenPost {
+    id: number;
+    caption: string;
+    platforms: AdminSocialPlatform[];
+    productTag: string;
+    lastUsedAt: string | null;
+    useCount: number;
+    isActive: boolean;
+    created_at: string;
+}
+
+export interface AdminSocialEvergreenPostWrite {
+    caption: string;
+    platforms?: AdminSocialPlatform[];
+    productTag?: string;
+    isActive?: boolean;
+}
+
+export type AdminSocialDraftStatus =
+    | 'DRAFT'
+    | 'PENDING'
+    | 'APPROVED'
+    | 'REJECTED'
+    | 'SCHEDULED';
+
+export interface AdminSocialDraftComment {
+    id: number;
+    authorId: number | null;
+    authorName: string;
+    body: string;
+    decision: string;
+    created_at: string;
+}
+
+export interface AdminSocialDraft {
+    id: number;
+    title: string;
+    caption: string;
+    platforms: AdminSocialPlatform[];
+    fields: Record<string, unknown>;
+    status: AdminSocialDraftStatus;
+    authorId: number | null;
+    authorName: string;
+    reviewerId: number | null;
+    reviewerName: string;
+    source_post_id: number | null;
+    comments: AdminSocialDraftComment[];
+    last_edited_at: string;
+    created_at: string;
+}
+
+export interface AdminSocialDraftWrite {
+    title?: string;
+    caption?: string;
+    platforms?: AdminSocialPlatform[];
+    fields?: Record<string, unknown>;
+}
+
+export interface AdminSocialDraftCommentWrite {
+    body: string;
+    decision?: 'APPROVED' | 'REJECTED' | 'CHANGES' | '';
+}
+
+export type AdminSocialInboxItemType = 'COMMENT' | 'DM' | 'MENTION';
+export type AdminSocialInboxStatus = 'OPEN' | 'RESOLVED' | 'SNOOZED' | 'SPAM';
+export type AdminSocialSentiment = 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+
+export interface AdminSocialInboxReply {
+    id: number;
+    authorId: number | null;
+    authorName: string;
+    body: string;
+    isOutbound: boolean;
+    created_at: string;
+}
+
+export interface AdminSocialInboxItem {
+    id: number;
+    itemType: AdminSocialInboxItemType;
+    status: AdminSocialInboxStatus;
+    sentiment: AdminSocialSentiment;
+    platform: AdminSocialPlatform;
+    authorName: string;
+    authorHandle: string;
+    authorAvatar: string;
+    body: string;
+    permalink: string;
+    assignedTo: number | null;
+    assignedName: string;
+    targetId: number | null;
+    postCaption: string;
+    replies: AdminSocialInboxReply[];
+    receivedAt: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialInboxFilters {
+    item_type?: AdminSocialInboxItemType;
+    status?: AdminSocialInboxStatus;
+    platform?: AdminSocialPlatform;
+    sentiment?: AdminSocialSentiment;
+    assigned_to?: 'me' | 'unassigned';
+    search?: string;
+    page?: number;
+    page_size?: number;
+}
+
+export interface AdminSocialTemplate {
+    id: number;
+    name: string;
+    category: string;
+    caption: string;
+    platforms: AdminSocialPlatform[];
+    fields: Record<string, unknown>;
+    isShared: boolean;
+    createdById: number | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialTemplateWrite {
+    name: string;
+    category?: string;
+    caption?: string;
+    platforms?: AdminSocialPlatform[];
+    fields?: Record<string, unknown>;
+    isShared?: boolean;
+}
+
+export interface AdminSocialLink {
+    id: number;
+    shortCode: string;
+    destination: string;
+    utm: Record<string, string>;
+    clicks: number;
+    createdById: number | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialLinkWrite {
+    destination: string;
+    utm?: Record<string, string>;
+}
+
+export type AdminSocialNotificationType =
+    | 'POST_PUBLISHED'
+    | 'POST_FAILED'
+    | 'TOKEN_EXPIRING'
+    | 'TOKEN_EXPIRED'
+    | 'APPROVAL_NEEDED'
+    | 'APPROVAL_GIVEN'
+    | 'NEW_COMMENT'
+    | 'NEW_DM'
+    | 'NEW_MENTION'
+    | 'REPORT_READY';
+
+export interface AdminSocialNotification {
+    id: number;
+    notificationType: AdminSocialNotificationType;
+    title: string;
+    message: string;
+    link: string;
+    isRead: boolean;
+    createdAt: string;
+}
+
+export interface AdminSocialNotificationList
+    extends AdminSocialPaginated<AdminSocialNotification> {
+    unread_count: number;
+}
+
+export type AdminSocialTeamRole =
+    | 'OWNER'
+    | 'ADMIN'
+    | 'EDITOR'
+    | 'APPROVER'
+    | 'VIEWER';
+
+export interface AdminSocialTeamMember {
+    id: number;
+    userId: number;
+    email: string;
+    fullName: string;
+    role: AdminSocialTeamRole;
+    isActive: boolean;
+    invited_at: string | null;
+    joined_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialTeamMemberWrite {
+    email: string;
+    role: AdminSocialTeamRole;
+}
+
+export interface AdminSocialTeamMemberPatch {
+    role?: AdminSocialTeamRole;
+    isActive?: boolean;
+}
+
+export interface AdminSocialAuditLog {
+    id: number;
+    actorId: number | null;
+    actorName: string;
+    action: string;
+    targetType: string;
+    targetId: string;
+    details: Record<string, unknown>;
+    createdAt: string;
+}
+
+export interface AdminSocialReport {
+    id: number;
+    name: string;
+    dateFrom: string;
+    dateTo: string;
+    platforms: AdminSocialPlatform[];
+    metrics: string[];
+    branding: Record<string, unknown>;
+    format: 'PDF' | 'CSV' | 'PNG';
+    fileUrl: string | null;
+    createdById: number | null;
+    generatedAt: string | null;
+    created_at: string;
+}
+
+export interface AdminSocialReportWrite {
+    name: string;
+    dateFrom: string;
+    dateTo: string;
+    platforms?: AdminSocialPlatform[];
+    metrics?: string[];
+    branding?: Record<string, unknown>;
+    format?: 'PDF' | 'CSV' | 'PNG';
+}
+
+export interface AdminSocialKpis {
+    total_followers: number;
+    reach: number;
+    engagement_rate: number;
+    posts_published: number;
+    unread_inbox: number;
+    scheduled_this_week: number;
+    failed_posts: number;
+}
+
+export interface AdminSocialOverview {
+    kpis: AdminSocialKpis;
+    expiring_tokens: { platform: AdminSocialPlatform; expires_at: string | null }[];
+    upcoming: AdminSocialScheduledPost[];
+    recent_activity: AdminSocialAuditLog[];
+    top_posts: AdminSocialPublishedPost[];
+}
+
+export interface AdminSocialDemographicSnapshot {
+    id: number;
+    platform: AdminSocialPlatform;
+    date: string;
+    ageBuckets: Record<string, number>;
+    gender: Record<string, number>;
+    topCities: { name: string; count: number }[];
+    topCountries: { code: string; name: string; count: number }[];
+    updated_at: string;
+}
+
+export interface AdminSocialBestTimeRow {
+    id: number;
+    platform: AdminSocialPlatform;
+    dayOfWeek: number;
+    hour: number;
+    score: number;
+    sampleSize: number;
+    updated_at: string;
+}
+
+export interface AdminSocialKpiAnalytics {
+    current: {
+        reach: number;
+        impressions: number;
+        likes: number;
+        comments: number;
+        shares: number;
+        link_clicks: number;
+        posts: number;
+        engagement: number;
+        engagement_rate: number;
+    };
+    previous: {
+        reach: number;
+        impressions: number;
+        likes: number;
+        comments: number;
+        shares: number;
+        link_clicks: number;
+        posts: number;
+        engagement: number;
+        engagement_rate: number;
+    };
+    deltas: {
+        reach: number;
+        engagement: number;
+        engagement_rate: number;
+        link_clicks: number;
+        posts: number;
+    };
 }
 
 export interface AdminSocialPostWrite {
     caption: string;
     platforms: AdminSocialPlatform[];
     productTag?: string;
+    firstComment?: string;
+    campaign?: string;
+    linkUrl?: string;
+    linkUtm?: Record<string, string>;
     mediaIds?: number[];
     scheduleAt?: string | null;
 }
@@ -1807,13 +3193,51 @@ export interface AdminSocialPostCreated {
     status: string;
 }
 
+export interface AdminSocialPostPatch {
+    caption?: string;
+    first_comment?: string;
+    firstComment?: string;
+    product_tag?: string;
+    productTag?: string;
+    scheduled_for?: string;
+    scheduleAt?: string;
+}
+
+export interface AdminSocialBulkIds {
+    ids: (number | string)[];
+}
+
+export interface AdminSocialBulkReschedule {
+    ids: (number | string)[];
+    scheduleAt: string;
+}
+
+export interface AdminSocialBoostWrite {
+    budget_cents: number;
+    duration_days: number;
+    audience?: Record<string, unknown>;
+}
+
+export interface AdminSocialBoostResult {
+    boost_id: string;
+    status: string;
+    estimated_reach: number;
+}
+
+export interface AdminSocialEditCaptionWrite {
+    caption: string;
+}
+
+export interface InboxReplyCreateBody {
+    body: string;
+}
+
 export interface AdminSocialFollowerPoint {
     month: string;
     Facebook: number;
     Instagram: number;
     TikTok: number;
     YouTube: number;
-    X: number;
 }
 
 export interface AdminSocialEngagementPoint {
@@ -1821,10 +3245,6 @@ export interface AdminSocialEngagementPoint {
     Reach: number;
     Engagement: number;
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// DIRECT ORDERS (social commerce back-office)
-// ═════════════════════════════════════════════════════════════════════════════
 
 export type AdminDirectOrderStatus =
     | 'New'
@@ -1836,7 +3256,13 @@ export type AdminDirectOrderStatus =
     | 'Cancelled'
     | 'Returned';
 
-export type AdminDirectOrderSource = 'whatsapp' | 'admin' | 'phone';
+export type AdminDirectOrderSource =
+    | 'whatsapp'
+    | 'phone'
+    | 'admin'
+    | 'live'
+    | 'video_dm'
+    | 'bio_link';
 
 export type AdminDirectContentPlatform =
     | 'TikTok'
@@ -1875,35 +3301,62 @@ export interface AdminDirectOrderItem {
 export interface AdminDirectOrder {
     id: string;
     reference: string;
-
     customerName: string;
     customerPhone: string;
     customerEmail: string;
-
     source: AdminDirectOrderSource;
-
     status: AdminDirectOrderStatus;
     backendStatus: string;
     paymentStatus: string;
     paymentMethod: string;
-
     subtotal: string;
     shipping: string;
     discount: string;
     total: string;
-
     itemCount: number;
     items: AdminDirectOrderItem[];
-
     creatorId: number | null;
     creatorName: string;
     commission: string;
-
     notes: string;
-
     createdAt: string;
     updatedAt: string;
     deliveredAt: string | null;
+}
+
+export interface AdminDirectOrderWrite {
+    customerName: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    customerId?: number | null;
+    source?: AdminDirectOrderSource;
+    status?: AdminDirectOrderStatus;
+    paymentMethod?: string;
+    paymentStatus?: string;
+    paymentReference?: string;
+    shipping?: string;
+    discount?: string;
+    courier?: string;
+    trackingNumber?: string;
+    shippingZone?: string;
+    priority?: string;
+    assignedTo?: number | null;
+    creatorId?: number | null;
+    commission?: string;
+    campaignId?: number | null;
+    attributionId?: number | null;
+    notes?: string;
+    tags?: string[];
+    items: Array<{
+        productId?: number;
+        variantId?: number | null;
+        productName: string;
+        sku?: string;
+        image?: string;
+        qty: number;
+        price: string;
+        costPrice?: string;
+    }>;
 }
 
 export interface AdminDirectOrderAdvanceWrite {
@@ -1917,130 +3370,137 @@ export interface AdminDirectCreator {
     handle: string;
     platform: AdminDirectContentPlatform | string;
     avatar: string;
-
-    phone: string;
-    email: string;
-
+    followers: number;
+    niche: string;
     commissionRate: number;
     commissionOwed: string;
+    commissionPaid: string;
     revenue: string;
+    salesDriven: number;
     ordersCount: number;
-
     status: AdminDirectCreatorStatus;
-    joinedAt: string;
+    startDate: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface AdminDirectCreatorWrite {
     name: string;
-    handle?: string;
+    handle: string;
     platform?: AdminDirectContentPlatform | string;
     avatar?: string;
-    phone?: string;
-    email?: string;
+    followers?: number;
+    niche?: string;
     commissionRate?: number;
     status?: AdminDirectCreatorStatus;
+    startDate?: string | null;
+    notes?: string;
 }
 
 export interface AdminDirectContent {
     id: number;
-
     title: string;
-    caption: string;
-
+    type: string;
+    status: AdminDirectContentStatus;
     platform: AdminDirectContentPlatform;
-    mediaUrl: string;
+    scheduledAt: string | null;
+    script: string;
+    caption: string;
+    hashtags: string;
+    postedUrl: string;
     thumbnailUrl: string;
     videoUrl: string;
-
-    productId: number | null;
+    products: string[];
     productName: string;
-
-    creatorId: number | null;
-    creatorName: string;
-
-    status: AdminDirectContentStatus;
-    scheduledAt: string | null;
-    postedAt: string | null;
-
     views: number;
     likes: number;
     comments: number;
-    shares: number;
-
     createdAt: string;
+    updatedAt: string;
 }
 
 export interface AdminDirectContentWrite {
     title: string;
-    caption?: string;
+    type?: string;
+    status?: AdminDirectContentStatus;
     platform?: AdminDirectContentPlatform;
-    mediaUrl?: string;
+    scheduledAt?: string | null;
+    script?: string;
+    caption?: string;
+    hashtags?: string;
+    postedUrl?: string;
     thumbnailUrl?: string;
     videoUrl?: string | null;
-    productId?: number | null;
+    products?: string[];
     productName?: string;
-    creatorId?: number | null;
-    status?: AdminDirectContentStatus;
-    scheduledAt?: string | null;
+    views?: number;
+    likes?: number;
+    comments?: number;
 }
 
 export interface AdminDirectLive {
     id: number;
-
     title: string;
-    description: string;
-
-    platform: AdminDirectContentPlatform | string;
-    hostName: string;
-    thumbnailUrl: string;
-
+    scheduledAt: string;
+    durationMin: number;
     status: AdminDirectLiveStatus;
-    scheduledAt: string | null;
-    startedAt: string | null;
-    endedAt: string | null;
-
-    viewers: number;
+    hostName: string;
+    products: string[];
     peakViewers: number;
-    ordersCount: number;
+    ordersGenerated: number;
     revenue: string;
-
-    productIds: number[];
-
+    topProduct: string;
     createdAt: string;
+    updatedAt: string;
 }
 
 export interface AdminDirectLiveWrite {
     title: string;
-    description?: string;
-    platform?: AdminDirectContentPlatform | string;
-    hostName?: string;
-    thumbnailUrl?: string;
-    scheduledAt?: string | null;
+    scheduledAt: string;
+    durationMin?: number;
     status?: AdminDirectLiveStatus;
-    productIds?: number[];
+    hostName?: string;
+    products?: string[];
+    peakViewers?: number;
+    ordersGenerated?: number;
+    revenue?: string;
+    topProduct?: string;
 }
 
 export interface AdminDirectProduct {
     id: number;
-
     name: string;
     sku: string;
     image: string;
-
     price: string;
     compareAtPrice: string | null;
     stockQuantity: number;
-
     category: string;
     brand: string;
-
-    commissionRate: number;
-
-    status: AdminDirectProductStatus;
-    listedAt: string;
-
     directSalesCount: number;
     directRevenue: string;
+    status: AdminDirectProductStatus;
+    viral: boolean;
+    videoLink: string;
+    lowStockThreshold: number;
+    linkedToWebsite: boolean;
+    costPrice?: string;
+    supplierId?: number | null;
+    reorderPoint?: number;
+    reorderQuantity?: number;
+    isBundle?: boolean;
+    isPreorder?: boolean;
+    preorderEta?: string | null;
+    commissionRate?: string;
+    tags?: string[];
+    seo_title?: string;
+    seo_description?: string;
+    margin?: string;
+    marginPercent?: string;
+    variants?: AdminProductVariant[];
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface AdminDirectProductWrite {
@@ -2054,6 +3514,20 @@ export interface AdminDirectProductWrite {
     brand?: string;
     commissionRate?: number;
     status?: AdminDirectProductStatus;
+    viral?: boolean;
+    videoLink?: string;
+    lowStockThreshold?: number;
+    linkedToWebsite?: boolean;
+    costPrice?: number;
+    supplierId?: number | null;
+    reorderPoint?: number;
+    reorderQuantity?: number;
+    isBundle?: boolean;
+    isPreorder?: boolean;
+    preorderEta?: string | null;
+    tags?: string[];
+    seo_title?: string;
+    seo_description?: string;
 }
 
 export interface AdminDirectCreateOrderWrite {
@@ -2076,25 +3550,455 @@ export interface AdminDirectSendCheckoutLinkWrite {
     expiresInMinutes?: number;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// BANNERS & HERO
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminPurchaseOrderItem {
+    id: number;
+    productId: number | null;
+    productName: string;
+    quantity: number;
+    unitCost: string;
+    subtotal: string;
+}
 
-export type {
-    Banner,
-    BannerWriteInput,
-    BannerListQuery,
-    BannerStats,
-    BannerPlacement,
-    BannerStatus,
-    BannerAlignment,
-    BannerOverlay,
-    BannerTrackEvent,
-} from './api';
+export interface AdminPurchaseOrder {
+    id: number;
+    reference: string;
+    supplierId: number;
+    supplierName: string;
+    status: 'Draft' | 'Ordered' | 'Partially Received' | 'Received' | 'Cancelled';
+    expectedAt: string | null;
+    receivedAt: string | null;
+    subtotal: string;
+    shipping: string;
+    total: string;
+    notes: string;
+    items: AdminPurchaseOrderItem[];
+    createdAt: string;
+    updatedAt: string;
+}
 
-// ═════════════════════════════════════════════════════════════════════════════
-// AI & AUTOMATIONS
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminPurchaseOrderWrite {
+    supplierId: number;
+    status?: 'Draft' | 'Ordered' | 'Partially Received' | 'Received' | 'Cancelled';
+    expectedAt?: string | null;
+    shipping?: string;
+    notes?: string;
+    items?: Array<{
+        productId?: number | null;
+        productName: string;
+        quantity: number;
+        unitCost: string;
+    }>;
+}
+
+export interface AdminLocation {
+    id: number;
+    name: string;
+    kind: 'warehouse' | 'shop' | 'pickup';
+    address: string;
+    county: string;
+    isDefault: boolean;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminLocationWrite {
+    name: string;
+    kind?: 'warehouse' | 'shop' | 'pickup';
+    address?: string;
+    county?: string;
+    isDefault?: boolean;
+    isActive?: boolean;
+}
+
+export interface AdminCustomerFull {
+    id: number;
+    name: string;
+    phone: string;
+    email: string;
+    county: string;
+    estate: string;
+    address: string;
+    segment: 'New' | 'Repeat' | 'VIP' | 'Wholesale' | 'COD Risk' | 'Inactive';
+    tags: string[];
+    whatsappOptIn: boolean;
+    smsOptIn: boolean;
+    emailOptIn: boolean;
+    birthday: string | null;
+    totalOrders: number;
+    lifetimeSpend: string;
+    avgOrderValue: string;
+    lastOrderAt: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminCustomerFullWrite {
+    name: string;
+    phone: string;
+    email?: string;
+    county?: string;
+    estate?: string;
+    address?: string;
+    segment?: 'New' | 'Repeat' | 'VIP' | 'Wholesale' | 'COD Risk' | 'Inactive';
+    tags?: string[];
+    whatsappOptIn?: boolean;
+    smsOptIn?: boolean;
+    emailOptIn?: boolean;
+    birthday?: string | null;
+    notes?: string;
+}
+
+export interface AdminCustomerStatsFull {
+    total: number;
+    repeat: number;
+    vip: number;
+    repeatRate: number;
+    lifetimeSpend: string;
+}
+
+export interface AdminInboxMessage {
+    id: number;
+    direction: 'in' | 'out';
+    body: string;
+    attachmentUrl: string;
+    sentBy: number | null;
+    externalId: string;
+    createdAt: string;
+}
+
+export interface AdminInboxMessageWrite {
+    conversation: number;
+    direction?: 'in' | 'out';
+    body: string;
+    attachmentUrl?: string;
+    externalId?: string;
+}
+
+export interface AdminInboxConversation {
+    id: number;
+    channel: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'instagram_dm' | 'phone' | 'email';
+    status: 'open' | 'pending' | 'converted' | 'closed' | 'spam';
+    subject: string;
+    customerId: number | null;
+    contactName: string;
+    contactHandle: string;
+    assignedTo: number | null;
+    convertedOrder: number | null;
+    unreadCount: number;
+    lastMessageAt: string | null;
+    tags: string[];
+    messages: AdminInboxMessage[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminInboxConversationWrite {
+    channel?: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'instagram_dm' | 'phone' | 'email';
+    status?: 'open' | 'pending' | 'converted' | 'closed' | 'spam';
+    subject?: string;
+    customerId?: number | null;
+    contactName?: string;
+    contactHandle?: string;
+    assignedTo?: number | null;
+    unreadCount?: number;
+    tags?: string[];
+}
+
+export interface AdminInboxConvertWrite {
+    customerName?: string;
+    customerPhone?: string;
+    source?: AdminDirectOrderSource;
+    items: Array<{
+        productId?: number;
+        productName: string;
+        sku?: string;
+        image?: string;
+        qty: number;
+        price: string;
+    }>;
+    notes?: string;
+}
+
+export interface AdminTeamMember {
+    id: number;
+    userId: number | null;
+    name: string;
+    email: string;
+    phone: string;
+    role: 'Owner' | 'Admin' | 'Operations' | 'Finance' | 'Content' | 'Support' | 'Creator';
+    status: 'Active' | 'Invited' | 'Suspended';
+    permissions: Record<string, unknown>;
+    locationId: number | null;
+    lastActiveAt: string | null;
+    invitedAt: string;
+    joinedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminTeamMemberWrite {
+    userId?: number | null;
+    name: string;
+    email: string;
+    phone?: string;
+    role?: 'Owner' | 'Admin' | 'Operations' | 'Finance' | 'Content' | 'Support' | 'Creator';
+    status?: 'Active' | 'Invited' | 'Suspended';
+    permissions?: Record<string, unknown>;
+    locationId?: number | null;
+}
+
+export interface AdminExpense {
+    id: number;
+    title: string;
+    category: 'inventory' | 'shipping' | 'marketing' | 'creator' | 'software' | 'rent' | 'utilities' | 'salaries' | 'tax' | 'other';
+    amount: string;
+    paidOn: string;
+    paymentMethod: string;
+    reference: string;
+    notes: string;
+    receiptUrl: string;
+    recordedBy: number | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminExpenseWrite {
+    title: string;
+    category?: 'inventory' | 'shipping' | 'marketing' | 'creator' | 'software' | 'rent' | 'utilities' | 'salaries' | 'tax' | 'other';
+    amount: string;
+    paidOn?: string;
+    paymentMethod?: string;
+    reference?: string;
+    notes?: string;
+    receiptUrl?: string;
+}
+
+export interface AdminAutomation {
+    id: number;
+    name: string;
+    trigger: string;
+    action: string;
+    status: 'Draft' | 'Active' | 'Paused';
+    channel: string;
+    template: string;
+    delayMinutes: number;
+    conditions: Record<string, unknown>;
+    runsCount: number;
+    lastRunAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminAutomationWrite {
+    name: string;
+    trigger: string;
+    action: string;
+    status?: 'Draft' | 'Active' | 'Paused';
+    channel?: string;
+    template?: string;
+    delayMinutes?: number;
+    conditions?: Record<string, unknown>;
+}
+
+export interface AdminNotification {
+    id: number;
+    title: string;
+    body: string;
+    kind: 'info' | 'success' | 'warning' | 'danger';
+    link: string;
+    recipientId: number | null;
+    readAt: string | null;
+    createdAt: string;
+}
+
+export interface AdminAuditLog {
+    id: number;
+    action: string;
+    entity: string;
+    entityId: string;
+    summary: string;
+    diff: Record<string, unknown>;
+    actorId: number | null;
+    actorName: string;
+    ipAddress: string | null;
+    userAgent: string;
+    createdAt: string;
+}
+
+export interface AdminAuditLogFilters {
+    entity?: string;
+    action?: string;
+    limit?: number;
+    offset?: number;
+}
+
+export interface AdminDeliveryZoneFull {
+    id: number;
+    name: string;
+    zone: string;
+    counties: string[];
+    baseFee: string;
+    freeOver: string;
+    etaDaysMin: number;
+    etaDaysMax: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminDeliveryZoneFullWrite {
+    name: string;
+    zone: string;
+    counties?: string[];
+    baseFee?: string;
+    freeOver?: string;
+    etaDaysMin?: number;
+    etaDaysMax?: number;
+    isActive?: boolean;
+}
+
+export interface AdminCoupon {
+    id: number;
+    code: string;
+    description: string;
+    percentOff: string;
+    amountOff: string;
+    minOrderValue: string;
+    startsAt: string | null;
+    endsAt: string | null;
+    maxUses: number;
+    uses: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminCouponWrite {
+    code: string;
+    description?: string;
+    percentOff?: string;
+    amountOff?: string;
+    minOrderValue?: string;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    maxUses?: number;
+    isActive?: boolean;
+}
+
+export interface AdminCampaignFull {
+    id: number;
+    name: string;
+    slug: string;
+    status: 'Draft' | 'Active' | 'Paused' | 'Ended';
+    startsAt: string | null;
+    endsAt: string | null;
+    budget: string;
+    objective: string;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminCampaignFullWrite {
+    name: string;
+    slug?: string;
+    status?: 'Draft' | 'Active' | 'Paused' | 'Ended';
+    startsAt?: string | null;
+    endsAt?: string | null;
+    budget?: string;
+    objective?: string;
+    notes?: string;
+}
+
+export interface AdminAttributionLink {
+    id: number;
+    kind: 'link' | 'code' | 'utm';
+    code: string;
+    label: string;
+    url: string;
+    utmSource: string;
+    utmMedium: string;
+    utmCampaign: string;
+    creatorId: number | null;
+    campaignId: number | null;
+    contentId: number | null;
+    liveId: number | null;
+    clicks: number;
+    conversions: number;
+    revenue: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminAttributionLinkWrite {
+    kind?: 'link' | 'code' | 'utm';
+    code: string;
+    label?: string;
+    url?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    creatorId?: number | null;
+    campaignId?: number | null;
+    contentId?: number | null;
+    liveId?: number | null;
+    isActive?: boolean;
+}
+
+export interface AdminPayoutBatch {
+    id: number;
+    reference: string;
+    status: 'Draft' | 'Pending' | 'Approved' | 'Paid' | 'Failed';
+    totalAmount: string;
+    itemsCount: number;
+    payoutMethod: string;
+    approvedBy: number | null;
+    approvedAt: string | null;
+    paidAt: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminPayoutBatchWrite {
+    status?: 'Draft' | 'Pending' | 'Approved' | 'Paid' | 'Failed';
+    payoutMethod?: string;
+    notes?: string;
+    saleIds?: number[];
+}
+
+export interface AdminAnalyticsSummaryResponse {
+    monthOrders: number;
+    monthRevenue: string;
+    pendingShipment: number;
+    activeCreators: number;
+    bySource: Array<{
+        source: string;
+        count: number;
+        revenue: string | null;
+    }>;
+    byStatus: Array<{
+        status: string;
+        count: number;
+    }>;
+    daily: Array<{
+        day: string;
+        date: string;
+        orders: number;
+        revenue: string;
+    }>;
+}
+
+export interface AdminFinanceSummaryResponse {
+    grossRevenue: string;
+    creatorCommissions: string;
+    withholdingTax: string;
+    expenses: string;
+    netRevenue: string;
+}
 
 export type AdminAIAutomationStatus = 'Active' | 'Paused' | 'Draft';
 
@@ -2130,16 +4034,62 @@ export type AdminAIProvider =
     | 'openai'
     | 'gemini'
     | 'openrouter'
+    | 'anthropic'
     | 'custom';
 
-export type AdminAIUsageFeature = 'assistant' | 'content' | 'search';
+export type AdminAIUsageFeature =
+    | 'assistant'
+    | 'content'
+    | 'search'
+    | 'insights'
+    | 'automation'
+    | 'chart';
+
+export interface AdminAIChartSeries {
+    key: string;
+    label: string;
+    color: string;
+}
+
+export type AdminAIChartSpec =
+    | {
+        type: 'line';
+        data: Array<Record<string, number | string>>;
+        xKey: string;
+        series: AdminAIChartSeries[];
+    }
+    | {
+        type: 'area';
+        data: Array<Record<string, number | string>>;
+        xKey: string;
+        series: AdminAIChartSeries[];
+    }
+    | {
+        type: 'bar';
+        data: Array<Record<string, number | string>>;
+        xKey: string;
+        series: AdminAIChartSeries[];
+    }
+    | {
+        type: 'pie';
+        data: Array<{ name: string; value: number; color: string }>;
+    }
+    | {
+        type: 'doughnut';
+        data: Array<{ name: string; value: number; color: string }>;
+    };
 
 export interface AdminAIOverview {
     assistant_status: 'Active' | 'Inactive';
     active_automations: number;
     total_automations: number;
+    automations_enabled: number;
     tokens_this_month: number;
     estimated_cost_kes: number;
+    monthly_budget_kes: number;
+    budget_used_pct: number;
+    active_alerts: number;
+    active_insights: number;
     usage_by_day: Array<{
         day: string;
         assistant: number;
@@ -2153,25 +4103,209 @@ export interface AdminAIOverview {
     }>;
 }
 
+export type AdminAIConversationStatus = 'active' | 'archived';
+
 export interface AdminAIConversation {
-    id: string;
+    id: string | number;
     title: string;
     updatedAt: string;
     group: 'Today' | 'Yesterday' | 'Last 7 days' | 'Older';
+    status?: AdminAIConversationStatus;
+    origin_path?: string;
+    origin_module?: string;
+    model?: string;
+    provider?: string;
+    total_tokens_in?: number;
+    total_tokens_out?: number;
+    total_cost_kes?: number;
+    message_count?: number;
+    is_pinned?: boolean;
+    created_at?: string;
+    updated_at?: string;
 }
 
+export interface AdminAIConversationDetail extends AdminAIConversation {
+    messages: AdminAIMessage[];
+}
+
+export interface AdminAIConversationCreateWrite {
+    title?: string;
+    origin_path?: string;
+    origin_module?: string;
+    model?: string;
+}
+
+export interface AdminAIConversationUpdateWrite {
+    title?: string;
+    status?: AdminAIConversationStatus;
+    is_pinned?: boolean;
+}
+
+export type AdminAIMessageRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export type AdminAIMessageStatus =
+    | 'ok'
+    | 'error'
+    | 'streaming'
+    | 'cancelled';
+
 export interface AdminAIMessage {
-    id: string;
-    role: 'user' | 'assistant';
+    id: string | number;
+    role: AdminAIMessageRole;
+    status?: AdminAIMessageStatus;
     content: string;
-    chart?: { label: string; value: number }[] | null;
+    chart?: AdminAIChartSpec | null;
     table?: { headers: string[]; rows: string[][] } | null;
     link?: { label: string; href: string } | null;
+    quickReplies?: string[] | null;
+    quick_replies?: string[] | null;
+    toolName?: string;
+    toolArgs?: Record<string, unknown> | null;
+    isVerified?: boolean;
+    dataSources?: string[];
+    missingData?: string[];
+    errorMessage?: string;
+    tokens_in?: number;
+    tokens_out?: number;
+    latencyMs?: number;
+    model?: string;
+    tool_calls?: AdminAIToolCall[];
     timestamp: string;
+    created_at?: string;
 }
 
 export interface AdminAIMessageWrite {
     content: string;
+    context?: {
+        path?: string;
+        label?: string;
+        description?: string;
+    };
+}
+
+export interface AdminAIAttachmentInput {
+    id?: string;
+    name: string;
+    size: number;
+    type: string;
+    preview?: string;
+}
+
+export interface AdminAIProvenanceItem {
+    label: string;
+    detail?: string;
+    href?: string;
+    count?: number;
+}
+
+export interface AdminAIMessageAction {
+    id: string;
+    label: string;
+    tone?: 'default' | 'danger' | 'primary';
+    href?: string;
+    prompt?: string;
+    requiresConfirmation?: boolean;
+    params?: Record<string, unknown>;
+}
+
+export interface AdminAIToolCallInline {
+    id: string;
+    name: string;
+    status: 'running' | 'done' | 'error';
+    params?: Record<string, unknown>;
+    resultSummary?: string;
+    durationMs?: number;
+}
+
+export interface AdminAIPendingAction {
+    id: string;
+    tool: string;
+    title: string;
+    description: string;
+    params: Record<string, unknown>;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    destructive?: boolean;
+    preview?: Array<{ label: string; value: string }>;
+}
+
+export interface AdminAIActionExecuteWrite {
+    tool: string;
+    params?: Record<string, unknown>;
+    confirm?: boolean;
+    confirmation_token?: string;
+}
+
+export interface AdminAIActionExecuteResponse {
+    success: boolean;
+    message: string;
+    result: Record<string, unknown>;
+}
+
+export interface AdminAIDigestItem {
+    label: string;
+    value: string;
+    delta?: number;
+    tone: 'blue' | 'emerald' | 'amber' | 'violet' | 'rose' | 'slate';
+    href?: string;
+}
+
+export interface AdminAIDigestResponse {
+    items: AdminAIDigestItem[];
+    generatedAt: string;
+}
+
+export interface AdminAIConversationExportResponse {
+    content: string;
+    filename: string;
+    mimeType: string;
+}
+
+export interface AdminAIMessageFeedbackWrite {
+    feedback: 'up' | 'down';
+}
+
+export interface AdminAIMessageFeedbackResponse {
+    messageId: number | string;
+    feedback: 'up' | 'down';
+}
+
+export type AdminAIToolCallStatus = 'ok' | 'error' | 'timeout';
+
+export interface AdminAIToolCall {
+    id: number;
+    tool_name: string;
+    arguments: Record<string, unknown> | null;
+    result_summary: string;
+    row_count: number;
+    duration_ms: number;
+    status: AdminAIToolCallStatus;
+    error_message: string;
+    created_at: string;
+}
+
+export interface AdminAIToolSchema {
+    type: 'function';
+    function: {
+        name: string;
+        description: string;
+        parameters: Record<string, unknown>;
+    };
+}
+
+export interface AdminAIToolPreviewWrite {
+    name: string;
+    args?: Record<string, unknown>;
+}
+
+export interface AdminAIToolPreviewResponse {
+    items: unknown[];
+    summary?: string;
+    note?: string;
+    chart?: AdminAIChartSpec;
+    table?: { headers: string[]; rows: string[][] };
+    link?: { label: string; href: string };
+    [key: string]: unknown;
 }
 
 export interface AdminAISearchConfig {
@@ -2207,7 +4341,13 @@ export interface AdminAIContentRequest {
 
 export interface AdminAIContentResponse {
     body: string;
-    tokens: number;
+    content_type: AdminAIContentType | string;
+    tone: string;
+    language: string;
+    length: string;
+    model: string;
+    tokens_in?: number;
+    tokens_out?: number;
 }
 
 export interface AdminAIContentBulkRequest {
@@ -2220,76 +4360,211 @@ export interface AdminAIContentBulkRequest {
 
 export interface AdminAIContentBulkResponse {
     jobId: string;
+    count: number;
 }
 
-export interface AdminAIContentDraft {
-    id: string;
-    product_id: string;
-    content_type: string;
-    body: string;
-    published: boolean;
-    created_at: string;
-}
+export type AdminAIAutomationKind =
+    | 'low_stock'
+    | 'abandoned_cart'
+    | 'pending_order'
+    | 'failed_payment'
+    | 'return_refund'
+    | 'sales_summary'
+    | 'newsletter_perf'
+    | 'unusual_change'
+    | 'custom';
 
-export interface AdminAIContentDraftWrite {
-    product_id: string;
-    content_type: AdminAIContentType;
-    body: string;
-}
+export type AdminAIAutomationScheduleKind =
+    | 'interval'
+    | 'hourly'
+    | 'daily'
+    | 'weekly'
+    | 'monthly'
+    | 'event'
+    | 'manual';
+
+export type AdminAIAutomationRunStatus =
+    | 'queued'
+    | 'running'
+    | 'success'
+    | 'failed'
+    | 'skipped'
+    | 'cancelled';
+
+export type AdminAIAutomationTriggeredBy =
+    | 'schedule'
+    | 'manual'
+    | 'event'
+    | 'api';
 
 export interface AdminAIAutomation {
-    id: string;
+    id: string | number;
     name: string;
     trigger: string;
-    trigger_event?: string;
+    action: string;
     status: AdminAIAutomationStatus;
     runs: number;
-    lastRun: string;
     successRate: number;
-    conditions?: Record<string, unknown>;
-    timing?: string;
-    action_type?: string;
-    template?: string;
-    variable_map?: string;
-    recipients?: string;
-    admin_channel?: string;
+    lastRun: string;
+}
+
+export interface AdminAIAutomationRun {
+    id: number;
+    automation: number;
+    status: AdminAIAutomationRunStatus;
+    triggeredBy: AdminAIAutomationTriggeredBy;
+    triggeredByUser: number | null;
+    startedAt: string;
+    finishedAt: string | null;
+    durationMs: number;
+    summary: string;
+    output: Record<string, unknown>;
+    itemsAffected: number;
+    errorMessage: string;
+    errorTrace: string;
+    requestId: string;
+    tokensIn: number;
+    tokensOut: number;
+    costKes: number;
+    createdAt: string;
+    startedRelative: string;
+}
+
+export interface AdminAIAutomationExtended extends AdminAIAutomation {
+    kind: AdminAIAutomationKind;
+    description: string;
+    triggerConfig: Record<string, unknown>;
+    actionConfig: Record<string, unknown>;
+    isEnabled: boolean;
+    scheduleKind: AdminAIAutomationScheduleKind;
+    scheduleIntervalMinutes: number;
+    scheduleCron: string;
+    timezone: string;
+    nextRunAt: string | null;
+    cooldownMinutes: number;
+    maxRunsPerDay: number;
+    requiresApproval: boolean;
+    createdBy: number | null;
+    owner: number | null;
+    runsFailed: number;
+    lastRunAt: string | null;
+    lastRunStatus: string;
+    lastError: string;
+    recentRuns: AdminAIAutomationRun[];
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface AdminAIAutomationWrite {
     name: string;
+    kind?: AdminAIAutomationKind;
+    description?: string;
     trigger?: string;
-    trigger_event?: string;
+    action?: string;
+    trigger_config?: Record<string, unknown>;
+    action_config?: Record<string, unknown>;
     status?: AdminAIAutomationStatus;
-    conditions?: Record<string, unknown>;
-    timing?: string;
-    action_type?: string;
-    template?: string;
-    variable_map?: string;
-    recipients?: string;
-    admin_channel?: string;
+    is_enabled?: boolean;
+    schedule_kind?: AdminAIAutomationScheduleKind;
+    schedule_interval_minutes?: number;
+    schedule_cron?: string;
+    timezone?: string;
+    cooldown_minutes?: number;
+    max_runs_per_day?: number;
+    requires_approval?: boolean;
 }
 
 export interface AdminAIAutomationTemplate {
     name: string;
+    kind?: AdminAIAutomationKind;
     trigger: string;
     action: string;
 }
 
 export interface AdminAIAutomationStatusWrite {
     status: AdminAIAutomationStatus;
+    is_enabled?: boolean;
+}
+
+export interface AdminAIAutomationRunRequest {
+    confirm?: boolean;
+    dryRun?: boolean;
+    params?: Record<string, unknown>;
+}
+
+export type AdminAIAlertSeverity = 'high' | 'medium' | 'low';
+
+export type AdminAIAlertCategory =
+    | 'inventory'
+    | 'orders'
+    | 'payments'
+    | 'customers'
+    | 'returns'
+    | 'messages';
+
+export type AdminAIAlertSource = 'automation' | 'manual' | 'system';
+
+export interface AdminAIAlert {
+    id: string | number;
+    severity: AdminAIAlertSeverity;
+    category: AdminAIAlertCategory;
+    source: AdminAIAlertSource;
+    title: string;
+    description: string;
+    href: string;
+    actionLabel: string;
+    count: number;
+    isActive: boolean;
+    isDismissed: boolean;
+    dismissedAt?: string | null;
+    acknowledgedAt?: string | null;
+    snoozedUntil?: string | null;
+    expiresAt?: string | null;
+    automation?: number | null;
+    timestamp: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface AdminAIAlertFilters {
+    severity?: AdminAIAlertSeverity | 'all';
+    category?: AdminAIAlertCategory | 'all';
+}
+
+export interface AdminAIAlertDismissWrite {
+    reason?: string;
+}
+
+export interface AdminAIAlertSnoozeWrite {
+    minutes: number;
 }
 
 export interface AdminAIInsight {
-    id: string;
+    id: string | number;
     category: AdminAIInsightCategory;
     priority: AdminAIInsightPriority;
     text: string;
     actionLabel: string;
-    actionLink: string;
+    href: string;
+    action?: { kind: string; payload?: Record<string, unknown> } | null;
+    evidence?: Record<string, unknown>;
+    isDismissed?: boolean;
+    dismissedAt?: string | null;
+    viewedAt?: string | null;
+    executedAt?: string | null;
+    expiresAt?: string | null;
+    automation?: number | null;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface AdminAIInsightExecuteResponse {
     redirect: string;
+}
+
+export interface AdminAIInsightExecuteWrite {
+    confirm?: boolean;
+    params?: Record<string, unknown>;
 }
 
 export interface AdminAISettings {
@@ -2297,11 +4572,23 @@ export interface AdminAISettings {
     provider: AdminAIProvider;
     model: string;
     base_url: string;
-    monthly_budget_kes: number;
-    budget_alert: boolean;
     masking: boolean;
+    mask_fields: string[];
+    allow_write_actions: boolean;
+    require_confirmation_for_destructive: boolean;
+    budget_alert: boolean;
+    monthly_budget_kes: number;
+    monthly_token_cap: number;
     audit_retention_days: number;
+    conversation_retention_days: number;
+    temperature: number;
+    max_output_tokens: number;
+    streaming_enabled: boolean;
+    system_prompt: string;
+    allowed_modules: string[];
+    cache_ttl_seconds: number;
     has_api_key: boolean;
+    updated_at: string;
 }
 
 export interface AdminAISettingsWrite {
@@ -2310,10 +4597,21 @@ export interface AdminAISettingsWrite {
     model?: string;
     base_url?: string;
     api_key?: string;
-    monthly_budget_kes?: number;
-    budget_alert?: boolean;
     masking?: boolean;
+    mask_fields?: string[];
+    allow_write_actions?: boolean;
+    require_confirmation_for_destructive?: boolean;
+    budget_alert?: boolean;
+    monthly_budget_kes?: number;
+    monthly_token_cap?: number;
     audit_retention_days?: number;
+    conversation_retention_days?: number;
+    temperature?: number;
+    max_output_tokens?: number;
+    streaming_enabled?: boolean;
+    system_prompt?: string;
+    allowed_modules?: string[];
+    cache_ttl_seconds?: number;
 }
 
 export interface AdminAIUsage {
@@ -2334,9 +4632,61 @@ export interface AdminAIUsage {
     }>;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// SETTINGS (store-wide configuration)
-// ═════════════════════════════════════════════════════════════════════════════
+export interface AdminAIUsageLogRow {
+    id: number;
+    feature: AdminAIUsageFeature | string;
+    provider: string;
+    model: string;
+    tokensIn: number;
+    tokensOut: number;
+    costKes: number;
+    user: number | null;
+    conversation: number | null;
+    requestId: string;
+    latencyMs: number;
+    cacheHit: boolean;
+    createdAt: string;
+    timestamp: string;
+}
+
+export type AdminAIAuditAction =
+    | 'chat'
+    | 'query'
+    | 'tool_call'
+    | 'write'
+    | 'destructive'
+    | 'automation_run'
+    | 'automation_toggle'
+    | 'settings_update'
+    | 'alert_dismiss'
+    | 'insight_execute'
+    | 'conversation_clear'
+    | 'export';
+
+export interface AdminAIAuditLog {
+    id: number;
+    user: number | null;
+    userDisplay: string;
+    action: AdminAIAuditAction | string;
+    tool: string;
+    args: Record<string, unknown> | null;
+    resultSize: number;
+    requestId: string;
+    ipAddress: string | null;
+    userAgent: string;
+    path: string;
+    permissionSnapshot: Record<string, unknown>;
+    wasConfirmed: boolean;
+    isVerified: boolean;
+    createdAt: string;
+    timestamp: string;
+}
+
+export interface AdminAIAuditLogFilters {
+    action?: AdminAIAuditAction | 'all';
+    user?: number;
+    limit?: number;
+}
 
 export type AdminCurrency = 'KES' | 'USD' | 'EUR';
 export type AdminTimezone = 'Africa/Nairobi' | 'UTC';
@@ -2367,21 +4717,7 @@ export type AdminIntegrationCategory =
 
 export type AdminEtimsStatus = 'pending' | 'success' | 'failed';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Runtime snapshot — the flat read every admin page gates its UI on
-//
-// Returned by GET /api/v1/admin/settings/runtime/. This is the ONE call
-// the admin frontend makes on mount (plus a re-fetch after any settings
-// save). It merges every singleton plus the credential rows, and
-// exposes derived flags so pages never have to check two sources.
-//
-// Field-for-field mirror of the `RuntimeSettings` dataclass in
-// `dashboard/settings/services.py`. If you add a field there, add it
-// here too — the endpoint returns exactly these keys.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface AdminRuntimeSettings {
-    // ── General ──
     currency: string;
     timezone: string;
     date_format: string;
@@ -2390,47 +4726,31 @@ export interface AdminRuntimeSettings {
     business_email: string;
     business_phone: string;
     business_address: string;
-
-    // ── Store ──
     store_status: AdminStoreStatusValue;
     store_indexable: boolean;
     store_paused_message: string;
-
-    // ── Checkout ──
     allow_guest_checkout: boolean;
     require_phone: boolean;
     auto_confirm_orders: boolean;
     whatsapp_fallback: boolean;
-
-    // ── Inventory ──
     track_inventory: boolean;
     low_stock_threshold: number;
     allow_backorders: boolean;
     hide_out_of_stock: boolean;
-
-    // ── Reviews ──
     reviews_enabled: boolean;
     require_verified_purchase: boolean;
     auto_publish_reviews: boolean;
     allow_review_photos: boolean;
-
-    // ── Payments ──
-    // `mpesa_enabled` is the AND of PaymentSettings.mpesa_enabled and
-    // MpesaConfig.enabled — a page never needs to check both.
     mpesa_enabled: boolean;
     min_amount_kes: string;
     max_amount_kes: string;
     transaction_fee_kes: string;
     auto_capture_payments: boolean;
     auto_refund: boolean;
-
-    // ── Shipping ──
     shipping_enabled: boolean;
     free_shipping_threshold_kes: string;
     default_delivery_fee_kes: string;
     local_pickup_enabled: boolean;
-
-    // ── Notifications ──
     email_enabled: boolean;
     whatsapp_enabled: boolean;
     notify_on_new_order: boolean;
@@ -2440,21 +4760,13 @@ export interface AdminRuntimeSettings {
     notify_on_low_stock: boolean;
     notify_on_review: boolean;
     admin_alert_email: string;
-
-    // ── Security ──
     session_timeout_minutes: number;
     require_2fa: boolean;
-
-    // ── Tax ──
     vat_enabled: boolean;
     vat_rate: string;
     prices_include_tax: boolean;
     etims_enabled: boolean;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Per-section singletons
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface AdminGeneralSettings {
     business_name: string;
@@ -2591,14 +4903,12 @@ export interface AdminDeliveryZoneWrite {
 export interface AdminNotificationSettings {
     email_enabled: boolean;
     whatsapp_enabled: boolean;
-
     notify_on_new_order: boolean;
     notify_on_payment: boolean;
     notify_on_shipped: boolean;
     notify_on_cancelled: boolean;
     notify_on_low_stock: boolean;
     notify_on_review: boolean;
-
     admin_alert_email: string;
 }
 
@@ -2725,45 +5035,8 @@ export interface AdminSettingsAuditLogFilters {
     changed_by?: number;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// USERS & ROLES (dashboard.users)
-//
-// Backend prefixes:
-//   /api/v1/admin/users/    — admin-only staff management
-//   /api/v1/admin/invites/  — admin-only invite management
-//   /api/v1/staff-invites/  — public invite lookup + accept
-//
-// Backs the /admin/users page — three tabs:
-//   • Staff Users      — list / edit / suspend / delete / reset password
-//   • Roles            — read-only catalogue of the 6 staff roles + Customer
-//   • Permission Matrix — 13 modules × 7 roles grid
-//
-// Key contracts
-// -------------
-// • Staff members are `authentication.User` rows extended by a
-//   `dashboard.users.StaffProfile` OneToOne. This type file models the
-//   combined payload as `AdminStaffUser` — the frontend never needs to
-//   know about the split.
-// • Administrator permissions are immutable. `AdminPermissionMatrixWrite`
-//   should never include an `Administrator` toggle — the backend ignores
-//   it anyway, but send only the six mutable roles.
-// • Invite acceptance is public (no auth). The invitee has no session
-//   yet; the accept endpoint creates the User + StaffProfile, logs the
-//   invitee in via session cookie, and returns `{ user, role,
-//   redirect_to }`. No JWTs are issued — the rest of the admin API
-//   authenticates via the same session cookie.
-// • `is_valid` on an invite is derived server-side from `status` and
-//   `expires_at`. It returns false for anything that isn't a Pending,
-//   unexpired invite — including a Pending row whose date has passed.
-// ═════════════════════════════════════════════════════════════════════════════
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared enums
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type AdminStaffUserStatus = 'Active' | 'Invited' | 'Suspended';
 
-/** The six staff roles. Customers are NOT staff — see `AdminStaffRole`. */
 export type AdminStaffUserRole =
     | 'Administrator'
     | 'Manager'
@@ -2772,35 +5045,14 @@ export type AdminStaffUserRole =
     | 'Marketing Staff'
     | 'Support Staff';
 
-/** The permission-matrix columns — six staff roles + a customer column. */
 export type AdminPermissionRole = AdminStaffUserRole | 'Customer';
 
-/**
- * Lifecycle of a staff invite. Mirrors `dashboard.users.models.InviteStatus`.
- *
- *   PENDING   + not expired → is_valid = true
- *   PENDING   + expired     → is_valid = false
- *   ACCEPTED                → is_valid = false
- *   CANCELLED               → is_valid = false
- *   EXPIRED                 → is_valid = false
- */
 export type AdminStaffInviteStatus =
     | 'Pending'
     | 'Accepted'
     | 'Cancelled'
     | 'Expired';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Staff user — what the Staff Users tab renders per row
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Combined `authentication.User` + `dashboard.users.StaffProfile`.
- *
- * `last_login_at` mirrors Django's `user.last_login` — the two are
- * the same value. It's `null` while the user is still `Invited`
- * (they've never accepted) and reset if the admin revokes and reinvites.
- */
 export interface AdminStaffUser {
     id: string;
     name: string;
@@ -2814,7 +5066,6 @@ export interface AdminStaffUser {
     dashboard_url: string;
 }
 
-/** PATCH payload. Email is immutable — send a new invite to change it. */
 export interface AdminStaffUserWrite {
     name?: string;
     role?: AdminStaffUserRole;
@@ -2823,23 +5074,11 @@ export interface AdminStaffUserWrite {
     avatar?: string;
 }
 
-/** Query params for `adminApi.users.list()`. */
 export interface AdminStaffFilters {
     role?: AdminStaffUserRole;
     q?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Role catalogue — Roles tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * One card on the Roles tab.
- *
- * `color` and `icon` are the frontend's Tailwind class + lucide icon
- * name, seeded from the backend migration — do not edit them on the
- * client, they're the source of truth for the card style.
- */
 export interface AdminStaffRole {
     id: string;
     name: AdminPermissionRole;
@@ -2850,60 +5089,22 @@ export interface AdminStaffRole {
     is_customer: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Permission matrix
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * One row of the matrix. `roles` is a map of role → granted.
- *
- * Administrator is always `true` — the backend seeds it and refuses
- * toggles on it. Every other role is user-toggleable.
- */
 export interface AdminPermissionRow {
     module: string;
     group: string;
     roles: Record<AdminPermissionRole, boolean>;
 }
 
-/** PUT payload — the full matrix in one shot. */
 export interface AdminPermissionMatrixWrite {
     permissions: AdminPermissionRow[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Effective permissions for the current caller
-//
-// Read by the sidebar on mount to decide which nav items to render.
-// Administrators receive every module in the catalogue regardless of
-// what's stored in the matrix.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Response from `GET /api/v1/admin/users/me/permissions/`.
- *
- * `modules` is a plain list of the module labels the caller's role
- * has been granted — e.g. `["Products & Catalog", "Orders",
- * "Customers & CRM"]`. The sidebar matches these against each nav
- * item's `moduleLabel`.
- */
 export interface AdminMyPermissions {
     modules: string[];
     role: AdminStaffUserRole;
     dashboard_url: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Invites — admin side
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * POST /api/v1/admin/invites/ — create + email an invite.
- *
- * The backend sets `expires_at = now + STAFF_INVITE_TTL_DAYS` (default
- * 7) and dispatches the email via Celery. The response is the created
- * invite row, not a generic `{detail, invite_id}` envelope.
- */
 export interface AdminStaffUserInviteWrite {
     name: string;
     email: string;
@@ -2912,13 +5113,6 @@ export interface AdminStaffUserInviteWrite {
     message?: string;
 }
 
-/**
- * GET /api/v1/admin/invites/ — invite list.
- *
- * Without `?status=`, only Pending invites are returned. Cancelled,
- * expired, and accepted rows are kept for the audit trail but aren't
- * part of the default view.
- */
 export interface AdminStaffInvite {
     id: string;
     email: string;
@@ -2932,64 +5126,19 @@ export interface AdminStaffInvite {
     expires_at: string;
     accepted_at: string | null;
     cancelled_at: string | null;
-    /** Server-computed: Pending AND not yet expired. */
     is_valid: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Invites — public acceptance flow
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * GET /api/v1/staff-invites/<token>/ — prefills the register page.
- *
- * Returns 410 Gone if the invite is expired, cancelled, or already
- * accepted. The `valid` flag is always `true` on a 200 response — it
- * exists so the frontend can render a sanity check without
- * re-implementing the validity rules.
- */
-export interface AdminInviteLookup {
-    valid: boolean;
-    email: string;
-    name: string;
-    role: AdminStaffUserRole;
-    department: string;
-    invited_by: string | null;
-    expires_at: string;
-}
-
-/**
- * POST /api/v1/staff-invites/<token>/accept/ — payload.
- *
- * The token is in the URL, not the body. `password_confirm` is
- * optional but recommended; when omitted the backend skips the
- * mismatch check (the frontend should still send it — the UI
- * validates before submitting).
- */
 export interface AdminInviteAcceptWrite {
     password: string;
     password_confirm: string;
 }
 
-/**
- * POST /api/v1/staff-invites/<token>/accept/ — response.
- *
- * Creates the User + StaffProfile, logs the new staff member in via
- * session cookie, and returns the redirect target computed from their
- * role's landing page.
- *
- * Note: this replaced the earlier JWT response shape. No `access` /
- * `refresh` keys — the rest of the admin API uses session auth.
- */
 export interface AdminInviteAcceptResult {
     user: AdminStaffUser;
     role: AdminStaffUserRole;
     redirect_to: string;
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// REPORTS & ANALYTICS (dashboard.reports)
-// ═════════════════════════════════════════════════════════════════════════════
 
 export type ReportRange =
     | 'today'
@@ -3292,10 +5441,6 @@ export interface ReportRefreshResponse {
     deleted: number;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// ANALYTICS (dashboard.analytics)
-// ═════════════════════════════════════════════════════════════════════════════
-
 export type AnalyticsRange = '7days' | '30days' | '90days' | 'year';
 
 export type AnalyticsTab =
@@ -3539,10 +5684,6 @@ export interface AnalyticsRefreshResponse {
     deleted: number;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// OVERVIEW (dashboard.overview)
-// ═════════════════════════════════════════════════════════════════════════════
-
 export type OverviewRange = 'today' | '7d' | '30d' | '90d' | 'custom';
 
 export interface OverviewQuery {
@@ -3561,7 +5702,6 @@ export interface OverviewKpi {
     change: number;
     isPositive: boolean;
     sparklineData: { value: number }[];
-    /** Lucide icon name, mapped on the client to the actual component. */
     icon: string;
 }
 
@@ -3678,3 +5818,106 @@ export interface OverviewRefreshResponse {
     cleared: string;
     deleted: number;
 }
+
+export type AdminMetaCampaignType =
+    | 'product_promotion'
+    | 'discount'
+    | 'seasonal'
+    | 'new_product'
+    | 'retention'
+    | 'abandoned_cart'
+    | 'newsletter'
+    | 'social';
+
+export type AdminMetaCampaignStatus =
+    | 'draft'
+    | 'scheduled'
+    | 'sending'
+    | 'paused'
+    | 'completed'
+    | 'failed';
+
+export type AdminMetaCampaignAudienceSource =
+    | 'all'
+    | 'whatsapp_segment'
+    | 'newsletter_list'
+    | 'newsletter_segment';
+
+export type AdminMetaCampaignChannel = 'whatsapp' | 'email' | 'social';
+
+export type AdminMetaCampaignDispatchStatus =
+    | 'pending'
+    | 'sent'
+    | 'failed'
+    | 'paused';
+
+export interface AdminMetaCampaignDispatch {
+    id: string;
+    channel: AdminMetaCampaignChannel;
+    status: AdminMetaCampaignDispatchStatus;
+    external_ref_id: string;
+    result: Record<string, unknown>;
+    error: string;
+    sent_at: string | null;
+    created_at: string;
+}
+
+export interface AdminMetaCampaign {
+    id: string;
+    name: string;
+    campaign_type: AdminMetaCampaignType;
+    audience_source: AdminMetaCampaignAudienceSource;
+    audience_ref_id: string;
+    audience_size_cached: number;
+    status: AdminMetaCampaignStatus;
+    scheduled_at: string | null;
+    channels: AdminMetaCampaignChannel[];
+    content: Record<string, unknown>;
+    dispatches: AdminMetaCampaignDispatch[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminMetaCampaignWrite {
+    name: string;
+    campaign_type: AdminMetaCampaignType;
+    audience_source?: AdminMetaCampaignAudienceSource;
+    audience_ref_id?: string;
+    scheduled_at?: string | null;
+    channels: AdminMetaCampaignChannel[];
+    content?: Record<string, unknown>;
+}
+
+export interface AdminMetaCampaignAnalyticsTotals {
+    sent: number;
+    delivered: number;
+    opened: number;
+    clicked: number;
+    converted: number;
+    failed: number;
+    revenue: number;
+}
+
+export interface AdminMetaCampaignAnalyticsChannel
+    extends AdminMetaCampaignAnalyticsTotals {
+    channel: AdminMetaCampaignChannel;
+    status: AdminMetaCampaignDispatchStatus;
+    external_ref_id: string;
+}
+
+export interface AdminMetaCampaignAnalytics {
+    totals: AdminMetaCampaignAnalyticsTotals;
+    per_channel: AdminMetaCampaignAnalyticsChannel[];
+}
+
+export type {
+    Banner,
+    BannerWriteInput,
+    BannerListQuery,
+    BannerStats,
+    BannerPlacement,
+    BannerStatus,
+    BannerAlignment,
+    BannerOverlay,
+    BannerTrackEvent,
+} from './api';

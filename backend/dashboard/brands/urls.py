@@ -13,17 +13,17 @@ urlpatterns = [
         name="admin-brands-list",
     ),
     path(
-        "<str:id>/",                                       # ← was <str:pk>
+        "<str:id>/",
         BrandAdminViewSet.as_view({
             "get": "retrieve",
-            "patch": "partial_update",
             "put": "update",
+            "patch": "partial_update",
             "delete": "destroy",
         }),
         name="admin-brands-detail",
     ),
     path(
-        "<str:id>/toggle-featured/",                       # ← was <str:pk>
+        "<str:id>/toggle-featured/",
         BrandAdminViewSet.as_view({"post": "toggle_featured"}),
         name="admin-brands-toggle-featured",
     ),

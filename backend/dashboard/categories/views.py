@@ -1,5 +1,5 @@
-from django.db.models import Prefetch
 from rest_framework import status, viewsets
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
@@ -12,10 +12,6 @@ from .serializers import (
 
 
 def _build_tree(flat):
-    """
-    Turn a flat list of serialized category dicts into a nested tree
-    where each root has a `children` array. Preserves the API ordering.
-    """
     by_id = {c["id"]: {**c, "children": []} for c in flat}
     roots = []
     for c in flat:
@@ -29,16 +25,10 @@ def _build_tree(flat):
 
 
 class CategoryAdminViewSet(viewsets.ModelViewSet):
-    """
-    GET    /api/v1/admin/categories/       → nested tree
-    POST   /api/v1/admin/categories/       → create
-    GET    /api/v1/admin/categories/<id>/  → flat detail
-    PATCH  /api/v1/admin/categories/<id>/  → update
-    DELETE /api/v1/admin/categories/<id>/  → delete (cascades to children)
-    """
     permission_classes = [IsAdminUser]
-    pagination_class = None          # ← explicit: custom list() bypasses it anyway
+    pagination_class = None
     lookup_field = "id"
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         return Category.objects.with_product_counts().select_related("parent")
@@ -49,12 +39,18 @@ class CategoryAdminViewSet(viewsets.ModelViewSet):
         return CategoryAdminWriteSerializer
 
     def list(self, request):
-        """Return the full nested tree, not a paginated flat list."""
         qs = self.get_queryset().order_by("sort_order", "name")
         flat = CategoryAdminReadSerializer(
             qs, many=True, context={"request": request},
         ).data
         return Response(_build_tree(flat))
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = CategoryAdminReadSerializer(
+            instance, context={"request": request},
+        ).data
+        return Response(data)
 
     def create(self, request, *args, **kwargs):
         ser = self.get_serializer(data=request.data)
@@ -85,3 +81,8 @@ class CategoryAdminViewSet(viewsets.ModelViewSet):
             instance, context={"request": request},
         )
         return Response(read.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

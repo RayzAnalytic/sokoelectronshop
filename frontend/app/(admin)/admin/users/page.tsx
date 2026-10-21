@@ -36,18 +36,9 @@ import type {
   AdminStaffUserWrite,
 } from '@/lib/admin-types';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Frontend-only unions
-// ─────────────────────────────────────────────────────────────────────────────
 type UsersTab = 'users' | 'roles' | 'permissions';
 type UserStatus = AdminStaffUserStatus;
-
-// The matrix has a Customer column in addition to the six staff roles.
-// The canonical type already encodes this — no need to redefine it.
 type StaffRole = AdminPermissionRole;
-
-// Local alias — keeps the JSX below readable without duplicating the
-// backend shape. If the backend adds a field, it flows through here.
 type PermissionRow = AdminPermissionRow;
 
 const STAFF_ROLES: AdminStaffUserRole[] = [
@@ -61,9 +52,6 @@ const STAFF_ROLES: AdminStaffUserRole[] = [
 
 const ALL_ROLES_INCLUDING_CUSTOMER: StaffRole[] = [...STAFF_ROLES, 'Customer'];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Icon name → lucide component (backend stores icon as a string)
-// ─────────────────────────────────────────────────────────────────────────────
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Crown,
   Briefcase,
@@ -77,9 +65,6 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 
 const resolveIcon = (name: string) => ICON_MAP[name] ?? Shield;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UI-only shapes derived from backend data
-// ─────────────────────────────────────────────────────────────────────────────
 interface UserRow {
   id: string;
   name: string;
@@ -88,7 +73,6 @@ interface UserRow {
   status: UserStatus;
   lastLogin: string;
   department: string;
-  /** Full backend record — kept for PATCH calls. */
   raw: AdminStaffUser;
 }
 
@@ -103,9 +87,6 @@ interface RoleCard {
   isCustomer: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 function humaniseLastLogin(iso: string | null): string {
   if (!iso) return 'Never';
   const t = new Date(iso).getTime();
@@ -123,12 +104,6 @@ function humaniseLastLogin(iso: string | null): string {
   return new Date(iso).toLocaleDateString();
 }
 
-/**
- * "Owner"                  → "OW"
- * "Alex Doe"               → "AD"
- * "Mary Jane Watson"       → "MW"
- * "owner@myelectronics…"   → "OW"   (used when name is empty)
- */
 function initialsOf(name: string, fallback = ''): string {
   const source = (name || fallback).trim();
   if (!source) return '??';
@@ -168,9 +143,6 @@ function toRoleCard(r: AdminStaffRole, userCount: number): RoleCard {
   };
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Page
-// ═════════════════════════════════════════════════════════════════════════════
 export default function UsersAndRolesPage() {
   const [activeTab, setActiveTab] = useState<UsersTab>('users');
 
@@ -205,7 +177,6 @@ export default function UsersAndRolesPage() {
 
   const anyModalOpen = inviteOpen || editOpen || deleteOpen;
 
-  // ── Toast auto-dismiss ──────────────────────────────────────────────────
   useEffect(() => {
     if (toastMessage) {
       const t = setTimeout(() => setToastMessage(null), 3000);
@@ -213,7 +184,6 @@ export default function UsersAndRolesPage() {
     }
   }, [toastMessage]);
 
-  // ── Escape key + scroll lock ────────────────────────────────────────────
   useEffect(() => {
     if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -225,7 +195,6 @@ export default function UsersAndRolesPage() {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKey);
     };
-    // closeAll is stable enough for this — it only calls setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anyModalOpen]);
 
@@ -237,18 +206,6 @@ export default function UsersAndRolesPage() {
 
   const toast = (msg: string) => setToastMessage(msg);
 
-  // ── Data loading ────────────────────────────────────────────────────────
-
-  /**
-   * Initial load — runs exactly once on mount.
-   *
-   * Fetches users, roles, and the permission matrix in parallel. The
-   * result populates every tab, so switching tabs after this point
-   * doesn't trigger more requests.
-   *
-   * Any filter refresh after this point goes through `loadFilteredUsers`
-   * below, which only touches the user list.
-   */
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -266,15 +223,12 @@ export default function UsersAndRolesPage() {
 
         setUsers(u);
 
-        // Seed the role cards with live user counts from the user list.
         const counts: Record<string, number> = {};
         for (const user of u) {
           counts[user.role] = (counts[user.role] ?? 0) + 1;
         }
         setRoles(r.map((rc) => ({ ...rc, userCount: counts[rc.name] ?? 0 })));
 
-        // The permissions endpoint already returns the nested
-        // `{module, group, roles}` shape — no re-shaping needed.
         setPermissions(p);
 
         setInitialLoaded(true);
@@ -290,16 +244,8 @@ export default function UsersAndRolesPage() {
     return () => {
       cancelled = true;
     };
-  }, []); // run once — filters are handled by the effect below
+  }, []);
 
-  /**
-   * Filter refresh — debounced on roleFilter / searchQuery changes.
-   *
-   * Skipped until the initial load completes so typing during the first
-   * fetch doesn't race with the mount-time request.
-   *
-   * 250 ms debounce so a six-letter search fires one request, not six.
-   */
   useEffect(() => {
     if (!initialLoaded) return;
 
@@ -314,7 +260,6 @@ export default function UsersAndRolesPage() {
         if (ac.signal.aborted) return;
         setUsers(raw.map(toUserRow));
       } catch {
-        /* non-fatal — the previous list stays visible */
       }
     }, 250);
 
@@ -324,7 +269,6 @@ export default function UsersAndRolesPage() {
     };
   }, [roleFilter, searchQuery, initialLoaded]);
 
-  // ── Derived ─────────────────────────────────────────────────────────────
   const groupedPermissions = useMemo(
     () =>
       permissions.reduce<Record<string, PermissionRow[]>>((acc, row) => {
@@ -337,12 +281,19 @@ export default function UsersAndRolesPage() {
 
   const totalUsersInFilter = useMemo(() => users.length, [users]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────
+  const administratorExists = useMemo(
+    () => roles.some((r) => r.name === 'Administrator' && r.userCount > 0),
+    [roles],
+  );
 
-  /**
-   * Refresh the user list from the current filters. Called after an
-   * invite is sent so the invited row shows up with its real UUID.
-   */
+  const assignableRoles = useMemo(
+    () =>
+      STAFF_ROLES.filter(
+        (r) => r !== 'Administrator' || !administratorExists,
+      ),
+    [administratorExists],
+  );
+
   const refreshUsers = useCallback(async () => {
     const filters: AdminStaffFilters = {};
     if (roleFilter) filters.role = roleFilter;
@@ -365,15 +316,11 @@ export default function UsersAndRolesPage() {
 
       await adminApi.users.invites.create(payload);
 
-      // Close + reset the modal immediately so the admin sees feedback.
       setInviteOpen(false);
       setInviteEmail('');
       setInviteName('');
       toast(`Invitation sent to ${inviteEmail}`);
 
-      // Refetch the real list. The backend is the source of truth —
-      // this replaces any optimistic state with real UUIDs so that
-      // Edit / Suspend / Delete all work on valid row IDs.
       const refreshed = await refreshUsers();
       setUsers(refreshed);
     } catch (err) {
@@ -458,9 +405,6 @@ export default function UsersAndRolesPage() {
   const savePermissions = async () => {
     setSaving(true);
     try {
-      // The backend serializer skips the Administrator column on save —
-      // it stays locked regardless of what the client sends. Sending the
-      // full matrix keeps the payload shape simple.
       await adminApi.users.permissions.save({ permissions });
       toast('Permission matrix saved');
     } catch (err) {
@@ -480,7 +424,6 @@ export default function UsersAndRolesPage() {
     }
   };
 
-  // ── Badges ──────────────────────────────────────────────────────────────
   const statusBadge = (s: UserStatus) =>
     s === 'Active'
       ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
@@ -493,12 +436,8 @@ export default function UsersAndRolesPage() {
     return r?.color ?? 'bg-slate-50 text-slate-700 border-slate-200';
   };
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // Render
-  // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-      {/* Toast */}
       {toastMessage && (
         <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -512,13 +451,12 @@ export default function UsersAndRolesPage() {
         </div>
       )}
 
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Users & Roles</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Staff accounts and store-operation permissions — separate from customers
+              Staff accounts and store-operation permissions
             </p>
           </div>
           <button
@@ -530,8 +468,7 @@ export default function UsersAndRolesPage() {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="max-w-[1600px] mx-auto px-3 flex items-center gap-0.5 border-t border-slate-100 pt-2 overflow-x-auto">
+        <div className="max-w-[1700px] mx-auto px-2 flex items-center gap-0.5 border-t border-slate-100 pt-2 overflow-x-auto">
           {[
             { id: 'users' as const, label: 'Staff users', icon: UsersIcon, count: users.length },
             { id: 'roles' as const, label: 'Roles', icon: Shield, count: roles.length },
@@ -562,28 +499,15 @@ export default function UsersAndRolesPage() {
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-        {/* Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
-          <UserCircle className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
-          <div className="text-[13px]">
-            <p className="font-medium text-blue-950">System users vs Customers</p>
-            <p className="text-blue-800 mt-0.5">
-              System users are <span className="font-medium">staff members</span> who operate the dashboard.
-              Buyers are managed separately in the <span className="font-medium">Customers</span> section of the CRM.
-              Customer accounts are read-only and cannot access staff tools.
-            </p>
-          </div>
-        </div>
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
+        
 
-        {/* Load error */}
         {loadError && (
           <div className="bg-red-50 border border-red-200 rounded-sm p-2 text-[13px] text-red-700">
             {loadError}
           </div>
         )}
 
-        {/* Loading skeleton */}
         {loading && (
           <div className="bg-white border border-slate-200 rounded-sm p-8 flex items-center justify-center gap-2 text-slate-500 text-[13px]">
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -591,10 +515,9 @@ export default function UsersAndRolesPage() {
           </div>
         )}
 
-        {/* ── Users Tab ────────────────────────────────────────────────── */}
         {!loading && activeTab === 'users' && (
           <>
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+            <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
               <div className="relative flex-1">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -631,7 +554,7 @@ export default function UsersAndRolesPage() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-              <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <p className="text-[13px] font-medium text-slate-700">Staff accounts</p>
                 <p className="text-[13px] text-slate-500">
                   {totalUsersInFilter} staff
@@ -641,12 +564,12 @@ export default function UsersAndRolesPage() {
                 <table className="w-full text-left border-collapse text-[13px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                      <th className="py-2 px-3 font-medium">User</th>
-                      <th className="py-2 px-3 font-medium">Department</th>
-                      <th className="py-2 px-3 font-medium">Role</th>
-                      <th className="py-2 px-3 font-medium">Status</th>
-                      <th className="py-2 px-3 font-medium">Last login</th>
-                      <th className="py-2 px-3 w-56"></th>
+                      <th className="py-2 px-2 font-medium">User</th>
+                      <th className="py-2 px-2 font-medium">Department</th>
+                      <th className="py-2 px-2 font-medium">Role</th>
+                      <th className="py-2 px-2 font-medium">Status</th>
+                      <th className="py-2 px-2 font-medium">Last login</th>
+                      <th className="py-2 px-2 w-56"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -659,9 +582,9 @@ export default function UsersAndRolesPage() {
                     ) : (
                       users.map((usr) => (
                         <tr key={usr.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-blue-950 text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
                                 {initialsOf(usr.name, usr.email)}
                               </div>
                               <div className="min-w-0">
@@ -670,8 +593,8 @@ export default function UsersAndRolesPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="py-2 px-3 text-slate-600">{usr.department}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2 text-slate-600">{usr.department}</td>
+                          <td className="py-2 px-2">
                             <span
                               className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${roleBadgeColor(
                                 usr.role,
@@ -680,7 +603,7 @@ export default function UsersAndRolesPage() {
                               {usr.role}
                             </span>
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border ${statusBadge(
                                 usr.status,
@@ -697,8 +620,8 @@ export default function UsersAndRolesPage() {
                               {usr.status}
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-slate-500">{usr.lastLogin}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2 text-slate-500">{usr.lastLogin}</td>
+                          <td className="py-2 px-2">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 onClick={() => openEdit(usr)}
@@ -737,9 +660,8 @@ export default function UsersAndRolesPage() {
           </>
         )}
 
-        {/* ── Roles Tab ────────────────────────────────────────────────── */}
         {!loading && activeTab === 'roles' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="bg-white border border-slate-200 rounded-sm p-2">
               <p className="text-[13px] font-semibold text-slate-900">Role catalogue</p>
               <p className="text-[13px] text-slate-500">
@@ -747,7 +669,7 @@ export default function UsersAndRolesPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
               {roles.map((role) => {
                 const Icon = role.icon;
                 return (
@@ -786,7 +708,7 @@ export default function UsersAndRolesPage() {
                       </span>
                       <button
                         onClick={() => setActiveTab('permissions')}
-                        className="px-3 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px] transition"
+                        className="px-2 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px] transition"
                       >
                         View permissions
                       </button>
@@ -798,9 +720,8 @@ export default function UsersAndRolesPage() {
           </div>
         )}
 
-        {/* ── Permissions Tab ──────────────────────────────────────────── */}
         {!loading && activeTab === 'permissions' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div>
                 <p className="text-[13px] font-semibold text-slate-900">Permission matrix</p>
@@ -857,7 +778,7 @@ export default function UsersAndRolesPage() {
                           );
                           return (
                             <tr key={row.module} className="hover:bg-slate-50">
-                              <td className="py-2 px-3 font-medium text-slate-800 sticky left-0 bg-white z-10">
+                              <td className="py-2 px-2 font-medium text-slate-800 sticky left-0 bg-white z-10">
                                 {row.module}
                               </td>
                               {ALL_ROLES_INCLUDING_CUSTOMER.map((role) => {
@@ -923,14 +844,13 @@ export default function UsersAndRolesPage() {
         )}
       </main>
 
-      {/* ── Invite Modal ──────────────────────────────────────────────── */}
       {inviteOpen && (
         <Modal
           onClose={closeAll}
           title="Invite staff member"
           subtitle="Send an email invitation to access the dashboard"
         >
-          <form onSubmit={sendInvite} className="space-y-3 text-[13px]">
+          <form onSubmit={sendInvite} className="space-y-2 text-[13px]">
             <Field
               label="Full name"
               value={inviteName}
@@ -954,7 +874,7 @@ export default function UsersAndRolesPage() {
                   onChange={(e) => setInviteRole(e.target.value as AdminStaffUserRole)}
                   className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 >
-                  {STAFF_ROLES.map((r) => (
+                  {assignableRoles.map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
@@ -1006,14 +926,13 @@ export default function UsersAndRolesPage() {
         </Modal>
       )}
 
-      {/* ── Edit Modal ────────────────────────────────────────────────── */}
       {editOpen && selectedUser && (
         <Modal
           onClose={closeAll}
           title="Edit staff account"
           subtitle="Modify role, department, or status"
         >
-          <form onSubmit={saveUserEdit} className="space-y-3 text-[13px]">
+          <form onSubmit={saveUserEdit} className="space-y-2 text-[13px]">
             <Field
               label="Full name"
               value={selectedUser.name}
@@ -1029,7 +948,7 @@ export default function UsersAndRolesPage() {
                 className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[13px] text-slate-500 cursor-not-allowed"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block font-medium text-slate-700 mb-1">Assigned role</label>
                 <select
@@ -1042,7 +961,12 @@ export default function UsersAndRolesPage() {
                   }
                   className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 >
-                  {STAFF_ROLES.map((r) => (
+                  {STAFF_ROLES.filter(
+                    (r) =>
+                      r !== 'Administrator' ||
+                      selectedUser.role === 'Administrator' ||
+                      !administratorExists,
+                  ).map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
@@ -1102,10 +1026,9 @@ export default function UsersAndRolesPage() {
         </Modal>
       )}
 
-      {/* ── Delete Confirm ────────────────────────────────────────────── */}
       {deleteOpen && userToDelete && (
         <Modal onClose={closeAll} maxWidth="max-w-md">
-          <div className="text-center space-y-3 text-[13px]">
+          <div className="text-center space-y-2 text-[13px]">
             <div className="w-10 h-10 rounded-sm bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <ShieldAlert className="w-5 h-5" />
             </div>
@@ -1142,9 +1065,6 @@ export default function UsersAndRolesPage() {
   );
 }
 
-/* ───────────────────────────────────────────────────────────────────────── */
-/* Reusable Modal                                                            */
-/* ───────────────────────────────────────────────────────────────────────── */
 function Modal({
   children,
   onClose,
@@ -1168,7 +1088,7 @@ function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
+          <div className="flex items-start justify-between px-2 py-2 border-b border-slate-200 shrink-0">
             <div className="min-w-0">
               <h3 className="text-[15px] font-semibold text-slate-900 truncate">
                 {title}
@@ -1193,9 +1113,6 @@ function Modal({
   );
 }
 
-/* ───────────────────────────────────────────────────────────────────────── */
-/* Reusable Field                                                            */
-/* ───────────────────────────────────────────────────────────────────────── */
 function Field({
   label,
   value,

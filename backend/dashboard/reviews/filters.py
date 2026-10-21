@@ -1,13 +1,3 @@
-"""
-Filters for the admin review list.
-
-The frontend sends Title Case status values (`Pending`, `Approved`,
-`Rejected`) — the model uses lowercase (`pending`, `published`,
-`rejected`). The `status` filter maps between them so the API contract
-stays frontend-friendly while the DB stays consistent with the rest of
-the codebase.
-"""
-
 from django.db.models import Q
 from django_filters import rest_framework as filters
 
@@ -15,25 +5,13 @@ from account.models import Review
 
 
 STATUS_FRONTEND_TO_DB = {
-    "pending": Review.Status.PENDING,        # "Pending"
-    "approved": Review.Status.PUBLISHED,     # "Approved" → published
-    "rejected": Review.Status.REJECTED,      # "Rejected"
+    "pending": Review.Status.PENDING,
+    "approved": Review.Status.PUBLISHED,
+    "rejected": Review.Status.REJECTED,
 }
 
 
 class ReviewFilter(filters.FilterSet):
-    """
-    Query params accepted by `GET /api/v1/admin/reviews/`:
-
-        status    = all | Pending | Approved | Rejected
-        rating    = 1..5
-        verified  = true | false
-        flagged   = true | false
-        search    = free text against customer, product, body
-
-    Every filter is optional. Missing → no filter.
-    """
-
     status = filters.CharFilter(method="filter_status")
     rating = filters.NumberFilter(field_name="rating")
     verified = filters.BooleanFilter(field_name="is_verified_purchase")
@@ -42,7 +20,7 @@ class ReviewFilter(filters.FilterSet):
 
     class Meta:
         model = Review
-        fields = []  # custom methods handle everything
+        fields = []
 
     def filter_status(self, qs, name, value):
         if not value or value.lower() == "all":

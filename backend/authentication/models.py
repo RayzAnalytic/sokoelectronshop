@@ -1,16 +1,13 @@
 import secrets
 from datetime import timedelta
 
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
 
 from .managers import UserManager
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# ENUMS
-# ══════════════════════════════════════════════════════════════════════════
 
 class Role(models.TextChoices):
     OWNER = "OWNER", "Owner"
@@ -24,18 +21,11 @@ class Status(models.TextChoices):
     PENDING = "PENDING", "Pending verification"
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# USER
-# ══════════════════════════════════════════════════════════════════════════
-
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, db_index=True)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
 
-    # Primary contact number. Used for checkout, addresses, and delivery.
-    # Indexed because the register flow checks "phone already in use?" on
-    # every signup — without an index, that's a full table scan.
     phone = models.CharField(max_length=32, blank=True, default="", db_index=True)
 
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
@@ -49,9 +39,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     google_sub = models.CharField(max_length=255, blank=True, default="", db_index=True)
 
-    # Set only when the user was created via an admin invite. Null for
-    # self-registered customers and Google signups. Answers "who invited
-    # this staff member?" without a join through UserInvite.
     invited_by = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -60,13 +47,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name="invited_users",
     )
 
-    # ── Communication preferences ──
     whatsapp_updates = models.BooleanField(default=True)
     email_promotions = models.BooleanField(default=True)
     sms_promotions = models.BooleanField(default=False)
     newsletter = models.BooleanField(default=False)
 
-    # ── Account deletion (soft-delete) ──
     deletion_requested_at = models.DateTimeField(null=True, blank=True)
 
     date_joined = models.DateTimeField(default=timezone.now)
@@ -75,13 +60,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []
+    # Prompted by `createsuperuser`; for `--noinput` read from
+    # DJANGO_SUPERUSER_FIRST_NAME / DJANGO_SUPERUSER_LAST_NAME.
+    REQUIRED_FIELDS = ["first_name", "last_name"]
 
     class Meta:
         indexes = [models.Index(fields=["role", "status"])]
         constraints = [
-            # Prevent two non-empty phones from colliding. Empty phones are
-            # allowed to repeat (Google-only signups that never set a phone).
             models.UniqueConstraint(
                 fields=["phone"],
                 condition=~models.Q(phone=""),
@@ -90,9 +75,20 @@ class User(AbstractBaseUser, PermissionsMixin):
         ]
 
     def __str__(self):
-        return self.email
+        return self.get_full_name()
 
-    # ── Role helpers ──
+    # ── Display name ─────────────────────────────────────────────
+    # Admin header uses `{% firstof user.get_short_name user.get_username %}`;
+    # Unfold / Jazzmin / Jet sidebars use `get_full_name`. Returning the
+    # email from these makes an empty name fall back to the email, which is
+    # the bug we're fixing. Prefer name → last_name → email.
+    def get_full_name(self) -> str:
+        full = f"{self.first_name} {self.last_name}".strip()
+        return full or self.email
+
+    def get_short_name(self) -> str:
+        return self.first_name or self.last_name or self.email
+
     @property
     def is_admin_role(self) -> bool:
         return self.role in (Role.OWNER, Role.STAFF)
@@ -101,62 +97,178 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_customer(self) -> bool:
         return self.role == Role.CUSTOMER
 
-    # ── Redirect target after login ──
-    # Serializers expose this as `redirect_to` (the API contract the
-    # frontend expects). The model keeps its original name so nothing
-    # internal breaks.
     @property
     def redirect_path(self) -> str:
         return "/admin" if self.is_admin_role else "/pages/account"
 
-    # ── Usability helpers ──
     @property
     def can_sign_in(self) -> bool:
         return self.is_active and self.status == Status.ACTIVE
 
     @property
     def has_usable_password(self) -> bool:
-        """False for Google-only users who have no password set."""
         return super().has_usable_password()
 
+    @property
+    def needs_email_verification(self) -> bool:
+        return not self.is_email_verified
 
-# ══════════════════════════════════════════════════════════════════════════
-# STAFF INVITATIONS
-# ══════════════════════════════════════════════════════════════════════════
+    def mark_email_verified(self) -> None:
+        if self.is_email_verified and self.status != Status.PENDING:
+            return
+
+        now = timezone.now()
+        fields: list[str] = []
+
+        if not self.is_email_verified:
+            self.is_email_verified = True
+            self.email_verified_at = now
+            fields += ["is_email_verified", "email_verified_at"]
+
+        if self.status == Status.PENDING:
+            self.status = Status.ACTIVE
+            fields.append("status")
+
+        if fields:
+            self.save(update_fields=fields)
+
+
+class EmailVerificationCode(models.Model):
+    CODE_LENGTH = 6
+    CODE_TTL = timedelta(minutes=10)
+    MAX_ATTEMPTS = 5
+    RESEND_COOLDOWN = timedelta(seconds=30)
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="email_verification_codes",
+    )
+
+    code_hash = models.CharField(max_length=128)
+    delivered_to = models.EmailField()
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    expires_at = models.DateTimeField(db_index=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    requested_ip = models.GenericIPAddressField(null=True, blank=True)
+    used_ip = models.GenericIPAddressField(null=True, blank=True)
+
+    provider_message_id = models.CharField(max_length=128, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["expires_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(used_at__isnull=True),
+                name="unique_active_email_code_per_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"EmailCode({self.user_id}, attempts={self.attempts}, used={bool(self.used_at)})"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_attempts_exhausted(self) -> bool:
+        return self.attempts >= self.MAX_ATTEMPTS
+
+    @property
+    def is_usable(self) -> bool:
+        return (
+            self.used_at is None
+            and not self.is_expired
+            and not self.is_attempts_exhausted
+        )
+
+    @property
+    def seconds_until_expiry(self) -> int:
+        return max(0, int((self.expires_at - timezone.now()).total_seconds()))
+
+    @classmethod
+    def issue(
+        cls,
+        user: User,
+        *,
+        ip: str | None = None,
+    ) -> tuple["EmailVerificationCode", str]:
+        now = timezone.now()
+
+        cls.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
+
+        plaintext = f"{secrets.randbelow(10 ** cls.CODE_LENGTH):0{cls.CODE_LENGTH}d}"
+
+        row = cls.objects.create(
+            user=user,
+            code_hash=make_password(plaintext),
+            delivered_to=user.email,
+            expires_at=now + cls.CODE_TTL,
+            requested_ip=ip,
+        )
+        return row, plaintext
+
+    def verify(self, code: str, *, ip: str | None = None) -> bool:
+        if not self.is_usable:
+            return False
+
+        self.attempts += 1
+
+        if not check_password(code, self.code_hash):
+            self.save(update_fields=["attempts"])
+            return False
+
+        now = timezone.now()
+        self.used_at = now
+        self.used_ip = ip
+        self.save(update_fields=["attempts", "used_at", "used_ip"])
+        return True
+
+    @classmethod
+    def seconds_until_resend_allowed(cls, user: User) -> int:
+        latest = (
+            cls.objects.filter(user=user)
+            .order_by("-created_at")
+            .values_list("created_at", flat=True)
+            .first()
+        )
+        if latest is None:
+            return 0
+
+        ready_at = latest + cls.RESEND_COOLDOWN
+        remaining = (ready_at - timezone.now()).total_seconds()
+        return max(0, int(remaining))
+
+    @classmethod
+    def purge_expired(cls) -> int:
+        cutoff = timezone.now() - timedelta(days=1)
+        deleted, _ = cls.objects.filter(expires_at__lt=cutoff).delete()
+        return deleted
+
 
 def generate_invite_token() -> str:
-    """Cryptographically strong URL-safe token (32 bytes → 43 chars)."""
     return secrets.token_urlsafe(32)
 
 
 class UserInvite(models.Model):
-    """
-    An invitation for someone to create a staff/owner account.
-
-    Created by an OWNER or STAFF user. Carries the intended role, the
-    email the invite was sent to, and a one-time token. The invited
-    person clicks a link containing the token; the backend reads the
-    role from this row — never from the client.
-
-    Two different register paths exist:
-      • Public customer register  → role hard-coded to CUSTOMER
-      • Staff invite accept       → role read from this row
-
-    The client cannot influence role in either case.
-    """
-
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
         ACCEPTED = "ACCEPTED", "Accepted"
         CANCELLED = "CANCELLED", "Cancelled"
         EXPIRED = "EXPIRED", "Expired"
 
-    # Who is being invited.
     email = models.EmailField(db_index=True)
 
-    # What role they'll get on acceptance. Restricted to admin roles —
-    # you cannot invite someone as CUSTOMER through this flow; use the
-    # public register endpoint for that.
     role = models.CharField(
         max_length=20,
         choices=[
@@ -165,10 +277,8 @@ class UserInvite(models.Model):
         ],
     )
 
-    # Optional display name to prefill on the acceptance form.
     invited_name = models.CharField(max_length=150, blank=True)
 
-    # One-time token. Unique. Never reused.
     token = models.CharField(
         max_length=64,
         unique=True,
@@ -176,7 +286,6 @@ class UserInvite(models.Model):
         default=generate_invite_token,
     )
 
-    # Lifecycle.
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -194,7 +303,6 @@ class UserInvite(models.Model):
     accepted_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
 
-    # Who accepted it (set at acceptance time — the User created from it).
     accepted_by = models.OneToOneField(
         User,
         on_delete=models.SET_NULL,
@@ -210,8 +318,6 @@ class UserInvite(models.Model):
             models.Index(fields=["status", "expires_at"]),
         ]
         constraints = [
-            # Only one PENDING invite per email at a time. Cancelled or
-            # accepted invites don't block a re-invite.
             models.UniqueConstraint(
                 fields=["email"],
                 condition=models.Q(status="PENDING"),
@@ -222,7 +328,6 @@ class UserInvite(models.Model):
     def __str__(self):
         return f"Invite({self.email} as {self.role}, {self.status})"
 
-    # ── Helpers ──
     @property
     def is_expired(self) -> bool:
         return timezone.now() >= self.expires_at
@@ -236,28 +341,11 @@ class UserInvite(models.Model):
         return timezone.now() + timedelta(days=7)
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# PASSWORD RESET TOKENS
-# ══════════════════════════════════════════════════════════════════════════
-
 def generate_reset_token() -> str:
     return secrets.token_urlsafe(32)
 
 
 class PasswordResetToken(models.Model):
-    """
-    A one-time token for resetting a user's password.
-
-    The frontend link is:
-        {FRONTEND_URL}/auth/reset-password?token=<token>
-
-    Only the `token` is sent in the URL — no `uid`. So we store the
-    user FK on this row and look it up server-side. This avoids leaking
-    the user ID in the email and keeps the URL short.
-
-    Tokens expire after 30 minutes and cannot be reused.
-    """
-
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -273,7 +361,6 @@ class PasswordResetToken(models.Model):
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
 
-    # Audit: which IP requested the reset (useful if abuse is suspected).
     requested_ip = models.GenericIPAddressField(null=True, blank=True)
 
     class Meta:

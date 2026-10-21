@@ -1,30 +1,3 @@
-# dashboard/discounts/views.py
-
-"""
-Dashboard discounts API.
-
-All routes are mounted under `/api/v1/admin/discounts/`. Every action
-requires `is_staff=True`. The storefront's public read path lives in
-`catalog/views/special_deals.py` and is unaffected by this module.
-
-Routes
-------
-GET    /                        list
-POST   /                        create
-GET    /<id>/                   retrieve
-PATCH  /<id>/                   partial update
-PUT    /<id>/                   full update
-DELETE /<id>/                   destroy
-POST   /<id>/duplicate/         copy
-POST   /<id>/pause/             freeze
-POST   /<id>/resume/            unfreeze
-GET    /slow_moving/            slow-mover candidates
-POST   /bulk_clearance/         apply clearance to N products
-POST   /upload_media/           upload image/video, returns { url }
-GET    /analytics/              KPIs + charts
-GET    /rules/                  rules metadata (static)
-"""
-
 from django.core.files.storage import default_storage
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -46,23 +19,7 @@ from .serializers import (
 )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Discounts CRUD + custom actions
-# ═════════════════════════════════════════════════════════════════════════════
 class DiscountAdminViewSet(viewsets.ModelViewSet):
-    """
-    The one viewset the React admin talks to for CRUD.
-
-    `get_serializer_class` picks between read/list/write shapes based on
-    the action. `get_queryset` uses `.with_links()` to prefetch M2M so
-    the read serializer's name lookups don't N+1.
-
-    `create` and `update` are overridden so the response uses
-    `DiscountReadSerializer`. Without the override, DRF would try to
-    serialize the saved instance with `DiscountWriteSerializer` — which
-    contains virtual fields (`appliesTo`) that don't exist on the model,
-    raising `AttributeError`.
-    """
     permission_classes = [IsStaff]
     lookup_field = "id"
 
@@ -80,7 +37,6 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
             return DiscountListSerializer
         return DiscountReadSerializer
 
-    # ── Create / update — return read shape ──────────────────────────
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -103,13 +59,8 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
         )
         return Response(read.data)
 
-    # ── Duplicate ────────────────────────────────────────────────────
     @action(detail=True, methods=["post"])
     def duplicate(self, request, id=None):
-        """
-        Copy a discount with a `-COPY` suffix and `Draft` status.
-        Returns the new instance in the same shape as `retrieve`.
-        """
         original = self.get_object()
         clone = services.duplicate_discount(original, user=request.user)
         return Response(
@@ -117,7 +68,6 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    # ── Pause / resume ───────────────────────────────────────────────
     @action(detail=True, methods=["post"])
     def pause(self, request, id=None):
         discount = self.get_object()
@@ -136,13 +86,8 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
             DiscountReadSerializer(discount, context={"request": request}).data
         )
 
-    # ── Slow stock / clearance ───────────────────────────────────────
     @action(detail=False, methods=["get"])
     def slow_moving(self, request):
-        """
-        Products eligible for clearance. Query params:
-          ?min_days=90&max_sales=5&min_stock=10
-        """
         try:
             min_days  = int(request.query_params.get("min_days", 90))
             max_sales = int(request.query_params.get("max_sales", 5))
@@ -160,13 +105,6 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"])
     def bulk_clearance(self, request):
-        """
-        Apply one clearance discount to N products.
-
-        Body:
-          { "product_ids": [...], "percent_off": 20,
-            "expires_when_sold_out": true, "title": "..." }
-        """
         product_ids = request.data.get("product_ids") or []
         percent_off = request.data.get("percent_off")
         expires     = request.data.get("expires_when_sold_out", True)
@@ -204,7 +142,6 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    # ── Media upload ─────────────────────────────────────────────────
     @action(
         detail=False,
         methods=["post"],
@@ -212,25 +149,6 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
         url_path="upload_media",
     )
     def upload_media(self, request):
-        """
-        Upload an image or video file for a discount's `image` or
-        `tiktok_video` field.
-
-        Saves to `MEDIA_ROOT/discounts/` and returns
-        `{ "url": "<absolute-url>" }`. The frontend's `MediaUploader`
-        calls this and stores the returned URL on the discount form, so
-        the value persisted in the DB is a real, fetchable URL — not a
-        browser-local `blob:` URL.
-
-        Validation:
-          * `file` must be present in the multipart body.
-          * Content type must start with `image/` or `video/`.
-          * Size must be ≤ 60 MB (matches the frontend's `MAX_VIDEO_MB`).
-
-        Returns:
-          201 with `{ "url": "http://host/media/discounts/<name>" }` on
-          success, or 400 with `{ "detail": "..." }` on any failure.
-        """
         file = request.FILES.get("file")
         if not file:
             return Response(
@@ -245,19 +163,15 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        max_bytes = 60 * 1024 * 1024  # 60 MB
+        max_bytes = 60 * 1024 * 1024
         if file.size > max_bytes:
             return Response(
                 {"detail": "File too large (max 60MB)."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # `default_storage` handles filename collisions by appending a
-        # random suffix — the saved path is guaranteed unique.
         path = default_storage.save(f"discounts/{file.name}", file)
 
-        # Return an absolute URL so the frontend can render it
-        # immediately, from any origin.
         url = default_storage.url(path)
         if request:
             url = request.build_absolute_uri(url)
@@ -265,16 +179,7 @@ class DiscountAdminViewSet(viewsets.ModelViewSet):
         return Response({"url": url}, status=status.HTTP_201_CREATED)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Analytics
-# ═════════════════════════════════════════════════════════════════════════════
 class AnalyticsView(APIView):
-    """
-    GET /api/v1/admin/discounts/analytics/
-
-    Query params:
-      ?window_days=30
-    """
     permission_classes = [IsStaff]
 
     def get(self, request):
@@ -287,16 +192,7 @@ class AnalyticsView(APIView):
         return Response(AnalyticsSerializer(data).data)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Rules metadata
-# ═════════════════════════════════════════════════════════════════════════════
 class RulesView(APIView):
-    """
-    GET /api/v1/admin/discounts/rules/
-
-    Returns the static condition + action metadata the Rules tab renders.
-    Becomes dynamic when a rule engine exists.
-    """
     permission_classes = [IsStaff]
 
     def get(self, request):

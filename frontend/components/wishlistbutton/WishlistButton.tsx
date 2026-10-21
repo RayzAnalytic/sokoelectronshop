@@ -1,4 +1,3 @@
-// components/WishlistButton.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -15,8 +14,6 @@ interface Props {
   unitPrice: number;
   compareAtPrice?: number | null;
   slug: string;
-  /** Catalog snapshot at the moment of saving. All optional — a caller
-   *  without them just produces a wishlist row with sensible defaults. */
   stock?: 'In Stock' | 'Low Stock' | 'Out of Stock';
   stockCount?: number;
   discountPercent?: number;
@@ -43,18 +40,12 @@ export function WishlistButton({
   rating,
   reviewCount,
 }: Props) {
-  // Auth state — cached across the app, one request total.
   const { me } = useAuth();
   const isSignedIn = me !== null;
 
-  // Reactive to the store — flipping any wishlist row anywhere
-  // updates every mounted button instantly.
   const isWishlisted = useWishlist((s) => s.has(variantId));
   const toggle = useWishlist((s) => s.toggle);
 
-  // Local pending state — disables the button while the request is
-  // in flight. The store itself updates optimistically, so the icon
-  // flips immediately; this just prevents a rapid double-click.
   const [busy, setBusy] = useState(false);
 
   const handleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -66,7 +57,6 @@ export function WishlistButton({
     try {
       await toggle(
         {
-          // camelCase props → snake_case entry
           variant_id: variantId,
           product_id: productId,
           product_name: name,
@@ -75,8 +65,6 @@ export function WishlistButton({
           product_slug: slug,
           unit_price: unitPrice,
           compare_at_price: compareAtPrice ?? null,
-          // Catalog snapshot — omitted fields fall back to
-          // model defaults on the backend.
           stock,
           stock_count: stockCount,
           discount_percent: discountPercent,
@@ -86,9 +74,6 @@ export function WishlistButton({
         isSignedIn,
       );
     } catch {
-      // Store already rolled back the optimistic update. No toast
-      // here — a failing toggle is not loud enough to warrant one,
-      // and the icon returning to its previous state is the signal.
     } finally {
       setBusy(false);
     }

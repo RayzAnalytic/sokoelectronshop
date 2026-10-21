@@ -136,12 +136,12 @@ export default function StoreLocator() {
 
     return (
         <section className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-6 bg-white" aria-label="Store Locator">
-            <div className="mb-3 bg-slate-50/80 px-3 py-2 rounded-sm border border-slate-200">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded-sm">
+            <div className="mb-2 bg-slate-50/80 px-3 py-2 rounded-sm border border-slate-200">
+                <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-600 px-2 py-0.5 rounded-sm">
                     Locations
                 </span>
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1.5">Visit Our Stores</h2>
-                <p className="text-xs text-slate-600 mt-0.5 max-w-xl">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Visit Our Stores</h2>
+                <p className="text-sm text-slate-600 max-w-xl">
                     Find a TechHub location near you for expert support, hands-on device testing, and seamless shopping.
                 </p>
             </div>
@@ -207,8 +207,6 @@ export default function StoreLocator() {
                         )}
                     </div>
                 </div>
-
-                {/* Store List Column */}
                 <div className="w-full lg:w-[35%] flex flex-col">
                     <div className="mb-3 relative">
                         <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
@@ -217,7 +215,7 @@ export default function StoreLocator() {
                             placeholder="Search by city or store name..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full rounded-sm border border-slate-200 bg-slate-50/50 pl-9 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white transition-all"
+                            className="w-full rounded border border-slate-200 bg-slate-50/50 pl-9 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white transition-all"
                         />
                     </div>
 
@@ -239,7 +237,7 @@ export default function StoreLocator() {
                                                 onClick={() => handleSelectStore(store)}
                                                 className={`w-full text-left rounded-sm border px-3 py-2 transition-all duration-150 flex flex-col gap-3 ${
                                                     isActive
-                                                        ? "border-slate-900 bg-slate-50/90 shadow-xs"
+                                                        ? "border-blue-300 bg-slate-50/90 shadow-xs"
                                                         : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/40"
                                                 }`}
                                             >
@@ -252,7 +250,7 @@ export default function StoreLocator() {
                                                         <h3 className="text-xs font-bold text-slate-900 mt-0.5">{store.name}</h3>
                                                     </div>
                                                     <span
-                                                        className={`px-2 py-0.5 rounded-sm text-[9px] font-semibold shrink-0 ${
+                                                        className={`px-2 py-0.5 rounded text-[11px] font-semibold shrink-0 ${
                                                             store.status === "flagship"
                                                                 ? "bg-slate-900 text-white"
                                                                 : "bg-slate-100 text-slate-700"

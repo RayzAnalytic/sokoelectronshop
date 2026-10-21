@@ -1,15 +1,6 @@
-# discounts/services.py
-
-"""
-Business logic for the dashboard discounts API.
-
-Pure Python — no HTTP, no serializers, no request objects. Views call
-these functions; tests call them directly. All enum translation lives
-in serializers.py; all persistence lives in catalog.models.
-"""
-
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 
@@ -26,48 +17,19 @@ from catalog.models import (
 )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Resolvers — React form values → model instances
-# ═════════════════════════════════════════════════════════════════════════════
 def resolve_categories(names: list[str] | None) -> list[Category]:
-    """
-    Category NAMES → Category instances.
-
-    The React form sends `['TVs', 'Laptops']`. The M2M wants PKs. This
-    is the only place the translation happens.
-
-    Unknown or inactive names are silently skipped — the frontend may
-    have a stale list. The write serializer validates the resulting
-    count against the input count when it matters.
-    """
     if not names:
         return []
     return list(Category.objects.filter(name__in=names, is_active=True))
 
 
 def resolve_products(names: list[str] | None) -> list[Product]:
-    """
-    Product NAMES → Product instances.
-
-    Same pattern as `resolve_categories`. The React stub sends product
-    names; the M2M wants IDs.
-    """
     if not names:
         return []
     return list(Product.objects.filter(name__in=names, is_active=True))
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Status transitions
-# ═════════════════════════════════════════════════════════════════════════════
 def pause_discount(discount: Discount) -> Discount:
-    """
-    Freeze a discount regardless of its date window.
-
-    Sets `status_override = 'Paused'`. The model's `status` property
-    checks `status_override` first, so a paused discount reads as
-    Paused even if the date window says Active.
-    """
     if discount.status_override == "Paused":
         return discount
     discount.status_override = "Paused"
@@ -76,9 +38,6 @@ def pause_discount(discount: Discount) -> Discount:
 
 
 def resume_discount(discount: Discount) -> Discount:
-    """
-    Clear the pause. Status reverts to date-driven.
-    """
     if discount.status_override != "Paused":
         return discount
     discount.status_override = ""
@@ -86,26 +45,17 @@ def resume_discount(discount: Discount) -> Discount:
     return discount
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Duplicate
-# ═════════════════════════════════════════════════════════════════════════════
 @transaction.atomic
 def duplicate_discount(discount: Discount, *, user=None) -> Discount:
-    """
-    Clone a discount with a `-COPY` code suffix and reset counters.
+    base_code = f"{discount.code}-COPY"
+    code = base_code
+    suffix = 1
+    while Discount.objects.filter(code=code).exists():
+        suffix += 1
+        code = f"{base_code}-{suffix}"
 
-    The clone:
-      * `status_override = 'Draft'` — never goes live accidentally
-      * `usage_count = 0`
-      * `display_on_deals_page = False` — safe default, admin must opt in
-      * M2M links copied
-      * `created_by` set to the requesting user
-
-    `code` gets `-COPY` appended. If that collides (unlikely), the
-    IntegrityError propagates and the caller should generate a new code.
-    """
     clone = Discount.objects.create(
-        code=f"{discount.code}-COPY",
+        code=code,
         description=discount.description,
         type=discount.type,
         value=discount.value,
@@ -140,17 +90,7 @@ def duplicate_discount(discount: Discount, *, user=None) -> Discount:
     return clone
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Slow stock / clearance
-# ═════════════════════════════════════════════════════════════════════════════
 def get_slow_moving_candidates(*, min_days=90, max_sales=5, min_stock=10):
-    """
-    Products eligible for clearance: listed a long time, barely sold,
-    still in stock, and NOT already under an active clearance discount.
-
-    The exclusion stops ops from double-discounting a product that
-    already has a clearance running.
-    """
     slow = (
         Product.objects.active()
         .slow_moving(min_days=min_days, max_sales=max_sales, min_stock=min_stock)
@@ -180,23 +120,6 @@ def apply_bulk_clearance(
     expires_when_sold_out: bool = True,
     title: str | None = None,
 ) -> Discount:
-    """
-    Create one automatic clearance discount linked to N slow-moving
-    products.
-
-    Called by the "Clear Slow Stock" wizard. The resulting discount:
-      * `is_automatic=True`   → applies without a code
-      * `is_clearance=True`   → "Clearance" badge on the storefront
-      * `source=CLEARANCE`    → shows up in the clearance filter
-      * `end_date=None`       → runs until stock runs out
-      * `applies_to=SPECIFIC_PRODUCTS`, linked to chosen products
-
-    `code` is `CLEAR-<YYYYMMDDHHMMSS>` so the admin table has something
-    readable. Uniqueness is guaranteed by the timestamp at second
-    resolution plus a random suffix.
-    """
-    import uuid
-
     if not product_ids:
         raise ValueError("At least one product_id is required.")
     if not (1 <= percent_off <= 90):
@@ -223,10 +146,10 @@ def apply_bulk_clearance(
         value=f"{percent_off}%",
         min_order=0,
         max_cap=0,
-        usage_limit=0,        # unlimited while stock lasts
-        per_customer=0,       # 0 = no per-customer cap
+        usage_limit=0,
+        per_customer=0,
         start_date=timezone.now(),
-        end_date=None,        # open-ended
+        end_date=None,
         applies_to=AppliesTo.SPECIFIC_PRODUCTS,
         eligibility="All Customers",
         target_audience="All People & Customers",
@@ -247,22 +170,10 @@ def apply_bulk_clearance(
     return discount
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Analytics
-# ═════════════════════════════════════════════════════════════════════════════
 def build_analytics(*, window_days: int = 30) -> dict:
-    """
-    Aggregates for the Analytics tab.
-
-    Currently returns shape-correct STATIC data plus a few real counts.
-    When `checkout.Order` starts recording `discount_code` and
-    `discount_amount`, swap the placeholders for real aggregations —
-    the JSON shape stays the same, so the frontend doesn't change.
-    """
     active_count = Discount.objects.active().count()
     total_redemptions = sum(Discount.objects.values_list("usage_count", flat=True))
 
-    # Placeholder math until orders record discount amounts.
     assumed_aov = Decimal("1540")
     revenue = Decimal(total_redemptions) * assumed_aov
     discount_given = revenue * Decimal("0.12")
@@ -314,14 +225,7 @@ def build_analytics(*, window_days: int = 30) -> dict:
     }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Rules metadata (static for now)
-# ═════════════════════════════════════════════════════════════════════════════
 def get_rules_metadata() -> dict:
-    """
-    Static metadata for the Rules tab. Becomes real once a rule engine
-    exists. Returns the shape the frontend already renders.
-    """
     return {
         "conditions": [
             {"name": "Cart Value", "example": "Cart ≥ KES 5,000"},

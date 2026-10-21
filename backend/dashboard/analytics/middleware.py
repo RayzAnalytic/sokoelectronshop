@@ -6,12 +6,10 @@ MOBILE_RE = re.compile(r"Android|iPhone|iPod|BlackBerry|IEMobile|Opera Mini", re
 TABLET_RE = re.compile(r"iPad|Tablet|Nexus 7|Nexus 10|KFAPWI", re.I)
 BOT_RE = re.compile(r"bot|crawler|spider|crawling|slurp|bingpreview", re.I)
 
-# Only log real storefront routes — skip admin, static, api, etc.
 SKIP_PREFIXES = ("/admin", "/static", "/media", "/api", "/_next", "/favicon")
 
 
 class PageViewMiddleware(MiddlewareMixin):
-    """Log one PageView row per storefront request. Fail-silent."""
 
     def process_request(self, request):
         try:
@@ -41,6 +39,5 @@ class PageViewMiddleware(MiddlewareMixin):
                 referrer=(request.META.get("HTTP_REFERER", "") or "")[:255],
             )
         except Exception:
-            # Never let analytics break a page load
             pass
         return None

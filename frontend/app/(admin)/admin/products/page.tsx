@@ -5,7 +5,7 @@ import {
   Plus, Search, MoreVertical, Edit, Copy, ExternalLink, Trash2,
   ChevronDown, X, AlertTriangle, Check, LayoutGrid, List as ListIcon,
   ArrowUpDown, Package, Tag, Layers, Palette, Ruler, DollarSign, Warehouse,
-  FileText, Image as ImageIcon, Video, Star, Box, Upload, Loader2,
+  FileText, Image as ImageIcon, Video, Star, Box, Upload, Loader2, Award,
 } from 'lucide-react';
 import AddProductModal from '@/components/admin/AddProductModal';
 import BulkUploadModal, {
@@ -20,7 +20,6 @@ import type {
   AdminProductWrite,
 } from '@/lib/admin-types';
 
-// --- TYPES ---
 type ProductStatus = 'Published' | 'Draft' | 'Archived';
 type ViewMode = 'table' | 'cards';
 type InventoryStatus = 'In Stock' | 'Low Stock' | 'Out of Stock' | 'Backorder';
@@ -55,6 +54,7 @@ interface Product {
   image: string;
   video?: string;
   featured: boolean;
+  bestSeller: boolean;
   variants: ProductVariant[];
   variantOptions: { name: string; values: string[] }[];
 }
@@ -68,9 +68,6 @@ const formatKES = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Mapping helpers — the only place the price semantics flip
-// ═══════════════════════════════════════════════════════════════════════════
 function computeInventoryStatus(
   qty: number,
   threshold: number,
@@ -84,15 +81,13 @@ function apiToProduct(p: AdminProduct): Product {
   const priceNum = parseFloat(p.price);
   const compareNum = p.compare_at_price ? parseFloat(p.compare_at_price) : null;
 
-  // Backend: price = selling price, compare_at_price = crossed-out price.
-  // Frontend: price = crossed-out price, salePrice = selling price.
   const displayPrice = compareNum ?? priceNum;
   const displaySale = compareNum && compareNum > priceNum ? priceNum : undefined;
 
   return {
     id: p.id,
     name: p.name,
-    sku: p.id, // backend has no SKU — use the product id as a stable label
+    sku: p.id,
     description: p.description,
     shortDescription: p.description,
     category: p.category.name,
@@ -114,6 +109,7 @@ function apiToProduct(p: AdminProduct): Product {
     status: p.is_active ? 'Published' : 'Draft',
     image: p.images[0]?.url || '/placeholder.png',
     featured: p.featured,
+    bestSeller: p.best_seller,
     variantOptions: [],
     variants: [],
   };
@@ -137,7 +133,7 @@ function productToApi(
     stock_quantity: p.stock ?? 0,
     low_stock_threshold: p.lowStockThreshold ?? 5,
     featured: p.featured ?? false,
-    best_seller: false,
+    best_seller: p.bestSeller ?? false,
     sales_volume: '',
     is_active: p.status !== 'Draft' && p.status !== 'Archived',
     images: p.image
@@ -148,9 +144,6 @@ function productToApi(
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Page
-// ═══════════════════════════════════════════════════════════════════════════
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [brands, setBrands] = useState<AdminBrandRef[]>([]);
@@ -168,6 +161,7 @@ export default function ProductsPage() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openKebabId, setOpenKebabId] = useState<string | null>(null);
+  const [togglingBestSellerId, setTogglingBestSellerId] = useState<string | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -188,7 +182,6 @@ export default function ProductsPage() {
     setTimeout(() => setToast(''), 2500);
   }, []);
 
-  // ── Initial load ──
   const refresh = useCallback(async () => {
     try {
       const [rows, brandList, categoryList] = await Promise.all([
@@ -215,18 +208,15 @@ export default function ProductsPage() {
     refresh();
   }, [refresh]);
 
-  // Close kebab when clicking elsewhere
   useEffect(() => {
     const onDoc = () => setOpenKebabId(null);
     if (openKebabId) document.addEventListener('click', onDoc);
     return () => document.removeEventListener('click', onDoc);
   }, [openKebabId]);
 
-  // ── Helpers for save flows ──
   const resolveBrandId = (name: string): number => {
     const hit = brands.find((b) => b.name === name);
     if (hit) return hit.id;
-    // Fallback: if the modal sent a name we don't know, use the first brand.
     return brands[0]?.id ?? 0;
   };
 
@@ -236,7 +226,6 @@ export default function ProductsPage() {
     return categories[0]?.id ?? 0;
   };
 
-  // ── Filter + sort ──
   const filtered = useMemo(() => {
     return products
       .filter((p) => {
@@ -271,13 +260,11 @@ export default function ProductsPage() {
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
 
-  // ── Delete ──
   const confirmDelete = async () => {
     if (!deleteProductId) return;
     const id = deleteProductId;
     setDeleteProductId(null);
 
-    // Optimistic.
     const previous = products;
     setProducts((prev) => prev.filter((p) => p.id !== id));
 
@@ -311,7 +298,38 @@ export default function ProductsPage() {
     }
   };
 
-  // ── Duplicate ──
+  const handleToggleBestSeller = async (product: Product) => {
+    if (togglingBestSellerId) return;
+    setOpenKebabId(null);
+    setTogglingBestSellerId(product.id);
+
+    const next = !product.bestSeller;
+    const previous = products;
+
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === product.id ? { ...p, bestSeller: next } : p,
+      ),
+    );
+
+    try {
+      const updated = await adminApi.products.toggleBestSeller(product.id);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? apiToProduct(updated) : p)),
+      );
+      flash(next ? 'Marked as best seller.' : 'Removed from best sellers.');
+    } catch (err) {
+      setProducts(previous);
+      flash(
+        err instanceof ApiError
+          ? err.message || 'Could not update best seller status.'
+          : 'Could not update best seller status.',
+      );
+    } finally {
+      setTogglingBestSellerId(null);
+    }
+  };
+
   const confirmDuplicate = async () => {
     if (!duplicateProduct) return;
     const source = duplicateProduct;
@@ -326,6 +344,7 @@ export default function ProductsPage() {
           ...source,
           name: `${source.name} (Copy)`,
           status: 'Draft',
+          bestSeller: false,
         },
         brandId,
         categoryId,
@@ -345,7 +364,6 @@ export default function ProductsPage() {
     }
   };
 
-  // ── Create (Add Product modal) ──
   const handleCreate = async (data: any) => {
     setSaving(true);
     try {
@@ -366,6 +384,7 @@ export default function ProductsPage() {
           status: data.status === 'draft' ? 'Draft' : 'Published',
           image: data.images?.[0] || '/placeholder.png',
           featured: !!data.featured,
+          bestSeller: false,
         },
         brandId,
         categoryId,
@@ -386,7 +405,6 @@ export default function ProductsPage() {
     }
   };
 
-  // ── Update (quick edit) ──
   const handleUpdate = async () => {
     if (!editProduct) return;
     const product = editProduct;
@@ -414,7 +432,6 @@ export default function ProductsPage() {
     }
   };
 
-  // ── Bulk import ──
   const handleBulkImport = async (rows: ImportedProduct[]) => {
     if (rows.length === 0) return;
     setSaving(true);
@@ -431,9 +448,6 @@ export default function ProductsPage() {
         const apiPrice = salePrice ?? price;
         const apiCompare = salePrice ? price : null;
 
-        // Use the row's image when present, fall back to the placeholder
-        // otherwise. The modal validates the URL format (must start with
-        // https:// or /) before the row is importable.
         const imageUrl = row.image && row.image.trim()
           ? row.image.trim()
           : '/placeholder.png';
@@ -500,9 +514,8 @@ export default function ProductsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-      {/* PAGE HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Products</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -516,7 +529,7 @@ export default function ProductsPage() {
             <button
               onClick={() => setBulkOpen(true)}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
             >
               <Upload className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Bulk upload</span>
@@ -543,7 +556,7 @@ export default function ProductsPage() {
             <button
               onClick={() => setAddOpen(true)}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition disabled:opacity-60"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add product</span>
@@ -552,17 +565,15 @@ export default function ProductsPage() {
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-        {/* LOAD ERROR */}
+      <main className="max-w-[1700px] mx-auto px-0.5 py-3 space-y-2">
         {loadError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-[13px] flex items-center gap-2">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-[13px] flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             {loadError}
           </div>
         )}
 
-        {/* FILTER BAR */}
-        <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -570,7 +581,7 @@ export default function ProductsPage() {
               placeholder="Search products by name or SKU…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
           </div>
 
@@ -624,7 +635,6 @@ export default function ProductsPage() {
           </div>
         </div>
 
-        {/* BULK ACTIONS */}
         {selectedIds.length > 0 && (
           <div className="bg-blue-950 text-white rounded-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-[13px]">
@@ -663,7 +673,6 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* LOADING */}
         {isLoading ? (
           <div className="bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-500 text-[13px]">
             <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
@@ -720,6 +729,7 @@ export default function ProductsPage() {
                             ? 'bg-slate-100 text-slate-700 border-slate-200'
                             : 'bg-amber-50 text-amber-700 border-amber-100';
                       const isKebabOpen = openKebabId === p.id;
+                      const isToggling = togglingBestSellerId === p.id;
 
                       return (
                         <tr
@@ -748,6 +758,15 @@ export default function ProductsPage() {
                               </span>
                               {p.featured && (
                                 <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+                              )}
+                              {p.bestSeller && (
+                                <span
+                                  className="inline-flex shrink-0"
+                                  title="Best seller"
+                                  aria-label="Best seller"
+                                >
+                                  <Award className="w-3 h-3 text-blue-950" />
+                                </span>
                               )}
                             </div>
                           </td>
@@ -787,13 +806,19 @@ export default function ProductsPage() {
                                 e.stopPropagation();
                                 setOpenKebabId(isKebabOpen ? null : p.id);
                               }}
-                              className="p-1.5 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition"
+                              disabled={isToggling}
+                              className="p-1.5 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition disabled:opacity-50"
                             >
-                              <MoreVertical className="w-4 h-4" />
+                              {isToggling ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <MoreVertical className="w-4 h-4" />
+                              )}
                             </button>
 
                             {isKebabOpen && (
                               <KebabMenu
+                                isBestSeller={p.bestSeller}
                                 onEdit={() => {
                                   setOpenKebabId(null);
                                   setEditProduct(p);
@@ -806,6 +831,7 @@ export default function ProductsPage() {
                                   setOpenKebabId(null);
                                   setViewProduct(p);
                                 }}
+                                onToggleBestSeller={() => handleToggleBestSeller(p)}
                                 onDelete={() => {
                                   setOpenKebabId(null);
                                   setDeleteProductId(p.id);
@@ -831,6 +857,7 @@ export default function ProductsPage() {
                     ? 'bg-amber-50 text-amber-700 border-amber-200'
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200';
               const isKebabOpen = openKebabId === p.id;
+              const isToggling = togglingBestSellerId === p.id;
 
               return (
                 <div
@@ -852,6 +879,12 @@ export default function ProductsPage() {
                         Featured
                       </span>
                     )}
+                    {p.bestSeller && (
+                      <span className="absolute bottom-2 left-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                        <Award className="w-3 h-3" />
+                        Best seller
+                      </span>
+                    )}
                   </div>
 
                   <div className="space-y-1">
@@ -865,13 +898,19 @@ export default function ProductsPage() {
                             e.stopPropagation();
                             setOpenKebabId(isKebabOpen ? null : p.id);
                           }}
-                          className="p-1 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition"
+                          disabled={isToggling}
+                          className="p-1 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition disabled:opacity-50"
                         >
-                          <MoreVertical className="w-4 h-4" />
+                          {isToggling ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <MoreVertical className="w-4 h-4" />
+                          )}
                         </button>
                         {isKebabOpen && (
                           <KebabMenu
                             align="right"
+                            isBestSeller={p.bestSeller}
                             onEdit={() => {
                               setOpenKebabId(null);
                               setEditProduct(p);
@@ -884,6 +923,7 @@ export default function ProductsPage() {
                               setOpenKebabId(null);
                               setViewProduct(p);
                             }}
+                            onToggleBestSeller={() => handleToggleBestSeller(p)}
                             onDelete={() => {
                               setOpenKebabId(null);
                               setDeleteProductId(p.id);
@@ -925,14 +965,12 @@ export default function ProductsPage() {
         )}
       </main>
 
-      {/* ADD PRODUCT MODAL */}
       <AddProductModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSave={handleCreate}
       />
 
-      {/* BULK UPLOAD MODAL */}
       <BulkUploadModal
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
@@ -941,7 +979,6 @@ export default function ProductsPage() {
         categories={categories}
       />
 
-      {/* DELETE CONFIRM */}
       {deleteProductId && (
         <Popup onClose={() => setDeleteProductId(null)}>
           <div className="flex items-center gap-2">
@@ -972,7 +1009,6 @@ export default function ProductsPage() {
         </Popup>
       )}
 
-      {/* QUICK EDIT */}
       {editProduct && (
         <Popup onClose={() => setEditProduct(null)}>
           <div className="flex items-center justify-between mb-2">
@@ -1120,7 +1156,6 @@ export default function ProductsPage() {
         </Popup>
       )}
 
-      {/* VIEW PRODUCT DRAWER */}
       {viewProduct && (
         <ProductDrawer
           product={viewProduct}
@@ -1128,7 +1163,6 @@ export default function ProductsPage() {
         />
       )}
 
-      {/* DUPLICATE */}
       {duplicateProduct && (
         <Popup onClose={() => setDuplicateProduct(null)}>
           <h3 className="text-[15px] font-semibold text-slate-900">
@@ -1166,12 +1200,10 @@ export default function ProductsPage() {
         </Popup>
       )}
 
-      {/* Backdrop when any modal is open */}
       {anyModalOpen && (
         <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm pointer-events-none" />
       )}
 
-      {/* Toast */}
       {toast && (
         <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-4 py-2.5 rounded-sm shadow-lg">
           {toast}
@@ -1181,7 +1213,6 @@ export default function ProductsPage() {
   );
 }
 
-/* ─────────────────────────── Product Drawer ─────────────────────────── */
 function ProductDrawer({
   product,
   onClose,
@@ -1241,6 +1272,11 @@ function ProductDrawer({
               {product.featured && (
                 <span className="text-[13px] font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
                   <Star className="w-3 h-3 fill-amber-700" /> Featured
+                </span>
+              )}
+              {product.bestSeller && (
+                <span className="text-[13px] font-medium bg-blue-50 text-blue-950 border border-blue-100 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                  <Award className="w-3 h-3" /> Best seller
                 </span>
               )}
             </div>
@@ -1320,7 +1356,6 @@ function ProductDrawer({
   );
 }
 
-/* ─────────────────────────── FilterDropdown ─────────────────────────── */
 function FilterDropdown({
   label,
   value,
@@ -1421,24 +1456,27 @@ function FilterDropdown({
   );
 }
 
-/* ─────────────────────────── Kebab menu ─────────────────────────── */
 function KebabMenu({
+  isBestSeller,
   onEdit,
   onDuplicate,
   onView,
+  onToggleBestSeller,
   onDelete,
   align = 'right',
 }: {
+  isBestSeller: boolean;
   onEdit: () => void;
   onDuplicate: () => void;
   onView: () => void;
+  onToggleBestSeller: () => void;
   onDelete: () => void;
   align?: 'left' | 'right';
 }) {
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`absolute top-full mt-1 w-44 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1 ${align === 'right' ? 'right-0' : 'left-0'
+      className={`absolute top-full mt-1 w-52 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1 ${align === 'right' ? 'right-0' : 'left-0'
         }`}
     >
       <MenuItem
@@ -1455,6 +1493,16 @@ function KebabMenu({
         icon={<ExternalLink className="w-3.5 h-3.5" />}
         label="View"
         onClick={onView}
+      />
+      <div className="border-t border-slate-100 my-1" />
+      <MenuItem
+        icon={
+          <Award
+            className={`w-3.5 h-3.5 ${isBestSeller ? 'fill-current' : ''}`}
+          />
+        }
+        label={isBestSeller ? 'Remove from best sellers' : 'Mark as best seller'}
+        onClick={onToggleBestSeller}
       />
       <div className="border-t border-slate-100 my-1" />
       <MenuItem
@@ -1494,7 +1542,6 @@ function MenuItem({
   );
 }
 
-/* ─────────────────────────── Popup wrapper ─────────────────────────── */
 function Popup({
   children,
   onClose,
@@ -1517,7 +1564,6 @@ function Popup({
   );
 }
 
-/* ─────────────────────────── Stat ─────────────────────────── */
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white border border-slate-200 rounded-sm p-2">

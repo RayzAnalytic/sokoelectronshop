@@ -34,9 +34,6 @@ import {
   type PaymentStatus,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Local storage shape
-// ─────────────────────────────────────────────────────────────────────────────
 interface StoredOrderItem {
   id: string;
   productId: string;
@@ -74,9 +71,6 @@ interface StoredOrder {
   items: StoredOrderItem[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 const formatKES = (n: number | string) => {
   const num = typeof n === 'string' ? parseFloat(n) : n;
   if (!Number.isFinite(num)) return 'KES 0';
@@ -143,16 +137,12 @@ function paymentToStoredOrder(payment: Payment): StoredOrder | null {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Derived view state — one place to decide what kind of order this is
-// ─────────────────────────────────────────────────────────────────────────────
-
 type ViewState =
-  | 'paid-success'      // M-Pesa, payment SUCCESS
-  | 'cod-confirmed'     // COD — pay on delivery
-  | 'payment-pending'   // M-Pesa still PENDING/PROCESSING
-  | 'payment-failed'    // M-Pesa FAILED/TIMEOUT/CANCELLED
-  | 'unknown';          // No payment data and no COD hint
+  | 'paid-success'
+  | 'cod-confirmed'
+  | 'payment-pending'
+  | 'payment-failed'
+  | 'unknown';
 
 function deriveViewState(
   order: StoredOrder,
@@ -180,9 +170,6 @@ const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   TIMEOUT: 'Payment timed out',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function OrderSuccessPage() {
   const params = useParams<{ id: string }>();
   const orderReference = params?.id ?? '';
@@ -201,8 +188,6 @@ export default function OrderSuccessPage() {
     let cancelled = false;
 
     (async () => {
-      // 1. sessionStorage draft — the only source for COD orders
-      //    (COD has no Payment row, so `paymentsApi.byReference` 404s).
       let storedOrder: StoredOrder | null = null;
       try {
         const raw = sessionStorage.getItem(`order:${orderReference}`);
@@ -213,8 +198,6 @@ export default function OrderSuccessPage() {
 
       const isCodDraft = storedOrder?.paymentLabel === 'Cash on delivery';
 
-      // 2. Auth + payment in parallel. For a known-COD order, skip
-      //    the payment fetch entirely — it would just 404.
       const [meRes, payRes] = await Promise.allSettled([
         api.me(),
         isCodDraft
@@ -230,7 +213,6 @@ export default function OrderSuccessPage() {
       setUser(me);
       setPayment(pay);
 
-      // 3. Prefer backend snapshot — reflects the committed order.
       const fromBackend = pay ? paymentToStoredOrder(pay) : null;
       setOrder(fromBackend ?? storedOrder);
 
@@ -285,7 +267,6 @@ export default function OrderSuccessPage() {
     );
   }
 
-  // ── Derived ──
   const viewState = deriveViewState(order, payment);
 
   const paymentMethodLabel = order.paymentLabel;
@@ -303,14 +284,12 @@ export default function OrderSuccessPage() {
 
   const accountEmail = user?.email || customerEmail;
 
-  // VAT rate as actually charged — derived from the snapshot.
   const taxableBase = order.subtotal - order.discount;
   const vatPct =
     taxableBase > 0 && order.tax > 0
       ? Math.round((order.tax / taxableBase) * 100)
       : 16;
 
-  // ── Three customer account states ──
   const hasSession = user !== null;
   const accountExists = hasSession || payment?.user != null;
   const newCustomer = !accountExists;
@@ -326,7 +305,6 @@ export default function OrderSuccessPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col justify-between">
       <div>
-        {/* HEADER */}
         <header className="bg-white border-b border-slate-200">
           <div className="max-w-4xl mx-auto px-3 h-14 flex items-center justify-between gap-3">
             <Link href="/" className="flex items-center gap-2 shrink-0">
@@ -345,7 +323,6 @@ export default function OrderSuccessPage() {
         </header>
 
         <main className="max-w-4xl mx-auto px-3 py-3 space-y-3">
-          {/* BREADCRUMB */}
           <nav className="flex items-center gap-1.5 text-[13px] text-slate-500 overflow-x-auto">
             <Link
               href="/"
@@ -374,7 +351,6 @@ export default function OrderSuccessPage() {
             </span>
           </nav>
 
-          {/* SUCCESS / STATUS BLOCK — branches on viewState */}
           {viewState === 'paid-success' && (
             <StatusHeader
               tone="success"
@@ -474,7 +450,6 @@ export default function OrderSuccessPage() {
             />
           )}
 
-          {/* ACCOUNT NOTICE */}
           {hasSession && (
             <section className="bg-blue-50 border border-blue-100 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex items-start gap-2">
@@ -567,7 +542,6 @@ export default function OrderSuccessPage() {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* LEFT */}
             <div className="md:col-span-2 space-y-3">
               <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
                 <SectionHeader
@@ -650,7 +624,6 @@ export default function OrderSuccessPage() {
               </section>
             </div>
 
-            {/* RIGHT */}
             <aside className="space-y-3">
               <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
                 <p className="text-[15px] font-semibold text-slate-900 pb-2 border-b border-slate-100">
@@ -840,10 +813,6 @@ export default function OrderSuccessPage() {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
 
 function StatusHeader({
   tone,

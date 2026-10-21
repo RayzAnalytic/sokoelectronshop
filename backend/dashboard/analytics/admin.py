@@ -28,9 +28,7 @@ class PageViewAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
-        # Rows are only written by middleware.
         return False
 
     def has_change_permission(self, request, obj=None):
-        # Read-only — nobody should edit a view log.
         return False

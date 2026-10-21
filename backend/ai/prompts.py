@@ -6,10 +6,24 @@ shop owner edits them through code review. Promote to a model only if
 non-developers need to edit them.
 """
 
-SHOP_NAME = "Myelectronicshop"
+from django.conf import settings
 
 
-SYSTEM_PROMPT = """You are a friendly, concise shopping assistant for {shop_name}, an electronics store in Kenya.
+SHOP_NAME = getattr(settings, "SHOP_NAME", "Myshop")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# System prompt
+#
+# Kept as a template so callers can build it at request time (which
+# respects runtime settings overrides in tests and multi-tenant setups),
+# while `SYSTEM_PROMPT` remains importable for backward compatibility.
+# ═════════════════════════════════════════════════════════════════════════════
+SYSTEM_PROMPT_TEMPLATE = """You are a friendly, concise shopping assistant for {shop_name}, an electronics store in Kenya.
+
+You serve CUSTOMERS on the storefront. You are not an admin tool.
+Never discuss internal dashboard data, sales reports, supplier info,
+inventory thresholds, staff, or any back-office metric.
 
 ABSOLUTE RULES — never break these:
 1. Never invent products, prices, stock, specifications, categories, or policies.
@@ -35,9 +49,32 @@ YOU DO NOT HAVE:
 - Access to the cart
 - Access to any customer's data except their own (and only when signed in)
 - Knowledge of anything not returned by a tool
-""".format(shop_name=SHOP_NAME)
+- Any role on the admin/dashboard side
+"""
 
 
+def get_system_prompt(shop_name: str | None = None) -> str:
+    """
+    Build the system prompt for the given shop name.
+
+    Defaults to SHOP_NAME from settings. Call this inside the request
+    cycle if you need settings overrides to take effect; `SYSTEM_PROMPT`
+    below is a module-load-time snapshot for backward compatibility.
+    """
+    return SYSTEM_PROMPT_TEMPLATE.format(shop_name=shop_name or SHOP_NAME)
+
+
+# Backward-compatible constant. Prefer `get_system_prompt()` in new code.
+SYSTEM_PROMPT = get_system_prompt()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Policies
+#
+# Consumed by `tool_get_shop_policies` in services.py. Each key must
+# match one of the enum values in the `get_shop_policies` tool schema,
+# plus the special "all" topic used to return everything at once.
+# ═════════════════════════════════════════════════════════════════════════════
 POLICIES = {
     "payment": (
         "We accept M-Pesa only. At checkout you'll receive an STK push on "
@@ -69,9 +106,13 @@ POLICIES = {
 }
 
 
-# Descriptions surfaced to the LLM when tools are registered. Kept here so
-# the wording (which shapes how the model uses each tool) lives next to the
-# rules that reference it.
+# ═════════════════════════════════════════════════════════════════════════════
+# Tool descriptions
+#
+# Reference copy for documentation and prompt reviews. The live schemas
+# sent to the model are built in `services.build_tool_schemas()`; keep
+# the two in sync when you change a tool's contract.
+# ═════════════════════════════════════════════════════════════════════════════
 TOOL_DESCRIPTIONS = {
     "search_products": (
         "Search the live catalog for products matching a free-text query. "
@@ -104,6 +145,9 @@ TOOL_DESCRIPTIONS = {
 }
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# Quick-reply chips
+# ═════════════════════════════════════════════════════════════════════════════
 CHIPS_BY_TOOL = {
     "search_products":      ["Show more", "Filter by price", "Delivery info"],
     "get_product":          ["More like this", "Delivery info", "Returns"],
@@ -122,6 +166,9 @@ DEFAULT_CHIPS = [
 ]
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# Policy helpers
+# ═════════════════════════════════════════════════════════════════════════════
 def format_policy(topic: str) -> str:
     """
     Return a single policy sentence for the given topic, or an empty string

@@ -6,54 +6,73 @@ from .views import (
     ForgotPasswordView,
     GoogleCallbackView,
     GoogleStartView,
+    JWTObtainPairView,
+    JWTRefreshView,
+    JWTLogoutView,
+    JWTVerifyMeView,
     LoginView,
     LogoutView,
     MeView,
     ProfileView,
     RegisterView,
+    ResendVerificationView,
     ResetPasswordView,
     StaffInviteAcceptView,
     StaffInviteVerifyView,
+    VerifyEmailView,
     VerifyResetTokenView,
 )
 
 app_name = "authentication"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public auth routes — mounted at /api/v1/auth/
-#
-# The frontend calls these directly:
-#   /auth/login              → login/
-#   /auth/register           → register/
-#   /auth/forgot-password    → forgot-password/
-#   /auth/reset-password     → reset-password/   (?token=...)
-#   /auth/staff/register     → invite/verify/  + invite/accept/
-#
-# The `google/` routes must match GOOGLE_OAUTH_REDIRECT_URI in settings:
-#   http://localhost:8000/api/v1/auth/google/callback/
-# ─────────────────────────────────────────────────────────────────────────────
 urlpatterns = [
     # ── Session bootstrap ────────────────────────────────────────────────
+    # Sets a CSRF cookie; frontend calls this once before POSTing to
+    # any session-authenticated endpoint (mostly for Django admin).
     path("csrf/", CsrfBootstrapView.as_view(), name="auth-csrf"),
 
+    # ── JWT (SimpleJWT) ──────────────────────────────────────────────────
+    # Standard JWT endpoints. /login/ (below) ALSO issues JWTs now,
+    # so the frontend can use either — they return the same shape.
+    path("token/", JWTObtainPairView.as_view(), name="jwt-obtain"),
+    path("token/refresh/", JWTRefreshView.as_view(), name="jwt-refresh"),
+    path("token/logout/", JWTLogoutView.as_view(), name="jwt-logout"),
+    path(
+        "token/verify-me/",
+        JWTVerifyMeView.as_view(),
+        name="jwt-verify-me",
+    ),
+
     # ── Core auth ────────────────────────────────────────────────────────
+    # register/ and login/ BOTH issue JWTs AND open a session.
+    # The response shape is identical to /token/ so the frontend only
+    # needs one auth contract.
     path("register/", RegisterView.as_view(), name="auth-register"),
     path("login/", LoginView.as_view(), name="auth-login"),
     path("logout/", LogoutView.as_view(), name="auth-logout"),
     path("me/", MeView.as_view(), name="auth-me"),
 
-    # ── Profile ──────────────────────────────────────────────────────────
+    # ── Email verification ───────────────────────────────────────────────
+    # Accepts both session cookie and JWT Bearer.
+    path(
+        "verify-email/",
+        VerifyEmailView.as_view(),
+        name="auth-verify-email",
+    ),
+    path(
+        "resend-verification/",
+        ResendVerificationView.as_view(),
+        name="auth-resend-verification",
+    ),
+
+    # ── Profile & password ───────────────────────────────────────────────
+    # All accept both session cookie and JWT Bearer.
     path("profile/", ProfileView.as_view(), name="auth-profile"),
     path(
         "change-password/",
         ChangePasswordView.as_view(),
         name="auth-change-password",
     ),
-
-    # ── Password reset (three-step) ──────────────────────────────────────
-    # 1. POST forgot-password/         → email a link containing ?token=...
-    # 2. GET  verify-reset-token/      → does that token still work?
-    # 3. POST reset-password/          → consume the token, set the password
     path(
         "forgot-password/",
         ForgotPasswordView.as_view(),
@@ -71,22 +90,20 @@ urlpatterns = [
     ),
 
     # ── Google OAuth ─────────────────────────────────────────────────────
-    # Start:    browser is redirected to Google from google/
-    # Callback: Google redirects back to google/callback/
-    #
-    # The callback URL is pinned in settings as GOOGLE_OAUTH_REDIRECT_URI
-    # and must match exactly what's registered in Google Cloud Console.
-    path("google/", GoogleStartView.as_view(), name="auth-google-start"),
+    # google/          → 302 to accounts.google.com with signed state
+    # google/callback/ → 302 to {FRONTEND_URL}/auth/callback#<fragment>
+    path(
+        "google/",
+        GoogleStartView.as_view(),
+        name="auth-google-start",
+    ),
     path(
         "google/callback/",
         GoogleCallbackView.as_view(),
         name="auth-google-callback",
     ),
 
-    # ── Staff invitation acceptance (public — token is the auth) ────────
-    # The frontend page /auth/staff/register?token=... calls these:
-    #   GET  invite/verify/  → { valid, email, role, invited_by, ... }
-    #   POST invite/accept/  → { user, redirect_to: "/admin" }
+    # ── Staff invites ────────────────────────────────────────────────────
     path(
         "invite/verify/",
         StaffInviteVerifyView.as_view(),

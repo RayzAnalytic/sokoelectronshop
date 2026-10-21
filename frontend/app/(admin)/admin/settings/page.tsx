@@ -29,6 +29,8 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
+  Mail,
+  Banknote,
 } from 'lucide-react';
 
 import { adminApi } from '@/lib/admin-api';
@@ -148,7 +150,7 @@ interface TaxDraft {
 }
 
 interface ZoneRow {
-  id: number | null; // null while pending create
+  id: number | null;
   name: string;
   region: string;
   fee_kes: string;
@@ -173,6 +175,180 @@ const EMPTY_ZONE: ZoneDraft = {
 };
 
 const MIN_PASSWORD_LENGTH = 8;
+
+
+type IconProps = { className?: string; 'aria-hidden'?: boolean };
+
+function WhatsAppIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      className={className}
+      {...rest}
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+    </svg>
+  );
+}
+
+function TikTokIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      className={className}
+      {...rest}
+    >
+      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
+    </svg>
+  );
+}
+
+function InstagramIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      className={className}
+      {...rest}
+    >
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+    </svg>
+  );
+}
+
+function FacebookIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      className={className}
+      {...rest}
+    >
+      <path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 011.141.195v3.325a8.623 8.623 0 00-.653-.036 26.805 26.805 0 00-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 00-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z" />
+    </svg>
+  );
+}
+
+function YouTubeIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      className={className}
+      {...rest}
+    >
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
+
+function TelegramIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      className={className}
+      {...rest}
+    >
+      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+    </svg>
+  );
+}
+
+function DiscordIcon({ className, ...rest }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      className={className}
+      {...rest}
+    >
+      <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z" />
+    </svg>
+  );
+}
+
+// ── Social brand map ───────────────────────────────────────────────
+// Only these seven platforms get a real glyph. Everything else
+// falls back to the letter tile.
+const SOCIAL_ICON_MAP: Record<string, React.ComponentType<IconProps>> = {
+  whatsapp: WhatsAppIcon,
+  'whats-app': WhatsAppIcon,
+  wa: WhatsAppIcon,
+  tiktok: TikTokIcon,
+  instagram: InstagramIcon,
+  facebook: FacebookIcon,
+  youtube: YouTubeIcon,
+  telegram: TelegramIcon,
+  discord: DiscordIcon,
+};
+
+function normaliseIntegrationKey(raw: string): string {
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-');
+}
+
+function resolveSocialIcon(
+  item: AdminIntegrationStatus,
+): React.ComponentType<IconProps> | null {
+  if (!item) return null;
+
+  const key = normaliseIntegrationKey(item.key || '');
+  if (key && SOCIAL_ICON_MAP[key]) return SOCIAL_ICON_MAP[key];
+
+  const name = normaliseIntegrationKey(item.name || '');
+  if (name && SOCIAL_ICON_MAP[name]) return SOCIAL_ICON_MAP[name];
+
+  const haystack = `${key} ${name}`;
+  for (const [k, icon] of Object.entries(SOCIAL_ICON_MAP)) {
+    if (haystack.includes(k)) return icon;
+  }
+
+  return null;
+}
+
+// ============================================================
+// INTEGRATION FILTERS
+//
+// Twitter/X and Twilio are excluded client-side. SendGrid and
+// WhatsApp are the notification channels; no SMS gateway.
+// ============================================================
+const EXCLUDED_INTEGRATION_KEYS = new Set<string>([
+  'twitter',
+  'x',
+  'twitter_x',
+  'twitterx',
+  'twilio',
+]);
+
+const EXCLUDED_INTEGRATION_NAME_PATTERNS: RegExp[] = [
+  /^twitter$/i,
+  /^x$/i,
+  /twitter\s*\/\s*x/i,
+  /twitter\s+\(x\)/i,
+  /x\s+\(twitter\)/i,
+  /^twilio$/i,
+  /\btwilio\b/i,
+];
+
+function isExcludedIntegration(item: AdminIntegrationStatus): boolean {
+  const key = (item.key || '').toLowerCase();
+  if (EXCLUDED_INTEGRATION_KEYS.has(key)) return true;
+  const name = (item.name || '').trim();
+  return EXCLUDED_INTEGRATION_NAME_PATTERNS.some((re) => re.test(name));
+}
 
 // ============================================================
 // TABS
@@ -208,7 +384,6 @@ export default function StoreSettingsPage() {
   const [refreshingIntegrations, setRefreshingIntegrations] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // ── GENERAL ──
   const [general, setGeneral] = useState<GeneralDraft>({
     business_name: '',
     tagline: '',
@@ -221,7 +396,6 @@ export default function StoreSettingsPage() {
     weight_unit: 'kg',
   });
 
-  // ── STORE + CHECKOUT + INVENTORY + REVIEWS ──
   const [store, setStore] = useState<StoreDraft>({
     status: 'open',
     is_indexable: true,
@@ -246,7 +420,6 @@ export default function StoreSettingsPage() {
     allow_photos: true,
   });
 
-  // ── PAYMENTS ──
   const [payments, setPayments] = useState<PaymentsDraft>({
     mpesa_enabled: true,
     min_amount_kes: '100',
@@ -257,7 +430,6 @@ export default function StoreSettingsPage() {
   });
   const [mpesaStatus, setMpesaStatus] = useState<AdminMpesaStatus | null>(null);
 
-  // ── SHIPPING ──
   const [shipping, setShipping] = useState<ShippingDraft>({
     shipping_enabled: true,
     free_shipping_threshold_kes: '5000',
@@ -271,7 +443,6 @@ export default function StoreSettingsPage() {
   const [zoneDraft, setZoneDraft] = useState<ZoneDraft>(EMPTY_ZONE);
   const [pendingZoneDelete, setPendingZoneDelete] = useState<ZoneRow | null>(null);
 
-  // ── NOTIFICATIONS ──
   const [notifications, setNotifications] = useState<NotificationsDraft>({
     email_enabled: true,
     whatsapp_enabled: true,
@@ -285,7 +456,6 @@ export default function StoreSettingsPage() {
   });
   const [whatsappStatus, setWhatsappStatus] = useState<AdminWhatsAppStatus | null>(null);
 
-  // ── SECURITY ──
   const [security, setSecurity] = useState<SecurityDraft>({
     session_timeout_minutes: '60',
     require_2fa: true,
@@ -298,10 +468,8 @@ export default function StoreSettingsPage() {
   const [loginHistory, setLoginHistory] = useState<AdminLoginEvent[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
-  // ── INTEGRATIONS ──
   const [integrations, setIntegrations] = useState<AdminIntegrationStatus[]>([]);
 
-  // ── TAX ──
   const [tax, setTax] = useState<TaxDraft>({
     vat_enabled: true,
     vat_rate: '16',
@@ -309,7 +477,6 @@ export default function StoreSettingsPage() {
     etims_enabled: true,
   });
 
-  // Snapshot of the last-loaded state, used by "Discard changes".
   const snapshotRef = useRef<Record<SettingsTab, () => void> | null>(null);
 
   // ── EFFECTS ──
@@ -319,7 +486,6 @@ export default function StoreSettingsPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Warn on browser refresh / tab close if edits are pending.
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -330,7 +496,6 @@ export default function StoreSettingsPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // Escape closes whichever modal is open.
   useEffect(() => {
     if (!showUnsavedPrompt && !isZoneModalOpen && !pendingZoneDelete) return;
     const onKey = (e: KeyboardEvent) => {
@@ -462,7 +627,7 @@ export default function StoreSettingsPage() {
         require_2fa: securityRes.require_2fa,
       });
 
-      setIntegrations(integrationsRes);
+      setIntegrations(integrationsRes.filter((i) => !isExcludedIntegration(i)));
 
       setTax({
         vat_enabled: taxRes.vat_enabled,
@@ -483,7 +648,6 @@ export default function StoreSettingsPage() {
     void loadAll();
   }, [loadAll]);
 
-  // Keep a lazy "discard" closure per tab, refreshed on each full load.
   useEffect(() => {
     snapshotRef.current = {
       general: () => void adminApi.settings.general.get().then(hydrateGeneral),
@@ -618,7 +782,6 @@ export default function StoreSettingsPage() {
           break;
         }
         case 'store': {
-          // Store tab bundles four related resources.
           const [s, c, i, rv] = await Promise.all([
             adminApi.settings.store.update(store),
             adminApi.settings.checkout.update(checkout),
@@ -712,10 +875,6 @@ export default function StoreSettingsPage() {
     }
   };
 
-  // ============================================================
-  // TAB NAVIGATION
-  // ============================================================
-
   const handleTabClick = (tab: SettingsTab) => {
     if (tab === activeTab) return;
     if (hasUnsavedChanges) {
@@ -746,7 +905,7 @@ export default function StoreSettingsPage() {
     setRefreshingIntegrations(true);
     try {
       const r = await adminApi.settings.integrations.refresh();
-      setIntegrations(r);
+      setIntegrations(r.filter((i) => !isExcludedIntegration(i)));
       notify('Integration status refreshed', 'info');
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Failed to refresh status', 'error');
@@ -866,10 +1025,6 @@ export default function StoreSettingsPage() {
     }
   };
 
-  // ============================================================
-  // PROVIDER TOGGLE
-  // ============================================================
-
   const toggleProvider = async (key: AdminShippingProviderKey) => {
     const provider = providers.find((p) => p.key === key);
     if (!provider) return;
@@ -882,10 +1037,6 @@ export default function StoreSettingsPage() {
       notify(err instanceof Error ? err.message : 'Failed to update provider', 'error');
     }
   };
-
-  // ============================================================
-  // SECURITY ACTIONS
-  // ============================================================
 
   const changePassword = async () => {
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
@@ -975,7 +1126,7 @@ export default function StoreSettingsPage() {
 
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Store settings</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -1016,7 +1167,7 @@ export default function StoreSettingsPage() {
       </header>
 
       {loadError && (
-        <div className="max-w-[1600px] mx-auto px-3 pt-3">
+        <div className="max-w-[1700px] mx-auto px-2 pt-2">
           <div className="bg-red-50 border border-red-200 rounded-sm p-2 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
@@ -1033,7 +1184,7 @@ export default function StoreSettingsPage() {
         </div>
       )}
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
           {/* SIDEBAR */}
           <aside className="lg:col-span-3">
@@ -1058,7 +1209,7 @@ export default function StoreSettingsPage() {
           </aside>
 
           {/* CONTENT */}
-          <div className="lg:col-span-9 space-y-3">
+          <div className="lg:col-span-9 space-y-2">
             {/* ══════════════ GENERAL ══════════════ */}
             {activeTab === 'general' && (
               <Card
@@ -1349,7 +1500,10 @@ export default function StoreSettingsPage() {
                         <span className="w-6 h-6 rounded-sm bg-slate-100 text-slate-600 flex items-center justify-center font-mono text-[13px] shrink-0">
                           1
                         </span>
-                        <span className="font-medium text-slate-900 truncate">M-Pesa</span>
+                        <span className="font-medium text-slate-900 truncate inline-flex items-center gap-2">
+                          <Banknote className="w-4 h-4 text-emerald-600" />
+                          M-Pesa
+                        </span>
                       </div>
                       <span className="text-[13px] text-slate-400 shrink-0">
                         Only method enabled
@@ -1476,12 +1630,12 @@ export default function StoreSettingsPage() {
                     <table className="w-full text-left border-collapse text-[13px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Zone</th>
-                          <th className="py-2 px-3 font-medium">Region</th>
-                          <th className="py-2 px-3 font-medium text-right">Fee (KES)</th>
-                          <th className="py-2 px-3 font-medium">ETA</th>
-                          <th className="py-2 px-3 font-medium">Status</th>
-                          <th className="py-2 px-3 w-24"></th>
+                          <th className="py-2 px-2 font-medium">Zone</th>
+                          <th className="py-2 px-2 font-medium">Region</th>
+                          <th className="py-2 px-2 font-medium text-right">Fee (KES)</th>
+                          <th className="py-2 px-2 font-medium">ETA</th>
+                          <th className="py-2 px-2 font-medium">Status</th>
+                          <th className="py-2 px-2 w-24"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1489,7 +1643,7 @@ export default function StoreSettingsPage() {
                           <tr>
                             <td
                               colSpan={6}
-                              className="py-4 px-3 text-center text-slate-400 italic"
+                              className="py-3 px-2 text-center text-slate-400 italic"
                             >
                               No delivery zones yet.
                             </td>
@@ -1497,16 +1651,16 @@ export default function StoreSettingsPage() {
                         )}
                         {zones.map((z, idx) => (
                           <tr key={z.id ?? `new-${idx}`} className="hover:bg-slate-50">
-                            <td className="py-2 px-3 font-medium text-slate-900">
+                            <td className="py-2 px-2 font-medium text-slate-900">
                               <span className="inline-flex items-center gap-1.5">
                                 <MapPin className="w-3 h-3 text-slate-400" />
                                 {z.name}
                               </span>
                             </td>
-                            <td className="py-2 px-3 text-slate-600">{z.region}</td>
-                            <td className="py-2 px-3 text-right font-mono">{z.fee_kes}</td>
-                            <td className="py-2 px-3 text-slate-600">{z.eta_text}</td>
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-2 text-slate-600">{z.region}</td>
+                            <td className="py-2 px-2 text-right font-mono">{z.fee_kes}</td>
+                            <td className="py-2 px-2 text-slate-600">{z.eta_text}</td>
+                            <td className="py-2 px-2">
                               <button
                                 onClick={() => void toggleZone(z.id)}
                                 disabled={z.id === null || saving}
@@ -1519,7 +1673,7 @@ export default function StoreSettingsPage() {
                                 {z.enabled ? 'Active' : 'Disabled'}
                               </button>
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-2">
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => openZoneModal(z)}
@@ -1553,11 +1707,11 @@ export default function StoreSettingsPage() {
               <>
                 <Card
                   title="Channels"
-                  subtitle="Email and WhatsApp Cloud API are the available channels"
+                  subtitle="Email delivery via SendGrid and messaging via WhatsApp Cloud API"
                 >
                   <ToggleRow
                     label="Email notifications"
-                    description="Send order and account updates via email"
+                    description="Send order and account updates via SendGrid"
                     checked={notifications.email_enabled}
                     onChange={(v) => changeNotifications('email_enabled', v)}
                     disabled={saving}
@@ -1571,11 +1725,10 @@ export default function StoreSettingsPage() {
                   />
 
                   <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
-                    <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
+                    <Mail className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <p className="text-blue-800 text-[13px]">
-                      No SMS gateway is connected. SMS notifications will become available once
-                      your platform administrator wires one up. WhatsApp message templates and
-                      phone number ID are also managed by the administrator.
+                      This store sends notifications by email (SendGrid) and WhatsApp only.
+                      SMS is not supported on this platform.
                     </p>
                   </div>
                 </Card>
@@ -1629,17 +1782,17 @@ export default function StoreSettingsPage() {
                     type="email"
                     disabled={saving}
                   />
-                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2 mt-2">
+                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2 mt-1">
                     <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <p className="text-blue-800 text-[13px]">
-                      WhatsApp Cloud API credentials (Phone Number ID, WABA ID, permanent access
-                      token) are configured by your platform administrator. Contact support to
+                      SendGrid API key, WhatsApp Phone Number ID, WABA ID, and permanent access
+                      token are configured by your platform administrator. Contact support to
                       update them.
                     </p>
                   </div>
                   {whatsappStatus?.template_map &&
                     Object.keys(whatsappStatus.template_map).length > 0 && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 mt-2">
+                      <div className="bg-slate-50 border border-slate-200 rounded-sm p-1 mt-1">
                         <p className="text-[12px] font-medium text-slate-700 mb-1">
                           Approved templates
                         </p>
@@ -1647,7 +1800,7 @@ export default function StoreSettingsPage() {
                           {Object.entries(whatsappStatus.template_map).map(([event, tpl]) => (
                             <li
                               key={event}
-                              className="text-[12px] text-slate-500 font-mono flex items-center justify-between"
+                              className="text-[13px] text-slate-500 font-mono flex items-center justify-between"
                             >
                               <span>{event}</span>
                               <span className="text-slate-400">{tpl}</span>
@@ -1726,7 +1879,8 @@ export default function StoreSettingsPage() {
                         </span>
                       </div>
                       <p className="text-[13px] text-slate-500">
-                        SMS one-time codes are unavailable because no SMS gateway is connected.
+                        Second factor is confirmed with a TOTP app. SMS codes are not supported on
+                        this platform.
                       </p>
                     </>
                   )}
@@ -1748,7 +1902,7 @@ export default function StoreSettingsPage() {
 
                   <SubSection title="Active sessions">
                     {sessionsLoading ? (
-                      <div className="flex items-center gap-2 text-slate-500 py-4">
+                      <div className="flex items-center gap-2 text-slate-500 py-3">
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         <span className="text-[13px]">Loading sessions…</span>
                       </div>
@@ -1766,7 +1920,7 @@ export default function StoreSettingsPage() {
                             <div className="flex items-center gap-2 min-w-0">
                               <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               <div className="min-w-0">
-                                <p className="font-medium text-slate-900 font-mono truncate text-[12px]">
+                                <p className="font-medium text-slate-900 font-mono truncate text-[13px]">
                                   {s.id.slice(0, 12)}…
                                 </p>
                                 <p className="text-[13px] text-slate-400 font-mono truncate">
@@ -1835,7 +1989,7 @@ export default function StoreSettingsPage() {
             {/* ══════════════ INTEGRATIONS ══════════════ */}
             {activeTab === 'integrations' && (
               <>
-                <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start justify-between gap-2">
+                <div className="bg-blue-50 border border-blue-200 rounded-sm p-1 flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2 flex-1 min-w-0">
                     <Info className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <div className="text-[13px] flex-1 min-w-0">
@@ -1869,7 +2023,7 @@ export default function StoreSettingsPage() {
 
                 <Card
                   title="Messaging"
-                  subtitle="WhatsApp Cloud API is the only messaging channel — no SMS gateway connected"
+                  subtitle="SendGrid handles email; WhatsApp Cloud API handles messaging. SMS is not supported."
                 >
                   <IntegrationGrid items={messagingIntegrations} />
                 </Card>
@@ -1894,7 +2048,7 @@ export default function StoreSettingsPage() {
 
                 <Card
                   title="Social media management"
-                  subtitle="All five social channels you promote on — they drive traffic back to the TikTok social app"
+                  subtitle="The social channels you promote on — they drive traffic back to the TikTok social app"
                 >
                   <IntegrationGrid items={socialIntegrations} onCopy={copyToClipboard} />
                 </Card>
@@ -1951,7 +2105,7 @@ export default function StoreSettingsPage() {
                     onChange={(v) => changeTax('etims_enabled', v)}
                     disabled={saving}
                   />
-                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-1 flex items-start gap-1">
                     <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <p className="text-blue-800 text-[13px]">
                       KRA PIN, control unit ID, and eTIMS API credentials are managed by your
@@ -1973,7 +2127,7 @@ export default function StoreSettingsPage() {
             setPendingTab(null);
           }}
         >
-          <div className="text-center space-y-3">
+          <div className="text-center space-y-2">
             <div className="w-10 h-10 rounded-sm bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-5 h-5" />
             </div>
@@ -2007,7 +2161,7 @@ export default function StoreSettingsPage() {
       {/* ZONE MODAL */}
       {isZoneModalOpen && (
         <Modal onClose={() => setIsZoneModalOpen(false)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-start justify-between">
               <h3 className="text-[15px] font-semibold text-slate-900">
                 {editingZone ? 'Edit delivery zone' : 'New delivery zone'}
@@ -2076,7 +2230,7 @@ export default function StoreSettingsPage() {
       {/* ZONE DELETE CONFIRM */}
       {pendingZoneDelete && (
         <Modal onClose={() => setPendingZoneDelete(null)}>
-          <div className="text-center space-y-3">
+          <div className="text-center space-y-2">
             <div className="w-10 h-10 rounded-sm bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
             </div>
@@ -2123,7 +2277,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+    <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
       <header>
         <p className="text-[15px] font-semibold text-slate-900">{title}</p>
         {subtitle && <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>}
@@ -2135,7 +2289,7 @@ function Card({
 
 function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="pt-3 mt-3 border-t border-slate-100 first:pt-0 first:mt-0 first:border-0 space-y-2">
+    <div className="pt-3 mt-1 border-t border-slate-100 first:pt-0 first:mt-0 first:border-0 space-y-2">
       <p className="text-[13px] font-medium text-slate-700">{title}</p>
       {children}
     </div>
@@ -2151,11 +2305,11 @@ function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+      className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
       onClick={onClose}
     >
       <div
-        className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl text-[13px]"
+        className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-2 shadow-xl text-[13px]"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -2214,7 +2368,7 @@ function PasswordField({
         onChange={(e) => onChange(e.target.value)}
         className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 disabled:cursor-not-allowed"
       />
-      {hint && <span className="block text-[12px] text-slate-400 mt-1">{hint}</span>}
+      {hint && <span className="block text-[13px] text-slate-400 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -2299,48 +2453,59 @@ function IntegrationGrid({
   }
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-      {items.map((item) => (
-        <div key={item.key} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center text-[13px] font-medium text-slate-700 shrink-0">
-                {item.name.charAt(0)}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium text-slate-900 truncate">{item.name}</p>
-                {item.badge && (
-                  <button
-                    type="button"
-                    onClick={onCopy ? () => onCopy(item.badge, item.name) : undefined}
-                    className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-800 font-mono truncate"
-                    title={onCopy ? 'Copy' : undefined}
-                  >
-                    {item.badge}
-                    {onCopy && <Copy className="w-3 h-3" />}
-                  </button>
-                )}
+      {items.map((item) => {
+        // Only social media platforms get a real glyph. Everything
+        // else (payments, email, analytics, infra) shows a letter.
+        const SocialIcon = resolveSocialIcon(item);
+        return (
+          <div key={item.key} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                  {SocialIcon ? (
+                    <SocialIcon className="w-4 h-4" aria-hidden />
+                  ) : (
+                    <span className="text-[13px] font-medium">
+                      {item.name.charAt(0)}
+                    </span>
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-slate-900 truncate">{item.name}</p>
+                  {item.badge && (
+                    <button
+                      type="button"
+                      onClick={onCopy ? () => onCopy(item.badge, item.name) : undefined}
+                      className="inline-flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-800 font-mono truncate"
+                      title={onCopy ? 'Copy' : undefined}
+                    >
+                      {item.badge}
+                      {onCopy && <Copy className="w-3 h-3" />}
+                    </button>
+                  )}
+                </div>
               </div>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border shrink-0 ${
+                  item.connected
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                }`}
+              >
+                {item.connected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                {item.connected ? 'Connected' : 'Not connected'}
+              </span>
             </div>
-            <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border shrink-0 ${
-                item.connected
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                  : 'bg-slate-100 text-slate-500 border-slate-200'
-              }`}
-            >
-              {item.connected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-              {item.connected ? 'Connected' : 'Not connected'}
-            </span>
+            <p className="text-[13px] text-slate-500 leading-relaxed">{item.description}</p>
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[13px] font-mono text-slate-400 uppercase tracking-wide">
+                {item.category}
+              </span>
+              <span className="text-[13px] text-slate-400">Managed by admin</span>
+            </div>
           </div>
-          <p className="text-[13px] text-slate-500 leading-relaxed">{item.description}</p>
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[13px] font-mono text-slate-400 uppercase tracking-wide">
-              {item.category}
-            </span>
-            <span className="text-[13px] text-slate-400">Managed by admin</span>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

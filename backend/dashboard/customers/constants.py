@@ -1,10 +1,3 @@
-"""
-Enums shared by the customers module.
-
-Segment names mirror the frontend's `CustomerSegment` union exactly —
-any drift breaks the badge renderer.
-"""
-
 from django.db import models
 
 
@@ -54,8 +47,7 @@ class CommunicationDirection(models.TextChoices):
     OUTBOUND = "Outbound", "Outbound"
 
 
-# Segment thresholds — tune once real order data exists.
-VIP_SPEND_THRESHOLD = 200_000          # KES
+VIP_SPEND_THRESHOLD = 200_000
 VIP_ORDER_THRESHOLD = 5
 LOYAL_ORDER_THRESHOLD = 3
 NEW_WINDOW_DAYS = 30

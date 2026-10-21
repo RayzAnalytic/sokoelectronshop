@@ -1,51 +1,8 @@
-"""
-dashboard/settings/services.py
-
-Cross-cutting helpers that other apps read through. Every function in
-this file is designed to be called from a view, a Celery task, or
-another service — nothing here touches the request/response cycle.
-
-Contents:
-
-  • RuntimeSettings + get_runtime_settings()
-        Flat, computed snapshot of every settings value a page needs
-        to gate its UI. Cached. Invalidated by signals.
-
-  • get_settings_bundle() / invalidate_settings_cache() / invalidate_runtime_cache()
-        Lower-level readers for callers that want model instances
-        instead of a flat dict. Both caches invalidate together.
-
-  • audit_diff()
-        Writes a SettingsAuditLog row for each changed field.
-
-  • DarajaClient
-        Thin wrapper around Safaricom's Daraja API. Caches the OAuth
-        access token for ~50 minutes so a burst of STK pushes only
-        authenticates once.
-
-  • handle_mpesa_callback()
-        Called by the public callback view. Updates the MpesaTransaction
-        row, notifies the admin on success or failure, and queues eTIMS
-        submission when the tax module is enabled.
-
-  • notify() + _send_email() + _send_whatsapp()
-        Fan-out for order / payment / shipping events.
-
-  • compute_vat()
-        Returns (net, vat, gross) in KES based on TaxSettings.
-
-  • queue_etims()
-        Creates a pending EtimsSubmission row.
-
-  • refresh_integration_status()
-        Celery-beat task entry point. Pings M-Pesa and WhatsApp and
-        updates IntegrationStatus rows.
-"""
-
 import base64
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 import requests
@@ -56,31 +13,14 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-
-# ══════════════════════════════════════════════════════════════
-# Cache keys
-#
-#   SETTINGS_CACHE_KEY      → legacy bundle of model instances
-#   RUNTIME_CACHE_KEY       → flat dict of computed values
-#   MPESA_TOKEN_CACHE_KEY   → short-lived OAuth token
-#
-# Both settings caches are cleared together by invalidate_settings_cache()
-# so existing callers don't have to know about the split.
-# ══════════════════════════════════════════════════════════════
-
 SETTINGS_CACHE_KEY = "dashboard:settings_bundle"
 RUNTIME_CACHE_KEY = "dashboard:settings_runtime:v1"
-SETTINGS_CACHE_TTL = 300  # seconds
+SETTINGS_CACHE_TTL = 300
 
-# M-Pesa OAuth tokens are valid for ~1 hour. We cache for 50 minutes
-# so a burst of STK pushes shares one token.
 MPESA_TOKEN_CACHE_KEY = "dashboard:mpesa_access_token"
 
 
 def _load_all() -> dict:
-    """Load every settings singleton. One code path used by both
-    `get_settings_bundle()` and `get_runtime_settings()`.
-    """
     from .models import (
         GeneralSettings,
         StoreSettings,
@@ -109,29 +49,13 @@ def _load_all() -> dict:
 
 
 def invalidate_settings_cache() -> None:
-    """Wipe both settings caches.
-
-    Call after any settings write, or just rely on the signals wired in
-    `apps.SettingsConfig.ready()` — they call this automatically.
-    """
     cache.delete_many([SETTINGS_CACHE_KEY, RUNTIME_CACHE_KEY])
 
 
-# Backwards-compatible alias — some call sites may use the newer name.
 invalidate_runtime_cache = invalidate_settings_cache
 
 
-# ══════════════════════════════════════════════════════════════
-# Legacy bundle reader (model instances)
-# ══════════════════════════════════════════════════════════════
-
 def get_settings_bundle() -> dict:
-    """Return a cached dict of every *Settings singleton.
-
-    The bundle is keyed by a short name ('general', 'store', ...) so
-    callers can do `bundle['store'].is_indexable` without importing
-    the model.
-    """
     bundle = cache.get(SETTINGS_CACHE_KEY)
     if bundle is not None:
         return bundle
@@ -141,21 +65,8 @@ def get_settings_bundle() -> dict:
     return bundle
 
 
-# ══════════════════════════════════════════════════════════════
-# Runtime snapshot reader (flat dict of computed values)
-#
-# This is what every page — admin dashboard and customer app —
-# should read from. It hides the split between e.g. PaymentSettings
-# and MpesaConfig, exposes derived flags (mpesa_enabled means "the
-# store toggle AND the credentials are both on"), and returns a
-# single flat object the frontend can cache as-is.
-# ══════════════════════════════════════════════════════════════
-
 @dataclass(frozen=True)
 class RuntimeSettings:
-    """Flat snapshot of every setting a page might gate on."""
-
-    # ── General ──
     currency: str
     timezone: str
     date_format: str
@@ -165,32 +76,25 @@ class RuntimeSettings:
     business_phone: str
     business_address: str
 
-    # ── Store ──
-    store_status: str  # "open" | "closed" | "paused"
+    store_status: str
     store_indexable: bool
     store_paused_message: str
 
-    # ── Checkout ──
     allow_guest_checkout: bool
     require_phone: bool
     auto_confirm_orders: bool
     whatsapp_fallback: bool
 
-    # ── Inventory ──
     track_inventory: bool
     low_stock_threshold: int
     allow_backorders: bool
     hide_out_of_stock: bool
 
-    # ── Reviews ──
     reviews_enabled: bool
     require_verified_purchase: bool
     auto_publish_reviews: bool
     allow_review_photos: bool
 
-    # ── Payments ──
-    # `mpesa_enabled` is the AND of PaymentSettings.mpesa_enabled and
-    # MpesaConfig.enabled, so a page never has to check both.
     mpesa_enabled: bool
     min_amount_kes: str
     max_amount_kes: str
@@ -198,13 +102,11 @@ class RuntimeSettings:
     auto_capture_payments: bool
     auto_refund: bool
 
-    # ── Shipping ──
     shipping_enabled: bool
     free_shipping_threshold_kes: str
     default_delivery_fee_kes: str
     local_pickup_enabled: bool
 
-    # ── Notifications ──
     email_enabled: bool
     whatsapp_enabled: bool
     notify_on_new_order: bool
@@ -215,11 +117,9 @@ class RuntimeSettings:
     notify_on_review: bool
     admin_alert_email: str
 
-    # ── Security ──
     session_timeout_minutes: int
     require_2fa: bool
 
-    # ── Tax ──
     vat_enabled: bool
     vat_rate: str
     prices_include_tax: bool
@@ -230,11 +130,6 @@ class RuntimeSettings:
 
 
 def get_runtime_settings(*, force: bool = False) -> RuntimeSettings:
-    """Read everything, compute derived flags, cache the whole payload.
-
-    `force=True` bypasses the cache — used by the admin settings page
-    right after a save to guarantee a fresh read.
-    """
     if not force:
         cached = cache.get(RUNTIME_CACHE_KEY)
         if cached is not None:
@@ -258,7 +153,6 @@ def get_runtime_settings(*, force: bool = False) -> RuntimeSettings:
     mpesa_cfg = MpesaConfig.load()
 
     runtime = RuntimeSettings(
-        # General
         currency=general.currency,
         timezone=general.timezone,
         date_format=general.date_format,
@@ -267,38 +161,31 @@ def get_runtime_settings(*, force: bool = False) -> RuntimeSettings:
         business_email=general.contact_email,
         business_phone=general.contact_phone,
         business_address=general.address,
-        # Store
         store_status=store.status,
         store_indexable=store.is_indexable,
         store_paused_message=store.paused_message,
-        # Checkout
         allow_guest_checkout=checkout.allow_guest_checkout,
         require_phone=checkout.require_phone,
         auto_confirm_orders=checkout.auto_confirm_orders,
         whatsapp_fallback=checkout.whatsapp_fallback,
-        # Inventory
         track_inventory=inventory.track_inventory,
         low_stock_threshold=inventory.low_stock_threshold,
         allow_backorders=inventory.allow_backorders,
         hide_out_of_stock=inventory.hide_out_of_stock,
-        # Reviews
         reviews_enabled=reviews.reviews_enabled,
         require_verified_purchase=reviews.require_verified_purchase,
         auto_publish_reviews=reviews.auto_publish,
         allow_review_photos=reviews.allow_photos,
-        # Payments — combined flag
         mpesa_enabled=bool(mpesa_cfg.enabled and payments.mpesa_enabled),
         min_amount_kes=str(payments.min_amount_kes),
         max_amount_kes=str(payments.max_amount_kes),
         transaction_fee_kes=str(payments.transaction_fee_kes),
         auto_capture_payments=payments.auto_capture,
         auto_refund=payments.auto_refund,
-        # Shipping
         shipping_enabled=shipping.shipping_enabled,
         free_shipping_threshold_kes=str(shipping.free_shipping_threshold_kes),
         default_delivery_fee_kes=str(shipping.default_delivery_fee_kes),
         local_pickup_enabled=shipping.local_pickup_enabled,
-        # Notifications
         email_enabled=notifs.email_enabled,
         whatsapp_enabled=notifs.whatsapp_enabled,
         notify_on_new_order=notifs.notify_on_new_order,
@@ -308,10 +195,8 @@ def get_runtime_settings(*, force: bool = False) -> RuntimeSettings:
         notify_on_low_stock=notifs.notify_on_low_stock,
         notify_on_review=notifs.notify_on_review,
         admin_alert_email=notifs.admin_alert_email,
-        # Security
         session_timeout_minutes=security.session_timeout_minutes,
         require_2fa=security.require_2fa,
-        # Tax
         vat_enabled=tax.vat_enabled,
         vat_rate=str(tax.vat_rate),
         prices_include_tax=tax.prices_include_tax,
@@ -322,11 +207,6 @@ def get_runtime_settings(*, force: bool = False) -> RuntimeSettings:
     return runtime
 
 
-# ══════════════════════════════════════════════════════════════
-# Audit
-# ══════════════════════════════════════════════════════════════
-
-# Fields that are never part of a diff — auto-managed or internal.
 AUDIT_IGNORE_FIELDS = {"id", "updated_at", "pk"}
 
 
@@ -338,12 +218,6 @@ def audit_diff(
     user=None,
     ip: Optional[str] = None,
 ) -> int:
-    """Write one SettingsAuditLog row per changed field.
-
-    Returns the number of rows written. `before` and `after` are plain
-    dicts (usually from DRF's `serializer.initial_data` or a model's
-    `__dict__`).
-    """
     from .models import SettingsAuditLog
 
     rows = []
@@ -370,21 +244,11 @@ def audit_diff(
     return len(rows)
 
 
-# ══════════════════════════════════════════════════════════════
-# Daraja client
-# ══════════════════════════════════════════════════════════════
-
 class DarajaError(Exception):
-    """Raised when Daraja returns an error or times out."""
+    pass
 
 
 class DarajaClient:
-    """Safaricom Daraja API wrapper.
-
-    Reads credentials from MpesaConfig. Caches the OAuth token in
-    Django's cache backend so repeated STK pushes don't re-authenticate.
-    """
-
     SANDBOX = "https://sandbox.safaricom.co.ke"
     PRODUCTION = "https://api.safaricom.co.ke"
     REQUEST_TIMEOUT = 20
@@ -397,14 +261,11 @@ class DarajaClient:
             self.SANDBOX if self.cfg.environment == "sandbox" else self.PRODUCTION
         )
 
-    # ── auth ───────────────────────────────────────────────────
-
     def _basic_auth_header(self) -> dict:
         raw = f"{self.cfg.consumer_key}:{self.cfg.consumer_secret}".encode()
         return {"Authorization": f"Basic {base64.b64encode(raw).decode()}"}
 
     def access_token(self, *, force_refresh: bool = False) -> str:
-        """Return a valid OAuth token, cached for ~50 minutes."""
         if not force_refresh:
             cached = cache.get(MPESA_TOKEN_CACHE_KEY)
             if cached:
@@ -429,21 +290,24 @@ class DarajaClient:
         cache.set(MPESA_TOKEN_CACHE_KEY, token, 50 * 60)
         return token
 
-    # ── STK Push ───────────────────────────────────────────────
-
     def stk_push(
         self,
         *,
         phone: str,
-        amount: int | float,
+        amount,
         account_ref: str,
         description: str,
     ) -> dict:
-        """Send an STK Push to the customer's phone.
+        try:
+            whole_amount = int(
+                Decimal(str(amount)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            )
+        except Exception as e:
+            raise DarajaError(f"Invalid amount {amount!r}: {e}") from e
 
-        `phone` must be in 2547XXXXXXXX form. `amount` is truncated to
-        an integer — M-Pesa does not accept decimals.
-        """
+        if whole_amount <= 0:
+            raise DarajaError(f"Amount must be positive, got {whole_amount}")
+
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         password = base64.b64encode(
             f"{self.cfg.shortcode}{self.cfg.passkey}{timestamp}".encode()
@@ -454,7 +318,7 @@ class DarajaClient:
             "Password": password,
             "Timestamp": timestamp,
             "TransactionType": "CustomerPayBillOnline",
-            "Amount": int(amount),
+            "Amount": whole_amount,
             "PartyA": phone,
             "PartyB": self.cfg.shortcode,
             "PhoneNumber": phone,
@@ -478,16 +342,7 @@ class DarajaClient:
         return r.json()
 
 
-# ══════════════════════════════════════════════════════════════
-# M-Pesa callback handler
-# ══════════════════════════════════════════════════════════════
-
 def handle_mpesa_callback(payload: dict) -> None:
-    """Process a Safaricom callback.
-
-    Idempotent — if the transaction is already in a terminal state the
-    function returns without doing anything.
-    """
     from .models import MpesaTransaction, PaymentSettings, TaxSettings
 
     stk = payload.get("Body", {}).get("stkCallback", {})
@@ -510,6 +365,9 @@ def handle_mpesa_callback(payload: dict) -> None:
     txn.result_desc = stk.get("ResultDesc", "")
     txn.raw_callback = payload
 
+    payment_cfg = PaymentSettings.load()
+    tax_cfg = TaxSettings.load()
+
     if txn.result_code == "0":
         meta = {
             m["Name"]: m.get("Value")
@@ -519,25 +377,18 @@ def handle_mpesa_callback(payload: dict) -> None:
         txn.mpesa_receipt = meta.get("MpesaReceiptNumber", "")
         txn.save()
 
-        if PaymentSettings.load().auto_capture and txn.order_id:
-            # TODO: uncomment once the orders app exposes mark_order_paid.
-            # from orders.services import mark_order_paid
-            # mark_order_paid(txn.order_id, txn)
-
+        if payment_cfg.auto_capture and txn.order_id:
             notify(
                 "payment_received",
                 {"order_id": txn.order_id, "amount": str(txn.amount)},
             )
 
-            if TaxSettings.load().etims_enabled:
+            if tax_cfg.etims_enabled:
                 queue_etims(txn.order_id)
     else:
         txn.status = "failed"
         txn.save()
 
-        # Notify the admin so a failed payment doesn't go unnoticed.
-        # `payment_failed` is a distinct event so it can be toggled
-        # independently of payment_received in NotificationSettings.
         notify(
             "payment_failed",
             {
@@ -547,21 +398,10 @@ def handle_mpesa_callback(payload: dict) -> None:
             },
         )
 
-        if PaymentSettings.load().auto_refund and txn.order_id:
-            # TODO: uncomment once the orders app exposes refund_order.
-            # from orders.services import refund_order
-            # refund_order(txn.order_id, reason='mpesa_auto_refund')
+        if payment_cfg.auto_refund and txn.order_id:
             logger.info("Auto-refund queued for order %s", txn.order_id)
 
 
-# ══════════════════════════════════════════════════════════════
-# Notifications
-# ══════════════════════════════════════════════════════════════
-
-# Maps an event name to the NotificationSettings boolean that gates it.
-# `payment_failed` shares `notify_on_payment` because the admin
-# generally wants to know about payment events as a group — split it
-# into its own flag later if the need arises.
 EVENT_FLAG = {
     "new_order": "notify_on_new_order",
     "payment_received": "notify_on_payment",
@@ -579,14 +419,8 @@ def notify(
     *,
     to_admin: bool = True,
     customer_phone: Optional[str] = None,
+    param_order: Optional[list] = None,
 ) -> None:
-    """Fan out a single event to configured channels.
-
-    Respects NotificationSettings: if the event is not enabled in the
-    config, nothing is sent. If `customer_phone` is provided and
-    WhatsApp is enabled, the customer also receives a templated
-    message.
-    """
     from .models import NotificationSettings
 
     cfg = NotificationSettings.load()
@@ -595,17 +429,17 @@ def notify(
         logger.warning("notify() called with unknown event %s", event)
         return
     if not getattr(cfg, flag, False):
+        logger.info("notify() skipped event=%s — flag %s is disabled", event, flag)
         return
 
     if to_admin and cfg.email_enabled and cfg.admin_alert_email:
         _send_email(event, cfg.admin_alert_email, context)
 
     if customer_phone and cfg.whatsapp_enabled:
-        _send_whatsapp(event, customer_phone, context)
+        _send_whatsapp(event, customer_phone, context, param_order=param_order)
 
 
 def _send_email(event: str, recipient: str, context: dict) -> None:
-    """Send one email and log the attempt. Never raises."""
     from .models import NotificationLog
 
     order_id = str(context.get("order_id", "") or "")
@@ -639,8 +473,13 @@ def _send_email(event: str, recipient: str, context: dict) -> None:
         )
 
 
-def _send_whatsapp(event: str, phone: str, context: dict) -> None:
-    """Send one WhatsApp template message and log the attempt."""
+def _send_whatsapp(
+    event: str,
+    phone: str,
+    context: dict,
+    *,
+    param_order: Optional[list] = None,
+) -> None:
     from .models import WhatsAppConfig, NotificationLog
 
     cfg = WhatsAppConfig.load()
@@ -655,6 +494,19 @@ def _send_whatsapp(event: str, phone: str, context: dict) -> None:
         logger.warning("WhatsApp not configured — skipping send for %s", event)
         return
 
+    keys = param_order if param_order else sorted(context.keys())
+    missing = [k for k in keys if k not in context]
+    if missing:
+        logger.warning(
+            "_send_whatsapp: param_order keys %s not in context for event=%s",
+            missing,
+            event,
+        )
+
+    body_params = [
+        {"type": "text", "text": str(context.get(k, ""))} for k in keys
+    ]
+
     url = f"https://graph.facebook.com/v20.0/{cfg.phone_number_id}/messages"
     payload = {
         "messaging_product": "whatsapp",
@@ -666,10 +518,7 @@ def _send_whatsapp(event: str, phone: str, context: dict) -> None:
             "components": [
                 {
                     "type": "body",
-                    "parameters": [
-                        {"type": "text", "text": str(v)}
-                        for v in context.values()
-                    ],
+                    "parameters": body_params,
                 }
             ],
         },
@@ -704,20 +553,7 @@ def _send_whatsapp(event: str, phone: str, context: dict) -> None:
         )
 
 
-# ══════════════════════════════════════════════════════════════
-# VAT + eTIMS
-# ══════════════════════════════════════════════════════════════
-
-def compute_vat(subtotal: float) -> tuple[float, float, float]:
-    """Split a subtotal into (net, vat, gross).
-
-    Honors TaxSettings:
-      • vat_enabled = False           → (subtotal, 0, subtotal)
-      • prices_include_tax = True     → subtotal is the gross
-      • prices_include_tax = False    → subtotal is the net
-
-    All values rounded to 2dp.
-    """
+def compute_vat(subtotal: float) -> tuple:
     from .models import TaxSettings
 
     cfg = TaxSettings.load()
@@ -736,40 +572,29 @@ def compute_vat(subtotal: float) -> tuple[float, float, float]:
 
 
 def queue_etims(order_id: str) -> None:
-    """Create a pending eTIMS submission row.
-
-    The Celery task picks it up and POSTs to KRA. If the task isn't
-    running yet the row just sits as 'pending' until it is.
-    """
     from .models import EtimsSubmission
 
-    EtimsSubmission.objects.create(order_id=order_id, status="pending")
+    submission, created = EtimsSubmission.objects.get_or_create(
+        order_id=order_id,
+        status="pending",
+    )
 
-    # TODO: uncomment once Celery task is registered.
-    # from .tasks import submit_to_etims
-    # submit_to_etims.delay(order_id)
+    if not created:
+        logger.info("eTIMS submission already pending for order %s", order_id)
+        return
 
-
-# ══════════════════════════════════════════════════════════════
-# Integration health checks (called by Celery beat)
-# ══════════════════════════════════════════════════════════════
 
 def refresh_integration_status() -> None:
-    """Ping each external service and update IntegrationStatus rows.
-
-    Safe to run frequently — every check catches its own errors and
-    writes them to `last_error`.
-    """
     from .models import IntegrationStatus, WhatsAppConfig
 
-    def _check_mpesa() -> tuple[bool, str]:
+    def _check_mpesa() -> tuple:
         try:
             DarajaClient().access_token(force_refresh=True)
             return True, ""
         except Exception as e:
             return False, str(e)[:500]
 
-    def _check_whatsapp() -> tuple[bool, str]:
+    def _check_whatsapp() -> tuple:
         cfg = WhatsAppConfig.load()
         if not cfg.access_token or not cfg.phone_number_id:
             return False, "Missing access token or phone number ID"
@@ -793,14 +618,17 @@ def refresh_integration_status() -> None:
 
     now = timezone.now()
     for key, fn in checks.items():
-        row = IntegrationStatus.objects.filter(key=key).first()
-        if not row:
-            continue
         try:
-            connected, err = fn()
-        except Exception as e:
-            connected, err = False, str(e)[:500]
-        row.connected = connected
-        row.last_error = err
-        row.last_checked_at = now
-        row.save(update_fields=["connected", "last_error", "last_checked_at"])
+            row = IntegrationStatus.objects.filter(key=key).first()
+            if not row:
+                continue
+            try:
+                connected, err = fn()
+            except Exception as e:
+                connected, err = False, str(e)[:500]
+            row.connected = connected
+            row.last_error = err
+            row.last_checked_at = now
+            row.save(update_fields=["connected", "last_error", "last_checked_at"])
+        except Exception:
+            logger.exception("refresh_integration_status: failed for key=%s", key)

@@ -11,9 +11,6 @@ from catalog.models import (
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Read — nested shape for the admin table / edit page
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminProductImageSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
 
@@ -22,7 +19,6 @@ class AdminProductImageSerializer(serializers.ModelSerializer):
         fields = ["id", "url", "alt_text", "is_primary", "sort_order"]
 
     def get_url(self, obj):
-        # Prefer an externally-hosted URL when present.
         if obj.external_url:
             return obj.external_url
         if not obj.image:
@@ -75,11 +71,7 @@ class AdminProductReadSerializer(serializers.ModelSerializer):
         return {"id": obj.category_id, "name": obj.category.name}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Write — flat IDs + child collections for the admin form
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminProductWriteSerializer(serializers.ModelSerializer):
-    # FK by ID (the form sends numeric IDs, not names).
     brand_id = serializers.PrimaryKeyRelatedField(
         queryset=Brand.objects.all(), source="brand", write_only=True,
     )
@@ -87,7 +79,6 @@ class AdminProductWriteSerializer(serializers.ModelSerializer):
         queryset=Category.objects.all(), source="category", write_only=True,
     )
 
-    # Child collections — replaced atomically on every save.
     images = serializers.ListField(
         child=serializers.DictField(), required=False, write_only=True,
     )
@@ -110,9 +101,8 @@ class AdminProductWriteSerializer(serializers.ModelSerializer):
             "promo_end_date", "is_active",
             "images", "features", "specs",
         ]
-        read_only_fields = ["id", "slug"]
+        read_only_fields = ["id", "slug", "sales_count"]
 
-    # ── Helpers ──────────────────────────────────────────────────────────
     def _sync_images(self, product, rows):
         product.images.all().delete()
         for i, row in enumerate(rows or []):
@@ -143,7 +133,6 @@ class AdminProductWriteSerializer(serializers.ModelSerializer):
                     product=product, key=key, value=value, sort_order=i,
                 )
 
-    # ── Create / update ──────────────────────────────────────────────────
     @transaction.atomic
     def create(self, validated_data):
         images = validated_data.pop("images", [])

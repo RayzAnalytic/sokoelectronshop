@@ -31,10 +31,6 @@ import type {
   AdminShipmentStatus,
   AdminCourierConfig,
 } from '@/lib/admin-types';
-
-// --- TYPES ---
-// The wire shape comes from `admin-types.ts`. The local aliases keep
-// the JSX readable without renaming every type reference.
 type ShippingTab =
   | 'Zones & Rates'
   | 'Methods'
@@ -46,8 +42,6 @@ type ShipmentStatus = AdminShipmentStatus;
 
 export default function ShippingPage() {
   const [activeTab, setActiveTab] = useState<ShippingTab>('Zones & Rates');
-
-  // ── Server state ────────────────────────────────────────────────────
   const [regions, setRegions] = useState<AdminKenyaRegions>({});
   const [zones, setZones] = useState<AdminShippingZone[]>([]);
   const [methods, setMethods] = useState<AdminShippingMethod[]>([]);
@@ -61,7 +55,6 @@ export default function ShippingPage() {
   const [shipmentsError, setShipmentsError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // ── UI state ────────────────────────────────────────────────────────
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [isAddZoneOpen, setIsAddZoneOpen] = useState(false);
@@ -89,8 +82,6 @@ export default function ShippingPage() {
   const [debouncedTrackingSearch, setDebouncedTrackingSearch] = useState('');
 
   const anyModalOpen = isAddZoneOpen || isAddRateOpen || isAddPickupOpen;
-
-  // ── Toast auto-dismiss ──────────────────────────────────────────────
   useEffect(() => {
     if (toastMessage) {
       const t = setTimeout(() => setToastMessage(null), 3000);
@@ -98,7 +89,6 @@ export default function ShippingPage() {
     }
   }, [toastMessage]);
 
-  // ── Modal Escape + body scroll lock ─────────────────────────────────
   useEffect(() => {
     if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -116,9 +106,6 @@ export default function ShippingPage() {
     };
   }, [anyModalOpen]);
 
-  // ── Initial fetch — everything except shipments ─────────────────────
-  // Shipments fetch through their own effect so the debounced search
-  // can drive a refetch without touching the rest.
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
@@ -148,13 +135,10 @@ export default function ShippingPage() {
     return () => controller.abort();
   }, []);
 
-  // ── Debounce the tracking search ────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setDebouncedTrackingSearch(trackingSearch.trim()), 300);
     return () => clearTimeout(t);
   }, [trackingSearch]);
-
-  // ── Fetch shipments on mount and on debounced search change ─────────
   useEffect(() => {
     const controller = new AbortController();
     setShipmentsLoading(true);
@@ -175,18 +159,12 @@ export default function ShippingPage() {
     return () => controller.abort();
   }, [debouncedTrackingSearch]);
 
-  // ── All counties, flattened from the regions map ────────────────────
   const allCounties = useMemo(() => {
     const set = new Set<string>();
     Object.values(regions).forEach((list) => list.forEach((c) => set.add(c)));
     return Array.from(set).sort();
   }, [regions]);
 
-  // ── Derive default region and county once regions load ─────────────
-  // The previous version hardcoded 'Nairobi'. If the backend's region
-  // keys ever change, the Add Zone select shows no matching option and
-  // submits a stale value. Deriving the default from the loaded map
-  // removes that coupling.
   useEffect(() => {
     const keys = Object.keys(regions);
     if (keys.length === 0) return;
@@ -201,17 +179,10 @@ export default function ShippingPage() {
       setPickupCounty(allCounties[0]);
     }
   }, [allCounties, pickupCounty]);
-
-  // ── Active methods, derived ─────────────────────────────────────────
   const activeMethods = useMemo(
     () => methods.filter((m) => m.status === 'Active'),
     [methods],
   );
-
-  // ── Seed the Add Rate dropdown when active methods load ────────────
-  // Seed ONLY when there is an active method. If every method is
-  // disabled, leave `rateMethodName` empty so the Save button stays
-  // disabled — a disabled method must not be offered for a new rate.
   useEffect(() => {
     if (activeMethods.length > 0 && !rateMethodName) {
       setRateMethodName(activeMethods[0].name);
@@ -509,7 +480,7 @@ export default function ShippingPage() {
 
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1700px] mx-auto px-2 py-3 flex items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Shipping</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -527,7 +498,7 @@ export default function ShippingPage() {
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+      <main className="max-w-[1600px] mx-auto px-0.5 py-3 space-y-2">
 
         {/* INITIAL LOAD ERROR */}
         {error && (
@@ -567,7 +538,7 @@ export default function ShippingPage() {
 
             {/* TAB 1: ZONES */}
             {activeTab === 'Zones & Rates' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                 {zones.length === 0 ? (
                   <div className="col-span-full bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-400 text-[13px]">
                     No shipping zones yet. Add one to get started.
@@ -673,19 +644,19 @@ export default function ShippingPage() {
             {/* TAB 2: METHODS */}
             {activeTab === 'Methods' && (
               <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+                <div className="px-2 py-2 border-b border-slate-200 bg-slate-50">
                   <p className="text-[13px] font-medium text-slate-700">Available delivery methods</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-[13px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                        <th className="py-2 px-3 font-medium">Method</th>
-                        <th className="py-2 px-3 font-medium">Description</th>
-                        <th className="py-2 px-3 font-medium text-right">Price</th>
-                        <th className="py-2 px-3 font-medium">ETA</th>
-                        <th className="py-2 px-3 font-medium">Status</th>
-                        <th className="py-2 px-3 w-24"></th>
+                        <th className="py-2 px-2 font-medium">Method</th>
+                        <th className="py-2 px-2 font-medium">Description</th>
+                        <th className="py-2 px-2 font-medium text-right">Price</th>
+                        <th className="py-2 px-2 font-medium">ETA</th>
+                        <th className="py-2 px-2 font-medium">Status</th>
+                        <th className="py-2 px-2 w-24"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -698,18 +669,18 @@ export default function ShippingPage() {
                       ) : (
                         methods.map((m) => (
                           <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-2">
                               <div className="flex items-center gap-1.5">
                                 <Truck className="w-3.5 h-3.5 text-blue-950" />
                                 <span className="font-medium text-slate-900">{m.name}</span>
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-slate-500">{m.description}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-900">
+                            <td className="py-2 px-2 text-slate-500">{m.description}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-900">
                               KES {m.defaultPrice.toLocaleString()}
                             </td>
-                            <td className="py-2 px-3 text-slate-600">{m.eta}</td>
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-2 text-slate-600">{m.eta}</td>
+                            <td className="py-2 px-2">
                               <span
                                 className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${m.status === 'Active'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
@@ -719,7 +690,7 @@ export default function ShippingPage() {
                                 {m.status}
                               </span>
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-2">
                               <button
                                 onClick={() => toggleMethodStatus(m.id)}
                                 disabled={busy}
@@ -866,22 +837,22 @@ export default function ShippingPage() {
                 )}
 
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50">
                     <p className="text-[13px] font-medium text-slate-700">Order shipment status</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Order #</th>
-                          <th className="py-2 px-3 font-medium">Customer</th>
-                          <th className="py-2 px-3 font-medium">Method</th>
-                          <th className="py-2 px-3 font-medium">Provider</th>
-                          <th className="py-2 px-3 font-medium">Tracking #</th>
-                          <th className="py-2 px-3 font-medium">Destination</th>
-                          <th className="py-2 px-3 font-medium">Status</th>
-                          <th className="py-2 px-3 font-medium">Updated</th>
-                          <th className="py-2 px-3 w-44"></th>
+                          <th className="py-2 px-2 font-medium">Order #</th>
+                          <th className="py-2 px-2 font-medium">Customer</th>
+                          <th className="py-2 px-2 font-medium">Method</th>
+                          <th className="py-2 px-2 font-medium">Provider</th>
+                          <th className="py-2 px-2 font-medium">Tracking #</th>
+                          <th className="py-2 px-2 font-medium">Destination</th>
+                          <th className="py-2 px-2 font-medium">Status</th>
+                          <th className="py-2 px-2 font-medium">Updated</th>
+                          <th className="py-2 px-2 w-44"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -900,20 +871,20 @@ export default function ShippingPage() {
                         ) : (
                           shipments.map((s) => (
                             <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                              <td className="py-2 px-2 font-mono font-medium text-blue-950">
                                 {s.orderNumber}
                               </td>
-                              <td className="py-2 px-3 text-slate-900 truncate max-w-[160px]">
+                              <td className="py-2 px-2 text-slate-900 truncate max-w-[160px]">
                                 {s.customerName}
                               </td>
-                              <td className="py-2 px-3 text-slate-600">{s.method}</td>
-                              <td className="py-2 px-3 text-slate-600">{s.provider}</td>
-                              <td className="py-2 px-3 font-mono text-slate-700">{s.trackingNumber}</td>
-                              <td className="py-2 px-3 text-slate-600 inline-flex items-center gap-1">
+                              <td className="py-2 px-2 text-slate-600">{s.method}</td>
+                              <td className="py-2 px-2 text-slate-600">{s.provider}</td>
+                              <td className="py-2 px-2 font-mono text-slate-700">{s.trackingNumber}</td>
+                              <td className="py-2 px-2 text-slate-600 inline-flex items-center gap-1">
                                 <Navigation className="w-3 h-3 text-slate-400" />
                                 {s.destination}
                               </td>
-                              <td className="py-2 px-3">
+                              <td className="py-2 px-2">
                                 <span
                                   className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge(
                                     s.status
@@ -922,8 +893,8 @@ export default function ShippingPage() {
                                   {s.status}
                                 </span>
                               </td>
-                              <td className="py-2 px-3 font-mono text-slate-400">{s.updatedAt}</td>
-                              <td className="py-2 px-3">
+                              <td className="py-2 px-2 font-mono text-slate-400">{s.updatedAt}</td>
+                              <td className="py-2 px-2">
                                 <select
                                   value={s.status}
                                   onChange={(e) =>
@@ -1047,7 +1018,7 @@ export default function ShippingPage() {
       {/* ADD ZONE MODAL */}
       {isAddZoneOpen && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
           onClick={() => setIsAddZoneOpen(false)}
         >
           <div
@@ -1069,7 +1040,7 @@ export default function ShippingPage() {
               </button>
             </div>
 
-            <form onSubmit={saveZone} className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
+            <form onSubmit={saveZone} className="flex-1 overflow-y-auto p-2 space-y-2 text-[13px]">
               <div>
                 <label className="block font-medium text-slate-700 mb-1">Zone name *</label>
                 <input
@@ -1176,7 +1147,7 @@ export default function ShippingPage() {
             className="bg-white border border-slate-200 rounded-sm max-w-md w-full shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
+            <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                   <DollarSign className="w-4 h-4" />
@@ -1191,7 +1162,7 @@ export default function ShippingPage() {
               </button>
             </div>
 
-            <form onSubmit={saveRate} className="p-3 space-y-3 text-[13px]">
+            <form onSubmit={saveRate} className="p-3 space-y-2 text-[13px]">
               <div>
                 <label className="block font-medium text-slate-700 mb-1">Method</label>
                 <select
@@ -1286,7 +1257,7 @@ export default function ShippingPage() {
             className="bg-white border border-slate-200 rounded-sm max-w-md w-full shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
+            <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                   <Store className="w-4 h-4" />
@@ -1301,7 +1272,7 @@ export default function ShippingPage() {
               </button>
             </div>
 
-            <form onSubmit={savePickup} className="p-3 space-y-3 text-[13px]">
+            <form onSubmit={savePickup} className="p-2 space-y-2 text-[13px]">
               <div>
                 <label className="block font-medium text-slate-700 mb-1">Location name *</label>
                 <input

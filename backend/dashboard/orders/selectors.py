@@ -1,31 +1,12 @@
-"""
-Read queries for the admin orders module.
-
-Everything the list view, detail view, and stats header needs. Views
-call these; they never touch the ORM directly.
-"""
-
-from datetime import timedelta
-
 from django.db.models import Count, Prefetch, Q, Sum
 from django.utils import timezone
 
-from checkout.models import Order, OrderItem, OrderStatusEvent, Payment
+from checkout.models import Order, OrderStatusEvent, Payment
 
 from .constants import ADMIN_ORDER_TABS
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Base queryset
-# ─────────────────────────────────────────────────────────────────────────────
 def orders_base_qs():
-    """
-    Every order, newest first.
-
-    `select_related("user")` is what makes `customer_display` cheap —
-    without it, the list serializer would fire a query per row to read
-    the user's name and email.
-    """
     return (
         Order.objects
         .select_related("user")
@@ -33,30 +14,7 @@ def orders_base_qs():
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Tab filtering
-# ─────────────────────────────────────────────────────────────────────────────
 def _apply_tab(qs, tab: str):
-    """
-    Filter the queryset down to a tab.
-
-    Tabs are not all one dimension:
-
-      * Most filter by `status`.
-      * `payment_pending` filters by `status=pending` AND
-        `payment_status=unpaid` — an order that has been placed but
-        has not been paid for and has not been confirmed.
-      * `paid` filters by `payment_status=paid`, regardless of
-        fulfillment.
-      * `refunded` filters by `payment_status=refunded`.
-      * `failed` is the odd one — it means "this order is dead in some
-        way". That covers both an order with `status=failed` and one
-        where the payment itself failed. The two are unioned.
-
-    Unknown tabs fall through to no filter — the same as `all`. This
-    is defensive: a client sending `?tab=garbage` gets the full list
-    rather than a 500.
-    """
     if tab == "all" or not tab:
         return qs
 
@@ -96,13 +54,9 @@ def _apply_tab(qs, tab: str):
     if tab == "returned":
         return qs.filter(status=Order.Status.RETURNED)
 
-    # Unknown tab — treat as "all".
     return qs
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# List + filters
-# ─────────────────────────────────────────────────────────────────────────────
 def list_orders(
     *,
     tab: str = "all",
@@ -111,19 +65,6 @@ def list_orders(
     date_from=None,
     date_to=None,
 ):
-    """
-    Return a filtered queryset of orders for the admin list page.
-
-    All filtering happens in SQL. Pagination, if added later, wraps
-    this queryset.
-
-    `search` matches order reference, contact email, contact phone, or
-    the customer's first/last name. The user join is already loaded by
-    `orders_base_qs`, so the extra Q clauses do not add a query.
-
-    `date_from` / `date_to` filter on `created_at`. Accept `date` or
-    `datetime`; both are converted by Django's field lookup.
-    """
     qs = orders_base_qs()
     qs = _apply_tab(qs, tab)
 
@@ -149,17 +90,7 @@ def list_orders(
     return qs
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detail — one order, all tabs loaded up front
-# ─────────────────────────────────────────────────────────────────────────────
 def get_order_detail(reference: str):
-    """
-    Return the order with every related object the detail page needs.
-
-    The `status_events` prefetch orders newest-first and loads the
-    actor in the same query, so the timeline serializes with zero
-    additional queries.
-    """
     return (
         Order.objects
         .select_related("user")
@@ -183,21 +114,31 @@ def get_order_detail(reference: str):
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Stats
-# ─────────────────────────────────────────────────────────────────────────────
+def get_order_by_qr_token(token: str):
+    token = (token or "").strip()
+    if not token:
+        return None
+
+    qs = (
+        Order.objects
+        .select_related("user")
+        .prefetch_related(
+            "items",
+            Prefetch(
+                "payments",
+                queryset=Payment.objects.order_by("-created_at"),
+            ),
+        )
+    )
+
+    order = qs.filter(verify_token=token).first()
+    if order is not None:
+        return order
+
+    return qs.filter(reference=token).first()
+
+
 def get_dashboard_stats():
-    """
-    Headline numbers for the list header tiles.
-
-    Four aggregate queries on Order. All told, one round-trip to the
-    database. The alternative — iterating the queryset in Python — is
-    fine for a few hundred orders and terrible for a few hundred
-    thousand.
-
-    `revenue_today` and `revenue_month` count only paid orders. A
-    refunded order is excluded — the money came in and went back out.
-    """
     base = Order.objects.all()
     now = timezone.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -205,8 +146,6 @@ def get_dashboard_stats():
         day=1, hour=0, minute=0, second=0, microsecond=0,
     )
 
-    # Active = anything not in a terminal state. These are the orders
-    # the admin might still need to touch.
     terminal = [
         Order.Status.DELIVERED,
         Order.Status.RETURNED,
@@ -264,15 +203,6 @@ def get_dashboard_stats():
 
 
 def get_tab_counts():
-    """
-    Count of orders per tab.
-
-    One query per tab. That is fine — 11 tabs, 11 cheap `COUNT(*)`
-    calls. If this ever becomes a bottleneck, replace with a single
-    `values("status", "payment_status").annotate(Count("id"))` and
-    compute the tab totals in Python. That is more code for the same
-    answer, so start simple.
-    """
     counts = {}
     for key, _ in ADMIN_ORDER_TABS:
         counts[key] = _apply_tab(Order.objects.all(), key).count()

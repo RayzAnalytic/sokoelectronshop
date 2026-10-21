@@ -1,21 +1,3 @@
-"""
-Customers module models.
-
-Two kinds of tables live here:
-
-  1. Owned tables — CustomerNote, SupportTicket, CommunicationLog.
-     These are admin-facing and have no counterpart elsewhere.
-
-  2. A cached read-model — CustomerProfile. It mirrors aggregate stats
-     computed from `checkout.Order`. The cache exists so the list view
-     can filter and sort by segment, order count, and spend without
-     running aggregate queries on every request.
-
-     The cache is refreshed by `signals.py` whenever an Order is saved
-     or deleted. If the cache ever drifts, `CustomerProfile.refresh_stats()`
-     recomputes from source.
-"""
-
 from django.conf import settings
 from django.db import models
 
@@ -28,9 +10,6 @@ from .constants import (
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CustomerProfile — cached read-model
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerProfile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -38,14 +17,12 @@ class CustomerProfile(models.Model):
         related_name="customer_profile",
     )
 
-    # Cached aggregates. Nullable until the first refresh runs.
     orders_count = models.PositiveIntegerField(default=0)
     total_spent = models.DecimalField(
         max_digits=14, decimal_places=2, default=0,
     )
     last_order_date = models.DateTimeField(null=True, blank=True)
 
-    # Cached derived fields.
     segment = models.CharField(
         max_length=16,
         choices=CustomerSegment.choices,
@@ -73,27 +50,10 @@ class CustomerProfile(models.Model):
     def __str__(self):
         return f"CustomerProfile({self.user_id})"
 
-    # ── Recompute ───────────────────────────────────────────────────────
     def refresh_stats(self, save: bool = True) -> None:
-        """
-        Recompute every cached field from source.
-
-        Called by signals on Order save/delete, and safe to call by hand
-        (e.g. from `tasks.recalculate_all_profiles`).
-
-        Uses `aggregate` + `values` so this is 3 queries regardless of
-        order count.
-
-        Every assignment to a `CharField(blank=True)` field is guarded
-        against a `None` return from the ORM — a LEFT JOIN can produce
-        a row with a NULL string column even when `.exclude(...)` is
-        present, and the DB column is `NOT NULL` because `blank=True`
-        is a form-level flag, not a schema one.
-        """
         from django.db.models import Count, Max, Q, Sum
         from checkout.models import Order
 
-        # Only committed orders count. Pending and cancelled are excluded.
         counted = Q(
             status__in=[
                 Order.Status.CONFIRMED,
@@ -118,14 +78,6 @@ class CustomerProfile(models.Model):
         self.total_spent = agg["total"] or 0
         self.last_order_date = agg["last"]
 
-        # Most purchased category — group order items by their brand
-        # string. The catalog lives outside this service, so we use the
-        # denormalized name on OrderItem.
-        #
-        # `top_item["items__brand"]` can be None even after `.exclude()`
-        # because the LEFT JOIN through `items` can produce a row whose
-        # only column is NULL. Coerce to "" so the NOT NULL column
-        # always receives a string.
         top_item = (
             Order.objects
             .filter(user_id=self.user_id)
@@ -140,7 +92,6 @@ class CustomerProfile(models.Model):
             (top_item["items__brand"] if top_item else "") or ""
         )
 
-        # Preferred payment — the payment_method used most often.
         pref = (
             Order.objects
             .filter(user_id=self.user_id)
@@ -174,21 +125,7 @@ class CustomerProfile(models.Model):
                 ]
             )
 
-    # ── Segment rule ────────────────────────────────────────────────────
     def _compute_segment(self) -> str:
-        """
-        Order of evaluation matters:
-
-          1. Never ordered and joined recently → New
-          2. Never ordered and joined long ago → Churned
-          3. Ordered but stale → At Risk / Churned
-          4. High spend → VIP
-          5. Repeat buyer → Loyal
-          6. Everything else → Regular
-
-        New is checked before VIP so a fresh account with one large
-        purchase shows as New, not VIP — that matches intuition.
-        """
         from datetime import timedelta
         from django.utils import timezone
         from .constants import (
@@ -228,17 +165,7 @@ class CustomerProfile(models.Model):
         return CustomerSegment.REGULAR
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CustomerNote — internal admin notes
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerNote(models.Model):
-    """
-    Staff-only notes. Never exposed to the customer.
-
-    `author` is nullable so a note survives the author's account being
-    deleted (matching the soft-delete pattern on User).
-    """
-
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -264,18 +191,7 @@ class CustomerNote(models.Model):
         return f"Note on {self.user_id} @ {self.created_at:%Y-%m-%d %H:%M}"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SupportTicket
-# ─────────────────────────────────────────────────────────────────────────────
 class SupportTicket(models.Model):
-    """
-    Minimal support-ticket record.
-
-    If you later build a full support module, move this model there and
-    reference it — but for the Customers admin page a flat record is
-    enough.
-    """
-
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -307,23 +223,7 @@ class SupportTicket(models.Model):
         return f"{self.user_id} · {self.subject}"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CommunicationLog
-# ─────────────────────────────────────────────────────────────────────────────
 class CommunicationLog(models.Model):
-    """
-    Timeline of every interaction with a customer — WhatsApp, email,
-    SMS, or phone call.
-
-    Written by:
-      * `services.log_communication` for admin-initiated messages
-      * `signals` for system-generated events (order confirmations,
-        receipts)
-
-    Read-only in the admin UI. Delete rows by hand only when correcting
-    a mistake.
-    """
-
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

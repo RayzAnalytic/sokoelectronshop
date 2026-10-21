@@ -1,12 +1,6 @@
 """
 dashboard/overview/views.py
 
-Aggregates the whole admin overview dashboard in one call. Reads from:
-  • checkout.models           → Order, OrderItem, Payment
-  • catalog.models            → Product, Category, Brand, ProductImage
-  • authentication.models     → User
-  • dashboard.customers       → CustomerProfile
-
 Endpoints:
   GET   /api/v1/admin/overview/?range=today|7d|30d|90d|custom&start=&end=
   POST  /api/v1/admin/overview/refresh/
@@ -24,13 +18,9 @@ from django.views.decorators.http import require_GET, require_POST
 from .models import OverviewCache
 
 
-# ============================================================
-# Constants
-# ============================================================
-
-LIVE_ORDER_STATUSES = ("confirmed", "processing", "shipped", "delivered")
-REFUND_STATUSES = ("returned", "cancelled", "failed")
-PENDING_STATUSES = ("pending",)
+LIVE_ORDER_STATUSES = ("Confirmed", "Processing", "Shipped", "Delivered")
+REFUND_STATUSES = ("Returned", "Cancelled", "Failed")
+PENDING_STATUSES = ("Pending",)
 FAILED_PAYMENT_STATUSES = ("FAILED", "CANCELLED", "TIMEOUT")
 
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
@@ -54,10 +44,6 @@ PAYMENT_COLORS = {
 CATEGORY_PALETTE = [BLUE, INDIGO, VIOLET, CYAN, AMBER, RED, GREEN]
 
 
-# ============================================================
-# Helpers
-# ============================================================
-
 def _range_key(request) -> str:
     rng = request.GET.get("range", "7d")
     if rng == "custom":
@@ -68,7 +54,6 @@ def _range_key(request) -> str:
 
 
 def _resolve_dates(request):
-    """Return (start_date, end_date, days)."""
     rng = request.GET.get("range", "7d")
     today = timezone.now().date()
 
@@ -90,7 +75,7 @@ def _resolve_dates(request):
         except ValueError:
             start = end = today
         days = (end - start).days + 1
-    else:  # 7d default
+    else:
         start = today - timedelta(days=6)
         end = today
         days = 7
@@ -99,14 +84,6 @@ def _resolve_dates(request):
 
 
 def _abs_media_url(url: str) -> str:
-    """Turn a possibly-relative media path into an absolute URL.
-
-    Handles:
-      • Already-absolute URLs (http:// / https://)  → returned as-is
-      • "/media/foo.jpg"                             → prefixed with BACKEND_PUBLIC_URL
-      • "products/foo.jpg"                           → prefixed with MEDIA_URL_ABSOLUTE
-      • "" or None                                   → returned as ""
-    """
     if not url:
         return ""
 
@@ -127,7 +104,6 @@ def _abs_media_url(url: str) -> str:
             return f"{backend_base}{url}"
         return url
 
-    # Relative path — use MEDIA_URL_ABSOLUTE, falling back to MEDIA_URL
     base = media_abs or getattr(settings, "MEDIA_URL", "/media/")
     if not base.endswith("/"):
         base = base + "/"
@@ -135,21 +111,17 @@ def _abs_media_url(url: str) -> str:
 
 
 def _primary_product_image_url(product) -> str:
-    """Best-effort lookup of a Product's primary image.
-
-    Tries, in order:
-      1. A `ProductImage` with `is_primary=True`
-      2. The `ProductImage` with the lowest `sort_order`
-      3. The first `ProductImage` row
-
-    Handles both storage styles:
-      • CharField URL stored directly on the row
-      • FileField that yields a `.url` property
-
-    Returns "" if the product has no images.
-    """
     if product is None:
         return ""
+
+    main = getattr(product, "image", None)
+    if main:
+        try:
+            url = main.url if hasattr(main, "url") else str(main)
+            if url:
+                return _abs_media_url(url)
+        except Exception:
+            pass
 
     try:
         images = list(product.images.all())
@@ -159,7 +131,6 @@ def _primary_product_image_url(product) -> str:
     if not images:
         return ""
 
-    # Prefer is_primary, then sort_order, then insertion order
     primary = next(
         (i for i in images if getattr(i, "is_primary", False)),
         None,
@@ -171,15 +142,12 @@ def _primary_product_image_url(product) -> str:
             pass
         primary = images[0]
 
-    # Try FileField-style `.url` first (returns absolute URL when
-    # MEDIA_URL_ABSOLUTE is configured), then fall back to CharFields.
     candidates = []
     for attr in ("image", "file", "url"):
         val = getattr(primary, attr, None)
         if not val:
             continue
         try:
-            # FileField / ImageField instances have a `.url` property
             if hasattr(val, "url"):
                 candidates.append(val.url)
             else:
@@ -209,6 +177,7 @@ def _cached_or_build(request, builder, empty: dict) -> dict:
         )
         payload = dict(empty)
         payload["error"] = str(exc)
+        return payload
 
     OverviewCache.objects.update_or_create(
         range_key=key, defaults={"payload": payload}
@@ -238,7 +207,6 @@ def _pct_delta(current: float, previous: float) -> tuple[float, bool]:
 
 
 def _sparkline(queryset_values: list[float], fallback_points: int = 7) -> list[dict]:
-    """Turn a list of daily numbers into Recharts-friendly sparkline points."""
     if not queryset_values:
         return [{"value": 0} for _ in range(fallback_points)]
     points = list(queryset_values)
@@ -248,7 +216,6 @@ def _sparkline(queryset_values: list[float], fallback_points: int = 7) -> list[d
 
 
 def _group_daily(qs, field: str, start, end):
-    """Return {date: sum} for the range, filling empty days with 0."""
     rows = {
         r["day"]: r["total"]
         for r in (
@@ -256,8 +223,6 @@ def _group_daily(qs, field: str, start, end):
             .values("day")
             .annotate(
                 total=Coalesce(Sum(field), Value(0), output_field=DECIMAL)
-                if field in ("total", "discount", "amount")
-                else Count("id")
             )
         )
     }
@@ -269,9 +234,13 @@ def _group_daily(qs, field: str, start, end):
     return filled
 
 
-# ============================================================
-# MAIN
-# ============================================================
+def _order_number(o) -> str:
+    for attr in ("order_number", "reference", "number", "code"):
+        val = getattr(o, attr, None)
+        if val:
+            return str(val)
+    return f"#{o.pk}"
+
 
 @require_GET
 def overview(request):
@@ -285,7 +254,6 @@ def overview(request):
         prev_start = start - timedelta(days=days)
         prev_end = start - timedelta(days=1)
 
-        # ── Base querysets ────────────────────────────────────
         orders_now = Order.objects.filter(
             created_at__date__gte=start,
             created_at__date__lte=end,
@@ -308,7 +276,6 @@ def overview(request):
             payment_status__in=("failed",),
         )
 
-        # ── Numeric totals ────────────────────────────────────
         def agg(qs):
             return qs.aggregate(
                 revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
@@ -334,7 +301,8 @@ def overview(request):
         ).count()
         products_total = Product.objects.filter(is_active=True).count()
         low_stock_count = Product.objects.filter(
-            is_active=True, stock_quantity__lte=F("low_stock_threshold"),
+            is_active=True,
+            stock_quantity__lte=F("low_stock_threshold"),
         ).count()
         refunds_count = Order.objects.filter(
             status__in=REFUND_STATUSES,
@@ -346,12 +314,10 @@ def overview(request):
             created_at__date__lte=end,
         ).count()
 
-        # ── KPI deltas + sparklines ───────────────────────────
         rev_delta, rev_pos = _pct_delta(revenue_now, revenue_prev)
         ord_delta, ord_pos = _pct_delta(orders_count_now, orders_count_prev)
 
         daily_rev = _group_daily(orders_now, "total", start, end)
-        daily_ord = _group_daily(orders_now, "", start, end)
         daily_ord = [
             r["n"]
             for r in (
@@ -415,7 +381,7 @@ def overview(request):
             {
                 "id": "completed",
                 "title": "Completed Orders",
-                "value": orders_now.filter(status="delivered").count(),
+                "value": orders_now.filter(status="Delivered").count(),
                 "prefix": "",
                 "suffix": "",
                 "decimals": 0,
@@ -486,7 +452,6 @@ def overview(request):
             },
         ]
 
-        # ── Revenue chart (auto-grouped by range) ─────────────
         def bucket_daily():
             rows = (
                 orders_now
@@ -581,7 +546,6 @@ def overview(request):
         else:
             revenue_chart = bucket_monthly()
 
-        # ── Orders by status (pie) ────────────────────────────
         status_qs = (
             Order.objects
             .filter(created_at__date__gte=start, created_at__date__lte=end)
@@ -589,24 +553,24 @@ def overview(request):
             .annotate(n=Count("id"))
         )
         status_color = {
-            "pending": AMBER,
-            "confirmed": BLUE,
-            "processing": BLUE,
-            "shipped": INDIGO,
-            "delivered": GREEN,
-            "returned": AMBER,
-            "cancelled": RED,
-            "failed": RED,
+            "Pending": AMBER,
+            "Confirmed": BLUE,
+            "Processing": BLUE,
+            "Shipped": INDIGO,
+            "Delivered": GREEN,
+            "Returned": AMBER,
+            "Cancelled": RED,
+            "Failed": RED,
         }
         status_label = {
-            "pending": "Pending",
-            "confirmed": "Confirmed",
-            "processing": "Processing",
-            "shipped": "Shipped",
-            "delivered": "Delivered",
-            "returned": "Returned",
-            "cancelled": "Cancelled",
-            "failed": "Failed",
+            "Pending": "Pending",
+            "Confirmed": "Confirmed",
+            "Processing": "Processing",
+            "Shipped": "Shipped",
+            "Delivered": "Delivered",
+            "Returned": "Returned",
+            "Cancelled": "Cancelled",
+            "Failed": "Failed",
         }
         order_status = [
             {
@@ -617,7 +581,6 @@ def overview(request):
             for r in status_qs
         ]
 
-        # ── Sales by period (Day / Week / Month) ──────────────
         def period_rows(trunc):
             rows = (
                 orders_now
@@ -644,14 +607,17 @@ def overview(request):
                 for r in rows
             ]
 
-        from django.db.models.functions import TruncDate as TD, TruncWeek as TW, TruncMonth as TM
+        from django.db.models.functions import (
+            TruncDate as TD,
+            TruncWeek as TW,
+            TruncMonth as TM,
+        )
         sales_by_period = {
             "Day": period_rows(TD),
             "Week": period_rows(TW),
             "Month": period_rows(TM),
         }
 
-        # ── Top categories ────────────────────────────────────
         cat_totals = (
             OrderItem.objects
             .filter(
@@ -691,7 +657,6 @@ def overview(request):
             )
         ]
 
-        # ── Top products ──────────────────────────────────────
         prod_qs = (
             OrderItem.objects
             .filter(
@@ -699,7 +664,7 @@ def overview(request):
                 order__created_at__date__lte=end,
                 order__status__in=LIVE_ORDER_STATUSES,
             )
-            .values("product_id", "name", "image_url")
+            .values("product_id")
             .annotate(
                 sold=Sum("quantity"),
                 revenue=Coalesce(
@@ -711,7 +676,6 @@ def overview(request):
         )
         pids2 = [r["product_id"] for r in prod_qs if r["product_id"]]
 
-        # Fetch products + prefetch their images in one query batch
         products_by_id = {
             str(p.id): p
             for p in (
@@ -727,21 +691,22 @@ def overview(request):
             p = products_by_id.get(str(r["product_id"]))
             top_products.append({
                 "id": str(r["product_id"]),
-                "name": r["name"] or (p.name if p else "—"),
+                "name": (p.name if p else "—"),
                 "sku": (p.slug if p else "—") or "—",
                 "sold": r["sold"] or 0,
                 "revenue": _to_int(r["revenue"]),
-                # Prefer the real ProductImage; fall back to the
-                # OrderItem snapshot URL if the Product has no images.
-                "image": _primary_product_image_url(p) or (r["image_url"] or ""),
+                "image": _primary_product_image_url(p),
                 "stock": (p.stock_quantity if p else 0) or 0,
                 "category": (p.category.name if p and p.category_id else "—"),
             })
 
-        # ── Recent orders ─────────────────────────────────────
         recent_orders = []
-        for o in Order.objects.select_related("user").order_by("-created_at")[:8]:
-            user = o.user
+        for o in (
+            Order.objects
+            .select_related("user")
+            .order_by("-created_at")[:8]
+        ):
+            user = o.user if o.user_id else None
             name = (
                 f"{user.first_name} {user.last_name}".strip()
                 if user and (user.first_name or user.last_name)
@@ -749,14 +714,13 @@ def overview(request):
             )
             recent_orders.append({
                 "id": str(o.pk),
-                "orderNumber": o.reference or f"#{o.pk}",
+                "orderNumber": _order_number(o),
                 "customer": name,
                 "amount": _to_int(o.total),
                 "status": (o.status or "").title(),
                 "time": o.created_at.strftime("%b %d, %H:%M"),
             })
 
-        # ── Recent customers ──────────────────────────────────
         recent_customers = []
         for c in (
             CustomerProfile.objects
@@ -770,16 +734,19 @@ def overview(request):
                 "id": str(c.pk),
                 "name": name,
                 "email": u.email,
-                "orders": c.orders_count or 0,
-                "spent": _to_int(c.total_spent),
+                "orders": getattr(c, "orders_count", 0) or 0,
+                "spent": _to_int(getattr(c, "total_spent", 0)),
                 "joined": c.created_at.strftime("%b %d") if c.created_at else "—",
                 "avatar": initials,
             })
 
-        # ── Recent transactions ───────────────────────────────
         recent_transactions = []
-        for p in Payment.objects.select_related("order", "order__user").order_by("-created_at")[:6]:
-            user = p.order.user if p.order_id else None
+        for p in (
+            Payment.objects
+            .select_related("order__user")
+            .order_by("-created_at")[:6]
+        ):
+            user = p.order.user if (p.order_id and p.order.user_id) else None
             name = (
                 f"{user.first_name} {user.last_name}".strip()
                 if user and (user.first_name or user.last_name)
@@ -804,11 +771,13 @@ def overview(request):
                 "time": p.created_at.strftime("%b %d, %H:%M"),
             })
 
-        # ── Low stock ─────────────────────────────────────────
         low_stock = []
         low_qs = (
             Product.objects
-            .filter(is_active=True, stock_quantity__lte=F("low_stock_threshold"))
+            .filter(
+                is_active=True,
+                stock_quantity__lte=F("low_stock_threshold"),
+            )
             .select_related("category")
             .prefetch_related("images")
             .order_by("stock_quantity")[:6]
@@ -824,7 +793,6 @@ def overview(request):
                 "image": _primary_product_image_url(p),
             })
 
-        # ── Payment methods breakdown ─────────────────────────
         pm_qs = (
             Payment.objects
             .filter(created_at__date__gte=start, created_at__date__lte=end)
@@ -874,10 +842,6 @@ def overview(request):
         "payment_methods": [],
     }))
 
-
-# ============================================================
-# Cache refresh
-# ============================================================
 
 @require_POST
 def refresh_cache(request):

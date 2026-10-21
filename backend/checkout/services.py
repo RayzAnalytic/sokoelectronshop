@@ -1,138 +1,3 @@
-"""
-checkout/services.py
-
-All commercial logic. Views orchestrate; models stay dumb.
-
-AUTH MODEL:
-    Checkout is open to signed-in customers AND guests — the exact
-    behavior is governed by Settings → Store → Checkout. When
-    `checkout.allow_guest_checkout` is off, unauthenticated submissions
-    are rejected with a `CheckoutError`. When it's on (default), guests
-    can complete an order without an account, and the order-success
-    page handles the "create an account to track" prompt afterwards.
-
-    The service functions accept `user=None` for guest orders. The
-    Order FK is nullable precisely for this case. Ownership guards on
-    idempotency-key replay and reference reuse are enforced only when
-    a real user is present.
-
-    Account creation happens exclusively at `/api/v1/auth/register/`.
-    Nothing in this module creates User rows.
-
-    Guest orders are claimed later. When a customer registers or logs
-    in, `claim_guest_orders(user)` attaches any unowned Order whose
-    `contact_email` or `contact_phone` matches the user's account.
-
-SETTINGS AWARENESS (this section is what changed most recently):
-    Every commercial decision this module makes is now driven by the
-    cached settings bundle from `dashboard.settings.services`, with a
-    fallback to `checkout.constants` when the settings app isn't
-    available (management commands, first migration, tests).
-
-    The settings this module reads:
-
-      Settings → Store → Checkout:
-        * require_phone              — phone number required at checkout
-        * allow_guest_checkout       — guests allowed (else 403)
-        * auto_confirm_orders        — currently informational; see note
-        * whatsapp_fallback          — surfaced in the payload only
-
-      Settings → Store → Payments:
-        * mpesa_enabled              — M-Pesa method offered
-        * min_amount_kes             — order floor
-        * max_amount_kes             — order ceiling
-        * transaction_fee_kes        — flat fee added to M-Pesa amount
-
-      Settings → Store → Shipping:
-        * shipping_enabled           — delivery offered at all
-        * free_shipping_threshold_kes
-        * default_delivery_fee_kes
-        * local_pickup_enabled
-
-      Settings → Store → Tax:
-        * vat_enabled
-        * vat_rate
-        * prices_include_tax
-
-      Settings → Store → Notifications:
-        * notify_on_shipped
-        * notify_on_cancelled
-
-    All helpers fail safe to the legacy `constants` values so the
-    behavior is identical when the settings app is unavailable. Once
-    settings are live, `constants` becomes a fallback only.
-
-PAYMENT LEDGER (admin transactions page):
-    `Payment` rows are the financial events the admin ledger reads.
-    Two write paths matter:
-
-      * `transition_payment` — the gateway handshake (STK push, callback)
-      * `reconcile_payment` / `mark_cash_collected` — manual finance actions
-
-    Both write a `PaymentEvent` row so the drawer's timeline is complete.
-
-ORDER STATUS:
-    `Order.status` is mutated through exactly one function:
-    `change_order_status()`. That function:
-
-      * Updates the field
-      * Writes an `OrderStatusEvent` row (the timeline)
-      * Fires the customer notification — now gated by settings
-      * Returns the refreshed order
-
-STOCK MOVEMENTS:
-    Every stock change is written to `dashboard.inventory.StockMovement`
-    in the same transaction as the change itself.
-
-AUTOMATIONS (AI & Automations page):
-    Four events are dispatched to `dashboard.aiandautomations` from
-    this module:
-
-      * `order.placed`
-      * `order.status.<new>`
-      * `order.paid`
-      * `stock.below_threshold`
-
-Public API
-----------
-    validate_coupon(code, subtotal)                          -> Coupon
-    recompute_totals(checkout, *, is_member)                 -> totals dict
-    create_order(*, checkout_payload, payment_method, user,
-                 idempotency_key)                            -> Order
-    process_checkout(*, payload, user, idempotency_key)      -> Payment
-    create_payment(*, order, idempotency_key, phone, amount) -> Payment
-    transition_payment(payment, status, **kwargs)            -> Payment
-
-    abandon_pending_order(*, order, user)                    -> Order | None
-
-    claim_guest_orders(user)                                 -> int
-
-    change_order_status(order, new_status, *, actor=None,
-                        actor_label="System", note="",
-                        notify=True)                         -> Order
-    record_status_event(order, *, from_status, to_status,
-                        actor=None, actor_label="", note="") -> OrderStatusEvent
-
-    Cart:
-    get_or_create_cart(user)                                 -> Cart
-    get_cart(user)                                           -> Cart | None
-    add_cart_item(user, *, ...)                              -> CartItem
-    update_cart_item_qty(user, item_id, quantity)            -> CartItem
-    remove_cart_item(user, item_id)                          -> None
-    clear_cart(user)                                         -> None
-    merge_cart(user, items)                                  -> Cart
-    snapshot_cart(user)                                      -> dict
-    restore_cart_from_snapshot(user, snapshot)               -> Cart
-
-    Ledger (admin transactions page):
-    retry_payment(*, payment, user, phone=None)              -> Payment
-    reconcile_payment(*, payment, action, order_reference,
-                      note, actor)                           -> Payment
-    mark_cash_collected(*, payment, actor, note="")          -> Payment
-
-    `user` may be None in create_order and process_checkout.
-"""
-
 import logging
 from decimal import Decimal
 
@@ -167,15 +32,13 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Settings helpers — safe during migrations / cold boot
-#
-# Every read routes through `_settings()` which returns the cached
-# bundle or None. When None, the caller falls back to `constants`.
-# This keeps management commands, test suites, and the very first
-# migration from crashing while still letting the live shop reflect
-# Settings changes immediately.
-# ═════════════════════════════════════════════════════════════════════════════
+_DELIVERY_KEY_TO_METHOD_NAME = {
+    "standard": "Standard Delivery",
+    "express": "Express Boda",
+    "pickup": "Pickup Mtaani / Locker",
+}
+
+
 def _settings():
     try:
         from dashboard.settings.services import get_settings_bundle
@@ -184,7 +47,6 @@ def _settings():
         return None
 
 
-# ── Checkout rules ───────────────────────────────────────────────────────────
 def _allow_guest_checkout() -> bool:
     s = _settings()
     return bool(s['checkout'].allow_guest_checkout) if s else True
@@ -200,7 +62,6 @@ def _auto_confirm_orders() -> bool:
     return bool(s['checkout'].auto_confirm_orders) if s else False
 
 
-# ── Payment rules ────────────────────────────────────────────────────────────
 def _mpesa_enabled() -> bool:
     s = _settings()
     return bool(s['payments'].mpesa_enabled) if s else True
@@ -227,7 +88,6 @@ def _transaction_fee_kes() -> Decimal:
     return Decimal("0")
 
 
-# ── Shipping rules ───────────────────────────────────────────────────────────
 def _shipping_enabled() -> bool:
     s = _settings()
     return bool(s['shipping'].shipping_enabled) if s else True
@@ -238,21 +98,84 @@ def _local_pickup_enabled() -> bool:
     return bool(s['shipping'].local_pickup_enabled) if s else True
 
 
-def _free_shipping_threshold() -> Decimal:
+def _resolve_zone(county: str):
+    if not county:
+        return None
+    normalized = county.strip().lower()
+    if not normalized:
+        return None
+
+    from dashboard.shipping.models import ShippingZone
+
+    for zone in ShippingZone.objects.all():
+        counties = zone.counties or []
+        for c in counties:
+            if str(c).strip().lower() == normalized:
+                return zone
+    return None
+
+
+def _resolve_shipping_rate(delivery_method: str, county: str):
+    name = _DELIVERY_KEY_TO_METHOD_NAME.get(delivery_method)
+    if not name:
+        return None
+
+    zone = _resolve_zone(county)
+    if zone is None:
+        return None
+
+    from dashboard.shipping.models import ShippingMethod, ShippingRate
+
+    method = (
+        ShippingMethod.objects
+        .filter(name=name, status=ShippingMethod.Status.ACTIVE)
+        .first()
+    )
+    if method is None:
+        return None
+
+    return (
+        ShippingRate.objects
+        .filter(zone=zone, method=method)
+        .first()
+    )
+
+
+def _resolve_shipping_fee(delivery_method: str, county: str = "") -> Decimal:
+    if delivery_method == "pickup":
+        rate = _resolve_shipping_rate(delivery_method, county)
+        if rate is not None:
+            return Decimal(str(rate.price))
+        return Decimal("0")
+
+    rate = _resolve_shipping_rate(delivery_method, county)
+    if rate is not None:
+        return Decimal(str(rate.price))
+
+    return Decimal("0")
+
+
+def _default_delivery_fee() -> Decimal:
+    return _resolve_shipping_fee("standard")
+
+
+def _free_shipping_threshold(
+    delivery_method: str = "",
+    county: str = "",
+) -> Decimal:
+    if delivery_method:
+        rate = _resolve_shipping_rate(delivery_method, county)
+        if rate is not None:
+            if rate.free_shipping_threshold is not None:
+                return Decimal(str(rate.free_shipping_threshold))
+            return Decimal("0")
+
     s = _settings()
     if s:
         return Decimal(str(s['shipping'].free_shipping_threshold_kes))
     return constants.FREE_DELIVERY_THRESHOLD
 
 
-def _default_delivery_fee() -> Decimal:
-    s = _settings()
-    if s:
-        return Decimal(str(s['shipping'].default_delivery_fee_kes))
-    return Decimal("250")
-
-
-# ── Tax rules ────────────────────────────────────────────────────────────────
 def _vat_enabled() -> bool:
     s = _settings()
     return bool(s['tax'].vat_enabled) if s else True
@@ -270,7 +193,6 @@ def _prices_include_tax() -> bool:
     return bool(s['tax'].prices_include_tax) if s else False
 
 
-# ── Notification rules ───────────────────────────────────────────────────────
 def _notify_on_shipped() -> bool:
     s = _settings()
     return bool(s['notifs'].notify_on_shipped) if s else True
@@ -281,15 +203,9 @@ def _notify_on_cancelled() -> bool:
     return bool(s['notifs'].notify_on_cancelled) if s else True
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Automation dispatch (best-effort side effect)
-# ═════════════════════════════════════════════════════════════════════════════
 def _fire_event(event_name: str, payload: dict) -> None:
-    """
-    Hand an event to the AI automations dispatcher. Never raises.
-    """
     try:
-        from dashboard.aiandautomations.services.automations import dispatch
+        from dashboard.aiautomations.services import dispatch
         dispatch(event_name, payload)
     except Exception:
         logger.exception(
@@ -297,11 +213,7 @@ def _fire_event(event_name: str, payload: dict) -> None:
         )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Coupons
-# ═════════════════════════════════════════════════════════════════════════════
 def validate_coupon(code: str, subtotal: Decimal) -> Coupon:
-    """Return the Coupon if valid for the given subtotal. Raises CouponError."""
     if not code:
         raise CouponError("Coupon code is required.")
 
@@ -329,19 +241,11 @@ def validate_coupon(code: str, subtotal: Decimal) -> Coupon:
     return coupon
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Pricing recompute
-# ═════════════════════════════════════════════════════════════════════════════
 def _round2(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"))
 
 
 def _validate_amount_bounds(total: Decimal) -> None:
-    """
-    Enforce the shop owner's min / max order bounds from Settings →
-    Payments. Raises `PricingError` with a customer-friendly message
-    the checkout page can render directly.
-    """
     floor = _min_amount_kes()
     ceiling = _max_amount_kes()
 
@@ -357,11 +261,7 @@ def _validate_amount_bounds(total: Decimal) -> None:
 
 
 def _validate_shipping_method(method: str) -> None:
-    """
-    Enforce Settings → Store → Shipping flags. A method the shop has
-    disabled is rejected with a clear message.
-    """
-    if method == Order.DeliveryMethod.PICKUP if hasattr(Order, 'DeliveryMethod') else method == 'pickup':
+    if method == 'pickup':
         if not _local_pickup_enabled():
             raise PricingError("Local pickup is currently unavailable.")
         return
@@ -374,36 +274,6 @@ def _validate_shipping_method(method: str) -> None:
 
 
 def recompute_totals(checkout: dict, *, is_member: bool) -> dict:
-    """
-    Recompute totals from server-side rules and compare to client totals.
-
-    All commercial constants now come from Settings with a fallback to
-    `checkout.constants`:
-
-      * Free-delivery threshold  → `shipping.free_shipping_threshold_kes`
-      * Default delivery fee     → `shipping.default_delivery_fee_kes`
-      * Local pickup allowed     → `shipping.local_pickup_enabled`
-      * Shipping enabled         → `shipping.shipping_enabled`
-      * VAT enabled / rate / incl → `tax.*`
-      * Flat fee                 → `payments.transaction_fee_kes`
-
-    Shipping rules, applied in order:
-      1. `pickup`                       → always free, if pickup is enabled.
-      2. `subtotal - discount` ≥ threshold → free, regardless of method.
-      3. `express` and `is_member`      → free (member benefit).
-      4. Otherwise                      → the shop's default delivery fee.
-
-    Raises `PricingError` on:
-      * Unknown / disabled delivery method
-      * Total below the shop minimum
-      * Total above the shop maximum
-      * Any mismatch between client-declared and server-computed totals
-
-    MIGRATION NOTE (shipping):
-        If `dashboard.shipping` grows per-county rate models later,
-        swap the flat-fee branch for a `ShippingRate` lookup. The
-        signature will gain a `county` parameter at that point.
-    """
     items = checkout["items"]
     subtotal = sum(
         (Decimal(str(i["price"])) * int(i["quantity"]) for i in items),
@@ -411,58 +281,44 @@ def recompute_totals(checkout: dict, *, is_member: bool) -> dict:
     )
     subtotal = _round2(subtotal)
 
-    # Coupon
     discount = Decimal("0")
     coupon_code = (checkout.get("coupon") or "").strip().upper()
     if coupon_code:
         coupon = validate_coupon(coupon_code, subtotal)
         discount = _round2(subtotal * coupon.percent_off)
 
-    # ── Shipping ─────────────────────────────────────────────────
     method = checkout["delivery_method"]
     _validate_shipping_method(method)
 
-    threshold = _free_shipping_threshold()
+    address = checkout.get("address") or {}
+    county = (address.get("county") or "").strip()
+
+    threshold = _free_shipping_threshold(method, county)
     if threshold > 0 and (subtotal - discount) >= threshold:
         shipping = Decimal("0")
+    elif method == "pickup":
+        shipping = Decimal("0")
+    elif method == "express" and is_member:
+        shipping = Decimal("0")
     else:
-        if method == "pickup":
-            # Pickup is always free — no fee even below the threshold.
-            shipping = Decimal("0")
-        elif method == "express" and is_member:
-            # Member express benefit — free for signed-in customers.
-            shipping = Decimal("0")
-        else:
-            shipping = _default_delivery_fee()
+        shipping = _resolve_shipping_fee(method, county)
 
-    # ── Tax ──────────────────────────────────────────────────────
-    # Two modes:
-    #   prices_include_tax=False → VAT added on top of the subtotal
-    #   prices_include_tax=True  → VAT extracted from the subtotal
-    #
-    # The mode determines both the `tax` line and whether the `total`
-    # equals the sum of the lines.
     taxable = subtotal - discount
     if not _vat_enabled():
         tax = Decimal("0")
     elif _prices_include_tax():
-        # Subtotal already contains VAT — extract, don't add.
         rate = _vat_rate()
         tax = _round2(taxable * rate / (Decimal("1") + rate))
     else:
         tax = _round2(taxable * _vat_rate())
 
-    # Flat transaction fee — 0 unless the shop owner set one.
     txn_fee = _transaction_fee_kes()
 
     if _prices_include_tax() and _vat_enabled():
-        # Prices already include tax, so the total is subtotal - discount
-        # + shipping + txn_fee. The `tax` line is informational only.
         total = _round2(subtotal - discount + shipping + txn_fee)
     else:
         total = _round2(subtotal - discount + shipping + tax + txn_fee)
 
-    # ── Amount bounds ────────────────────────────────────────────
     _validate_amount_bounds(total)
 
     server_totals = {
@@ -473,9 +329,11 @@ def recompute_totals(checkout: dict, *, is_member: bool) -> dict:
         "total": total,
     }
 
-    # ── Compare against client-declared totals ───────────────────
     client = checkout["totals"]
-    for key in ("subtotal", "discount", "shipping", "tax", "total"):
+    strict_keys = ("subtotal", "discount", "tax")
+    advisory_keys = ("shipping", "total")
+
+    for key in strict_keys:
         client_val = Decimal(str(client.get(key, "0"))).quantize(Decimal("0.01"))
         if client_val != server_totals[key]:
             raise PricingError(
@@ -483,14 +341,18 @@ def recompute_totals(checkout: dict, *, is_member: bool) -> dict:
                 f"client={client_val} server={server_totals[key]}"
             )
 
+    for key in advisory_keys:
+        client_val = Decimal(str(client.get(key, "0"))).quantize(Decimal("0.01"))
+        if client_val != server_totals[key]:
+            logger.info(
+                "Server overrode client '%s': client=%s server=%s",
+                key, client_val, server_totals[key],
+            )
+
     return server_totals
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Snapshot
-# ═════════════════════════════════════════════════════════════════════════════
 def _build_snapshot(checkout: dict, totals: dict) -> dict:
-    """Flatten the checkout payload to the exact shape the success page reads."""
     address = checkout["address"]
     return {
         "email": checkout["email"],
@@ -523,9 +385,6 @@ def _build_snapshot(checkout: dict, totals: dict) -> dict:
     }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Order status — the single mutation point
-# ═════════════════════════════════════════════════════════════════════════════
 def record_status_event(
     order: Order,
     *,
@@ -535,9 +394,6 @@ def record_status_event(
     actor_label: str = "",
     note: str = "",
 ) -> OrderStatusEvent:
-    """
-    Append one row to the order's timeline. Never raises.
-    """
     try:
         with transaction.atomic():
             return OrderStatusEvent.objects.create(
@@ -565,23 +421,31 @@ def change_order_status(
     note: str = "",
     notify: bool = True,
 ) -> Order:
-    """
-    The ONLY place `Order.status` changes.
-
-    Idempotent. Writes the status field, one timeline event, and (on
-    RETURNED) restocks the products. Fires the AI automations event and
-    the customer notification.
-
-    Customer notifications are now gated by Settings → Notifications:
-      * `notify_on_shipped`   — controls the shipped email
-      * `notify_on_cancelled` — controls the cancellation email
-
-    `notify=False` still suppresses everything, as before.
-    """
     old_status = order.status
 
     if old_status == new_status:
         return order
+
+    should_restock = False
+    restock_reason = None
+    restock_note = ""
+
+    if new_status == Order.Status.RETURNED:
+        should_restock = True
+        restock_reason = StockMovement.Reason.RETURN
+        restock_note = f"Returned on order {order.reference}"
+
+    elif new_status == Order.Status.CANCELLED and old_status not in (
+        Order.Status.DELIVERED,
+        Order.Status.RETURNED,
+        Order.Status.CANCELLED,
+    ):
+        should_restock = True
+        restock_reason = getattr(
+            StockMovement.Reason, "CANCELLATION",
+            StockMovement.Reason.RETURN,
+        )
+        restock_note = f"Restocked — order {order.reference} cancelled"
 
     order.status = new_status
     order.save(update_fields=["status", "updated_at"])
@@ -595,7 +459,6 @@ def change_order_status(
         note=note,
     )
 
-    # ── Automation: order.status.<new> ─────────────────────────────
     _fire_event(
         f"order.status.{new_status}",
         {
@@ -608,8 +471,7 @@ def change_order_status(
         },
     )
 
-    # ── Restock on return ─────────────────────────────────────────
-    if new_status == Order.Status.RETURNED:
+    if should_restock:
         for item in order.items.all():
             if not item.product_id:
                 continue
@@ -619,21 +481,20 @@ def change_order_status(
             )
             if not updated:
                 logger.warning(
-                    "Cannot restock deleted product %s on return of %s",
-                    item.product_id, order.reference,
+                    "Cannot restock deleted product %s on %s of %s",
+                    item.product_id, new_status, order.reference,
                 )
                 continue
 
             StockMovement.objects.create(
                 product_id=item.product_id,
                 quantity_delta=item.quantity,
-                reason=StockMovement.Reason.RETURN,
+                reason=restock_reason,
                 reference=order.reference,
                 actor=actor if getattr(actor, "pk", None) else None,
-                notes=f"Returned on order {order.reference}",
+                notes=restock_note,
             )
 
-    # ── Customer notifications (gated by settings) ────────────────
     if notify and order.user_id:
         try:
             from account.services import (
@@ -645,7 +506,6 @@ def change_order_status(
             if new_status == Order.Status.SHIPPED and _notify_on_shipped():
                 notify_order_shipped(order.user, order)
             elif new_status == Order.Status.DELIVERED:
-                # Delivered isn't currently toggleable; ships with the shipped flag
                 notify_order_delivered(order.user, order)
             elif new_status == Order.Status.CANCELLED and _notify_on_cancelled():
                 notify_order_cancelled(order.user, order, reason=note)
@@ -658,9 +518,6 @@ def change_order_status(
     return order
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Order — low-level
-# ═════════════════════════════════════════════════════════════════════════════
 @transaction.atomic
 def _persist_order(
     *,
@@ -675,10 +532,6 @@ def _persist_order(
     source: str = Order.Source.WEB,
     channel_meta: dict | None = None,
 ) -> Order:
-    """
-    Create the Order + items + snapshot + creation event in one atomic
-    block, then decrement stock and write one SALE movement per line.
-    """
     snapshot = _build_snapshot(checkout, totals)
     if idempotency_key:
         snapshot["_idempotency_key"] = idempotency_key
@@ -729,7 +582,6 @@ def _persist_order(
         ]
     )
 
-    # ── Stock decrement + movement log ────────────────────────────
     for item in checkout["items"]:
         pid = item.get("productId")
         if not pid:
@@ -737,15 +589,28 @@ def _persist_order(
 
         qty = int(item["quantity"])
 
-        updated = Product.objects.filter(pk=pid).update(
-            stock_quantity=F("stock_quantity") - qty
+        updated = (
+            Product.objects
+            .filter(pk=pid, stock_quantity__gte=qty)
+            .update(stock_quantity=F("stock_quantity") - qty)
         )
+
         if not updated:
-            logger.warning(
-                "Order %s references missing product %s",
-                order.reference, pid,
+            product = (
+                Product.objects
+                .filter(pk=pid)
+                .values("name", "stock_quantity")
+                .first()
             )
-            continue
+            if product is None:
+                raise CheckoutError(
+                    "A product in your cart is no longer available."
+                )
+            raise CheckoutError(
+                f"Only {product['stock_quantity']} of "
+                f"“{product['name']}” left in stock. "
+                f"You requested {qty}."
+            )
 
         StockMovement.objects.create(
             product_id=pid,
@@ -795,7 +660,6 @@ def _persist_order(
         note="Order placed.",
     )
 
-    # ── COD orders: open a Payment row immediately ────────────────
     if payment_method == Order.PaymentMethod.COD:
         cod_payment = Payment.objects.create(
             order=order,
@@ -830,7 +694,6 @@ def _persist_order(
 
 
 def _find_order_by_idempotency_key(idempotency_key: str) -> Order | None:
-    """Look up an Order by the idempotency key stashed inside its snapshot."""
     if not idempotency_key:
         return None
     return (
@@ -840,19 +703,52 @@ def _find_order_by_idempotency_key(idempotency_key: str) -> Order | None:
     )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Guest order claiming
-# ═════════════════════════════════════════════════════════════════════════════
+def _find_orphan_pending_orders(*, user, checkout: dict) -> list:
+    qs = Order.objects.filter(
+        status=Order.Status.PENDING,
+        payment_status=Order.PaymentStatus.UNPAID,
+    )
+
+    if user is not None:
+        qs = qs.filter(user=user)
+    else:
+        email = (checkout.get("email") or "").strip().lower()
+        phone = normalize_phone(checkout.get("phone") or "")
+        q = Q()
+        if email:
+            q |= Q(contact_email__iexact=email)
+        if phone:
+            q |= Q(contact_phone=phone)
+        if not q:
+            return []
+        qs = qs.filter(q, user__isnull=True)
+
+    qs = qs.exclude(payments__status=Payment.Status.SUCCESS)
+
+    return list(qs)
+
+
+def _kill_live_payments(order: Order, *, reason: str) -> None:
+    if not order or not order.pk:
+        return
+
+    for p in order.payments.filter(
+        status__in=[Payment.Status.PENDING, Payment.Status.PROCESSING],
+    ):
+        try:
+            transition_payment(
+                p,
+                Payment.Status.CANCELLED,
+                result_description=reason,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to cancel live payment %s on order %s",
+                p.pk, order.reference,
+            )
+
+
 def claim_guest_orders(user) -> int:
-    """
-    Attach any unowned guest orders that belong to this user.
-
-    Matches on `contact_email` OR `contact_phone`. Phone matching
-    normalizes both sides to canonical form. Only touches orders where
-    `user_id IS NULL`.
-
-    Returns the number of orders claimed.
-    """
     email = (getattr(user, "email", "") or "").strip().lower()
     phone = normalize_phone(getattr(user, "phone", "") or "")
 
@@ -878,29 +774,15 @@ def claim_guest_orders(user) -> int:
     return updated
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Order — public orchestrator (COD path)
-# ═════════════════════════════════════════════════════════════════════════════
 def _validate_checkout_gates(user, checkout_payload: dict) -> None:
-    """
-    Enforce Settings → Store → Checkout at the entry point of every
-    order-creating function. Fails with `CheckoutError` (400).
-
-    Checks in order:
-      1. Guest checkout allowed?   — `checkout.allow_guest_checkout`
-      2. Phone number provided?    — `checkout.require_phone`
-    """
-    # 1. Guest checkout
     if user is None and not _allow_guest_checkout():
         raise CheckoutError(
             "Guest checkout is currently disabled. Please sign in to place an order."
         )
 
-    # 2. Phone number
     if _require_phone():
         phone = (checkout_payload.get("phone") or "").strip()
         if not phone:
-            # Fall back to the user's account phone before rejecting
             user_phone = (getattr(user, "phone", "") or "").strip() if user else ""
             if not user_phone:
                 raise CheckoutError(
@@ -908,6 +790,7 @@ def _validate_checkout_gates(user, checkout_payload: dict) -> None:
                 )
 
 
+@transaction.atomic
 def create_order(
     *,
     checkout_payload: dict,
@@ -915,27 +798,13 @@ def create_order(
     user,
     idempotency_key: str,
 ) -> Order:
-    """
-    Public entry point for `POST /api/v1/checkout/orders/`.
-
-    Enforces Settings → Store → Checkout before persisting:
-      * Guest checkout allowed (if user is None)
-      * Phone number present (if `require_phone` is on)
-      * M-Pesa method only when `payments.mpesa_enabled`
-
-    Idempotent on `idempotency_key`.
-    """
-    # 0. Settings gates
     _validate_checkout_gates(user, checkout_payload)
 
-    # 0b. M-Pesa gate — this endpoint only allows COD, but the caller
-    #     might pass MPESA by mistake. Reject with a clear message.
     if payment_method == Order.PaymentMethod.MPESA and not _mpesa_enabled():
         raise CheckoutError(
             "M-Pesa is currently unavailable. Please choose Cash on Delivery."
         )
 
-    # 1. Replay check
     existing = _find_order_by_idempotency_key(idempotency_key)
     if existing:
         if user is not None and existing.user_id != user.id:
@@ -947,11 +816,24 @@ def create_order(
         )
         return existing
 
-    # 2. Recompute totals
+    for stale in _find_orphan_pending_orders(
+        user=user, checkout=checkout_payload,
+    ):
+        _kill_live_payments(
+            stale, reason="Superseded by a new checkout attempt.",
+        )
+        change_order_status(
+            stale,
+            Order.Status.CANCELLED,
+            actor=user,
+            actor_label="System",
+            note="Superseded by a new checkout attempt.",
+            notify=False,
+        )
+
     is_member = user is not None
     totals = recompute_totals(checkout_payload, is_member=is_member)
 
-    # 3. Choose status / payment_status
     if payment_method == Order.PaymentMethod.COD:
         status_value = Order.Status.CONFIRMED
         payment_status_value = Order.PaymentStatus.UNPAID
@@ -959,11 +841,9 @@ def create_order(
         status_value = Order.Status.PENDING
         payment_status_value = Order.PaymentStatus.UNPAID
 
-    # 4. Read channel + attribution
     source = checkout_payload.get("source") or Order.Source.WEB
     channel_meta = checkout_payload.get("channel_meta") or {}
 
-    # 5. Persist
     return _persist_order(
         user=user,
         checkout=checkout_payload,
@@ -978,22 +858,8 @@ def create_order(
     )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Order — abandon
-# ═════════════════════════════════════════════════════════════════════════════
 @transaction.atomic
 def abandon_pending_order(*, order: Order, user) -> Order | None:
-    """
-    Cancel a PENDING M-Pesa order the customer abandoned.
-
-    Eligibility (all must hold):
-      * status == PENDING
-      * payment_status != PAID
-      * no SUCCESS Payment
-
-    Idempotent. Notifications suppressed — the customer changed their
-    mind, an email would be noise.
-    """
     if not order:
         return None
 
@@ -1010,6 +876,10 @@ def abandon_pending_order(*, order: Order, user) -> Order | None:
     ).exists():
         return None
 
+    _kill_live_payments(
+        order, reason="Abandoned — customer changed payment method.",
+    )
+
     return change_order_status(
         order,
         Order.Status.CANCELLED,
@@ -1020,9 +890,6 @@ def abandon_pending_order(*, order: Order, user) -> Order | None:
     )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Payment
-# ═════════════════════════════════════════════════════════════════════════════
 @transaction.atomic
 def create_payment(
     *,
@@ -1031,7 +898,6 @@ def create_payment(
     phone: str,
     amount: Decimal,
 ) -> Payment:
-    """Idempotent Payment creation."""
     existing = (
         Payment.objects.select_for_update()
         .filter(idempotency_key=idempotency_key)
@@ -1061,13 +927,6 @@ def transition_payment(
     checkout_request_id: str | None = None,
     raw_callback: dict | None = None,
 ) -> Payment:
-    """
-    The ONLY place `Payment.status` changes.
-
-    On SUCCESS mirrors state onto the parent Order, stamps fee and
-    settled_at, fires `order.paid`. On FAILED / TIMEOUT / CANCELLED
-    logs a timeline event but leaves the order untouched.
-    """
     if payment.status in Payment.TERMINAL_STATUSES:
         logger.warning(
             "Attempted transition on terminal payment %s from %s to %s",
@@ -1109,6 +968,47 @@ def transition_payment(
         payment.order.refresh_from_db(fields=["payment_status"])
 
         order = payment.order
+
+        if order.status == Order.Status.CANCELLED:
+            logger.error(
+                "Payment %s succeeded on CANCELLED order %s — "
+                "manual reconciliation required.",
+                payment.id, order.reference,
+            )
+            record_status_event(
+                order,
+                from_status=Order.Status.CANCELLED,
+                to_status=Order.Status.CANCELLED,
+                actor=None,
+                actor_label="System",
+                note=(
+                    "Late payment received on cancelled order · "
+                    f"{payment.mpesa_receipt_number or 'M-Pesa'}. "
+                    "Refund or reinstate required."
+                ),
+            )
+            PaymentEvent.log(
+                payment,
+                "Payment settled on cancelled order",
+                detail=(
+                    f"Receipt {payment.mpesa_receipt_number}"
+                    if payment.mpesa_receipt_number
+                    else f"Method {payment.get_method_display()}"
+                ),
+            )
+            _fire_event(
+                "order.paid_on_cancelled",
+                {
+                    "order_id": order.pk,
+                    "reference": order.reference,
+                    "customer_id": order.user_id,
+                    "amount": float(payment.amount),
+                    "method": payment.method,
+                    "receipt": payment.mpesa_receipt_number or "",
+                },
+            )
+            return payment
+
         if order.status == Order.Status.PENDING:
             change_order_status(
                 order,
@@ -1188,24 +1088,12 @@ def transition_payment(
     return payment
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Full M-Pesa checkout
-# ═════════════════════════════════════════════════════════════════════════════
 def process_checkout(
     *,
     payload: dict,
     user,
     idempotency_key: str,
 ) -> Payment:
-    """
-    Full flow for an STK-push submission. Returns the Payment.
-
-    Enforces Settings → Store before doing anything:
-      * Guest checkout allowed (if user is None)
-      * Phone number present (if `require_phone`)
-      * M-Pesa enabled (if `payments.mpesa_enabled` is off, hard reject)
-    """
-    # 0. Settings gates
     _validate_checkout_gates(user, payload["checkout"])
     if not _mpesa_enabled():
         raise CheckoutError(
@@ -1240,9 +1128,36 @@ def process_checkout(
             qs = qs.filter(user__isnull=True)
         order = qs.first()
         if order:
+            if order.payment_method != Order.PaymentMethod.MPESA:
+                raise CheckoutError(
+                    "Order reference does not match M-Pesa payments."
+                )
+            if order.status != Order.Status.PENDING:
+                raise CheckoutError(
+                    f"Cannot retry payment on an order in status "
+                    f"{order.status}."
+                )
+            if order.total != totals["total"]:
+                raise CheckoutError(
+                    "Cart has changed since the previous payment "
+                    "attempt. Please review your cart and try again."
+                )
             logger.info("Reusing order %s for M-Pesa retry", reference)
 
     if order is None:
+        for stale in _find_orphan_pending_orders(user=user, checkout=checkout):
+            _kill_live_payments(
+                stale, reason="Superseded by a new M-Pesa attempt.",
+            )
+            change_order_status(
+                stale,
+                Order.Status.CANCELLED,
+                actor=user,
+                actor_label="System",
+                note="Superseded by a new M-Pesa attempt.",
+                notify=False,
+            )
+
         source = checkout.get("source") or Order.Source.WEB
         channel_meta = checkout.get("channel_meta") or {}
         order = _persist_order(
@@ -1305,11 +1220,7 @@ def process_checkout(
     return payment
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Cart — read
-# ═════════════════════════════════════════════════════════════════════════════
 def get_cart(user) -> Cart | None:
-    """Return the user's Cart, or None if they don't have one yet."""
     if user is None or not user.is_authenticated:
         return None
     return (
@@ -1321,16 +1232,12 @@ def get_cart(user) -> Cart | None:
 
 
 def get_or_create_cart(user) -> Cart:
-    """Return the user's Cart, creating an empty one if it doesn't exist."""
     if user is None or not user.is_authenticated:
         raise CheckoutError("Cart requires an authenticated user.")
     cart, _ = Cart.objects.get_or_create(user=user)
     return cart
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Cart — writes
-# ═════════════════════════════════════════════════════════════════════════════
 @transaction.atomic
 def add_cart_item(
     user,
@@ -1347,7 +1254,6 @@ def add_cart_item(
     stock: str = CartItem.Stock.IN,
     stock_count: int = 0,
 ) -> CartItem:
-    """Add a variant to the user's cart, or increment its quantity."""
     if quantity < 1:
         raise CheckoutError("Quantity must be at least 1.")
 
@@ -1392,7 +1298,6 @@ def add_cart_item(
 
 @transaction.atomic
 def update_cart_item_qty(user, item_id: int, quantity: int) -> CartItem:
-    """Set the quantity of a cart item to an exact value."""
     if quantity < 1:
         raise CheckoutError("Quantity must be at least 1.")
 
@@ -1412,24 +1317,18 @@ def update_cart_item_qty(user, item_id: int, quantity: int) -> CartItem:
 
 @transaction.atomic
 def remove_cart_item(user, item_id: int) -> None:
-    """Delete a single cart item. Silent no-op if not found or not owned."""
     CartItem.objects.filter(pk=item_id, cart__user=user).delete()
 
 
 @transaction.atomic
 def clear_cart(user) -> None:
-    """Delete all items in the user's cart. The Cart row is preserved."""
     cart = get_cart(user)
     if cart:
         cart.items.all().delete()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Cart — merge
-# ═════════════════════════════════════════════════════════════════════════════
 @transaction.atomic
 def merge_cart(user, items: list[dict]) -> Cart:
-    """Fold an anonymous cart into the user's server cart."""
     cart = get_or_create_cart(user)
     if not items:
         return cart
@@ -1479,13 +1378,7 @@ def merge_cart(user, items: list[dict]) -> Cart:
     return cart
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Cart — WhatsApp handoff
-# ═════════════════════════════════════════════════════════════════════════════
 def snapshot_cart(user) -> dict:
-    """
-    Freeze the user's current cart into a JSON-safe dict.
-    """
     cart = get_cart(user)
     if cart is None:
         return {"items": []}
@@ -1514,7 +1407,6 @@ def snapshot_cart(user) -> dict:
 
 @transaction.atomic
 def restore_cart_from_snapshot(user, snapshot: dict) -> Cart:
-    """Replace the user's cart contents with a previously captured snapshot."""
     cart = get_or_create_cart(user)
     cart.items.all().delete()
 
@@ -1540,9 +1432,6 @@ def restore_cart_from_snapshot(user, snapshot: dict) -> Cart:
     return cart
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TRANSACTIONS LEDGER (admin)
-# ═════════════════════════════════════════════════════════════════════════════
 @transaction.atomic
 def retry_payment(
     *,
@@ -1550,12 +1439,6 @@ def retry_payment(
     user=None,
     phone: str | None = None,
 ) -> Payment:
-    """
-    Retry a failed M-Pesa payment against the same Order.
-
-    Refuses to retry when `payments.mpesa_enabled` is off — no point
-    firing an STK push the shop owner has disabled.
-    """
     if not _mpesa_enabled():
         raise CheckoutError(
             "M-Pesa is currently disabled in Settings. "
@@ -1649,12 +1532,6 @@ def reconcile_payment(
     note: str = "",
     actor=None,
 ) -> Payment:
-    """
-    Manual reconciliation from the admin transactions page.
-
-    On CASH_PAID, if the order is now fully covered, its payment_status
-    flips to PAID and (if still PENDING) its status flips to CONFIRMED.
-    """
     if not payment:
         raise CheckoutError("Payment is required.")
 
@@ -1662,7 +1539,6 @@ def reconcile_payment(
     if action not in valid_actions:
         raise CheckoutError(f"Unknown reconciliation action: {action}")
 
-    # ── Optional re-link to a different order ─────────────────────
     if order_reference and action == ReconciliationLog.Action.MATCHED:
         clean_ref = order_reference.strip()
         if clean_ref and clean_ref != payment.order.reference:
@@ -1674,7 +1550,6 @@ def reconcile_payment(
             payment.order = target
             payment.save(update_fields=["order", "updated_at"])
 
-    # ── CASH_PAID: flip the payment to SUCCESS ────────────────────
     if action == ReconciliationLog.Action.CASH_PAID:
         if payment.status in Payment.TERMINAL_STATUSES:
             logger.warning(
@@ -1730,7 +1605,6 @@ def reconcile_payment(
                         note="Cash collected on delivery.",
                     )
 
-    # ── Append the audit row ──────────────────────────────────────
     actor_name = getattr(actor, "get_full_name", lambda: "")() or "Admin"
     ReconciliationLog.objects.create(
         payment=payment,
@@ -1751,7 +1625,6 @@ def mark_cash_collected(
     actor=None,
     note: str = "",
 ) -> Payment:
-    """Convenience wrapper around `reconcile_payment` for the rider POD flow."""
     return reconcile_payment(
         payment=payment,
         action=ReconciliationLog.Action.CASH_PAID,

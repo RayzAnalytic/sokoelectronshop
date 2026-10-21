@@ -1,4 +1,3 @@
-// app/pages/best-selling/page.tsx
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -29,9 +28,6 @@ import {
     type BestSellingQuery,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
     if (v === null || v === undefined) return 0;
     return typeof v === 'number' ? v : Number(v);
@@ -61,9 +57,24 @@ const SORT_OPTIONS: { label: string; value: NonNullable<BestSellingQuery['sort_b
     { label: 'Customer Rating', value: 'rating' },
 ];
 
-// ─────────────────────────────────────────────────────────────
-// Suspense wrapper — useSearchParams() needs a boundary
-// ─────────────────────────────────────────────────────────────
+type StockKind = 'in' | 'low' | 'out' | 'unknown';
+
+function normalizeStock(raw: string | undefined): StockKind {
+    const s = (raw || '').toLowerCase().replace(/[_\s-]/g, '');
+    if (s === 'instock' || s === 'in') return 'in';
+    if (s === 'lowstock' || s === 'low') return 'low';
+    if (s === 'outofstock' || s === 'out' || s === 'soldout') return 'out';
+    return 'unknown';
+}
+
+function stockBadgeClasses(status: string): string {
+    const key = (status || '').toLowerCase().replace(/[_\s-]/g, '');
+    if (key === 'instock') return 'bg-green-600 text-white';
+    if (key === 'lowstock') return 'bg-orange-500 text-white';
+    if (key === 'outofstock') return 'bg-red-600 text-white';
+    return 'bg-slate-600 text-white';
+}
+
 export default function BestSellingPage() {
     return (
         <Suspense fallback={null}>
@@ -72,16 +83,12 @@ export default function BestSellingPage() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────
-// The real page
-// ─────────────────────────────────────────────────────────────
 function BestSellingPageInner() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const openId = searchParams.get('open');
 
-    // ── Filter / sort state ───────────────────────────────────
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedBrand, setSelectedBrand] = useState('All');
     const [selectedPriceRange, setSelectedPriceRange] = useState<string>('All');
@@ -91,18 +98,16 @@ function BestSellingPageInner() {
     const [sortBy, setSortBy] = useState<NonNullable<BestSellingQuery['sort_by']>>(
         'best-selling',
     );
+    const [reloadKey, setReloadKey] = useState(0);
 
-    // ── Data ──────────────────────────────────────────────────
     const [products, setProducts] = useState<CatalogBestSeller[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
 
-    // ── Modal state ───────────────────────────────────────────
     const [modalDetail, setModalDetail] = useState<CatalogBestSellerDetail | null>(null);
     const [modalImageIndex, setModalImageIndex] = useState(0);
     const [cartAddingId, setCartAddingId] = useState<string | null>(null);
 
-    // ── Reviews state ─────────────────────────────────────────
     const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
     const [reviews, setReviews] = useState<CatalogReview[]>([]);
     const [reviewsLoading, setReviewsLoading] = useState(false);
@@ -118,13 +123,11 @@ function BestSellingPageInner() {
 
     const addItem = useCart((s) => s.addItem);
 
-    // ── Debounce search ───────────────────────────────────────
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
         return () => clearTimeout(t);
     }, [searchQuery]);
 
-    // ── Fetch best sellers whenever filters change ────────────
     useEffect(() => {
         const ctrl = new AbortController();
         setLoading(true);
@@ -164,9 +167,9 @@ function BestSellingPageInner() {
         selectedPriceRange,
         selectedStock,
         sortBy,
+        reloadKey,
     ]);
 
-    // ── Fetch modal detail from ?open= ────────────────────────
     useEffect(() => {
         if (!openId) {
             setModalDetail(null);
@@ -189,7 +192,6 @@ function BestSellingPageInner() {
         return () => ctrl.abort();
     }, [openId, router, pathname]);
 
-    // ── Fetch reviews when sub-modal opens ────────────────────
     useEffect(() => {
         if (!reviewsModalOpen || !modalDetail) return;
         const ctrl = new AbortController();
@@ -204,7 +206,6 @@ function BestSellingPageInner() {
         return () => ctrl.abort();
     }, [reviewsModalOpen, modalDetail]);
 
-    // ── URL helpers for the modal ─────────────────────────────
     const openProductInUrl = (id: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('open', id);
@@ -224,7 +225,6 @@ function BestSellingPageInner() {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     };
 
-    // ── Dropdown sources derived from the returned products ──
     const categories = useMemo(
         () => ['All', ...Array.from(new Set(products.map((p) => p.category)))],
         [products],
@@ -234,21 +234,19 @@ function BestSellingPageInner() {
         [products],
     );
 
-    // ── Reviews derived ───────────────────────────────────────
     const averageReviewRating = useMemo(() => {
         if (reviews.length === 0) return 0;
         const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
         return Math.round((sum / reviews.length) * 10) / 10;
     }, [reviews]);
 
-    // ── Add to cart ───────────────────────────────────────────
     const handleAddToCart = useCallback(
         async (product: CatalogBestSeller, e?: React.MouseEvent) => {
             if (e) {
                 e.preventDefault();
                 e.stopPropagation();
             }
-            if (product.stockStatus === 'Out of Stock') return;
+            if (normalizeStock(product.stockStatus) === 'out') return;
 
             setCartAddingId(product.id);
             try {
@@ -263,8 +261,8 @@ function BestSellingPageInner() {
                         product.previousPrice !== null
                             ? toNum(product.previousPrice)
                             : undefined,
-                    slug: product.id,
-                    stockCount: 10,
+                    slug: product.slug,
+                    stockCount: product.stockQuantity,
                     stock: product.stockStatus,
                 });
             } finally {
@@ -274,7 +272,6 @@ function BestSellingPageInner() {
         [addItem],
     );
 
-    // ── Modal open/close ──────────────────────────────────────
     const openModal = (product: CatalogBestSeller) => openProductInUrl(product.id);
 
     const closeModal = () => {
@@ -291,7 +288,6 @@ function BestSellingPageInner() {
         setReviewsModalOpen(false);
     };
 
-    // ── Submit review ─────────────────────────────────────────
     const handleSubmitReview = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!modalDetail) return;
@@ -314,13 +310,10 @@ function BestSellingPageInner() {
             setReviewSubmitted(true);
             setReviewForm({ author: '', rating: 5, title: '', body: '' });
 
-            // Refresh detail so rating/reviewCount aggregates update
             catalogApi.bestSelling
                 .detail(modalDetail.product.id)
                 .then(setModalDetail)
-                .catch(() => {
-                    /* non-fatal */
-                });
+                .catch(() => {});
         } catch {
             setReviewError('Could not submit review. Please try again.');
         } finally {
@@ -328,7 +321,6 @@ function BestSellingPageInner() {
         }
     };
 
-    // ── Clear filters ─────────────────────────────────────────
     const clearFilters = () => {
         setSelectedCategory('All');
         setSelectedBrand('All');
@@ -346,12 +338,8 @@ function BestSellingPageInner() {
         selectedStock !== 'All' ||
         searchQuery.trim() !== '';
 
-    // ─────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-            {/* Breadcrumb */}
             <div className="bg-white border-b border-slate-200 py-2 text-xs text-slate-500">
                 <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4 flex items-center space-x-2">
                     <Link href="/" className="hover:text-blue-950">Home</Link>
@@ -360,12 +348,11 @@ function BestSellingPageInner() {
                 </div>
             </div>
 
-            {/* Hero */}
             <section className="bg-white border-b border-slate-200 py-5">
                 <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
                                 Best Selling Products
                             </h1>
                             <p className="text-sm text-slate-600 mt-1 max-w-2xl">
@@ -381,30 +368,25 @@ function BestSellingPageInner() {
             </section>
 
             <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-4 lg:px-4 py-2">
-                {/* Category nav */}
-                <div className="mb-1 overflow-x-auto pb-1">
-                    <div className="flex items-center space-x-2 min-w-max">
-                        {categories.map((cat) => {
-                            const isActive = selectedCategory === cat;
-                            return (
-                                <button
-                                    key={cat}
-                                    onClick={() => setSelectedCategory(cat)}
-                                    className={`px-4 py-2 rounded-sm text-xs font-medium transition-colors ${isActive
-                                            ? 'bg-blue-950 text-white shadow-xs'
-                                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-                                        }`}
-                                >
-                                    {cat}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
+                <div className="bg-white border border-slate-200 rounded-sm p-3 mb-4 shadow-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+                        <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                                Category
+                            </label>
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                            >
+                                {categories.map((cat) => (
+                                    <option key={cat} value={cat}>
+                                        {cat === 'All' ? 'All Categories' : cat}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
 
-                {/* Filters */}
-                <div className="bg-white border border-slate-200 rounded-sm p-1 sm:p-1 mb-2 shadow-xs">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
                         <div>
                             <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
                                 Search Best Sellers
@@ -416,7 +398,7 @@ function BestSellingPageInner() {
                                     placeholder="Search best sellers..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                    className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                                 />
                             </div>
                         </div>
@@ -428,10 +410,12 @@ function BestSellingPageInner() {
                             <select
                                 value={selectedBrand}
                                 onChange={(e) => setSelectedBrand(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
                                 {brands.map((b) => (
-                                    <option key={b} value={b}>{b}</option>
+                                    <option key={b} value={b}>
+                                        {b === 'All' ? 'All Brands' : b}
+                                    </option>
                                 ))}
                             </select>
                         </div>
@@ -443,7 +427,7 @@ function BestSellingPageInner() {
                             <select
                                 value={selectedPriceRange}
                                 onChange={(e) => setSelectedPriceRange(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
                                 {PRICE_RANGES.map((r) => (
                                     <option key={r.value} value={r.value}>{r.label}</option>
@@ -458,7 +442,7 @@ function BestSellingPageInner() {
                             <select
                                 value={selectedStock}
                                 onChange={(e) => setSelectedStock(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
                                 {STOCK_OPTIONS.map((s) => (
                                     <option key={s} value={s}>
@@ -478,7 +462,7 @@ function BestSellingPageInner() {
                                     onChange={(e) =>
                                         setSortBy(e.target.value as NonNullable<BestSellingQuery['sort_by']>)
                                     }
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                    className="w-full bg-white border border-slate-200 rounded-sm px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                                 >
                                     {SORT_OPTIONS.map((o) => (
                                         <option key={o.value} value={o.value}>{o.label}</option>
@@ -497,7 +481,6 @@ function BestSellingPageInner() {
                     </div>
                 </div>
 
-                {/* Count */}
                 <div className="flex items-center justify-between mb-4">
                     <p className="text-xs font-medium text-slate-600">
                         Showing{' '}
@@ -506,13 +489,12 @@ function BestSellingPageInner() {
                     </p>
                 </div>
 
-                {/* Error state */}
                 {loadError && !loading && (
                     <div className="bg-white border border-red-200 rounded-sm p-6 text-center my-4">
                         <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
                         <p className="text-xs text-red-700 mb-3">{loadError}</p>
                         <button
-                            onClick={() => setSortBy((s) => s)}
+                            onClick={() => setReloadKey((k) => k + 1)}
                             className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-xs transition-colors"
                         >
                             Retry
@@ -520,7 +502,6 @@ function BestSellingPageInner() {
                     </div>
                 )}
 
-                {/* Loading skeleton */}
                 {loading && products.length === 0 && !loadError && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {Array.from({ length: 8 }).map((_, i) => (
@@ -528,7 +509,7 @@ function BestSellingPageInner() {
                                 key={i}
                                 className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
                             >
-                                <div className="aspect-[4/3] bg-slate-100" />
+                                <div className="aspect-[20/16] bg-slate-100" />
                                 <div className="p-3 space-y-2">
                                     <div className="h-3 bg-slate-100 rounded w-1/3" />
                                     <div className="h-4 bg-slate-100 rounded w-3/4" />
@@ -539,7 +520,6 @@ function BestSellingPageInner() {
                     </div>
                 )}
 
-                {/* Grid */}
                 {!loading && !loadError && products.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {products.map((product) => {
@@ -549,6 +529,7 @@ function BestSellingPageInner() {
                                 product.previousPrice !== null
                                     ? toNum(product.previousPrice)
                                     : null;
+                            const isOutOfStock = normalizeStock(product.stockStatus) === 'out';
 
                             return (
                                 <div
@@ -556,7 +537,7 @@ function BestSellingPageInner() {
                                     className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
                                 >
                                     <div>
-                                        <div className="aspect-[4/3] w-full bg-slate-100 overflow-hidden relative">
+                                        <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
                                             <img
                                                 src={product.images[0] ?? '/placeholder.jpeg'}
                                                 alt={product.name}
@@ -575,20 +556,15 @@ function BestSellingPageInner() {
                                                 image={product.images[0] ?? ''}
                                                 unitPrice={price}
                                                 compareAtPrice={previousPrice ?? undefined}
-                                                slug={product.id}
-                                                stockCount={10}
+                                                slug={product.slug}
+                                                stockCount={product.stockQuantity}
                                                 stock={product.stockStatus}
                                                 size="sm"
                                                 className="absolute top-2.5 right-2.5 z-10"
                                             />
 
                                             <span
-                                                className={`absolute bottom-2.5 left-2.5 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
-                                                        ? 'bg-emerald-100 text-emerald-800'
-                                                        : product.stockStatus === 'Low Stock'
-                                                            ? 'bg-amber-100 text-amber-800'
-                                                            : 'bg-red-100 text-red-800'
-                                                    }`}
+                                                className={`absolute bottom-2.5 left-2.5 z-10 text-[10px] font-semibold px-2 py-0.5 rounded shadow-xs ${stockBadgeClasses(product.stockStatus)}`}
                                             >
                                                 {product.stockStatus}
                                             </span>
@@ -650,7 +626,7 @@ function BestSellingPageInner() {
                                             <button
                                                 type="button"
                                                 onClick={(e) => handleAddToCart(product, e)}
-                                                disabled={isAdding || product.stockStatus === 'Out of Stock'}
+                                                disabled={isAdding || isOutOfStock}
                                                 className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded text-[13px] transition-colors disabled:opacity-50 flex items-center justify-center space-x-1"
                                             >
                                                 {isAdding ? (
@@ -670,7 +646,6 @@ function BestSellingPageInner() {
                     </div>
                 )}
 
-                {/* Empty state */}
                 {!loading && !loadError && products.length === 0 && (
                     <div className="bg-white border border-slate-200 rounded-sm p-8 text-center max-w-lg mx-auto my-6">
                         <div className="w-12 h-12 bg-blue-50 text-blue-950 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -692,7 +667,6 @@ function BestSellingPageInner() {
                 )}
             </main>
 
-            {/* PRODUCT MODAL */}
             {modalDetail && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
                     <div className="bg-white rounded-sm max-w-4xl w-full overflow-hidden shadow-2xl relative max-h-[92vh] flex flex-col">
@@ -714,7 +688,7 @@ function BestSellingPageInner() {
                         <div className="overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
                                 <div className="bg-slate-50 p-2 flex flex-col items-center space-y-2 rounded-sm">
-                                    <div className="relative w-full aspect-square bg-white rounded-sm overflow-hidden border border-slate-200 shadow-xs">
+                                    <div className="relative w-full aspect-[20/16] bg-white rounded-sm overflow-hidden border border-slate-200 shadow-xs">
                                         <img
                                             src={
                                                 modalDetail.product.images[modalImageIndex] ??
@@ -735,8 +709,8 @@ function BestSellingPageInner() {
                                                     ? toNum(modalDetail.product.previousPrice)
                                                     : undefined
                                             }
-                                            slug={modalDetail.product.id}
-                                            stockCount={10}
+                                            slug={modalDetail.product.slug}
+                                            stockCount={modalDetail.product.stockQuantity}
                                             stock={modalDetail.product.stockStatus}
                                             size="md"
                                             className="absolute top-3 left-3 z-10"
@@ -787,13 +761,9 @@ function BestSellingPageInner() {
                                                 ({modalDetail.product.reviewCount} reviews)
                                             </span>
                                             <MessageSquare className="w-3.5 h-3.5 text-slate-400 ml-1" />
+
                                             <span
-                                                className={`ml-2 text-[11px] font-medium px-2 py-0.5 rounded-full ${modalDetail.product.stockStatus === 'In Stock'
-                                                        ? 'bg-emerald-100 text-emerald-800'
-                                                        : modalDetail.product.stockStatus === 'Low Stock'
-                                                            ? 'bg-amber-100 text-amber-800'
-                                                            : 'bg-red-100 text-red-800'
-                                                    }`}
+                                                className={`ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full ${stockBadgeClasses(modalDetail.product.stockStatus)}`}
                                             >
                                                 {modalDetail.product.stockStatus}
                                             </span>
@@ -825,7 +795,7 @@ function BestSellingPageInner() {
                                                 await handleAddToCart(modalDetail.product);
                                                 closeModal();
                                             }}
-                                            disabled={modalDetail.product.stockStatus === 'Out of Stock'}
+                                            disabled={normalizeStock(modalDetail.product.stockStatus) === 'out'}
                                             className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
                                         >
                                             <ShoppingCart className="w-4 h-4" />
@@ -856,7 +826,7 @@ function BestSellingPageInner() {
                                                 onClick={() => handleSelectRelated(rp)}
                                                 className="shrink-0 w-40 text-left group/rel"
                                             >
-                                                <div className="aspect-square rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
+                                                <div className="aspect-[20/16] rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
                                                     <img
                                                         src={rp.images[0] ?? '/placeholder.jpeg'}
                                                         alt={rp.name}
@@ -882,7 +852,6 @@ function BestSellingPageInner() {
                 </div>
             )}
 
-            {/* REVIEWS SUB-MODAL */}
             {modalDetail && reviewsModalOpen && (
                 <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
                     <div className="bg-white rounded-sm max-w-3xl w-full overflow-hidden shadow-2xl relative max-h-[88vh] flex flex-col">
@@ -1100,50 +1069,6 @@ function BestSellingPageInner() {
                     </div>
                 </div>
             )}
-
-            {/* Trust section */}
-            <section className="bg-white border-t border-b border-slate-200 py-4 my-4">
-                <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="flex items-start space-x-3">
-                            <div className="w-10 h-10 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
-                                <ShieldCheck className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h4 className="text-[12px] font-bold text-slate-900">Genuine Products</h4>
-                                <p className="text-[13px] text-slate-600 mt-0.5">Sourced directly from authorized manufacturers and official distributors.</p>
-                            </div>
-                        </div>
-                        <div className="flex items-start space-x-3">
-                            <div className="w-10 h-10 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
-                                <Truck className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h4 className="text-[12px] font-bold text-slate-900">Fast Delivery</h4>
-                                <p className="text-[13px] text-slate-600 mt-0.5">Reliable dispatch across Nairobi and countrywide delivery via secure courier.</p>
-                            </div>
-                        </div>
-                        <div className="flex items-start space-x-3">
-                            <div className="w-10 h-10 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
-                                <CreditCard className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h4 className="text-[12px] font-bold text-slate-900">Secure Payments</h4>
-                                <p className="text-[13px] text-slate-600 mt-0.5">Pay safely via Safaricom M-Pesa, Airtel Money, or Stripe card payments.</p>
-                            </div>
-                        </div>
-                        <div className="flex items-start space-x-3">
-                            <div className="w-10 h-10 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
-                                <CheckCircle2 className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h4 className="text-[12px] font-bold text-slate-900">Manufacturer Warranty</h4>
-                                <p className="text-[13px] text-slate-600 mt-0.5">All electronics come with standard official warranty coverage and support.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
         </div>
     );
 }

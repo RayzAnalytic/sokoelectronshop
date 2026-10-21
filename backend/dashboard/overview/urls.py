@@ -5,6 +5,6 @@ from . import views
 app_name = "overview"
 
 urlpatterns = [
-    path("",         views.overview,       name="dashboard"),
-    path("refresh/", views.refresh_cache,  name="refresh"),
+    path("", views.overview, name="dashboard"),
+    path("refresh/", views.refresh_cache, name="refresh"),
 ]

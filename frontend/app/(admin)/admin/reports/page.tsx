@@ -127,9 +127,6 @@ const VIDEO_TYPE_STYLES: Record<ReportSocialVideo['videoType'], string> = {
   Tutorial: 'bg-purple-50 text-purple-700 border-purple-100',
 };
 
-// ─────────────────────────────────────────────────────────────
-// Reports tab → admin page it hands off to
-// ─────────────────────────────────────────────────────────────
 const REPORT_TAB_ROUTES: Record<ReportTab, string> = {
   sales: '/admin/orders',
   orders: '/admin/orders',
@@ -143,7 +140,6 @@ const REPORT_TAB_ROUTES: Record<ReportTab, string> = {
   social: '/admin/social',
 };
 
-// Human label for the "Open in X" button
 const REPORT_TAB_TARGETS: Record<ReportTab, string> = {
   sales: 'Orders',
   orders: 'Orders',
@@ -156,6 +152,48 @@ const REPORT_TAB_TARGETS: Record<ReportTab, string> = {
   discounts: 'Discounts',
   social: 'Social',
 };
+
+const TAB_META: Record<
+  ReportTab,
+  { label: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  sales: { label: 'Sales', icon: TrendingUp },
+  orders: { label: 'Orders', icon: ShoppingBag },
+  customers: { label: 'Customers', icon: Users },
+  products: { label: 'Products', icon: Package },
+  inventory: { label: 'Inventory', icon: Warehouse },
+  payments: { label: 'Payments', icon: CreditCard },
+  taxes: { label: 'Taxes & VAT', icon: Receipt },
+  shipping: { label: 'Shipping', icon: Truck },
+  discounts: { label: 'Discounts', icon: Percent },
+  social: { label: 'Social Videos', icon: Share2 },
+};
+
+const TAB_GROUPS: {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tabs: ReportTab[];
+}[] = [
+  {
+    id: 'commerce',
+    label: 'Commerce',
+    icon: TrendingUp,
+    tabs: ['sales', 'orders', 'products', 'inventory'],
+  },
+  {
+    id: 'customers',
+    label: 'Customers',
+    icon: Users,
+    tabs: ['customers', 'discounts', 'social'],
+  },
+  {
+    id: 'finance',
+    label: 'Finance',
+    icon: CreditCard,
+    tabs: ['payments', 'taxes', 'shipping'],
+  },
+];
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -173,8 +211,8 @@ export default function ReportsPage() {
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [openTabGroup, setOpenTabGroup] = useState<string | null>(null);
 
-  // Modals
   const [selectedSale, setSelectedSale] = useState<ReportSaleRow | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ReportOrderRow | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ReportProductRow | null>(null);
@@ -195,7 +233,6 @@ export default function ReportsPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // ── Handoff to the operational admin page ────────────────
   const openInAdmin = (
     tab: ReportTab,
     extra: Record<string, string | undefined> = {},
@@ -216,7 +253,6 @@ export default function ReportsPage() {
     router.push(`${base}${sep}${params.toString()}`);
   };
 
-  // "Sep 17" → "2026-09-17" (uses current year from the report label)
   const toIsoDate = (short: string) => {
     const year = new Date().getFullYear();
     const d = new Date(`${short}, ${year}`);
@@ -224,7 +260,6 @@ export default function ReportsPage() {
     return d.toISOString().slice(0, 10);
   };
 
-  // ── Fetch on tab or query change ─────────────────────────
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
@@ -371,19 +406,6 @@ export default function ReportsPage() {
     { id: 'custom', label: 'Custom Range…' },
   ];
 
-  const TABS: { id: ReportTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: 'sales', label: 'Sales', icon: TrendingUp },
-    { id: 'orders', label: 'Orders', icon: ShoppingBag },
-    { id: 'customers', label: 'Customers', icon: Users },
-    { id: 'products', label: 'Products', icon: Package },
-    { id: 'inventory', label: 'Inventory', icon: Warehouse },
-    { id: 'payments', label: 'Payments', icon: CreditCard },
-    { id: 'taxes', label: 'Taxes & VAT', icon: Receipt },
-    { id: 'shipping', label: 'Shipping', icon: Truck },
-    { id: 'discounts', label: 'Discounts', icon: Percent },
-    { id: 'social', label: 'Social Videos', icon: Share2 },
-  ];
-
   const sales = reportData.sales;
   const orders = reportData.orders;
   const customers = reportData.customers;
@@ -399,7 +421,7 @@ export default function ReportsPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
 
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
@@ -407,13 +429,11 @@ export default function ReportsPage() {
           </button>
         </div>
       )}
-
-      {/* ─── SALES DAY MODAL ─── */}
       {selectedSale && (
         <Modal onClose={() => setSelectedSale(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Sales Day</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">Sales Day</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedSale.date}, 2026</h3>
               <p className="text-[13px] text-slate-500 mt-1">Top category: {selectedSale.topCategory}</p>
             </div>
@@ -426,7 +446,7 @@ export default function ReportsPage() {
             <div className="flex justify-end gap-2 pt-1 flex-wrap">
               <button
                 onClick={() => showToast(`Exported ${selectedSale.date} sales breakdown`)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px]"
               >
                 Export day
               </button>
@@ -436,14 +456,14 @@ export default function ReportsPage() {
                   setSelectedSale(null);
                   openInAdmin('orders', { date: iso });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 Open day in Orders
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setSelectedSale(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
               >
                 Close
               </button>
@@ -455,9 +475,9 @@ export default function ReportsPage() {
       {/* ─── ORDER MODAL ─── */}
       {selectedOrder && (
         <Modal onClose={() => setSelectedOrder(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Order</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">Order</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedOrder.id}</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">{selectedOrder.date} · {selectedOrder.channel}</p>
             </div>
@@ -474,14 +494,14 @@ export default function ReportsPage() {
                   setSelectedOrder(null);
                   openInAdmin('orders', { reference: selectedOrder.id });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Orders
               </button>
               <button
                 onClick={() => setSelectedOrder(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
               >
                 Close
               </button>
@@ -493,9 +513,9 @@ export default function ReportsPage() {
       {/* ─── PRODUCT MODAL ─── */}
       {selectedProduct && (
         <Modal onClose={() => setSelectedProduct(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedProduct.category}</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">{selectedProduct.category}</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedProduct.product}</h3>
               <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedProduct.sku}</p>
             </div>
@@ -512,14 +532,14 @@ export default function ReportsPage() {
                   setSelectedProduct(null);
                   openInAdmin('products', { sku: selectedProduct.sku });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Products
               </button>
               <button
                 onClick={() => setSelectedProduct(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -531,7 +551,7 @@ export default function ReportsPage() {
       {/* ─── CUSTOMER MODAL ─── */}
       {selectedCustomer && (
         <Modal onClose={() => setSelectedCustomer(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-start gap-3">
               <div className="h-10 w-10 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
                 {selectedCustomer.customer.split(' ').map((n) => n[0]).join('').slice(0, 2)}
@@ -551,7 +571,7 @@ export default function ReportsPage() {
             <div className="flex justify-end gap-2 pt-1 flex-wrap">
               <button
                 onClick={() => showToast(`WhatsApp message opened for ${selectedCustomer.customer}`)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
                 WhatsApp
@@ -561,14 +581,14 @@ export default function ReportsPage() {
                   setSelectedCustomer(null);
                   openInAdmin('customers', { q: selectedCustomer.email });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Customers
               </button>
               <button
                 onClick={() => setSelectedCustomer(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -580,9 +600,9 @@ export default function ReportsPage() {
       {/* ─── PAYMENT MODAL ─── */}
       {selectedPayment && (
         <Modal onClose={() => setSelectedPayment(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedPayment.provider}</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">{selectedPayment.provider}</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedPayment.method}</h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -591,7 +611,7 @@ export default function ReportsPage() {
               <Stat label="Volume" value={`KES ${selectedPayment.volume.toLocaleString()}`} />
               <Stat label="Fees" value={`-KES ${selectedPayment.fees.toLocaleString()}`} />
             </div>
-            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+            <div className="bg-emerald-50 border border-emerald-100 rounded p-2">
               <p className="text-[13px] text-emerald-800">Net settlement</p>
               <p className="text-[15px] font-bold text-emerald-700 mt-0.5">KES {selectedPayment.net.toLocaleString()}</p>
             </div>
@@ -601,14 +621,14 @@ export default function ReportsPage() {
                   setSelectedPayment(null);
                   openInAdmin('payments', { method: selectedPayment.method });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Transactions
               </button>
               <button
                 onClick={() => setSelectedPayment(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -620,7 +640,7 @@ export default function ReportsPage() {
       {/* ─── PIE SLICE MODAL ─── */}
       {selectedPieSlice && payments && (
         <Modal onClose={() => setSelectedPieSlice(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedPieSlice.color }} />
               <h3 className="text-[15px] font-bold text-slate-900">{selectedPieSlice.name}</h3>
@@ -637,14 +657,14 @@ export default function ReportsPage() {
                   setSelectedPieSlice(null);
                   openInAdmin('payments', { method: selectedPieSlice.name });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Transactions
               </button>
               <button
                 onClick={() => setSelectedPieSlice(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -656,10 +676,10 @@ export default function ReportsPage() {
       {/* ─── TAX MODAL ─── */}
       {selectedTax && (
         <Modal onClose={() => setSelectedTax(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Tax period</p>
+                <p className="text-[13px] font-medium text-blue-950 uppercase">Tax period</p>
                 <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedTax.period}</h3>
               </div>
               <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${TAX_STATUS_STYLES[selectedTax.status]}`}>
@@ -678,14 +698,14 @@ export default function ReportsPage() {
                   setSelectedTax(null);
                   openInAdmin('taxes', { period: selectedTax.period });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open tax settings
               </button>
               <button
                 onClick={() => setSelectedTax(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
               >
                 Close
               </button>
@@ -697,9 +717,9 @@ export default function ReportsPage() {
       {/* ─── INVENTORY MODAL ─── */}
       {selectedInventory && (
         <Modal onClose={() => setSelectedInventory(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedInventory.warehouse}</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">{selectedInventory.warehouse}</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedInventory.product}</h3>
               <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedInventory.sku}</p>
             </div>
@@ -712,7 +732,7 @@ export default function ReportsPage() {
               <Stat label="Reorder Point" value={selectedInventory.reorderPoint.toString()} />
               <Stat label="Stock Value" value={`KES ${selectedInventory.value.toLocaleString()}`} />
             </div>
-            <div className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${INVENTORY_STATUS_STYLES[selectedInventory.status]}`}>
+            <div className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded border ${INVENTORY_STATUS_STYLES[selectedInventory.status]}`}>
               {selectedInventory.status}
             </div>
             <div className="flex justify-end gap-2 pt-1">
@@ -721,14 +741,14 @@ export default function ReportsPage() {
                   setSelectedInventory(null);
                   openInAdmin('inventory', { sku: selectedInventory.sku });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Inventory
               </button>
               <button
                 onClick={() => setSelectedInventory(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
               >
                 Close
               </button>
@@ -740,9 +760,9 @@ export default function ReportsPage() {
       {/* ─── SHIPPING MODAL ─── */}
       {selectedShipping && (
         <Modal onClose={() => setSelectedShipping(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Carrier</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">Carrier</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedShipping.carrier}</h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -760,14 +780,14 @@ export default function ReportsPage() {
                   setSelectedShipping(null);
                   openInAdmin('shipping', { carrier: selectedShipping.carrier });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Shipping
               </button>
               <button
                 onClick={() => setSelectedShipping(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
               >
                 Close
               </button>
@@ -779,10 +799,10 @@ export default function ReportsPage() {
       {/* ─── DISCOUNT MODAL ─── */}
       {selectedDiscount && (
         <Modal onClose={() => setSelectedDiscount(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Discount code</p>
+                <p className="text-[13px] font-medium text-blue-950 uppercase">Discount code</p>
                 <h3 className="text-[15px] font-bold text-slate-900 mt-0.5 font-mono">{selectedDiscount.code}</h3>
               </div>
               <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${DISCOUNT_STATUS_STYLES[selectedDiscount.status]}`}>
@@ -795,7 +815,7 @@ export default function ReportsPage() {
               <Stat label="Discount Given" value={`KES ${selectedDiscount.discountGiven.toLocaleString()}`} />
               <Stat label="Revenue Generated" value={`KES ${selectedDiscount.revenue.toLocaleString()}`} />
             </div>
-            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+            <div className="bg-emerald-50 border border-emerald-100 rounded p-2">
               <p className="text-[13px] text-emerald-800">Return on discount</p>
               <p className="text-[15px] font-bold text-emerald-700 mt-0.5">{selectedDiscount.roi}</p>
             </div>
@@ -805,14 +825,14 @@ export default function ReportsPage() {
                   setSelectedDiscount(null);
                   openInAdmin('discounts', { code: selectedDiscount.code });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Discounts
               </button>
               <button
                 onClick={() => setSelectedDiscount(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -824,9 +844,9 @@ export default function ReportsPage() {
       {/* ─── SOCIAL: VIDEO MODAL ─── */}
       {selectedVideo && (
         <Modal onClose={() => setSelectedVideo(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-start gap-3">
-              <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border shrink-0 ${VIDEO_TYPE_STYLES[selectedVideo.videoType]}`}>
+              <span className={`text-[13px] font-medium px-2 py-0.5 rounded border shrink-0 ${VIDEO_TYPE_STYLES[selectedVideo.videoType]}`}>
                 {selectedVideo.videoType}
               </span>
               <div className="min-w-0">
@@ -837,7 +857,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-100 rounded-sm p-2">
+            <div className="bg-blue-50 border border-blue-100 rounded p-2">
               <p className="text-[13px] text-blue-900">Featured product</p>
               <p className="text-[15px] font-bold text-blue-950 mt-0.5">{selectedVideo.product}</p>
               <p className="text-[13px] text-blue-800 font-mono mt-0.5">
@@ -859,7 +879,7 @@ export default function ReportsPage() {
               <Stat label="Ad Spend" value={selectedVideo.spend ? `KES ${selectedVideo.spend.toLocaleString()}` : 'Organic'} />
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+            <div className="bg-emerald-50 border border-emerald-100 rounded p-2">
               <p className="text-[13px] text-emerald-800">Revenue from this video</p>
               <p className="text-[15px] font-bold text-emerald-700 mt-0.5">
                 KES {selectedVideo.revenue.toLocaleString()}
@@ -873,7 +893,7 @@ export default function ReportsPage() {
                   setSelectedVideo(null);
                   openInAdmin('social', { post: selectedVideo.id });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Social
@@ -883,14 +903,14 @@ export default function ReportsPage() {
                   setSelectedVideo(null);
                   openInAdmin('products', { sku: selectedVideo.sku });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <Boxes className="w-3.5 h-3.5" />
                 View product
               </button>
               <button
                 onClick={() => setSelectedVideo(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -902,7 +922,7 @@ export default function ReportsPage() {
       {/* ─── SOCIAL: PLATFORM MODAL ─── */}
       {selectedPlatform && (
         <Modal onClose={() => setSelectedPlatform(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <PlatformIcon platform={selectedPlatform.platform} />
               <h3 className="text-[15px] font-bold text-slate-900">{selectedPlatform.platform}</h3>
@@ -917,7 +937,7 @@ export default function ReportsPage() {
               <Stat label="Conversion Rate" value={selectedPlatform.convRate} />
               <Stat label="Ad Spend" value={selectedPlatform.spend ? `KES ${selectedPlatform.spend.toLocaleString()}` : 'Organic'} />
             </div>
-            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+            <div className="bg-emerald-50 border border-emerald-100 rounded p-2">
               <p className="text-[13px] text-emerald-800">Revenue from {selectedPlatform.platform}</p>
               <p className="text-[15px] font-bold text-emerald-700 mt-0.5">
                 KES {selectedPlatform.revenue.toLocaleString()}
@@ -930,14 +950,14 @@ export default function ReportsPage() {
                   setSelectedPlatform(null);
                   openInAdmin('social', { platform: selectedPlatform.platform });
                 }}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open in Social
               </button>
               <button
                 onClick={() => setSelectedPlatform(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -949,9 +969,9 @@ export default function ReportsPage() {
       {/* ─── SOCIAL: FUNNEL DAY MODAL ─── */}
       {selectedFunnelDay && (
         <Modal onClose={() => setSelectedFunnelDay(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Social Funnel Day</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">Social Funnel Day</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedFunnelDay.date}, 2026</h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -968,7 +988,7 @@ export default function ReportsPage() {
             <div className="flex justify-end pt-1">
               <button
                 onClick={() => setSelectedFunnelDay(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -980,9 +1000,9 @@ export default function ReportsPage() {
       {/* ─── SOCIAL: PRODUCT VIDEO PERF MODAL ─── */}
       {selectedProductVideo && (
         <Modal onClose={() => setSelectedProductVideo(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedProductVideo.category}</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">{selectedProductVideo.category}</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedProductVideo.product}</h3>
               <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedProductVideo.sku}</p>
             </div>
@@ -993,7 +1013,7 @@ export default function ReportsPage() {
               <Stat label="Avg Conv. Rate" value={selectedProductVideo.avgConvRate} />
             </div>
             <Stat label="Best Platform" value={selectedProductVideo.bestPlatform} />
-            <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2">
+            <div className="bg-emerald-50 border border-emerald-100 rounded p-2">
               <p className="text-[13px] text-emerald-800">Total revenue from videos</p>
               <p className="text-[15px] font-bold text-emerald-700 mt-0.5">
                 KES {selectedProductVideo.revenue.toLocaleString()}
@@ -1002,7 +1022,7 @@ export default function ReportsPage() {
             <div className="flex justify-end pt-1">
               <button
                 onClick={() => setSelectedProductVideo(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
               >
                 Close
               </button>
@@ -1013,7 +1033,7 @@ export default function ReportsPage() {
 
       {/* PAGE HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="max-w-[1600px] mx-auto px-2 py-2 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Reports & Analytics</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">Electronics shop · sales, inventory, and product video performance</p>
@@ -1023,7 +1043,7 @@ export default function ReportsPage() {
             <button
               onClick={handleRefresh}
               disabled={isLoading}
-              className="bg-white border border-slate-200 rounded-sm p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="bg-white border border-slate-200 rounded p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               title="Refresh this tab"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -1032,7 +1052,7 @@ export default function ReportsPage() {
             <div className="relative">
               <button
                 onClick={() => setIsDateMenuOpen(!isDateMenuOpen)}
-                className="bg-white border border-slate-200 rounded-sm px-2 py-2 flex items-center gap-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50"
+                className="bg-white border border-slate-200 rounded px-2 py-2 flex items-center gap-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50"
               >
                 <Calendar className="w-3.5 h-3.5 text-blue-950" />
                 <span>{dateRangeLabel}</span>
@@ -1042,7 +1062,7 @@ export default function ReportsPage() {
               {isDateMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsDateMenuOpen(false)} />
-                  <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-sm shadow-lg z-50 overflow-hidden py-1 text-[13px]">
+                  <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded shadow-lg z-50 overflow-hidden py-1 text-[13px]">
                     {DATE_OPTIONS.map((opt) => (
                       <button
                         key={opt.id}
@@ -1063,7 +1083,7 @@ export default function ReportsPage() {
                             type="date"
                             value={customStart}
                             onChange={(e) => setCustomStart(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                            className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                           />
                         </div>
                         <div>
@@ -1072,12 +1092,12 @@ export default function ReportsPage() {
                             type="date"
                             value={customEnd}
                             onChange={(e) => setCustomEnd(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                            className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                           />
                         </div>
                         <button
                           onClick={handleApplyCustom}
-                          className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px]"
+                          className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded text-[13px]"
                         >
                           Apply Range
                         </button>
@@ -1092,7 +1112,7 @@ export default function ReportsPage() {
               <button
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
                 disabled={isExporting}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px] transition disabled:opacity-60"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>{isExporting ? 'Exporting…' : 'Export'}</span>
@@ -1102,24 +1122,24 @@ export default function ReportsPage() {
               {isExportMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsExportMenuOpen(false)} />
-                  <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-sm shadow-lg z-50 overflow-hidden py-1 text-[13px]">
+                  <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded shadow-lg z-50 overflow-hidden py-1 text-[13px]">
                     <button
                       onClick={() => handleExport('CSV')}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                      className="w-full text-left px-2 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                       Export CSV
                     </button>
                     <button
                       onClick={() => handleExport('Excel')}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                      className="w-full text-left px-2 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
                       Export Excel
                     </button>
                     <button
                       onClick={() => handleExport('PDF')}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                      className="w-full text-left px-2 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                     >
                       <FileText className="w-3.5 h-3.5 text-red-600" />
                       Export PDF
@@ -1131,35 +1151,81 @@ export default function ReportsPage() {
           </div>
         </div>
       </header>
+      <div className="bg-white border-b border-slate-200 sticky top-[57px] z-40">
+        <div className="max-w-[1600px] mx-auto px-2 flex items-stretch gap-1">
+          {TAB_GROUPS.map((group) => {
+            const GroupIcon = group.icon;
+            const isGroupActive = group.tabs.includes(activeTab);
+            const isOpen = openTabGroup === group.id;
+            const activeMeta = isGroupActive ? TAB_META[activeTab] : null;
+            const showSuffix = activeMeta && activeTab !== group.tabs[0];
 
-      {/* TABS */}
-      <div className="bg-white border-b border-slate-200 sticky top-[57px] z-20">
-        <div className="max-w-[1600px] mx-auto px-3 flex gap-0.5 overflow-x-auto">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
             return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-3 text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
-                  ? 'border-blue-950 text-blue-950 bg-blue-50/30'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              <div key={group.id} className="relative shrink-0">
+                <button
+                  onClick={() => setOpenTabGroup(isOpen ? null : group.id)}
+                  className={`flex items-center gap-1.5 px-2 py-3 text-[13px] font-medium border-b-2 transition whitespace-nowrap ${
+                    isGroupActive
+                      ? 'border-blue-950 text-blue-950 bg-blue-50/30'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
-                <span>{tab.label}</span>
-              </button>
+                  aria-haspopup="menu"
+                  aria-expanded={isOpen}
+                >
+                  <GroupIcon className={`w-3.5 h-3.5 ${isGroupActive ? 'text-blue-950' : 'text-slate-400'}`} />
+                  <span>{group.label}</span>
+                  {showSuffix && activeMeta && (
+                    <span className="text-slate-400 font-normal">· {activeMeta.label}</span>
+                  )}
+                  <ChevronDown
+                    className={`w-3 h-3 ml-0.5 transition-transform ${
+                      isOpen ? 'rotate-180' : ''
+                    } ${isGroupActive ? 'text-blue-950' : 'text-slate-400'}`}
+                  />
+                </button>
+
+                {isOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setOpenTabGroup(null)} />
+                    <div className="absolute left-0 mt-1 w-56 bg-white border border-slate-200 rounded shadow-lg z-50 overflow-hidden py-1 text-[13px]">
+                      {group.tabs.map((tabId) => {
+                        const meta = TAB_META[tabId];
+                        const TabIcon = meta.icon;
+                        const isActive = activeTab === tabId;
+                        return (
+                          <button
+                            key={tabId}
+                            onClick={() => {
+                              handleTabChange(tabId);
+                              setOpenTabGroup(null);
+                            }}
+                            className={`w-full text-left px-2 py-2 hover:bg-slate-50 flex items-center justify-between gap-2 ${
+                              isActive ? 'text-blue-950 font-medium bg-blue-50/40' : 'text-slate-700'
+                            }`}
+                            role="menuitem"
+                          >
+                            <span className="flex items-center gap-2 min-w-0">
+                              <TabIcon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
+                              <span className="truncate">{meta.label}</span>
+                            </span>
+                            {isActive && <CheckCircle2 className="w-3.5 h-3.5 text-blue-950 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
             );
           })}
         </div>
       </div>
 
       {/* MAIN */}
-      <main className="max-w-[1600px] mx-auto px-3 py-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2">
 
         {error && !isLoading && (
-          <div className="bg-red-50 border border-red-100 rounded-sm p-3 mb-3 flex items-start gap-2 text-[13px]">
+          <div className="bg-red-50 border border-red-100 rounded p-2 mb-2 flex items-start gap-2 text-[13px]">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium text-red-700">Couldn&apos;t load this report</p>
@@ -1175,16 +1241,16 @@ export default function ReportsPage() {
         )}
 
         {isLoading ? (
-          <div className="space-y-3">
-            <div className="h-64 bg-slate-100 rounded-sm w-full animate-pulse" />
-            <div className="h-56 bg-slate-100 rounded-sm w-full animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-68 bg-slate-100 rounded w-full animate-pulse" />
+            <div className="h-66 bg-slate-100 rounded w-full animate-pulse" />
           </div>
         ) : (
           <>
             {/* ───── SALES ───── */}
             {activeTab === 'sales' && sales && (
-              <div className="space-y-3">
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+              <div className="space-y-2">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-[13px] font-semibold text-slate-900">Revenue & Orders Timeline</h3>
@@ -1192,17 +1258,17 @@ export default function ReportsPage() {
                     </div>
                     <div className="flex items-center gap-3 text-[13px]">
                       <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 bg-blue-950 rounded-sm" />
+                        <span className="w-2.5 h-2.5 bg-blue-950 rounded" />
                         <span className="text-slate-600">Revenue</span>
                       </span>
                       <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 bg-emerald-500 rounded-sm" />
+                        <span className="w-2.5 h-2.5 bg-emerald-500 rounded" />
                         <span className="text-slate-600">Orders</span>
                       </span>
                     </div>
                   </div>
 
-                  <div className="h-64 w-full">
+                  <div className="h-68 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={sales.daily}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1227,7 +1293,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Daily Sales Breakdown</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1238,7 +1304,7 @@ export default function ReportsPage() {
                       </button>
                       <button
                         onClick={() => openInAdmin('sales')}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                       >
                         Open in Orders
                         <ExternalLink className="w-3 h-3" />
@@ -1249,10 +1315,10 @@ export default function ReportsPage() {
                     <table className="w-full text-left border-collapse text-[13px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Date</th>
-                          <th className="py-2 px-3 font-medium">Orders</th>
-                          <th className="py-2 px-3 font-medium">Revenue</th>
-                          <th className="py-2 px-3 font-medium text-right">AOV</th>
+                          <th className="py-2 px-2 font-medium">Date</th>
+                          <th className="py-2 px-2 font-medium">Orders</th>
+                          <th className="py-2 px-2 font-medium">Revenue</th>
+                          <th className="py-2 px-2 font-medium text-right">AOV</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1278,7 +1344,7 @@ export default function ReportsPage() {
             {/* ───── ORDERS ───── */}
             {activeTab === 'orders' && orders && (
               <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                   <span className="text-[13px] font-medium text-slate-700">Order Report · {orders.range_label}</span>
                   <div className="flex items-center gap-2">
                     <button
@@ -1300,14 +1366,14 @@ export default function ReportsPage() {
                   <table className="w-full text-left border-collapse text-[13px] min-w-[820px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                        <th className="py-2 px-3 font-medium">Order</th>
-                        <th className="py-2 px-3 font-medium">Date</th>
-                        <th className="py-2 px-3 font-medium">Customer</th>
-                        <th className="py-2 px-3 font-medium">Items</th>
-                        <th className="py-2 px-3 font-medium">Payment</th>
-                        <th className="py-2 px-3 font-medium">Channel</th>
-                        <th className="py-2 px-3 font-medium">Status</th>
-                        <th className="py-2 px-3 font-medium text-right">Total</th>
+                        <th className="py-2 px-2 font-medium">Order</th>
+                        <th className="py-2 px-2 font-medium">Date</th>
+                        <th className="py-2 px-2 font-medium">Customer</th>
+                        <th className="py-2 px-2 font-medium">Items</th>
+                        <th className="py-2 px-2 font-medium">Payment</th>
+                        <th className="py-2 px-2 font-medium">Channel</th>
+                        <th className="py-2 px-2 font-medium">Status</th>
+                        <th className="py-2 px-2 font-medium text-right">Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1317,13 +1383,13 @@ export default function ReportsPage() {
                           onClick={() => setSelectedOrder(o)}
                           className="hover:bg-slate-50 cursor-pointer transition"
                         >
-                          <td className="py-2 px-3 font-mono font-medium text-blue-950">{o.id}</td>
-                          <td className="py-2 px-3 text-slate-600">{o.date}</td>
-                          <td className="py-2 px-3 font-medium text-slate-900">{o.customer}</td>
-                          <td className="py-2 px-3 font-mono text-slate-700">{o.items}</td>
-                          <td className="py-2 px-3 text-slate-600">{o.payment}</td>
-                          <td className="py-2 px-3 text-slate-600">{o.channel}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2 font-mono font-medium text-blue-950">{o.id}</td>
+                          <td className="py-2 px-2 text-slate-600">{o.date}</td>
+                          <td className="py-2 px-2 font-medium text-slate-900">{o.customer}</td>
+                          <td className="py-2 px-2 font-mono text-slate-700">{o.items}</td>
+                          <td className="py-2 px-2 text-slate-600">{o.payment}</td>
+                          <td className="py-2 px-2 text-slate-600">{o.channel}</td>
+                          <td className="py-2 px-2">
                             <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${o.status === 'Delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                               : o.status === 'Processing' ? 'bg-blue-50 text-blue-950 border-blue-100'
                                 : o.status === 'Shipped' ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
@@ -1333,7 +1399,7 @@ export default function ReportsPage() {
                               {o.status}
                             </span>
                           </td>
-                          <td className="py-2 px-3 font-mono font-semibold text-slate-900 text-right">KES {o.total.toLocaleString()}</td>
+                          <td className="py-2 px-2 font-mono font-semibold text-slate-900 text-right">KES {o.total.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1344,14 +1410,14 @@ export default function ReportsPage() {
 
             {/* ───── PRODUCTS ───── */}
             {activeTab === 'products' && products && (
-              <div className="space-y-3">
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+              <div className="space-y-2">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div>
                     <h3 className="text-[13px] font-semibold text-slate-900">Top Selling Products</h3>
                     <p className="text-[13px] text-slate-500">Click a bar or row for details</p>
                   </div>
 
-                  <div className="h-56 w-full">
+                  <div className="h-66 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={products.rows} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1371,8 +1437,8 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="bg-white border border-slate-200 rounded overflow-hidden">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Product Performance</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1383,7 +1449,7 @@ export default function ReportsPage() {
                       </button>
                       <button
                         onClick={() => openInAdmin('products')}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                       >
                         Open in Products
                         <ExternalLink className="w-3 h-3" />
@@ -1394,12 +1460,12 @@ export default function ReportsPage() {
                     <table className="w-full text-left border-collapse text-[13px] min-w-[700px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Product</th>
-                          <th className="py-2 px-3 font-medium">SKU</th>
-                          <th className="py-2 px-3 font-medium">Qty</th>
-                          <th className="py-2 px-3 font-medium">Revenue</th>
-                          <th className="py-2 px-3 font-medium">Returns</th>
-                          <th className="py-2 px-3 font-medium text-right">Net</th>
+                          <th className="py-2 px-2 font-medium">Product</th>
+                          <th className="py-2 px-2 font-medium">SKU</th>
+                          <th className="py-2 px-2 font-medium">Qty</th>
+                          <th className="py-2 px-2 font-medium">Revenue</th>
+                          <th className="py-2 px-2 font-medium">Returns</th>
+                          <th className="py-2 px-2 font-medium text-right">Net</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1409,12 +1475,12 @@ export default function ReportsPage() {
                             onClick={() => setSelectedProduct(p)}
                             className="hover:bg-slate-50 cursor-pointer transition"
                           >
-                            <td className="py-2 px-3 font-medium text-slate-900">{p.product}</td>
-                            <td className="py-2 px-3 font-mono text-slate-500">{p.sku}</td>
-                            <td className="py-2 px-3 font-mono text-slate-700">{p.qty}</td>
-                            <td className="py-2 px-3 font-mono text-slate-800">KES {p.revenue.toLocaleString()}</td>
-                            <td className="py-2 px-3 font-mono text-red-600">{p.returns}</td>
-                            <td className="py-2 px-3 font-mono font-medium text-emerald-600 text-right">KES {p.net.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-medium text-slate-900">{p.product}</td>
+                            <td className="py-2 px-2 font-mono text-slate-500">{p.sku}</td>
+                            <td className="py-2 px-2 font-mono text-slate-700">{p.qty}</td>
+                            <td className="py-2 px-2 font-mono text-slate-800">KES {p.revenue.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-mono text-red-600">{p.returns}</td>
+                            <td className="py-2 px-2 font-mono font-medium text-emerald-600 text-right">KES {p.net.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1426,14 +1492,14 @@ export default function ReportsPage() {
 
             {/* ───── CUSTOMERS ───── */}
             {activeTab === 'customers' && customers && (
-              <div className="space-y-3">
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+              <div className="space-y-2">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div>
                     <h3 className="text-[13px] font-semibold text-slate-900">New vs Returning Customers</h3>
                     <p className="text-[13px] text-slate-500">Daily acquisition trends</p>
                   </div>
 
-                  <div className="h-56 w-full">
+                  <div className="h-66 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={customers.new_vs_returning}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1448,7 +1514,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Top Buyers</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1459,7 +1525,7 @@ export default function ReportsPage() {
                       </button>
                       <button
                         onClick={() => openInAdmin('customers')}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                       >
                         Open in Customers
                         <ExternalLink className="w-3 h-3" />
@@ -1470,11 +1536,11 @@ export default function ReportsPage() {
                     <table className="w-full text-left border-collapse text-[13px] min-w-[700px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Customer</th>
-                          <th className="py-2 px-3 font-medium">Orders</th>
-                          <th className="py-2 px-3 font-medium">Spent</th>
-                          <th className="py-2 px-3 font-medium">AOV</th>
-                          <th className="py-2 px-3 font-medium text-right">Last Order</th>
+                          <th className="py-2 px-2 font-medium">Customer</th>
+                          <th className="py-2 px-2 font-medium">Orders</th>
+                          <th className="py-2 px-2 font-medium">Spent</th>
+                          <th className="py-2 px-2 font-medium">AOV</th>
+                          <th className="py-2 px-2 font-medium text-right">Last Order</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1484,11 +1550,11 @@ export default function ReportsPage() {
                             onClick={() => setSelectedCustomer(c)}
                             className="hover:bg-slate-50 cursor-pointer transition"
                           >
-                            <td className="py-2 px-3 font-medium text-slate-900">{c.customer}</td>
-                            <td className="py-2 px-3 font-mono text-slate-700">{c.orders}</td>
-                            <td className="py-2 px-3 font-mono text-emerald-600">KES {c.spent.toLocaleString()}</td>
-                            <td className="py-2 px-3 font-mono text-slate-600">KES {c.aov.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-slate-500 text-right">{c.lastOrder}</td>
+                            <td className="py-2 px-2 font-medium text-slate-900">{c.customer}</td>
+                            <td className="py-2 px-2 font-mono text-slate-700">{c.orders}</td>
+                            <td className="py-2 px-2 font-mono text-emerald-600">KES {c.spent.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-mono text-slate-600">KES {c.aov.toLocaleString()}</td>
+                            <td className="py-2 px-2 text-slate-500 text-right">{c.lastOrder}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1500,7 +1566,7 @@ export default function ReportsPage() {
 
             {/* ───── INVENTORY ───── */}
             {activeTab === 'inventory' && inventory && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { label: 'Total SKUs', value: inventory.counts.total_skus, icon: Package, color: 'text-blue-950 bg-blue-50' },
@@ -1508,7 +1574,7 @@ export default function ReportsPage() {
                     { label: 'Critical', value: inventory.counts.critical, icon: AlertTriangle, color: 'text-orange-700 bg-orange-50' },
                     { label: 'Out of Stock', value: inventory.counts.out, icon: X, color: 'text-red-600 bg-red-50' },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
+                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
                       <div className="flex items-center gap-1.5">
                         <span className={`w-6 h-6 rounded-sm flex items-center justify-center ${s.color}`}>
                           <s.icon className="w-3.5 h-3.5" />
@@ -1521,7 +1587,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Inventory Levels</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1532,7 +1598,7 @@ export default function ReportsPage() {
                       </button>
                       <button
                         onClick={() => openInAdmin('inventory')}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                       >
                         Open in Inventory
                         <ExternalLink className="w-3 h-3" />
@@ -1543,14 +1609,14 @@ export default function ReportsPage() {
                     <table className="w-full text-left border-collapse text-[13px] min-w-[900px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Product</th>
-                          <th className="py-2 px-3 font-medium">Warehouse</th>
-                          <th className="py-2 px-3 font-medium text-right">On Hand</th>
-                          <th className="py-2 px-3 font-medium text-right">Reserved</th>
-                          <th className="py-2 px-3 font-medium text-right">Available</th>
-                          <th className="py-2 px-3 font-medium text-right">Reorder Pt.</th>
-                          <th className="py-2 px-3 font-medium">Status</th>
-                          <th className="py-2 px-3 font-medium text-right">Value</th>
+                          <th className="py-2 px-2 font-medium">Product</th>
+                          <th className="py-2 px-2 font-medium">Warehouse</th>
+                          <th className="py-2 px-2 font-medium text-right">On Hand</th>
+                          <th className="py-2 px-2 font-medium text-right">Reserved</th>
+                          <th className="py-2 px-2 font-medium text-right">Available</th>
+                          <th className="py-2 px-2 font-medium text-right">Reorder Pt.</th>
+                          <th className="py-2 px-2 font-medium">Status</th>
+                          <th className="py-2 px-2 font-medium text-right">Value</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1560,21 +1626,21 @@ export default function ReportsPage() {
                             onClick={() => setSelectedInventory(r)}
                             className="hover:bg-slate-50 cursor-pointer transition"
                           >
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-2">
                               <p className="font-medium text-slate-900">{r.product}</p>
                               <p className="text-[13px] text-slate-400 font-mono">{r.sku}</p>
                             </td>
-                            <td className="py-2 px-3 text-slate-600">{r.warehouse}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-700">{r.onHand}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-600">{r.reserved}</td>
-                            <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900">{r.available}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-500">{r.reorderPoint}</td>
-                            <td className="py-2 px-3">
+                            <td className="py-2 px-2 text-slate-600">{r.warehouse}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-700">{r.onHand}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-600">{r.reserved}</td>
+                            <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900">{r.available}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-500">{r.reorderPoint}</td>
+                            <td className="py-2 px-2">
                               <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${INVENTORY_STATUS_STYLES[r.status]}`}>
                                 {r.status}
                               </span>
                             </td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-800">KES {r.value.toLocaleString()}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-800">KES {r.value.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1588,7 +1654,7 @@ export default function ReportsPage() {
             {activeTab === 'payments' && payments && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
                 <div className="lg:col-span-8 bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">M-Pesa Settlement Report · {payments.range_label}</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1610,11 +1676,11 @@ export default function ReportsPage() {
                     <table className="w-full text-left border-collapse text-[13px] min-w-[640px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Stream</th>
-                          <th className="py-2 px-3 font-medium">Txns</th>
-                          <th className="py-2 px-3 font-medium">Volume</th>
-                          <th className="py-2 px-3 font-medium">Fees</th>
-                          <th className="py-2 px-3 font-medium text-right">Net</th>
+                          <th className="py-2 px-2 font-medium">Stream</th>
+                          <th className="py-2 px-2 font-medium">Txns</th>
+                          <th className="py-2 px-2 font-medium">Volume</th>
+                          <th className="py-2 px-2 font-medium">Fees</th>
+                          <th className="py-2 px-2 font-medium text-right">Net</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1624,11 +1690,11 @@ export default function ReportsPage() {
                             onClick={() => setSelectedPayment(pay)}
                             className="hover:bg-slate-50 cursor-pointer transition"
                           >
-                            <td className="py-2 px-3 font-medium text-slate-900">{pay.method}</td>
-                            <td className="py-2 px-3 font-mono text-slate-700">{pay.transactions.toLocaleString()}</td>
-                            <td className="py-2 px-3 font-mono text-slate-800">KES {pay.volume.toLocaleString()}</td>
-                            <td className="py-2 px-3 font-mono text-red-600">-KES {pay.fees.toLocaleString()}</td>
-                            <td className="py-2 px-3 font-mono font-medium text-emerald-600 text-right">KES {pay.net.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-medium text-slate-900">{pay.method}</td>
+                            <td className="py-2 px-2 font-mono text-slate-700">{pay.transactions.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-mono text-slate-800">KES {pay.volume.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-mono text-red-600">-KES {pay.fees.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-mono font-medium text-emerald-600 text-right">KES {pay.net.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1636,12 +1702,12 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                <div className="lg:col-span-4 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                <div className="lg:col-span-4 bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div>
                     <h3 className="text-[13px] font-semibold text-slate-900">M-Pesa Stream Split</h3>
                     <p className="text-[13px] text-slate-500">Click a slice for details</p>
                   </div>
-                  <div className="h-48 w-full">
+                  <div className="h-58 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -1668,7 +1734,7 @@ export default function ReportsPage() {
                       <button
                         key={slice.name}
                         onClick={() => setSelectedPieSlice(slice)}
-                        className="w-full flex items-center justify-between hover:bg-slate-50 rounded-sm px-2 py-2 transition"
+                        className="w-full flex items-center justify-between hover:bg-slate-50 rounded px-2 py-2 transition"
                       >
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: slice.color }} />
@@ -1684,8 +1750,8 @@ export default function ReportsPage() {
 
             {/* ───── TAXES ───── */}
             {activeTab === 'taxes' && taxes && (
-              <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="bg-white border border-slate-200 rounded overflow-hidden">
+                <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                   <span className="text-[13px] font-medium text-slate-700">KRA VAT (16%) & Taxable Sales</span>
                   <div className="flex items-center gap-2">
                     <button
@@ -1707,11 +1773,11 @@ export default function ReportsPage() {
                   <table className="w-full text-left border-collapse text-[13px] min-w-[720px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                        <th className="py-2 px-3 font-medium">Period</th>
-                        <th className="py-2 px-3 font-medium">Taxable Sales</th>
-                        <th className="py-2 px-3 font-medium">VAT (16%)</th>
-                        <th className="py-2 px-3 font-medium">Status</th>
-                        <th className="py-2 px-3 font-medium text-right">Net</th>
+                        <th className="py-2 px-2 font-medium">Period</th>
+                        <th className="py-2 px-2 font-medium">Taxable Sales</th>
+                        <th className="py-2 px-2 font-medium">VAT (16%)</th>
+                        <th className="py-2 px-2 font-medium">Status</th>
+                        <th className="py-2 px-2 font-medium text-right">Net</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1721,15 +1787,15 @@ export default function ReportsPage() {
                           onClick={() => setSelectedTax(tax)}
                           className="hover:bg-slate-50 cursor-pointer transition"
                         >
-                          <td className="py-2 px-3 font-medium text-slate-900">{tax.period}</td>
-                          <td className="py-2 px-3 font-mono text-slate-800">KES {tax.taxableSales.toLocaleString()}</td>
-                          <td className="py-2 px-3 font-mono text-red-600">KES {tax.vat16.toLocaleString()}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2 font-medium text-slate-900">{tax.period}</td>
+                          <td className="py-2 px-2 font-mono text-slate-800">KES {tax.taxableSales.toLocaleString()}</td>
+                          <td className="py-2 px-2 font-mono text-red-600">KES {tax.vat16.toLocaleString()}</td>
+                          <td className="py-2 px-2">
                             <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${TAX_STATUS_STYLES[tax.status]}`}>
                               {tax.status}
                             </span>
                           </td>
-                          <td className="py-2 px-3 font-mono font-medium text-emerald-600 text-right">KES {tax.net.toLocaleString()}</td>
+                          <td className="py-2 px-2 font-mono font-medium text-emerald-600 text-right">KES {tax.net.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1740,7 +1806,7 @@ export default function ReportsPage() {
 
             {/* ───── SHIPPING ───── */}
             {activeTab === 'shipping' && shipping && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { label: 'Total Shipments', value: shipping.totals.shipments.toLocaleString(), icon: Truck, color: 'text-blue-950 bg-blue-50' },
@@ -1761,7 +1827,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Carrier Performance</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1772,7 +1838,7 @@ export default function ReportsPage() {
                       </button>
                       <button
                         onClick={() => openInAdmin('shipping')}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                       >
                         Open in Shipping
                         <ExternalLink className="w-3 h-3" />
@@ -1783,14 +1849,14 @@ export default function ReportsPage() {
                     <table className="w-full text-left border-collapse text-[13px] min-w-[840px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Carrier</th>
-                          <th className="py-2 px-3 font-medium text-right">Shipments</th>
-                          <th className="py-2 px-3 font-medium text-right">Delivered</th>
-                          <th className="py-2 px-3 font-medium text-right">In Transit</th>
-                          <th className="py-2 px-3 font-medium text-right">Failed</th>
-                          <th className="py-2 px-3 font-medium text-right">Avg Days</th>
-                          <th className="py-2 px-3 font-medium text-right">On-Time</th>
-                          <th className="py-2 px-3 font-medium text-right">Cost</th>
+                          <th className="py-2 px-2 font-medium">Carrier</th>
+                          <th className="py-2 px-2 font-medium text-right">Shipments</th>
+                          <th className="py-2 px-2 font-medium text-right">Delivered</th>
+                          <th className="py-2 px-2 font-medium text-right">In Transit</th>
+                          <th className="py-2 px-2 font-medium text-right">Failed</th>
+                          <th className="py-2 px-2 font-medium text-right">Avg Days</th>
+                          <th className="py-2 px-2 font-medium text-right">On-Time</th>
+                          <th className="py-2 px-2 font-medium text-right">Cost</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1800,14 +1866,14 @@ export default function ReportsPage() {
                             onClick={() => setSelectedShipping(s)}
                             className="hover:bg-slate-50 cursor-pointer transition"
                           >
-                            <td className="py-2 px-3 font-medium text-slate-900">{s.carrier}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-700">{s.shipments}</td>
-                            <td className="py-2 px-3 text-right font-mono text-emerald-600">{s.delivered}</td>
-                            <td className="py-2 px-3 text-right font-mono text-indigo-600">{s.inTransit}</td>
-                            <td className="py-2 px-3 text-right font-mono text-red-600">{s.failed}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-600">{s.avgDays}</td>
-                            <td className="py-2 px-3 text-right font-mono text-emerald-600">{s.onTimeRate}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-800">KES {s.cost.toLocaleString()}</td>
+                            <td className="py-2 px-2 font-medium text-slate-900">{s.carrier}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-700">{s.shipments}</td>
+                            <td className="py-2 px-2 text-right font-mono text-emerald-600">{s.delivered}</td>
+                            <td className="py-2 px-2 text-right font-mono text-indigo-600">{s.inTransit}</td>
+                            <td className="py-2 px-2 text-right font-mono text-red-600">{s.failed}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-600">{s.avgDays}</td>
+                            <td className="py-2 px-2 text-right font-mono text-emerald-600">{s.onTimeRate}</td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-800">KES {s.cost.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1820,7 +1886,7 @@ export default function ReportsPage() {
             {/* ───── DISCOUNTS ───── */}
             {activeTab === 'discounts' && discounts && (
               <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                   <span className="text-[13px] font-medium text-slate-700">Discount Code Performance</span>
                   <div className="flex items-center gap-2">
                     <button
@@ -1831,7 +1897,7 @@ export default function ReportsPage() {
                     </button>
                     <button
                       onClick={() => openInAdmin('discounts')}
-                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                     >
                       Open in Discounts
                       <ExternalLink className="w-3 h-3" />
@@ -1842,13 +1908,13 @@ export default function ReportsPage() {
                   <table className="w-full text-left border-collapse text-[13px] min-w-[840px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                        <th className="py-2 px-3 font-medium">Code</th>
-                        <th className="py-2 px-3 font-medium">Type</th>
-                        <th className="py-2 px-3 font-medium text-right">Uses</th>
-                        <th className="py-2 px-3 font-medium text-right">Discount Given</th>
-                        <th className="py-2 px-3 font-medium text-right">Revenue</th>
-                        <th className="py-2 px-3 font-medium text-right">ROI</th>
-                        <th className="py-2 px-3 font-medium">Status</th>
+                        <th className="py-2 px-2 font-medium">Code</th>
+                        <th className="py-2 px-2 font-medium">Type</th>
+                        <th className="py-2 px-2 font-medium text-right">Uses</th>
+                        <th className="py-2 px-2 font-medium text-right">Discount Given</th>
+                        <th className="py-2 px-2 font-medium text-right">Revenue</th>
+                        <th className="py-2 px-2 font-medium text-right">ROI</th>
+                        <th className="py-2 px-2 font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1858,13 +1924,13 @@ export default function ReportsPage() {
                           onClick={() => setSelectedDiscount(d)}
                           className="hover:bg-slate-50 cursor-pointer transition"
                         >
-                          <td className="py-2 px-3 font-mono font-medium text-blue-950">{d.code}</td>
-                          <td className="py-2 px-3 text-slate-600">{d.type}</td>
-                          <td className="py-2 px-3 text-right font-mono text-slate-700">{d.uses}</td>
-                          <td className="py-2 px-3 text-right font-mono text-red-600">KES {d.discountGiven.toLocaleString()}</td>
-                          <td className="py-2 px-3 text-right font-mono text-emerald-600">KES {d.revenue.toLocaleString()}</td>
-                          <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900">{d.roi}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2 font-mono font-medium text-blue-950">{d.code}</td>
+                          <td className="py-2 px-2 text-slate-600">{d.type}</td>
+                          <td className="py-2 px-2 text-right font-mono text-slate-700">{d.uses}</td>
+                          <td className="py-2 px-2 text-right font-mono text-red-600">KES {d.discountGiven.toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right font-mono text-emerald-600">KES {d.revenue.toLocaleString()}</td>
+                          <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900">{d.roi}</td>
+                          <td className="py-2 px-2">
                             <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${DISCOUNT_STATUS_STYLES[d.status]}`}>
                               {d.status}
                             </span>
@@ -1879,7 +1945,7 @@ export default function ReportsPage() {
 
             {/* ───── SOCIAL ───── */}
             {activeTab === 'social' && social && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {[
                     { label: 'Videos Published', value: social.summary.videos.toLocaleString(), change: social.summary.changes.videos, up: true, icon: Video, color: 'text-blue-950 bg-blue-50' },
@@ -1887,9 +1953,9 @@ export default function ReportsPage() {
                     { label: 'Orders from Videos', value: social.summary.orders.toLocaleString(), change: social.summary.changes.orders, up: true, icon: ShoppingCart, color: 'text-emerald-700 bg-emerald-50' },
                     { label: 'Video Revenue', value: `KES ${social.summary.revenue.toLocaleString()}`, change: social.summary.changes.revenue, up: true, icon: CircleDollarSign, color: 'text-emerald-700 bg-emerald-50' },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
+                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 ${s.color}`}>
+                        <span className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${s.color}`}>
                           <s.icon className="w-3.5 h-3.5" />
                         </span>
                         <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
@@ -1908,7 +1974,7 @@ export default function ReportsPage() {
                   ))}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-[13px] font-semibold text-slate-900">Social Sales Funnel</h3>
@@ -1916,17 +1982,17 @@ export default function ReportsPage() {
                     </div>
                     <div className="flex items-center gap-3 text-[13px]">
                       <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 bg-blue-950 rounded-sm" />
+                        <span className="w-2.5 h-2.5 bg-blue-950 rounded" />
                         <span className="text-slate-600">Views</span>
                       </span>
                       <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 bg-emerald-500 rounded-sm" />
+                        <span className="w-2.5 h-2.5 bg-emerald-500 rounded" />
                         <span className="text-slate-600">Orders</span>
                       </span>
                     </div>
                   </div>
 
-                  <div className="h-56 sm:h-64 w-full">
+                  <div className="h-66 sm:h-68 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={social.funnel}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1957,7 +2023,7 @@ export default function ReportsPage() {
                   <p className="text-[13px] text-slate-400 text-center">Click a bar to see day breakdown</p>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                <div className="bg-white border border-slate-200 rounded overflow-hidden">
                   <div className="px-2 sm:px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
                     <span className="text-[13px] font-medium text-slate-700 truncate">Product Videos Performance</span>
                     <div className="flex items-center gap-2 shrink-0">
@@ -1969,7 +2035,7 @@ export default function ReportsPage() {
                       </button>
                       <button
                         onClick={() => openInAdmin('social')}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-sm text-[13px]"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px]"
                       >
                         Open in Social
                         <ExternalLink className="w-3 h-3" />
@@ -1980,14 +2046,14 @@ export default function ReportsPage() {
                     <table className="w-full text-left border-collapse text-[13px] min-w-[900px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-2 sm:px-3 font-medium">Video</th>
-                          <th className="py-2 px-2 sm:px-3 font-medium">Product</th>
-                          <th className="py-2 px-2 sm:px-3 font-medium">Platform</th>
-                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Views</th>
-                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Clicks</th>
-                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Orders</th>
-                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Conv.</th>
-                          <th className="py-2 px-2 sm:px-3 font-medium text-right">Revenue</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium">Video</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium">Product</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium">Platform</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium text-right">Views</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium text-right">Clicks</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium text-right">Orders</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium text-right">Conv.</th>
+                          <th className="py-2 px-2 sm:px-2 font-medium text-right">Revenue</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1997,7 +2063,7 @@ export default function ReportsPage() {
                             onClick={() => setSelectedVideo(v)}
                             className="hover:bg-slate-50 cursor-pointer transition"
                           >
-                            <td className="py-2 px-2 sm:px-3">
+                            <td className="py-2 px-2 sm:px-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 ${VIDEO_TYPE_STYLES[v.videoType]}`}>
                                   <Play className="w-3 h-3" />
@@ -2010,18 +2076,18 @@ export default function ReportsPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="py-2 px-2 sm:px-3">
+                            <td className="py-2 px-2 sm:px-2">
                               <p className="text-slate-700 truncate max-w-[160px]">{v.product}</p>
                               <p className="text-[13px] text-slate-400 font-mono">{v.sku}</p>
                             </td>
-                            <td className="py-2 px-2 sm:px-3">
+                            <td className="py-2 px-2 sm:px-2">
                               <PlatformIcon platform={v.platform} withLabel />
                             </td>
-                            <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{v.views.toLocaleString()}</td>
-                            <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-600">{v.clicks.toLocaleString()}</td>
-                            <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-slate-900">{v.orders}</td>
-                            <td className="py-2 px-2 sm:px-3 text-right font-mono text-emerald-600">{v.conversionRate}</td>
-                            <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-emerald-600">
+                            <td className="py-2 px-2 sm:px-2 text-right font-mono text-slate-700">{v.views.toLocaleString()}</td>
+                            <td className="py-2 px-2 sm:px-2 text-right font-mono text-slate-600">{v.clicks.toLocaleString()}</td>
+                            <td className="py-2 px-2 sm:px-2 text-right font-mono font-semibold text-slate-900">{v.orders}</td>
+                            <td className="py-2 px-2 sm:px-2 text-right font-mono text-emerald-600">{v.conversionRate}</td>
+                            <td className="py-2 px-2 sm:px-2 text-right font-mono font-semibold text-emerald-600">
                               KES {v.revenue.toLocaleString()}
                             </td>
                           </tr>
@@ -2033,18 +2099,18 @@ export default function ReportsPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                    <div className="px-2 sm:px-3 py-2 border-b border-slate-200 bg-slate-50">
+                    <div className="px-2 sm:px-2 py-2 border-b border-slate-200 bg-slate-50">
                       <span className="text-[13px] font-medium text-slate-700">Platform Summary</span>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-[13px] min-w-[560px]">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                            <th className="py-2 px-2 sm:px-3 font-medium">Platform</th>
-                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Videos</th>
-                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Views</th>
-                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Orders</th>
-                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Revenue</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium">Platform</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium text-right">Videos</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium text-right">Views</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium text-right">Orders</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium text-right">Revenue</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -2054,13 +2120,13 @@ export default function ReportsPage() {
                               onClick={() => setSelectedPlatform(p)}
                               className="hover:bg-slate-50 cursor-pointer transition"
                             >
-                              <td className="py-2 px-2 sm:px-3">
+                              <td className="py-2 px-2 sm:px-2">
                                 <PlatformIcon platform={p.platform} withLabel />
                               </td>
-                              <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{p.videos}</td>
-                              <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{p.views.toLocaleString()}</td>
-                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-slate-900">{p.orders}</td>
-                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-emerald-600">
+                              <td className="py-2 px-2 sm:px-2 text-right font-mono text-slate-700">{p.videos}</td>
+                              <td className="py-2 px-2 sm:px-2 text-right font-mono text-slate-700">{p.views.toLocaleString()}</td>
+                              <td className="py-2 px-2 sm:px-2 text-right font-mono font-semibold text-slate-900">{p.orders}</td>
+                              <td className="py-2 px-2 sm:px-2 text-right font-mono font-semibold text-emerald-600">
                                 KES {p.revenue.toLocaleString()}
                               </td>
                             </tr>
@@ -2071,17 +2137,17 @@ export default function ReportsPage() {
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                    <div className="px-2 sm:px-3 py-2 border-b border-slate-200 bg-slate-50">
+                    <div className="px-2 sm:px-2 py-2 border-b border-slate-200 bg-slate-50">
                       <span className="text-[13px] font-medium text-slate-700">Top Products by Video Revenue</span>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-[13px] min-w-[560px]">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                            <th className="py-2 px-2 sm:px-3 font-medium">Product</th>
-                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Videos</th>
-                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Orders</th>
-                            <th className="py-2 px-2 sm:px-3 font-medium text-right">Revenue</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium">Product</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium text-right">Videos</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium text-right">Orders</th>
+                            <th className="py-2 px-2 sm:px-2 font-medium text-right">Revenue</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -2095,9 +2161,9 @@ export default function ReportsPage() {
                                 <p className="font-medium text-slate-900 truncate max-w-[180px] sm:max-w-none">{p.product}</p>
                                 <p className="text-[13px] text-slate-400 font-mono">{p.sku} · {p.category}</p>
                               </td>
-                              <td className="py-2 px-2 sm:px-3 text-right font-mono text-slate-700">{p.videos}</td>
-                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-slate-900">{p.orders}</td>
-                              <td className="py-2 px-2 sm:px-3 text-right font-mono font-semibold text-emerald-600">
+                              <td className="py-2 px-2 sm:px-2 text-right font-mono text-slate-700">{p.videos}</td>
+                              <td className="py-2 px-2 sm:px-2 text-right font-mono font-semibold text-slate-900">{p.orders}</td>
+                              <td className="py-2 px-2 sm:px-2 text-right font-mono font-semibold text-emerald-600">
                                 KES {p.revenue.toLocaleString()}
                               </td>
                             </tr>
@@ -2116,16 +2182,13 @@ export default function ReportsPage() {
   );
 }
 
-/* ============================================================
-   Reusable bits
-   ============================================================ */
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3" onClick={onClose}>
-      <div className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2" onClick={onClose}>
+      <div className="bg-white border border-slate-200 rounded max-w-lg w-full p-3 shadow-xl relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+          className="absolute top-3 right-3 h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
           aria-label="Close"
         >
           <X className="w-4 h-4" />
@@ -2138,7 +2201,7 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
+    <div className="bg-slate-50 border border-slate-200 rounded p-2">
       <p className="text-[13px] font-medium text-slate-500">{label}</p>
       <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{value}</p>
     </div>
@@ -2158,7 +2221,7 @@ function PlatformIcon({ platform, withLabel = false }: { platform: string; withL
 
   if (!withLabel) {
     return (
-      <span className={`w-6 h-6 rounded-sm flex items-center justify-center ${meta.color}`}>
+      <span className={`w-6 h-6 rounded flex items-center justify-center ${meta.color}`}>
         <Icon className="w-3.5 h-3.5" />
       </span>
     );
@@ -2166,7 +2229,7 @@ function PlatformIcon({ platform, withLabel = false }: { platform: string; withL
 
   return (
     <div className="inline-flex items-center gap-1.5">
-      <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 ${meta.color}`}>
+      <span className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${meta.color}`}>
         <Icon className="w-3.5 h-3.5" />
       </span>
       <span className="text-slate-700 truncate">{platform}</span>

@@ -1,25 +1,3 @@
-# dashboard/transactions/services.py
-
-"""
-Staff-only services that mutate a Payment.
-
-Two actions, both triggered from the admin ledger:
-
-    retry_payment       — re-fires the STK push for a failed attempt
-    reconcile_payment   — manual finance action (matched / unmatched /
-                          cash-paid / on-account)
-    mark_cash_collected — thin wrapper for the rider POD flow
-
-Both live HERE, not in `checkout.services`, because they are
-admin-only actions with a distinct risk profile. Keeping them in the
-ledger app makes the review boundary obvious: a diff under
-`dashboard/transactions/` is finance tooling, a diff under
-`checkout/` is customer flow.
-
-Imports are strictly one-directional: this module reads from
-`checkout`; `checkout` never reads from here.
-"""
-
 import logging
 from decimal import Decimal
 
@@ -39,9 +17,6 @@ from checkout.services import change_order_status, transition_payment
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Retry a failed M-Pesa attempt
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def retry_payment(
     *,
@@ -49,30 +24,6 @@ def retry_payment(
     user=None,
     phone: str | None = None,
 ) -> Payment:
-    """
-    Retry a failed M-Pesa payment against the same Order.
-
-    Creates a NEW `Payment` row rather than mutating the failed one —
-    the failed attempt is an immutable financial record finance must
-    be able to see in the ledger. The retry is a new event.
-
-    `payment` is the attempt the admin clicked Retry on. Its Order is
-    reused; only a new Payment row and a fresh STK push are created.
-
-    `phone` overrides the original attempt's phone. When omitted, the
-    original is reused. The override exists so support can retry to a
-    corrected number after a customer typo.
-
-    Refuses when:
-      * The original is not in a terminal-failure state (nothing to
-        retry on a successful payment).
-      * The original is COD — cash cannot be retried through Daraja;
-        the admin should use reconcile → mark cash paid.
-      * No phone is available.
-
-    Every refusal raises `CheckoutError` with a message the view maps
-    to a 400.
-    """
     if payment.status not in {
         Payment.Status.FAILED,
         Payment.Status.CANCELLED,
@@ -94,9 +45,6 @@ def retry_payment(
     order = payment.order
     amount = int(payment.amount)
 
-    # Fresh key derived from the original + timestamp. A single admin
-    # double-clicking Retry collapses to one new attempt; a later retry
-    # by a different admin produces its own row.
     retry_key = f"retry-{payment.id}-{int(timezone.now().timestamp())}"[:64]
 
     new_payment = Payment.objects.create(
@@ -144,9 +92,6 @@ def retry_payment(
     return new_payment
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Manual reconciliation
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def reconcile_payment(
     *,
@@ -156,33 +101,6 @@ def reconcile_payment(
     note: str = "",
     actor=None,
 ) -> Payment:
-    """
-    Manual reconciliation from the admin ledger.
-
-    `action` is one of `ReconciliationLog.Action`:
-
-        MATCHED     — payment tied to the referenced order
-        UNMATCHED   — finance cannot tie it to any order
-        CASH_PAID   — the COD payment physically received
-        ON_ACCOUNT  — placed on the customer's running tab
-
-    Every call writes an append-only `ReconciliationLog` row — this is
-    the audit trail and the reason the endpoint exists. The row is
-    never mutated or deleted; it survives staff account deletion via
-    the denormalized `actor_label`.
-
-    On MATCHED with a different `order_reference`: re-links the
-    payment and recomputes the order's settlement state from the full
-    set of successful payments (an order can be settled by more than
-    one payment — the state is a SUM, not a flag).
-
-    On CASH_PAID: flips the payment to SUCCESS, sets fee to 0,
-    stamps `settled_at`, and — if the order is now fully covered —
-    flips the order to PAID and CONFIRMED.
-
-    On ON_ACCOUNT: no money has moved. The log records the intent;
-    a later invoice settlement flips `payment_status`.
-    """
     if not payment:
         raise CheckoutError("Payment is required.")
 
@@ -190,7 +108,6 @@ def reconcile_payment(
     if action not in valid_actions:
         raise CheckoutError(f"Unknown reconciliation action: {action}")
 
-    # ── Optional re-link ──────────────────────────────────────────
     if order_reference and action == ReconciliationLog.Action.MATCHED:
         clean_ref = order_reference.strip()
         if clean_ref and clean_ref != payment.order.reference:
@@ -200,7 +117,6 @@ def reconcile_payment(
             payment.order = target
             payment.save(update_fields=["order", "updated_at"])
 
-    # ── CASH_PAID: state transition ───────────────────────────────
     if action == ReconciliationLog.Action.CASH_PAID:
         if payment.status in Payment.TERMINAL_STATUSES:
             logger.warning(
@@ -247,7 +163,6 @@ def reconcile_payment(
                         note="Cash collected on delivery.",
                     )
 
-    # ── Append the audit row ──────────────────────────────────────
     actor_name = getattr(actor, "get_full_name", lambda: "")() or "Admin"
     ReconciliationLog.objects.create(
         payment=payment,
@@ -261,9 +176,6 @@ def reconcile_payment(
     return payment
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Rider POD wrapper
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def mark_cash_collected(
     *,
@@ -271,13 +183,6 @@ def mark_cash_collected(
     actor=None,
     note: str = "",
 ) -> Payment:
-    """
-    Convenience wrapper for the rider POD flow.
-
-    Identical to `reconcile_payment(action=CASH_PAID)` — the wrapper
-    exists so the rider app has a semantically-named entry point and
-    does not need to know about `ReconciliationLog.Action` values.
-    """
     return reconcile_payment(
         payment=payment,
         action=ReconciliationLog.Action.CASH_PAID,

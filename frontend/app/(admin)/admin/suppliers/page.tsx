@@ -25,37 +25,21 @@ import type {
     AdminPurchaseStatus,
 } from '@/lib/admin-types';
 
-/* ─────────────────────────────────────────────────────────────
-   LOCAL ALIASES
-───────────────────────────────────────────────────────────── */
 type SupplierStatus = AdminSupplierStatus;
 type SupplierType = AdminSupplierType;
 type PaymentStatus = AdminPurchasePaymentStatus;
 type PurchaseStatus = AdminPurchaseStatus;
-type SupplierProduct = AdminSupplierProduct;
-type Purchase = AdminPurchase;
-type ActivityItem = AdminSupplierActivity;
 type Supplier = AdminSupplier;
 
 type DrawerTab = 'overview' | 'products' | 'purchases' | 'activity';
 type SortKey = 'name' | 'purchases' | 'lastPurchase';
 
-/* ─────────────────────────────────────────────────────────────
-   CONSTANTS
-───────────────────────────────────────────────────────────── */
 const SUPPLIER_TYPES: SupplierType[] = ['Manufacturer', 'Distributor', 'Wholesaler', 'Importer', 'Retailer'];
 const COUNTRIES = ['Kenya', 'Uganda', 'Tanzania', 'UAE', 'China', 'India'];
 const COUNTIES = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 'Machakos', 'Kajiado'];
 const PAYMENT_TERMS = ['Net 7', 'Net 14', 'Net 30', 'Net 45', 'Net 60', 'Cash on delivery', '50% deposit'];
 const PAYMENT_METHODS = ['Bank Transfer', 'M-Pesa', 'Cash', 'Cheque', 'Credit Card'];
 
-/**
- * Temporary catalogue for the "Add products" picker.
- *
- * TODO: replace with `adminApi.products.list()` once the product
- * picker needs real data. The shape here matches what the backend
- * expects on `add-products` — no remapping required when we swap.
- */
 const CATALOG_PRODUCTS = [
     { id: 'p-1', name: 'Lenovo ThinkPad X1 Carbon Gen 10', sku: 'LNV-TPX1-G10', image: '/Lenovo.jpeg', category: 'Laptops & Workstations' },
     { id: 'p-2', name: 'Dell UltraSharp 27 4K USB-C Monitor', sku: 'DEL-U2723QE', image: '/dellmonitor.jpeg', category: 'Displays & Monitors' },
@@ -67,9 +51,6 @@ const CATALOG_PRODUCTS = [
     { id: 'p-8', name: 'Apple AirPods Pro 2nd Gen', sku: 'APL-APP2', image: '/phone.jpeg', category: 'Audio' },
 ];
 
-/* ─────────────────────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────────────────────── */
 const formatKES = (n: number) =>
     new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(n || 0);
 
@@ -104,9 +85,6 @@ const ACTIVITY_COLOR = {
     updated: 'bg-slate-100 text-slate-700',
 } as const;
 
-/* ─────────────────────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────────────────────── */
 export default function SuppliersPage() {
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -125,9 +103,6 @@ export default function SuppliersPage() {
     const [activeSupplier, setActiveSupplier] = useState<Supplier | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-    // Per-row busy marker. Set while an API call for that supplier is in
-    // flight so the row's buttons can disable. `null` when idle.
     const [busyId, setBusyId] = useState<number | null>(null);
 
     useEffect(() => {
@@ -139,7 +114,6 @@ export default function SuppliersPage() {
 
     useEffect(() => { setPage(1); }, [searchQuery, statusFilter, locationFilter, sortKey]);
 
-    // ── Load suppliers on mount ─────────────────────────────────────────
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -161,7 +135,6 @@ export default function SuppliersPage() {
         return () => { cancelled = true; };
     }, []);
 
-    // ── Helpers for keeping local state and API in sync ─────────────────
     const replaceSupplier = useCallback((updated: Supplier) => {
         setSuppliers((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
         setActiveSupplier((prev) => (prev && prev.id === updated.id ? updated : prev));
@@ -173,7 +146,6 @@ export default function SuppliersPage() {
         );
     }, []);
 
-    // ── Summary stats ───────────────────────────────────────────────────
     const totalSuppliers = suppliers.length;
     const activeCount = suppliers.filter((s) => s.status === 'Active').length;
     const inactiveCount = suppliers.filter((s) => s.status === 'Inactive').length;
@@ -190,7 +162,6 @@ export default function SuppliersPage() {
         [suppliers],
     );
 
-    // ── Filter + sort ───────────────────────────────────────────────────
     const filtered = useMemo(() => {
         let list = [...suppliers];
         const q = searchQuery.trim().toLowerCase();
@@ -237,8 +208,6 @@ export default function SuppliersPage() {
 
     const hasFilters = searchQuery || statusFilter || locationFilter;
 
-    // ── CRUD ────────────────────────────────────────────────────────────
-
     const handleSaveSupplier = async (data: AdminSupplierWrite, id?: number) => {
         try {
             if (id !== undefined) {
@@ -254,8 +223,6 @@ export default function SuppliersPage() {
             setEditingSupplier(null);
         } catch (err) {
             showError(err, 'Could not save supplier.');
-            // Re-throw so the form modal keeps its open state and the
-            // caller sees the error message inline.
             throw err;
         }
     };
@@ -327,13 +294,10 @@ export default function SuppliersPage() {
         }
     };
 
-    /* ─────────────────────────────────────────────────────────── */
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-
-            {/* TOAST */}
+        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12 relative">
             {toastMessage && (
-                <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white px-2 py-2 rounded shadow-lg flex items-center gap-2 text-[12px]">
                     <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>{toastMessage}</span>
                     <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
@@ -342,43 +306,40 @@ export default function SuppliersPage() {
                 </div>
             )}
 
-            {/* HEADER */}
             <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
-                    <div>
-                        <div className="flex items-center gap-2 text-[13px] text-slate-500 mb-0.5">
+                <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-[13px] text-slate-500 mb-0.5">
                             <span>Inventory</span>
                             <ChevronRight className="w-3 h-3" />
                             <span className="text-slate-900 font-medium">Suppliers</span>
                         </div>
-                        <h1 className="text-[15px] font-semibold text-slate-900">Suppliers</h1>
-                        <p className="text-[13px] text-slate-500 mt-0.5">
+                        <h1 className="text-[14px] font-semibold text-slate-900">Suppliers</h1>
+                        <p className="text-[13px] text-slate-500 mt-0.5 truncate">
                             Manage your product suppliers, contacts, supplied products, and purchasing information.
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 shrink-0">
                         <button
                             onClick={() => setToastMessage('Suppliers exported as CSV')}
-                            className="hidden sm:inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                            className="hidden sm:inline-flex items-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[13px] transition"
                         >
-                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                            <FileSpreadsheet className="w-3 h-3" />
                             <span>Export</span>
                         </button>
                         <button
                             onClick={() => { setEditingSupplier(null); setIsFormOpen(true); }}
-                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                            className="inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px] transition"
                         >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-3 h-3" />
                             <span>Add Supplier</span>
                         </button>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-
-                {/* SUMMARY CARDS */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <main className="max-w-[1700px] mx-auto px-0.5 py-2.5 space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
                     {[
                         { label: 'Total Suppliers', value: totalSuppliers, icon: Building2, color: 'bg-blue-50 text-blue-950', filter: null as SupplierStatus | null },
                         { label: 'Active', value: activeCount, icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-700', filter: 'Active' as SupplierStatus },
@@ -393,34 +354,34 @@ export default function SuppliersPage() {
                                 key={idx}
                                 onClick={() => isFilter && setStatusFilter(active ? null : card.filter)}
                                 disabled={!isFilter}
-                                className={`text-left bg-white border rounded-sm p-2 flex items-center justify-between gap-2 transition ${active ? 'border-blue-950 ring-1 ring-blue-950' : 'border-slate-200'
-                                    } ${isFilter ? 'hover:border-slate-300 cursor-pointer' : 'cursor-default'}`}
+                                className={`text-left bg-white border rounded p-2 flex items-center gap-2 transition ${
+                                    active ? 'border-blue-950 ring-1 ring-blue-950' : 'border-slate-200'
+                                } ${isFilter ? 'hover:border-slate-300 cursor-pointer' : 'cursor-default'}`}
                             >
+                                <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${card.color}`}>
+                                    <card.icon className="w-3.5 h-3.5" />
+                                </span>
                                 <div className="min-w-0">
                                     <p className="text-[13px] font-medium text-slate-500 truncate">{card.label}</p>
-                                    <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">{card.value}</p>
+                                    <p className="text-[14px] font-semibold text-slate-900 leading-tight truncate">{card.value}</p>
                                 </div>
-                                <span className={`w-9 h-9 rounded-sm flex items-center justify-center shrink-0 ${card.color}`}>
-                                    <card.icon className="w-4 h-4" />
-                                </span>
                             </button>
                         );
                     })}
                 </div>
 
-                {/* FILTER BAR */}
-                <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+                <div className="bg-white border border-slate-200 rounded p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
                     <div className="relative flex-1">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                         <input
                             type="text"
                             placeholder="Search suppliers by name, company, email, or phone…"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                            className="w-full bg-white border border-slate-200 rounded pl-8 pr-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                         <FilterDropdown
                             label="Status"
                             value={statusFilter}
@@ -437,7 +398,7 @@ export default function SuppliersPage() {
                         {hasFilters && (
                             <button
                                 onClick={clearFilters}
-                                className="text-[13px] text-red-600 hover:underline font-medium px-2 py-2"
+                                className="text-[13px] text-red-600 hover:underline font-medium px-1.5 py-1.5"
                             >
                                 Clear
                             </button>
@@ -445,42 +406,40 @@ export default function SuppliersPage() {
                     </div>
                 </div>
 
-                {/* ERROR BANNER */}
                 {loadError && (
-                    <div className="bg-red-50 border border-red-100 text-red-700 rounded-sm px-3 py-2 flex items-start gap-2 text-[13px]">
+                    <div className="bg-red-50 border border-red-100 text-red-700 rounded px-3 py-2 flex items-start gap-2 text-[13px]">
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                         <span>{loadError}</span>
                     </div>
                 )}
 
-                {/* SUPPLIERS TABLE / EMPTY STATE / LOADING */}
                 {isLoading ? (
-                    <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
-                        <Loader2 className="w-5 h-5 mx-auto text-slate-300 animate-spin" />
+                    <div className="bg-white border border-slate-200 rounded p-10 text-center">
+                        <Loader2 className="w-4 h-4 mx-auto text-slate-300 animate-spin" />
                         <p className="text-[13px] text-slate-500 mt-2">Loading suppliers…</p>
                     </div>
                 ) : suppliers.length === 0 ? (
                     <EmptyState onAdd={() => setIsFormOpen(true)} />
                 ) : (
-                    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                    <div className="bg-white border border-slate-200 rounded overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse text-[13px]">
                                 <thead>
                                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                                        <th className="py-2 px-3 font-medium">Supplier</th>
-                                        <th className="py-2 px-3 font-medium">Contact</th>
-                                        <th className="py-2 px-3 font-medium">Location</th>
-                                        <th className="py-2 px-3 font-medium text-center">Products</th>
-                                        <th className="py-2 px-3 font-medium text-right">Total Purchases</th>
-                                        <th className="py-2 px-3 font-medium">Last Purchase</th>
-                                        <th className="py-2 px-3 font-medium">Status</th>
-                                        <th className="py-2 px-3 font-medium text-right">Actions</th>
+                                        <th className="py-1.5 px-2 font-medium">Supplier</th>
+                                        <th className="py-1.5 px-2 font-medium">Contact</th>
+                                        <th className="py-1.5 px-2 font-medium">Location</th>
+                                        <th className="py-1.5 px-2 font-medium text-center">Products</th>
+                                        <th className="py-1.5 px-2 font-medium text-right">Purchases</th>
+                                        <th className="py-1.5 px-2 font-medium">Last Purchase</th>
+                                        <th className="py-1.5 px-2 font-medium">Status</th>
+                                        <th className="py-1.5 px-2 font-medium text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {paged.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="py-12 text-center text-slate-400 text-[13px]">
+                                            <td colSpan={8} className="py-10 text-center text-slate-400 text-[13px]">
                                                 No suppliers match your filters.
                                             </td>
                                         </tr>
@@ -495,56 +454,56 @@ export default function SuppliersPage() {
                                                     className={`hover:bg-slate-50 transition-colors ${isBusy ? 'opacity-60' : 'cursor-pointer'}`}
                                                     onClick={() => !isBusy && setActiveSupplier(s)}
                                                 >
-                                                    <td className="py-2 px-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0 font-semibold text-[13px]">
+                                                    <td className="py-1.5 px-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="w-7 h-7 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0 font-semibold text-[13px]">
                                                                 {s.company.slice(0, 2).toUpperCase()}
                                                             </span>
                                                             <div className="min-w-0">
-                                                                <p className="font-medium text-slate-900 truncate max-w-[220px]">{s.company}</p>
+                                                                <p className="font-medium text-slate-900 truncate max-w-[200px]">{s.company}</p>
                                                                 <p className="text-[13px] text-slate-500 truncate">{s.name} · {s.type}</p>
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="py-2 px-3">
+                                                    <td className="py-1.5 px-2">
                                                         <div className="flex items-center gap-1 text-[13px] text-slate-600">
                                                             <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                                                            <span className="truncate max-w-[160px]">{s.email}</span>
+                                                            <span className="truncate max-w-[150px]">{s.email}</span>
                                                         </div>
                                                         <div className="flex items-center gap-1 text-[13px] text-slate-500">
                                                             <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                                                             <span>{s.phone}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="py-2 px-3 text-slate-600">
-                                                        <span className="inline-flex items-center gap-1">
+                                                    <td className="py-1.5 px-2 text-slate-600">
+                                                        <span className="inline-flex items-center gap-1 text-[13px]">
                                                             <MapPin className="w-3 h-3 text-slate-400" />
                                                             {s.city}, {s.country}
                                                         </span>
                                                     </td>
-                                                    <td className="py-2 px-3 text-center">
-                                                        <span className="bg-slate-100 px-2 py-0.5 rounded-sm font-medium text-slate-800">
+                                                    <td className="py-1.5 px-2 text-center">
+                                                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[13px] font-medium text-slate-800">
                                                             {s.products.length}
                                                         </span>
                                                     </td>
-                                                    <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900">
+                                                    <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900">
                                                         {totalPurchases > 0 ? formatKES(totalPurchases) : '—'}
                                                     </td>
-                                                    <td className="py-2 px-3 text-slate-500 font-mono text-[13px]">
+                                                    <td className="py-1.5 px-2 text-slate-500 font-mono text-[13px]">
                                                         {lastPurchase ? lastPurchase.date : '—'}
                                                     </td>
-                                                    <td className="py-2 px-3">
-                                                        <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${STATUS_STYLES[s.status]}`}>
+                                                    <td className="py-1.5 px-2">
+                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[13px] font-medium border ${STATUS_STYLES[s.status]}`}>
                                                             {s.status}
                                                         </span>
                                                     </td>
-                                                    <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
-                                                        <div className="flex items-center justify-end gap-1">
+                                                    <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex items-center justify-end gap-0.5">
                                                             <button
                                                                 onClick={() => setActiveSupplier(s)}
                                                                 disabled={isBusy}
                                                                 title="View"
-                                                                className="w-8 h-8 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition disabled:opacity-40"
+                                                                className="w-7 h-7 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition disabled:opacity-40"
                                                             >
                                                                 <Eye className="w-3.5 h-3.5" />
                                                             </button>
@@ -552,7 +511,7 @@ export default function SuppliersPage() {
                                                                 onClick={() => { setEditingSupplier(s); setIsFormOpen(true); }}
                                                                 disabled={isBusy}
                                                                 title="Edit"
-                                                                className="w-8 h-8 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition disabled:opacity-40"
+                                                                className="w-7 h-7 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition disabled:opacity-40"
                                                             >
                                                                 <Edit className="w-3.5 h-3.5" />
                                                             </button>
@@ -560,7 +519,7 @@ export default function SuppliersPage() {
                                                                 onClick={() => toggleStatus(s.id)}
                                                                 disabled={isBusy}
                                                                 title={s.status === 'Active' ? 'Deactivate' : 'Activate'}
-                                                                className="w-8 h-8 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition disabled:opacity-40"
+                                                                className="w-7 h-7 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition disabled:opacity-40"
                                                             >
                                                                 {isBusy ? (
                                                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -572,7 +531,7 @@ export default function SuppliersPage() {
                                                                 onClick={() => setDeleteTarget(s)}
                                                                 disabled={isBusy}
                                                                 title="Delete"
-                                                                className="w-8 h-8 rounded-sm hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center transition disabled:opacity-40"
+                                                                className="w-7 h-7 rounded hover:bg-red-50 text-slate-500 hover:text-red-600 flex items-center justify-center transition disabled:opacity-40"
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
@@ -586,7 +545,6 @@ export default function SuppliersPage() {
                             </table>
                         </div>
 
-                        {/* PAGINATION */}
                         {filtered.length > pageSize && (
                             <div className="px-3 py-2 border-t border-slate-200 flex items-center justify-between text-[13px]">
                                 <span className="text-slate-500">
@@ -598,9 +556,9 @@ export default function SuppliersPage() {
                                     <button
                                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                                         disabled={page === 1}
-                                        className="w-8 h-8 rounded-sm border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                                        className="w-7 h-7 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
                                     >
-                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                        <ChevronLeft className="w-3 h-3" />
                                     </button>
                                     {Array.from({ length: totalPages }, (_, i) => i + 1)
                                         .filter((p) => Math.abs(p - page) < 2 || p === 1 || p === totalPages)
@@ -611,10 +569,11 @@ export default function SuppliersPage() {
                                                 )}
                                                 <button
                                                     onClick={() => setPage(p)}
-                                                    className={`w-8 h-8 rounded-sm text-[13px] font-medium ${p === page
-                                                        ? 'bg-blue-950 text-white'
-                                                        : 'border border-slate-200 hover:bg-slate-50 text-slate-700'
-                                                        }`}
+                                                    className={`w-7 h-7 rounded text-[13px] font-medium ${
+                                                        p === page
+                                                            ? 'bg-blue-950 text-white'
+                                                            : 'border border-slate-200 hover:bg-slate-50 text-slate-700'
+                                                    }`}
                                                 >
                                                     {p}
                                                 </button>
@@ -623,9 +582,9 @@ export default function SuppliersPage() {
                                     <button
                                         onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                                         disabled={page === totalPages}
-                                        className="w-8 h-8 rounded-sm border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                                        className="w-7 h-7 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
                                     >
-                                        <ChevronRight className="w-3.5 h-3.5" />
+                                        <ChevronRight className="w-3 h-3" />
                                     </button>
                                 </div>
                             </div>
@@ -634,7 +593,6 @@ export default function SuppliersPage() {
                 )}
             </main>
 
-            {/* ADD/EDIT FORM MODAL */}
             {isFormOpen && (
                 <SupplierFormModal
                     supplier={editingSupplier}
@@ -643,7 +601,6 @@ export default function SuppliersPage() {
                 />
             )}
 
-            {/* DETAILS DRAWER */}
             {activeSupplier && (
                 <SupplierDrawer
                     supplier={activeSupplier}
@@ -656,7 +613,6 @@ export default function SuppliersPage() {
                 />
             )}
 
-            {/* DELETE PROTECTION DIALOG */}
             {deleteTarget && (
                 <DeleteSupplierDialog
                     supplier={deleteTarget}
@@ -670,9 +626,6 @@ export default function SuppliersPage() {
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   SUPPLIER FORM MODAL (Add / Edit)
-───────────────────────────────────────────────────────────── */
 function SupplierFormModal({
     supplier,
     onClose,
@@ -760,12 +713,12 @@ function SupplierFormModal({
             onClick={() => !saving && onClose()}
         >
             <div
-                className="bg-white border border-slate-200 rounded-sm max-w-2xl w-full max-h-[92vh] flex flex-col shadow-xl"
+                className="bg-white border border-slate-200 rounded max-w-2xl w-full max-h-[92vh] flex flex-col shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
                     <div>
-                        <h2 className="text-[15px] font-semibold text-slate-900">
+                        <h2 className="text-[13px] font-semibold text-slate-900">
                             {editing ? 'Edit supplier' : 'Add supplier'}
                         </h2>
                         <p className="text-[13px] text-slate-500">
@@ -775,15 +728,15 @@ function SupplierFormModal({
                     <button
                         onClick={onClose}
                         disabled={saving}
-                        className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-40"
+                        className="h-7 w-7 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-40"
                     >
                         <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                <form onSubmit={submit} className="flex-1 overflow-y-auto p-3 space-y-4 text-[13px]">
+                <form onSubmit={submit} className="flex-1 overflow-y-auto p-3 space-y-2 text-[13px]">
                     {error && (
-                        <div className="bg-red-50 border border-red-100 text-red-700 rounded-sm px-3 py-2 flex items-start gap-2">
+                        <div className="bg-red-50 border border-red-100 text-red-700 rounded px-2.5 py-2 flex items-start gap-2">
                             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                             <span>{error}</span>
                         </div>
@@ -867,18 +820,19 @@ function SupplierFormModal({
                             />
                         </Field>
                         <Field label="Status">
-                            <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-0.5 rounded-sm">
+                            <div className="grid grid-cols-2 gap-1 bg-slate-100 p-0.5 rounded">
                                 {(['Active', 'Inactive'] as SupplierStatus[]).map((s) => (
                                     <button
                                         key={s}
                                         type="button"
                                         onClick={() => setStatus(s)}
-                                        className={`py-2 rounded-sm text-[13px] font-medium transition ${status === s
-                                            ? s === 'Active'
-                                                ? 'bg-emerald-600 text-white'
-                                                : 'bg-slate-700 text-white'
-                                            : 'text-slate-600 hover:text-slate-900'
-                                            }`}
+                                        className={`py-1.5 rounded-md text-[13px] font-medium transition ${
+                                            status === s
+                                                ? s === 'Active'
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : 'bg-slate-700 text-white'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
                                     >
                                         {s}
                                     </button>
@@ -888,24 +842,24 @@ function SupplierFormModal({
                     </Section>
                 </form>
 
-                <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+                <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-1.5 shrink-0">
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={saving}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[13px] disabled:opacity-50"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={submit}
                         disabled={saving}
-                        className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5 disabled:opacity-60"
+                        className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px] inline-flex items-center gap-1 disabled:opacity-60"
                     >
                         {saving ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <Loader2 className="w-3 h-3 animate-spin" />
                         ) : (
-                            <Check className="w-3.5 h-3.5" />
+                            <Check className="w-3 h-3" />
                         )}
                         {editing ? 'Save changes' : 'Create supplier'}
                     </button>
@@ -916,7 +870,7 @@ function SupplierFormModal({
 }
 
 const inputCls =
-    'w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950';
+    'w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
     return (
@@ -933,15 +887,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <label className="block">
-            <span className="block font-medium text-slate-700 mb-1">{label}</span>
+            <span className="block font-medium text-slate-700 mb-1 text-[13px]">{label}</span>
             {children}
         </label>
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   SUPPLIER DETAILS DRAWER
-───────────────────────────────────────────────────────────── */
 function SupplierDrawer({
     supplier,
     busy,
@@ -984,16 +935,15 @@ function SupplierDrawer({
                     className="bg-white border-l border-slate-200 w-full max-w-2xl h-full flex flex-col shadow-xl"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Drawer header */}
                     <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
                         <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0 font-semibold text-[13px]">
+                            <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0 font-semibold text-[11px]">
                                 {supplier.company.slice(0, 2).toUpperCase()}
                             </span>
                             <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <h2 className="text-[15px] font-semibold text-slate-900 truncate">{supplier.company}</h2>
-                                    <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border text-[13px] ${STATUS_STYLES[supplier.status]}`}>
+                                <div className="flex items-center gap-1.5">
+                                    <h2 className="text-[13px] font-semibold text-slate-900 truncate">{supplier.company}</h2>
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[13px] font-medium border ${STATUS_STYLES[supplier.status]}`}>
                                         {supplier.status}
                                     </span>
                                 </div>
@@ -1007,22 +957,21 @@ function SupplierDrawer({
                                 onClick={onEdit}
                                 disabled={busy}
                                 title="Edit"
-                                className="h-8 px-2 rounded-sm hover:bg-white border border-slate-200 text-slate-700 flex items-center gap-1 text-[13px] font-medium disabled:opacity-40"
+                                className="h-7 px-2 rounded hover:bg-white border border-slate-200 text-slate-700 flex items-center gap-1 text-[13px] font-medium disabled:opacity-40"
                             >
-                                <Edit className="w-3.5 h-3.5" />
+                                <Edit className="w-3 h-3" />
                                 <span className="hidden sm:inline">Edit</span>
                             </button>
                             <button
                                 onClick={onClose}
                                 disabled={busy}
-                                className="h-8 w-8 rounded-sm hover:bg-white border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-40"
+                                className="h-7 w-7 rounded hover:bg-white border border-slate-200 flex items-center justify-center text-slate-500 disabled:opacity-40"
                             >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
 
-                    {/* Tabs */}
                     <div className="flex gap-0.5 border-b border-slate-200 bg-white px-3 overflow-x-auto shrink-0">
                         {tabs.map((t) => {
                             const Icon = t.icon;
@@ -1031,16 +980,18 @@ function SupplierDrawer({
                                 <button
                                     key={t.id}
                                     onClick={() => setTab(t.id)}
-                                    className={`flex items-center gap-1.5 px-3 py-3 text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
-                                        ? 'border-blue-950 text-blue-950'
-                                        : 'border-transparent text-slate-500 hover:text-slate-800'
-                                        }`}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium border-b-2 transition whitespace-nowrap ${
+                                        isActive
+                                            ? 'border-blue-950 text-blue-950'
+                                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                                    }`}
                                 >
                                     <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
                                     <span>{t.label}</span>
                                     {t.count !== undefined && (
-                                        <span className={`px-1.5 rounded-sm text-[13px] font-medium ${isActive ? 'bg-blue-50 text-blue-950' : 'bg-slate-100 text-slate-600'
-                                            }`}>
+                                        <span className={`px-1.5 rounded text-[13px] font-medium ${
+                                            isActive ? 'bg-blue-50 text-blue-950' : 'bg-slate-100 text-slate-600'
+                                        }`}>
                                             {t.count}
                                         </span>
                                     )}
@@ -1049,11 +1000,10 @@ function SupplierDrawer({
                         })}
                     </div>
 
-                    {/* Drawer body */}
-                    <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[13px]">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 text-[13px]">
                         {tab === 'overview' && (
                             <>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-3 gap-1.5">
                                     <MiniStat label="Total purchases" value={formatKES(totalPurchases)} icon={CreditCard} tint="bg-blue-50 text-blue-950" />
                                     <MiniStat label="Outstanding" value={outstanding > 0 ? formatKES(outstanding) : '—'} icon={AlertTriangle} tint="bg-amber-50 text-amber-700" />
                                     <MiniStat label="Products supplied" value={String(supplier.products.length)} icon={Package} tint="bg-indigo-50 text-indigo-700" />
@@ -1087,7 +1037,7 @@ function SupplierDrawer({
 
                                 {supplier.notes && (
                                     <InfoSection title="Notes">
-                                        <p className="text-slate-600 bg-slate-50 border border-slate-200 rounded-sm p-2">
+                                        <p className="text-slate-600 bg-slate-50 border border-slate-200 rounded-md p-2">
                                             {supplier.notes}
                                         </p>
                                     </InfoSection>
@@ -1098,65 +1048,65 @@ function SupplierDrawer({
                         {tab === 'products' && (
                             <>
                                 <div className="flex items-center justify-between">
-                                    <p className="font-medium text-slate-700">
+                                    <p className="font-medium text-slate-700 text-[13px]">
                                         {supplier.products.length} product{supplier.products.length !== 1 ? 's' : ''} supplied
                                     </p>
                                     <button
                                         onClick={() => setIsAddProductsOpen(true)}
                                         disabled={busy}
-                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-40"
+                                        className="inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[12px] transition disabled:opacity-40"
                                     >
-                                        <Plus className="w-3.5 h-3.5" />
+                                        <Plus className="w-3 h-3" />
                                         Add products
                                     </button>
                                 </div>
 
                                 {supplier.products.length === 0 ? (
-                                    <div className="border-2 border-dashed border-slate-200 rounded-sm p-8 text-center">
-                                        <Package className="w-8 h-8 mx-auto text-slate-300" />
+                                    <div className="border-2 border-dashed border-slate-200 rounded p-6 text-center">
+                                        <Package className="w-7 h-7 mx-auto text-slate-300" />
                                         <p className="text-[13px] font-medium text-slate-700 mt-2">No products linked</p>
                                         <p className="text-[13px] text-slate-500 mt-0.5">
                                             Add products from your catalogue to track what this supplier provides.
                                         </p>
                                     </div>
                                 ) : (
-                                    <div className="border border-slate-200 rounded-sm overflow-hidden">
+                                    <div className="border border-slate-200 rounded-md overflow-hidden">
                                         <table className="w-full text-left text-[13px]">
                                             <thead>
                                                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
-                                                    <th className="py-2 px-3 font-medium">Product</th>
-                                                    <th className="py-2 px-3 font-medium text-center">Stock</th>
-                                                    <th className="py-2 px-3 font-medium text-right">Cost</th>
-                                                    <th className="py-2 px-3 font-medium text-center">Lead</th>
-                                                    <th className="py-2 px-3 font-medium">Last purchase</th>
-                                                    <th className="py-2 px-3 w-10"></th>
+                                                    <th className="py-1.5 px-2 font-medium">Product</th>
+                                                    <th className="py-1.5 px-2 font-medium text-center">Stock</th>
+                                                    <th className="py-1.5 px-2 font-medium text-right">Cost</th>
+                                                    <th className="py-1.5 px-2 font-medium text-center">Lead</th>
+                                                    <th className="py-1.5 px-2 font-medium">Last purchase</th>
+                                                    <th className="py-1.5 px-2 w-8"></th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {supplier.products.map((sp) => (
                                                     <tr key={sp.id} className="hover:bg-slate-50">
-                                                        <td className="py-2 px-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <img src={sp.image || '/placeholder.png'} alt={sp.name} className="w-8 h-8 rounded-sm object-cover border border-slate-200 shrink-0" />
+                                                        <td className="py-1.5 px-2">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <img src={sp.image || '/placeholder.png'} alt={sp.name} className="w-7 h-7 rounded object-cover border border-slate-200 shrink-0" />
                                                                 <div className="min-w-0">
                                                                     <p className="font-medium text-slate-900 truncate max-w-[200px]">{sp.name}</p>
                                                                     <p className="font-mono text-[13px] text-slate-400">{sp.sku || sp.supplierSku || '—'}</p>
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="py-2 px-3 text-center font-medium text-slate-900">{sp.currentStock}</td>
-                                                        <td className="py-2 px-3 text-right font-mono text-slate-700">{formatKES(Number(sp.costPrice))}</td>
-                                                        <td className="py-2 px-3 text-center text-slate-600 font-mono">{sp.leadTimeDays}d</td>
-                                                        <td className="py-2 px-3">
-                                                            <p className="font-mono text-slate-700">{formatKES(Number(sp.lastPurchasePrice))}</p>
+                                                        <td className="py-1.5 px-2 text-center font-medium text-slate-900">{sp.currentStock}</td>
+                                                        <td className="py-1.5 px-2 text-right font-mono text-slate-700">{formatKES(Number(sp.costPrice))}</td>
+                                                        <td className="py-1.5 px-2 text-center text-slate-600 font-mono">{sp.leadTimeDays}d</td>
+                                                        <td className="py-1.5 px-2">
+                                                            <p className="font-mono text-slate-700 text-[13px]">{formatKES(Number(sp.lastPurchasePrice))}</p>
                                                             <p className="text-[13px] text-slate-400">{sp.lastPurchaseDate || '—'}</p>
                                                         </td>
-                                                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                                                        <td className="py-1.5 px-2" onClick={(e) => e.stopPropagation()}>
                                                             <button
                                                                 onClick={() => onRemoveProduct(sp.id)}
                                                                 disabled={busy}
                                                                 title="Unlink"
-                                                                className="w-8 h-8 rounded-sm hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center transition disabled:opacity-40"
+                                                                className="w-7 h-7 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center transition disabled:opacity-40"
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
@@ -1173,44 +1123,44 @@ function SupplierDrawer({
                         {tab === 'purchases' && (
                             <>
                                 {supplier.purchases.length === 0 ? (
-                                    <div className="border-2 border-dashed border-slate-200 rounded-sm p-8 text-center">
-                                        <Receipt className="w-8 h-8 mx-auto text-slate-300" />
+                                    <div className="border-2 border-dashed border-slate-200 rounded p-6 text-center">
+                                        <Receipt className="w-7 h-7 mx-auto text-slate-300" />
                                         <p className="text-[13px] font-medium text-slate-700 mt-2">No purchase history</p>
                                         <p className="text-[13px] text-slate-500 mt-0.5">
                                             Purchases recorded against this supplier will appear here.
                                         </p>
                                     </div>
                                 ) : (
-                                    <div className="border border-slate-200 rounded-sm overflow-hidden">
+                                    <div className="border border-slate-200 rounded overflow-hidden">
                                         <table className="w-full text-left text-[13px]">
                                             <thead>
                                                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
-                                                    <th className="py-2 px-3 font-medium">Order #</th>
-                                                    <th className="py-2 px-3 font-medium">Date</th>
-                                                    <th className="py-2 px-3 font-medium text-center">Items</th>
-                                                    <th className="py-2 px-3 font-medium text-center">Qty</th>
-                                                    <th className="py-2 px-3 font-medium text-right">Total</th>
-                                                    <th className="py-2 px-3 font-medium">Payment</th>
-                                                    <th className="py-2 px-3 font-medium">Status</th>
+                                                    <th className="py-1.5 px-2 font-medium">Order #</th>
+                                                    <th className="py-1.5 px-2 font-medium">Date</th>
+                                                    <th className="py-1.5 px-2 font-medium text-center">Items</th>
+                                                    <th className="py-1.5 px-2 font-medium text-center">Qty</th>
+                                                    <th className="py-1.5 px-2 font-medium text-right">Total</th>
+                                                    <th className="py-1.5 px-2 font-medium">Payment</th>
+                                                    <th className="py-1.5 px-2 font-medium">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {supplier.purchases.map((p) => (
                                                     <tr key={p.id} className="hover:bg-slate-50">
-                                                        <td className="py-2 px-3 font-mono font-medium text-blue-950">{p.number}</td>
-                                                        <td className="py-2 px-3 text-slate-500 font-mono">{p.date}</td>
-                                                        <td className="py-2 px-3 text-center text-slate-700">{p.itemsCount}</td>
-                                                        <td className="py-2 px-3 text-center text-slate-700">{p.totalQty}</td>
-                                                        <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900">
+                                                        <td className="py-1.5 px-2 font-mono font-medium text-blue-950">{p.number}</td>
+                                                        <td className="py-1.5 px-2 text-slate-500 font-mono text-[13px]">{p.date}</td>
+                                                        <td className="py-1.5 px-2 text-center text-slate-700">{p.itemsCount}</td>
+                                                        <td className="py-1.5 px-2 text-center text-slate-700">{p.totalQty}</td>
+                                                        <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900">
                                                             {formatKES(Number(p.totalAmount))}
                                                         </td>
-                                                        <td className="py-2 px-3">
-                                                            <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${PAYMENT_STATUS_STYLES[p.paymentStatus]}`}>
+                                                        <td className="py-1.5 px-2">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[13px] font-medium border ${PAYMENT_STATUS_STYLES[p.paymentStatus]}`}>
                                                                 {p.paymentStatus}
                                                             </span>
                                                         </td>
-                                                        <td className="py-2 px-3">
-                                                            <span className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${PURCHASE_STATUS_STYLES[p.status]}`}>
+                                                        <td className="py-1.5 px-2">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[13px] font-medium border ${PURCHASE_STATUS_STYLES[p.status]}`}>
                                                                 {p.status}
                                                             </span>
                                                         </td>
@@ -1226,19 +1176,19 @@ function SupplierDrawer({
                         {tab === 'activity' && (
                             <div>
                                 {supplier.activity.length === 0 ? (
-                                    <p className="text-[13px] text-slate-400 text-center py-8">No activity yet.</p>
+                                    <p className="text-[13px] text-slate-400 text-center py-6">No activity yet.</p>
                                 ) : (
-                                    <ul className="space-y-2">
+                                    <ul className="space-y-1.5">
                                         {supplier.activity.map((a) => {
                                             const Icon = ACTIVITY_ICON[a.type] || Activity;
                                             return (
-                                                <li key={a.id} className="bg-white border border-slate-200 rounded-sm p-2 flex items-start gap-2">
-                                                    <span className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${ACTIVITY_COLOR[a.type]}`}>
-                                                        <Icon className="w-3.5 h-3.5" />
+                                                <li key={a.id} className="bg-white border border-slate-200 rounded p-2 flex items-start gap-2">
+                                                    <span className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${ACTIVITY_COLOR[a.type]}`}>
+                                                        <Icon className="w-3 h-3" />
                                                     </span>
                                                     <div className="min-w-0 flex-1">
-                                                        <p className="text-slate-800">{a.description}</p>
-                                                        <div className="flex items-center justify-between text-[13px] text-slate-400 pt-1">
+                                                        <p className="text-slate-800 text-[13px]">{a.description}</p>
+                                                        <div className="flex items-center justify-between text-[13px] text-slate-400 pt-0.5">
                                                             <span>{a.user}</span>
                                                             <span>{a.date}</span>
                                                         </div>
@@ -1252,20 +1202,20 @@ function SupplierDrawer({
                         )}
                     </div>
 
-                    {/* Drawer footer */}
                     <div className="px-3 py-2 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
                         <button
                             onClick={onToggleStatus}
                             disabled={busy}
-                            className={`inline-flex items-center gap-1.5 font-medium px-3 py-2 rounded-sm text-[13px] border transition disabled:opacity-40 ${supplier.status === 'Active'
-                                ? 'bg-white border-slate-200 hover:bg-red-50 hover:border-red-200 text-red-600'
-                                : 'bg-white border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 text-emerald-700'
-                                }`}
+                            className={`inline-flex items-center gap-1.5 font-medium px-2.5 py-1.5 rounded text-[13px] border transition disabled:opacity-40 ${
+                                supplier.status === 'Active'
+                                    ? 'bg-white border-slate-200 hover:bg-red-50 hover:border-red-200 text-red-600'
+                                    : 'bg-white border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 text-emerald-700'
+                            }`}
                         >
                             {busy ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
-                                <Power className="w-3.5 h-3.5" />
+                                <Power className="w-3 h-3" />
                             )}
                             {supplier.status === 'Active' ? 'Deactivate supplier' : 'Activate supplier'}
                         </button>
@@ -1276,7 +1226,6 @@ function SupplierDrawer({
                 </div>
             </div>
 
-            {/* Add Products sub-modal */}
             {isAddProductsOpen && (
                 <AddProductsModal
                     existingProductIds={supplier.products.map((p) => p.productId)}
@@ -1286,7 +1235,6 @@ function SupplierDrawer({
                             await onAddProducts(items);
                             setIsAddProductsOpen(false);
                         } catch {
-                            /* error surfaced by parent toast — keep modal open */
                         }
                     }}
                 />
@@ -1295,14 +1243,11 @@ function SupplierDrawer({
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   INFO ROW / SECTION / MINI STAT
-───────────────────────────────────────────────────────────── */
 function InfoSection({ title, children }: { title: string; children: React.ReactNode }) {
     return (
         <div>
-            <p className="font-medium text-slate-700 mb-1.5">{title}</p>
-            <div className="bg-white border border-slate-200 rounded-sm divide-y divide-slate-100">
+            <p className="font-medium text-slate-700 mb-1.5 text-[13px]">{title}</p>
+            <div className="bg-white border border-slate-200 rounded divide-y divide-slate-100">
                 {children}
             </div>
         </div>
@@ -1311,31 +1256,28 @@ function InfoSection({ title, children }: { title: string; children: React.React
 
 function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: React.ReactNode }) {
     return (
-        <div className="flex items-center gap-2 px-3 py-2">
-            <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="text-slate-500 w-32 shrink-0">{label}</span>
-            <span className="text-slate-900 font-medium min-w-0 truncate">{value}</span>
+        <div className="flex items-center gap-2 px-2.5 py-1.5">
+            <Icon className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="text-slate-500 w-28 shrink-0 text-[13px]">{label}</span>
+            <span className="text-slate-900 font-medium min-w-0 truncate text-[13px]">{value}</span>
         </div>
     );
 }
 
 function MiniStat({ label, value, icon: Icon, tint }: { label: string; value: string; icon: any; tint: string }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-                <p className="text-[13px] text-slate-500 truncate">{label}</p>
-                <p className="text-[13px] font-bold text-slate-900 mt-0.5 truncate">{value}</p>
-            </div>
-            <span className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${tint}`}>
+        <div className="bg-white border border-slate-200 rounded p-2 flex items-center gap-2">
+            <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${tint}`}>
                 <Icon className="w-3.5 h-3.5" />
             </span>
+            <div className="min-w-0">
+                <p className="text-[13px] text-slate-500 truncate">{label}</p>
+                <p className="text-[13px] font-semibold text-slate-900 leading-tight truncate">{value}</p>
+            </div>
         </div>
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   ADD PRODUCTS MODAL
-───────────────────────────────────────────────────────────── */
 function AddProductsModal({
     existingProductIds,
     onClose,
@@ -1395,22 +1337,22 @@ function AddProductsModal({
 
     return (
         <div
-            className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+            className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
             onClick={() => !submitting && onClose()}
         >
             <div
-                className="bg-white border border-slate-200 rounded-sm max-w-3xl w-full max-h-[90vh] flex flex-col shadow-xl"
+                className="bg-white border border-slate-200 rounded max-w-3xl w-full max-h-[90vh] flex flex-col shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
                     <div>
-                        <h3 className="text-[15px] font-semibold text-slate-900">Add products to supplier</h3>
+                        <h3 className="text-[13px] font-semibold text-slate-900">Add products to supplier</h3>
                         <p className="text-[13px] text-slate-500">Select products from your catalogue to link to this supplier.</p>
                     </div>
                     <button
                         onClick={onClose}
                         disabled={submitting}
-                        className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-40"
+                        className="h-7 w-7 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-40"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -1418,20 +1360,20 @@ function AddProductsModal({
 
                 <div className="px-3 py-2 border-b border-slate-200 shrink-0">
                     <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                         <input
                             type="text"
                             placeholder="Search catalogue by name or SKU…"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                            className="w-full bg-white border border-slate-200 rounded pl-8 pr-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
                     {available.length === 0 ? (
-                        <p className="text-[13px] text-slate-400 text-center py-8">
+                        <p className="text-[13px] text-slate-400 text-center py-6">
                             No matching products found in your catalogue.
                         </p>
                     ) : (
@@ -1440,8 +1382,9 @@ function AddProductsModal({
                             return (
                                 <div
                                     key={p.id}
-                                    className={`border rounded-sm transition ${isSelected ? 'border-blue-950 bg-blue-50/30' : 'border-slate-200 hover:border-slate-300'
-                                        }`}
+                                    className={`border rounded transition ${
+                                        isSelected ? 'border-blue-950 bg-blue-50/30' : 'border-slate-200 hover:border-slate-300'
+                                    }`}
                                 >
                                     <label className="flex items-center gap-2 p-2 cursor-pointer">
                                         <input
@@ -1451,17 +1394,17 @@ function AddProductsModal({
                                             disabled={submitting}
                                             className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                                         />
-                                        <img src={p.image} alt={p.name} className="w-8 h-8 rounded-sm object-cover border border-slate-200 shrink-0" />
+                                        <img src={p.image} alt={p.name} className="w-7 h-7 rounded-md object-cover border border-slate-200 shrink-0" />
                                         <div className="min-w-0 flex-1">
-                                            <p className="font-medium text-slate-900 truncate">{p.name}</p>
-                                            <p className="font-mono text-[13px] text-slate-400">{p.sku} · {p.category}</p>
+                                            <p className="font-medium text-slate-900 truncate text-[13px]">{p.name}</p>
+                                            <p className="font-mono text-[11px] text-slate-400">{p.sku} · {p.category}</p>
                                         </div>
                                     </label>
 
                                     {isSelected && (
-                                        <div className="border-t border-slate-200 p-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[13px]">
+                                        <div className="border-t border-slate-200 p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[13px]">
                                             <label>
-                                                <span className="block text-slate-500 mb-1">Cost price (KES)</span>
+                                                <span className="block text-slate-500 mb-1 text-[13px]">Cost price (KES)</span>
                                                 <input
                                                     type="number"
                                                     value={selected[p.id].costPrice}
@@ -1472,7 +1415,7 @@ function AddProductsModal({
                                                 />
                                             </label>
                                             <label>
-                                                <span className="block text-slate-500 mb-1">Supplier SKU</span>
+                                                <span className="block text-slate-500 mb-1 text-[13px]">Supplier SKU</span>
                                                 <input
                                                     value={selected[p.id].supplierSku}
                                                     onChange={(e) => updateField(p.id, 'supplierSku', e.target.value)}
@@ -1482,7 +1425,7 @@ function AddProductsModal({
                                                 />
                                             </label>
                                             <label>
-                                                <span className="block text-slate-500 mb-1">Min. order qty</span>
+                                                <span className="block text-slate-500 mb-1 text-[13px]">Min. order qty</span>
                                                 <input
                                                     type="number"
                                                     value={selected[p.id].minOrderQty}
@@ -1492,7 +1435,7 @@ function AddProductsModal({
                                                 />
                                             </label>
                                             <label>
-                                                <span className="block text-slate-500 mb-1">Lead time (days)</span>
+                                                <span className="block text-slate-500 mb-1 text-[13px]">Lead time (days)</span>
                                                 <input
                                                     type="number"
                                                     value={selected[p.id].leadTimeDays}
@@ -1510,26 +1453,26 @@ function AddProductsModal({
                 </div>
 
                 <div className="px-3 py-2 border-t border-slate-200 flex items-center justify-between shrink-0">
-                    <span className="text-[13px] text-slate-500">
+                    <span className="text-[11px] text-slate-500">
                         {count > 0 ? `${count} product${count > 1 ? 's' : ''} selected` : 'Select products to link'}
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                         <button
                             onClick={onClose}
                             disabled={submitting}
-                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[13px] disabled:opacity-50"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={submit}
                             disabled={count === 0 || submitting}
-                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
                         >
                             {submitting ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-3 h-3" />
                             )}
                             Add {count > 0 ? `${count}` : ''} product{count > 1 ? 's' : ''}
                         </button>
@@ -1540,9 +1483,6 @@ function AddProductsModal({
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   DELETE PROTECTION DIALOG
-───────────────────────────────────────────────────────────── */
 function DeleteSupplierDialog({
     supplier,
     hasDependencies,
@@ -1562,17 +1502,18 @@ function DeleteSupplierDialog({
             onClick={onCancel}
         >
             <div
-                className="bg-white border border-slate-200 rounded-sm max-w-md w-full shadow-xl"
+                className="bg-white border border-slate-200 rounded max-w-md w-full shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="p-3 space-y-3">
+                <div className="p-3 space-y-2">
                     <div className="flex items-start gap-2">
-                        <span className={`w-9 h-9 rounded-sm flex items-center justify-center shrink-0 ${hasDependencies ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'
-                            }`}>
+                        <span className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${
+                            hasDependencies ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'
+                        }`}>
                             <AlertTriangle className="w-4 h-4" />
                         </span>
                         <div>
-                            <h3 className="text-[15px] font-semibold text-slate-900">
+                            <h3 className="text-[13px] font-semibold text-slate-900">
                                 {hasDependencies ? 'Cannot permanently delete' : 'Delete supplier?'}
                             </h3>
                             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -1584,7 +1525,7 @@ function DeleteSupplierDialog({
                     </div>
 
                     {hasDependencies && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1 text-[13px]">
+                        <div className="bg-slate-50 border border-slate-200 rounded p-2 space-y-1 text-[13px]">
                             <p className="text-slate-600">
                                 <span className="font-medium text-slate-900">What deactivating does:</span>
                             </p>
@@ -1597,27 +1538,27 @@ function DeleteSupplierDialog({
                     )}
                 </div>
 
-                <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2">
+                <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-1.5">
                     <button
                         onClick={onCancel}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[13px]"
                     >
                         Cancel
                     </button>
                     {hasDependencies ? (
                         <button
                             onClick={onDeactivate}
-                            className="bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                            className="bg-amber-600 hover:bg-amber-700 text-white font-medium px-2.5 py-1.5 rounded text-[13px] inline-flex items-center gap-1"
                         >
-                            <Power className="w-3.5 h-3.5" />
+                            <Power className="w-3 h-3" />
                             Deactivate supplier
                         </button>
                     ) : (
                         <button
                             onClick={onConfirmDelete}
-                            className="bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-2 rounded-sm text-[13px] inline-flex items-center gap-1.5"
+                            className="bg-red-600 hover:bg-red-700 text-white font-medium px-2.5 py-1.5 rounded text-[13px] inline-flex items-center gap-1"
                         >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3 h-3" />
                             Delete supplier
                         </button>
                     )}
@@ -1627,33 +1568,27 @@ function DeleteSupplierDialog({
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   EMPTY STATE
-───────────────────────────────────────────────────────────── */
 function EmptyState({ onAdd }: { onAdd: () => void }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-8 sm:p-16 text-center">
-            <span className="w-12 h-12 rounded-sm bg-blue-50 text-blue-950 inline-flex items-center justify-center">
-                <Building2 className="w-6 h-6" />
+        <div className="bg-white border border-slate-200 rounded p-12 text-center">
+            <span className="w-10 h-10 rounded bg-blue-50 text-blue-950 inline-flex items-center justify-center">
+                <Building2 className="w-5 h-5" />
             </span>
-            <h2 className="text-[15px] font-semibold text-slate-900 mt-3">No suppliers yet</h2>
+            <h2 className="text-[13px] font-semibold text-slate-900 mt-2.5">No suppliers yet</h2>
             <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto">
                 Add your first supplier to start tracking who provides products to your shop.
             </p>
             <button
                 onClick={onAdd}
-                className="mt-4 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                className="mt-3 inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[13px] transition"
             >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3 h-3" />
                 Add Supplier
             </button>
         </div>
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   SORT DROPDOWN
-───────────────────────────────────────────────────────────── */
 function SortDropdown({
     sortKey, sortAsc, onToggle,
 }: {
@@ -1680,21 +1615,22 @@ function SortDropdown({
         <div ref={ref} className="relative">
             <button
                 onClick={() => setOpen(!open)}
-                className="flex items-center gap-1.5 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap"
+                className="flex items-center gap-1 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 rounded px-2.5 py-1.5 text-[13px] font-medium transition whitespace-nowrap"
             >
-                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                <ArrowUpDown className="w-3 h-3 text-slate-400" />
                 <span>{labels[sortKey]}</span>
                 <span className="text-slate-400">{sortAsc ? '↑' : '↓'}</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3 h-3 transition ${open ? 'rotate-180' : ''}`} />
             </button>
             {open && (
-                <div className="absolute top-full mt-1 right-0 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1">
+                <div className="absolute top-full mt-1 right-0 w-52 rounded border border-slate-200 bg-white shadow-lg z-50 p-1">
                     {(['name', 'purchases', 'lastPurchase'] as SortKey[]).map((k) => (
                         <button
                             key={k}
                             onClick={() => { onToggle(k); setOpen(false); }}
-                            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${sortKey === k ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-                                }`}
+                            className={`w-full text-left px-2 py-1.5 rounded text-[12px] flex items-center justify-between ${
+                                sortKey === k ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                            }`}
                         >
                             <span>{labels[k]}</span>
                             {sortKey === k && <span className="text-slate-400">{sortAsc ? '↑' : '↓'}</span>}
@@ -1706,9 +1642,6 @@ function SortDropdown({
     );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   FILTER DROPDOWN
-───────────────────────────────────────────────────────────── */
 function FilterDropdown({
     label, value, options, onChange,
 }: {
@@ -1738,18 +1671,20 @@ function FilterDropdown({
         <div ref={ref} className="relative">
             <button
                 onClick={() => setOpen(!open)}
-                className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive ? 'bg-blue-50 border-blue-950 text-blue-950' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
+                className={`flex items-center gap-1 border rounded px-2.5 py-1.5 text-[13px] font-medium transition whitespace-nowrap ${
+                    isActive ? 'bg-blue-50 border-blue-950 text-blue-950' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
             >
                 {value ?? label}
-                <ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3 h-3 transition ${open ? 'rotate-180' : ''}`} />
             </button>
             {open && (
-                <div className="absolute top-full mt-1 left-0 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1 max-h-72 overflow-y-auto">
+                <div className="absolute top-full mt-1 left-0 w-52 rounded border border-slate-200 bg-white shadow-lg z-50 p-1 max-h-72 overflow-y-auto">
                     <button
                         onClick={() => { onChange(null); setOpen(false); }}
-                        className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-                            }`}
+                        className={`w-full text-left px-2 py-1.5 rounded text-[13px] ${
+                            !isActive ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                        }`}
                     >
                         All {label.toLowerCase()}
                     </button>
@@ -1760,11 +1695,12 @@ function FilterDropdown({
                             <button
                                 key={opt}
                                 onClick={() => { onChange(opt); setOpen(false); }}
-                                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${selected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
-                                    }`}
+                                className={`w-full text-left px-2 py-1.5 rounded text-[13px] flex items-center justify-between ${
+                                    selected ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'
+                                }`}
                             >
                                 <span className="truncate">{opt}</span>
-                                {selected && <Check className="w-3.5 h-3.5" />}
+                                {selected && <Check className="w-3 h-3" />}
                             </button>
                         );
                     })}

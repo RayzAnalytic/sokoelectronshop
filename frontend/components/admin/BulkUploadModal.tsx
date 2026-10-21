@@ -20,15 +20,6 @@ import {
 } from "lucide-react";
 import type { AdminBrandRef, AdminCategoryRef } from "@/lib/admin-types";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Props and public types
-//
-// `brands` and `categories` come from the parent page. The modal needs
-// the real lists because it validates each CSV row against them — an
-// unknown brand becomes a warning, not a silent fallback to "Other".
-// The hardcoded lists that used to live here were placeholder data and
-// did not match the store's actual catalog.
-// ─────────────────────────────────────────────────────────────────────────────
 type Props = {
     open: boolean;
     onClose: () => void;
@@ -57,20 +48,9 @@ type ParsedRow = {
     warnings: string[];
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// File limits
-// ─────────────────────────────────────────────────────────────────────────────
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_ROWS = 500;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Header aliases
-//
-// Maps every variation a spreadsheet might use for a column header to
-// the canonical `ImportedProduct` key. Matching is case-insensitive
-// and normalizes underscores/dashes/spaces. Add new aliases here when
-// you find a header format the parser doesn't recognize.
-// ─────────────────────────────────────────────────────────────────────────────
 const HEADER_ALIASES: Record<string, keyof ImportedProduct> = {
     name: "name",
     "product name": "name",
@@ -112,12 +92,6 @@ const HEADER_ALIASES: Record<string, keyof ImportedProduct> = {
     status: "status",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CSV parser
-//
-// RFC 4180-style, with quote escaping and BOM stripping. Handles
-// \r\n, \n, and lone \r line endings. Blank trailing rows are dropped.
-// ─────────────────────────────────────────────────────────────────────────────
 function parseCsv(text: string): string[][] {
     const rows: string[][] = [];
     let row: string[] = [];
@@ -125,7 +99,6 @@ function parseCsv(text: string): string[][] {
     let inQuotes = false;
     let i = 0;
 
-    // Strip BOM — Excel writes one on Windows.
     if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
 
     while (i < text.length) {
@@ -187,13 +160,6 @@ function normalizeHeader(h: string): string {
         .trim();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Case-insensitive name lookup
-//
-// Returns the canonical spelling from the list when the input matches
-// ignoring case. Used to validate against the real brands/categories
-// without requiring the CSV to match the exact capitalization.
-// ─────────────────────────────────────────────────────────────────────────────
 function matchName(input: string, list: string[]): string | null {
     const needle = input.trim().toLowerCase();
     if (!needle) return null;
@@ -203,9 +169,6 @@ function matchName(input: string, list: string[]): string | null {
     return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Row parser
-// ─────────────────────────────────────────────────────────────────────────────
 function parseRows(
     raw: string[][],
     brandNames: string[],
@@ -245,18 +208,14 @@ function parseRows(
             return (cells[idx] ?? "").trim();
         };
 
-        // ── Name ──
         const name = get("name");
 
-        // ── Prices: strip currency symbols, commas, spaces ──
         const price = get("price").replace(/[^\d.]/g, "");
         const salePrice = get("salePrice").replace(/[^\d.]/g, "");
 
-        // ── Stock: digits only, default "0" ──
         const stockRaw = get("stock").replace(/[^\d]/g, "");
         const stock = stockRaw || "0";
 
-        // ── Category / brand: match against real lists, case-insensitive ──
         const rawCategory = get("category");
         const rawBrand = get("brand");
 
@@ -269,19 +228,15 @@ function parseRows(
         const category = matchedCategory ?? fallbackCategory;
         const brand = matchedBrand ?? fallbackBrand;
 
-        // ── Status ──
         const statusRaw = (get("status") || "published").toLowerCase();
         const status: "published" | "draft" =
             statusRaw === "draft" ? "draft" : "published";
 
-        // ── Image ──
         const image = get("image");
 
-        // ── SKU and description ──
         const sku = get("sku");
         const shortDescription = get("shortDescription").slice(0, 160);
 
-        // ── Validation ──
         const errors: string[] = [];
         const warnings: string[] = [];
 
@@ -321,7 +276,7 @@ function parseRows(
         }
 
         return {
-            index: i + 2, // +2 — row 1 is the header
+            index: i + 2,
             data: {
                 name,
                 category,
@@ -342,12 +297,6 @@ function parseRows(
     return { rows };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Template download
-//
-// The header row matches the parser's aliases. The example row shows a
-// realistic product so the user knows what a filled sheet looks like.
-// ─────────────────────────────────────────────────────────────────────────────
 function downloadTemplate() {
     const headers = [
         "name",
@@ -390,9 +339,6 @@ function downloadTemplate() {
     URL.revokeObjectURL(url);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────────────────────
 export default function BulkUploadModal({
     open,
     onClose,
@@ -408,14 +354,12 @@ export default function BulkUploadModal({
     const [onlyErrors, setOnlyErrors] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // The real lists, as plain strings, for the parser.
     const brandNames = useMemo(() => brands.map((b) => b.name), [brands]);
     const categoryNames = useMemo(
         () => categories.map((c) => c.name),
         [categories],
     );
 
-    // Reset when opened
     useEffect(() => {
         if (open) {
             setFileName("");
@@ -425,7 +369,6 @@ export default function BulkUploadModal({
         }
     }, [open]);
 
-    // Lock body scroll while open
     useEffect(() => {
         if (!open) return;
         const original = document.body.style.overflow;
@@ -435,7 +378,6 @@ export default function BulkUploadModal({
         };
     }, [open]);
 
-    // ESC closes
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
@@ -464,7 +406,6 @@ export default function BulkUploadModal({
                 return;
             }
 
-            // Guard: the parser needs real lists to validate against.
             if (brandNames.length === 0 || categoryNames.length === 0) {
                 setParseError(
                     "Brands and categories are still loading. Try again in a moment.",
@@ -554,7 +495,6 @@ export default function BulkUploadModal({
                 className="bg-white border border-slate-200 rounded-md w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* ── Header ─────────────────────────────────────────────── */}
                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
                     <div className="flex items-center gap-2">
                         <span className="h-7 w-7 rounded bg-blue-950 text-white flex items-center justify-center">
@@ -579,10 +519,8 @@ export default function BulkUploadModal({
                     </button>
                 </div>
 
-                {/* ── Body ─────────────────────────────────────────────────── */}
                 <div className="flex-1 overflow-y-auto p-3">
                     {rows.length === 0 ? (
-                        // ─── Empty state: dropzone ─────────────────────────
                         <div className="space-y-3">
                             <label
                                 onDragOver={(e) => {
@@ -659,9 +597,7 @@ export default function BulkUploadModal({
                             </div>
                         </div>
                     ) : (
-                        // ─── Preview state ─────────────────────────────────
                         <div className="space-y-3">
-                            {/* File bar */}
                             <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-md px-3 py-2.5">
                                 <div className="flex items-center gap-2 min-w-0">
                                     <FileSpreadsheet className="h-4 w-4 text-blue-950 shrink-0" />
@@ -695,7 +631,6 @@ export default function BulkUploadModal({
                                 </div>
                             </div>
 
-                            {/* Stats */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <SummaryCard
                                     label="Total rows"
@@ -726,7 +661,6 @@ export default function BulkUploadModal({
                                 />
                             </div>
 
-                            {/* Filter */}
                             {stats.withErrors > 0 && (
                                 <div className="flex items-center gap-2">
                                     <button
@@ -752,7 +686,6 @@ export default function BulkUploadModal({
                                 </div>
                             )}
 
-                            {/* Preview table */}
                             <div className="border border-slate-200 rounded-md overflow-hidden">
                                 <div className="overflow-x-auto max-h-[360px]">
                                     <table className="w-full text-[13px]">
@@ -909,7 +842,6 @@ export default function BulkUploadModal({
                     )}
                 </div>
 
-                {/* ── Footer ──────────────────────────────────────────────── */}
                 <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-200 shrink-0 bg-white">
                     <p className="text-[13px] text-slate-500 hidden sm:block">
                         {rows.length > 0
@@ -943,9 +875,6 @@ export default function BulkUploadModal({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Summary card
-// ─────────────────────────────────────────────────────────────────────────────
 function SummaryCard({
     label,
     value,

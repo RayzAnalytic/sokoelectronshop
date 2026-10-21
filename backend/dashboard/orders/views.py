@@ -1,22 +1,14 @@
-"""
-HTTP handlers for the admin orders module.
-
-Every view requires `IsAdminUser`. Reads go through `selectors`,
-writes go through `services`. Nothing touches the ORM directly.
-"""
-
 import csv
 import io
 import logging
 
-from django.http import HttpResponse
+from django.http import FileResponse
 from rest_framework import status as http_status
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import selectors, services
-from .constants import ADMIN_ORDER_TABS
 from .serializers import (
     AdminNoteSerializer,
     AdminOrderDetailSerializer,
@@ -24,6 +16,8 @@ from .serializers import (
     AdminOrderListRowSerializer,
     AdminOrderStatsSerializer,
     AdminOrderTabCountsSerializer,
+    AdminQRVerifyRequestSerializer,
+    AdminQRVerifyResponseSerializer,
     AdminRefundSerializer,
     AdminStatusUpdateSerializer,
     AdminTrackingSerializer,
@@ -33,9 +27,6 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 def _error(message, code="error", http_status_=400):
     return Response(
         {"code": code, "detail": message},
@@ -44,27 +35,10 @@ def _error(message, code="error", http_status_=400):
 
 
 def _get_order_or_404(reference: str):
-    """Load an order by reference, or return None."""
     return selectors.get_order_detail(reference)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# List
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderListView(APIView):
-    """
-    GET /api/v1/admin/orders/
-
-    Query params (all optional):
-        ?tab=<key>              — one of ADMIN_ORDER_TABS keys
-        ?search=<term>          — reference, email, phone, name
-        ?payment_status=<value> — one of PaymentStatus values
-        ?date_from=YYYY-MM-DD
-        ?date_to=YYYY-MM-DD
-
-    Returns `{ results: [...] }`.
-    """
-
     permission_classes = [IsAdminUser]
 
     def get(self, request):
@@ -81,12 +55,7 @@ class AdminOrderListView(APIView):
         return Response({"results": serializer.data})
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Stats + tab counts
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderStatsView(APIView):
-    """GET /api/v1/admin/orders/stats/"""
-
     permission_classes = [IsAdminUser]
 
     def get(self, request):
@@ -95,8 +64,6 @@ class AdminOrderStatsView(APIView):
 
 
 class AdminOrderTabCountsView(APIView):
-    """GET /api/v1/admin/orders/tab-counts/"""
-
     permission_classes = [IsAdminUser]
 
     def get(self, request):
@@ -104,12 +71,7 @@ class AdminOrderTabCountsView(APIView):
         return Response(AdminOrderTabCountsSerializer(counts).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detail
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderDetailView(APIView):
-    """GET /api/v1/admin/orders/<reference>/"""
-
     permission_classes = [IsAdminUser]
 
     def get(self, request, reference):
@@ -122,16 +84,81 @@ class AdminOrderDetailView(APIView):
         return Response(AdminOrderDetailSerializer(order).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — status
-# ─────────────────────────────────────────────────────────────────────────────
+class AdminOrderPdfView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, reference):
+        order = _get_order_or_404(reference)
+        if not order:
+            return _error(
+                "Order not found.",
+                http_status_=http_status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            from .pdf import build_receipt_pdf
+            pdf_buffer = build_receipt_pdf(order)
+        except Exception:
+            logger.exception(
+                "Failed to render receipt PDF for order %s",
+                order.reference,
+            )
+            return _error(
+                "Could not render the receipt PDF.",
+                code="pdf_error",
+                http_status_=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        response = FileResponse(
+            pdf_buffer,
+            content_type="application/pdf",
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="receipt-{order.reference}.pdf"'
+        )
+        return response
+
+
+class AdminOrderVerifyQRView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        ser = AdminQRVerifyRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        order = selectors.get_order_by_qr_token(
+            ser.validated_data["token"],
+        )
+        if not order:
+            return _error(
+                "No order matches this QR code.",
+                code="qr_not_found",
+                http_status_=http_status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(AdminQRVerifyResponseSerializer(order).data)
+
+
+class AdminOrderFulfillQRView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, reference):
+        order = _get_order_or_404(reference)
+        if not order:
+            return _error(
+                "Order not found.",
+                http_status_=http_status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            order = services.mark_fulfilled(order, actor=request.user)
+        except ValueError as exc:
+            return _error(str(exc), code="fulfill_error")
+
+        return Response(AdminQRVerifyResponseSerializer(order).data)
+
+
 class AdminOrderStatusView(APIView):
-    """
-    PATCH /api/v1/admin/orders/<reference>/status/
-
-    Body: { "status": "shipped", "note": "Handed to G4S." }
-    """
-
     permission_classes = [IsAdminUser]
 
     def patch(self, request, reference):
@@ -158,12 +185,7 @@ class AdminOrderStatusView(APIView):
         return Response(AdminOrderDetailSerializer(order).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — tracking
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderTrackingView(APIView):
-    """PATCH /api/v1/admin/orders/<reference>/tracking/"""
-
     permission_classes = [IsAdminUser]
 
     def patch(self, request, reference):
@@ -188,12 +210,7 @@ class AdminOrderTrackingView(APIView):
         return Response(AdminOrderDetailSerializer(order).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — refund
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderRefundView(APIView):
-    """POST /api/v1/admin/orders/<reference>/refund/"""
-
     permission_classes = [IsAdminUser]
 
     def post(self, request, reference):
@@ -220,18 +237,7 @@ class AdminOrderRefundView(APIView):
         return Response(AdminOrderDetailSerializer(order).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — mark returned
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderReturnView(APIView):
-    """
-    POST /api/v1/admin/orders/<reference>/returned/
-
-    Shortcut for `set_status(RETURNED)`. Exists so the frontend has a
-    dedicated button instead of the admin picking "Returned" from the
-    status dropdown.
-    """
-
     permission_classes = [IsAdminUser]
 
     def post(self, request, reference):
@@ -257,12 +263,7 @@ class AdminOrderReturnView(APIView):
         return Response(AdminOrderDetailSerializer(order).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — internal note
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderNoteView(APIView):
-    """POST /api/v1/admin/orders/<reference>/notes/"""
-
     permission_classes = [IsAdminUser]
 
     def post(self, request, reference):
@@ -288,18 +289,7 @@ class AdminOrderNoteView(APIView):
         return Response(AdminOrderDetailSerializer(order).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — WhatsApp
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderWhatsAppView(APIView):
-    """
-    POST /api/v1/admin/orders/<reference>/whatsapp/
-
-    Records the send on the order timeline. Does not deliver a message
-    yet — no provider is wired up. The action is auditable; the
-    delivery is a future integration.
-    """
-
     permission_classes = [IsAdminUser]
 
     def post(self, request, reference):
@@ -325,21 +315,7 @@ class AdminOrderWhatsAppView(APIView):
         return Response(AdminOrderDetailSerializer(order).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Export
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderExportView(APIView):
-    """
-    POST /api/v1/admin/orders/export/
-
-    Body carries the same filters the list accepts. Returns a CSV
-    body with a `text/csv` content type. The frontend triggers a
-    download with it.
-
-    Synchronous for now. If the export grows past a few thousand rows,
-    move it to `tasks.py` and return a job id instead.
-    """
-
     permission_classes = [IsAdminUser]
 
     def post(self, request):
@@ -380,7 +356,7 @@ class AdminOrderExportView(APIView):
             writer.writerow([
                 order.reference,
                 order.created_at.isoformat(),
-                _customer_name(order),
+                order.customer_name,
                 order.contact_email,
                 order.contact_phone,
                 order.items.count(),
@@ -398,7 +374,4 @@ class AdminOrderExportView(APIView):
 
         csv_text = buf.getvalue()
 
-        # Also return as JSON so the frontend can pick either shape.
-        # The customer-side export uses JSON; keeping the same pattern
-        # here means one frontend helper handles both.
         return Response({"csv": csv_text})

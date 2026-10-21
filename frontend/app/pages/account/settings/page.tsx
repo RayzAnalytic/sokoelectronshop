@@ -14,11 +14,6 @@ import {
 } from '@/lib/api';
 import { refreshAuth } from '@/lib/hooks/use-auth';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
-// Must match KENYAN_COUNTIES in the backend's config/settings.py.
-// When a config endpoint becomes available, fetch from checkoutApi.config().
 const KENYAN_COUNTIES = [
     'Baringo', 'Bomet', 'Bungoma', 'Busia', 'Elgeyo-Marakwet', 'Embu',
     'Garissa', 'Homa Bay', 'Isiolo', 'Kajiado', 'Kakamega', 'Kericho',
@@ -30,7 +25,6 @@ const KENYAN_COUNTIES = [
     'Uasin Gishu', 'Vihiga', 'Wajir', 'West Pokot',
 ];
 
-// Must match MinimumLengthValidator in the backend's config/settings.py.
 const MIN_PASSWORD_LENGTH = 10;
 
 const emptyAddressDraft = (): AddressInput => ({
@@ -44,13 +38,6 @@ const emptyAddressDraft = (): AddressInput => ({
     is_default: false,
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * DRF returns field errors as `{ field_name: ["message", ...] }`. This
- * flattens them into a single map for inline display under form fields.
- */
 function extractFieldErrors(data: unknown): Record<string, string> {
     if (!data || typeof data !== 'object') return {};
     const out: Record<string, string> = {};
@@ -75,15 +62,10 @@ function extractFieldErrors(data: unknown): Record<string, string> {
     return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-    // ── Loading / error (initial fetch) ──
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
 
-    // ── Profile ──
     const [profile, setProfile] = useState({
         firstName: '',
         lastName: '',
@@ -92,7 +74,6 @@ export default function SettingsPage() {
     });
     const [profileSaving, setProfileSaving] = useState(false);
 
-    // ── Password ──
     const [passwords, setPasswords] = useState({
         current: '',
         next: '',
@@ -101,7 +82,6 @@ export default function SettingsPage() {
     const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
     const [passwordSaving, setPasswordSaving] = useState(false);
 
-    // ── Preferences ──
     const [prefs, setPrefs] = useState({
         whatsappUpdates: false,
         emailPromotions: false,
@@ -110,7 +90,6 @@ export default function SettingsPage() {
     });
     const [prefsSaving, setPrefsSaving] = useState(false);
 
-    // ── Addresses ──
     const [addresses, setAddresses] = useState<Address[]>([]);
     const [addressModal, setAddressModal] = useState<
         | { mode: 'add'; draft: AddressInput }
@@ -122,22 +101,17 @@ export default function SettingsPage() {
     >({});
     const [addressSaving, setAddressSaving] = useState(false);
 
-    // ── Delete confirms ──
     const [deleteAddressTarget, setDeleteAddressTarget] = useState<Address | null>(null);
     const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
     const [deleteAccountConfirm, setDeleteAccountConfirm] = useState('');
     const [deleteAccountBusy, setDeleteAccountBusy] = useState(false);
 
-    // ── Toast ──
     const [savedMsg, setSavedMsg] = useState<string | null>(null);
     const flash = (msg: string) => {
         setSavedMsg(msg);
         setTimeout(() => setSavedMsg(null), 2500);
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Initial load
-    // ─────────────────────────────────────────────────────────────────────────
     useEffect(() => {
         let cancelled = false;
 
@@ -184,9 +158,6 @@ export default function SettingsPage() {
         };
     }, []);
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Profile
-    // ─────────────────────────────────────────────────────────────────────────
     const saveProfile = async () => {
         setProfileSaving(true);
         try {
@@ -201,9 +172,6 @@ export default function SettingsPage() {
                 email: updated.email,
                 phone: updated.phone,
             });
-            // Keep the auth cache in sync — the header, checkout page,
-            // and any other component reading `useAuth().me` picks up
-            // the new name/phone without a full page reload.
             void refreshAuth();
             flash('Profile updated.');
         } catch (err) {
@@ -217,9 +185,6 @@ export default function SettingsPage() {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Preferences
-    // ─────────────────────────────────────────────────────────────────────────
     const togglePref = (key: keyof typeof prefs) => {
         setPrefs((p) => ({ ...p, [key]: !p[key] }));
     };
@@ -245,9 +210,6 @@ export default function SettingsPage() {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Password
-    // ─────────────────────────────────────────────────────────────────────────
     const updatePassword = async () => {
         const errors: Record<string, string> = {};
         if (!passwords.current) errors.current = 'Enter your current password';
@@ -296,9 +258,6 @@ export default function SettingsPage() {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Addresses
-    // ─────────────────────────────────────────────────────────────────────────
     const openAddAddress = () => {
         setAddressDraftErrors({});
         setAddressModal({ mode: 'add', draft: emptyAddressDraft() });
@@ -429,9 +388,6 @@ export default function SettingsPage() {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Delete account
-    // ─────────────────────────────────────────────────────────────────────────
     const confirmDeleteAccount = async () => {
         if (deleteAccountConfirm !== 'DELETE') return;
         setDeleteAccountBusy(true);
@@ -450,9 +406,6 @@ export default function SettingsPage() {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Effects: body scroll lock + ESC handling
-    // ─────────────────────────────────────────────────────────────────────────
     const anyModalOpen = !!(
         addressModal ||
         deleteAddressTarget ||
@@ -484,20 +437,17 @@ export default function SettingsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addressModal, deleteAddressTarget, deleteAccountOpen, addressSaving, deleteAccountBusy]);
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Loading state
-    // ─────────────────────────────────────────────────────────────────────────
     if (isLoading) {
         return (
-            <div className="space-y-5">
-                <div className="bg-white border border-slate-200 rounded-sm p-5">
+            <div className="space-y-2">
+                <div className="bg-white border border-slate-200 rounded-sm p-3">
                     <div className="h-4 w-40 bg-slate-200 rounded animate-pulse" />
                     <div className="h-3 w-64 bg-slate-200 rounded mt-3 animate-pulse" />
                 </div>
                 {[0, 1, 2].map((i) => (
                     <div
                         key={i}
-                        className="bg-white border border-slate-200 rounded-sm p-5 space-y-4 animate-pulse"
+                        className="bg-white border border-slate-200 rounded-sm p-3 space-y-2 animate-pulse"
                     >
                         <div className="h-4 w-24 bg-slate-200 rounded" />
                         <div className="h-8 w-full bg-slate-100 rounded" />
@@ -508,19 +458,15 @@ export default function SettingsPage() {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-5 relative">
+        <div className="space-y-2 relative">
             <div
-                className={`space-y-5 transition-all duration-200 ${anyModalOpen
+                className={`space-y-2 transition-all duration-200 ${anyModalOpen
                     ? 'filter blur-[2px] brightness-75 pointer-events-none select-none'
                     : ''
                     }`}
             >
-                {/* Header */}
-                <div className="bg-white border border-slate-200 rounded-sm p-5">
+                <div className="bg-white border border-slate-200 rounded-sm p-3">
                     <h1 className="text-lg font-bold text-slate-900">
                         Account Settings
                     </h1>
@@ -529,23 +475,21 @@ export default function SettingsPage() {
                     </p>
                 </div>
 
-                {/* Load error banner */}
                 {loadError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-xs flex items-center gap-2">
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                         {loadError}
                     </div>
                 )}
 
-                {/* 1. Profile */}
                 <section className="bg-white border border-slate-200 rounded-sm">
-                    <header className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                    <header className="px-3 py-3 border-b border-slate-100 flex items-center gap-2">
                         <User className="h-4 w-4 text-slate-500" />
                         <h2 className="text-sm font-semibold text-slate-900">
                             Profile
                         </h2>
                     </header>
-                    <div className="p-5 space-y-4">
+                    <div className="p-3 space-y-2">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field
                                 label="First name"
@@ -602,15 +546,14 @@ export default function SettingsPage() {
                     </div>
                 </section>
 
-                {/* 2. Password */}
                 <section className="bg-white border border-slate-200 rounded-sm">
-                    <header className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                    <header className="px-3 py-3 border-b border-slate-100 flex items-center gap-2">
                         <Lock className="h-4 w-4 text-slate-500" />
                         <h2 className="text-sm font-semibold text-slate-900">
                             Password
                         </h2>
                     </header>
-                    <div className="p-5 space-y-4">
+                    <div className="p-3 space-y-2">
                         <Field
                             label="Current password"
                             type="password"
@@ -680,9 +623,8 @@ export default function SettingsPage() {
                     </div>
                 </section>
 
-                {/* 3. Addresses */}
                 <section className="bg-white border border-slate-200 rounded-sm">
-                    <header className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <header className="px-3 py-3 border-b border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-slate-500" />
                             <h2 className="text-sm font-semibold text-slate-900">
@@ -709,7 +651,7 @@ export default function SettingsPage() {
                             {addresses.map((addr) => (
                                 <li
                                     key={addr.id}
-                                    className="p-5 flex items-start justify-between gap-3"
+                                    className="p-3 flex items-start justify-between gap-3"
                                 >
                                     <div className="text-xs text-slate-700 leading-relaxed">
                                         <div className="flex items-center gap-2 mb-1">
@@ -757,15 +699,14 @@ export default function SettingsPage() {
                     )}
                 </section>
 
-                {/* 4. Communication preferences */}
                 <section className="bg-white border border-slate-200 rounded-sm">
-                    <header className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                    <header className="px-3 py-3 border-b border-slate-100 flex items-center gap-2">
                         <Bell className="h-4 w-4 text-slate-500" />
                         <h2 className="text-sm font-semibold text-slate-900">
                             Communication Preferences
                         </h2>
                     </header>
-                    <div className="p-5 space-y-3">
+                    <div className="p-3 space-y-2">
                         {(
                             [
                                 {
@@ -804,7 +745,7 @@ export default function SettingsPage() {
                                 onClick={savePreferences}
                                 disabled={prefsSaving}
                                 aria-busy={prefsSaving}
-                                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {prefsSaving ? (
                                     <>
@@ -819,15 +760,14 @@ export default function SettingsPage() {
                     </div>
                 </section>
 
-                {/* 5. Danger zone */}
                 <section className="bg-white border border-red-200 rounded-sm">
-                    <header className="px-5 py-4 border-b border-red-100 flex items-center gap-2">
+                    <header className="px-3 py-3 border-b border-red-100 flex items-center gap-2">
                         <Trash2 className="h-4 w-4 text-red-600" />
                         <h2 className="text-sm font-semibold text-red-700">
                             Danger Zone
                         </h2>
                     </header>
-                    <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                             <p className="text-xs font-medium text-slate-900">
                                 Delete account
@@ -840,7 +780,7 @@ export default function SettingsPage() {
                         <button
                             type="button"
                             onClick={() => setDeleteAccountOpen(true)}
-                            className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs shrink-0 transition"
+                            className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded-sm text-xs shrink-0 transition"
                         >
                             Delete Account
                         </button>
@@ -848,21 +788,19 @@ export default function SettingsPage() {
                 </section>
             </div>
 
-            {/* Toast */}
             {savedMsg && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
                     <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                     <span className="leading-relaxed">{savedMsg}</span>
                 </div>
             )}
 
-            {/* Address modal */}
             {addressModal && (
                 <Modal
                     onClose={closeAddressModal}
                     title={addressModal.mode === 'add' ? 'Add Address' : 'Edit Address'}
                 >
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Field
                                 label="Label"
@@ -907,7 +845,7 @@ export default function SettingsPage() {
                             />
                             <div>
                                 <label className="block">
-                                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <span className="block text-[11px] font-semibold uppercase  text-slate-500 mb-1">
                                         County
                                     </span>
                                     <div className="relative">
@@ -960,7 +898,7 @@ export default function SettingsPage() {
                                 type="button"
                                 onClick={closeAddressModal}
                                 disabled={addressSaving}
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60"
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60"
                             >
                                 Cancel
                             </button>
@@ -987,13 +925,12 @@ export default function SettingsPage() {
                 </Modal>
             )}
 
-            {/* Delete address confirm */}
             {deleteAddressTarget && (
                 <Modal
                     onClose={() => setDeleteAddressTarget(null)}
                     maxWidth="max-w-md"
                 >
-                    <div className="text-center space-y-3">
+                    <div className="text-center space-y-2">
                         <div className="w-12 h-12 bg-red-50 text-red-600 rounded-sm flex items-center justify-center mx-auto border border-red-100">
                             <AlertCircle className="h-6 w-6" />
                         </div>
@@ -1010,14 +947,14 @@ export default function SettingsPage() {
                             <button
                                 type="button"
                                 onClick={() => setDeleteAddressTarget(null)}
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs"
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="button"
                                 onClick={confirmDeleteAddress}
-                                className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                                className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded-sm text-xs transition"
                             >
                                 Delete Address
                             </button>
@@ -1026,7 +963,6 @@ export default function SettingsPage() {
                 </Modal>
             )}
 
-            {/* Delete account confirm */}
             {deleteAccountOpen && (
                 <Modal
                     onClose={() => {
@@ -1052,7 +988,7 @@ export default function SettingsPage() {
                         </div>
                         <div>
                             <label className="block">
-                                <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                <span className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                                     Type DELETE to confirm
                                 </span>
                                 <input
@@ -1075,7 +1011,7 @@ export default function SettingsPage() {
                                     setDeleteAccountConfirm('');
                                 }}
                                 disabled={deleteAccountBusy}
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs disabled:opacity-60"
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs disabled:opacity-60"
                             >
                                 Cancel
                             </button>
@@ -1087,7 +1023,7 @@ export default function SettingsPage() {
                                     deleteAccountBusy
                                 }
                                 aria-busy={deleteAccountBusy}
-                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 {deleteAccountBusy ? (
                                     <>
@@ -1105,10 +1041,6 @@ export default function SettingsPage() {
         </div>
     );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
 
 function Modal({
     children,
@@ -1133,7 +1065,7 @@ function Modal({
                 onClick={(e) => e.stopPropagation()}
             >
                 {title && (
-                    <header className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+                    <header className="flex items-center justify-between px-3 py-3 border-b border-slate-100 shrink-0">
                         <h2 className="text-sm font-semibold text-slate-900">
                             {title}
                         </h2>
@@ -1147,7 +1079,7 @@ function Modal({
                         </button>
                     </header>
                 )}
-                <div className="p-5 overflow-y-auto">{children}</div>
+                <div className="p-3 overflow-y-auto">{children}</div>
             </div>
         </div>
     );
@@ -1209,14 +1141,11 @@ function Field({
     disabled?: boolean;
     hint?: string;
 }) {
-    // A missing `onChange` makes the field implicitly read-only. This
-    // replaces the old `readOnly` prop — a disabled input is visually
-    // and interactively distinct, and doesn't get tabbed into.
     const isReadOnly = !onChange;
 
     return (
         <label className="block">
-            <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+            <span className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                 {label}
             </span>
             <div className="relative">

@@ -1,4 +1,3 @@
-// lib/admin-api.ts
 import { request, uploadRequest } from './api';
 import type {
     AdminBrand,
@@ -24,7 +23,9 @@ import type {
     AdminGrowthPoint,
     AdminCampaignPerformance,
     AdminAnalyticsSummary,
-    // ── Customers ──────────────────────────────────────────────────────
+    AdminMetaCampaign,
+    AdminMetaCampaignWrite,
+    AdminMetaCampaignAnalytics,
     AdminCustomerListResponse,
     AdminCustomerStats,
     AdminCustomerDetail,
@@ -37,7 +38,6 @@ import type {
     AdminEmailWrite,
     AdminAddressWrite,
     AdminCustomerFilters,
-    // ── Orders ─────────────────────────────────────────────────────────
     AdminOrderListResponse,
     AdminOrderStats,
     AdminOrderTabCounts,
@@ -50,16 +50,13 @@ import type {
     AdminOrderWhatsAppWrite,
     AdminOrderExportWrite,
     AdminOrderExportResponse,
-    // ── Suppliers ──────────────────────────────────────────────────────
     AdminSupplier,
     AdminSupplierWrite,
     AdminSupplierProductInput,
     AdminPurchaseInput,
-    // ── Inventory ──────────────────────────────────────────────────────
     AdminInventoryItem,
     AdminStockMovement,
     AdminInventoryAdjustInput,
-    // ── Reviews ────────────────────────────────────────────────────────
     AdminReview,
     AdminReviewReply,
     AdminReviewStats,
@@ -68,7 +65,6 @@ import type {
     AdminRejectReviewWrite,
     AdminFlagReviewWrite,
     AdminReplyReviewWrite,
-    // ── Discounts ──────────────────────────────────────────────────────
     AdminDiscount,
     AdminDiscountWrite,
     AdminDiscountFilters,
@@ -77,14 +73,12 @@ import type {
     AdminDiscountAnalytics,
     AdminDiscountAnalyticsSummary,
     AdminDiscountRules,
-    // ── Transactions ledger ────────────────────────────────────────────
     AdminTransaction,
     AdminTransactionSummary,
     AdminTransactionFilters,
     AdminReconcileWrite,
     AdminRetryWrite,
     AdminBulkExportWrite,
-    // ── Shipping ───────────────────────────────────────────────────────
     AdminKenyaRegions,
     AdminShippingZone,
     AdminShippingZoneWrite,
@@ -96,7 +90,6 @@ import type {
     AdminShipmentStatusWrite,
     AdminCourierConfig,
     AdminCourierTestResult,
-    // ── WhatsApp admin ─────────────────────────────────────────────────
     AdminWhatsAppAccount,
     AdminWhatsAppAccountWrite,
     AdminWhatsAppContact,
@@ -129,7 +122,12 @@ import type {
     AdminWhatsAppOtpRequestWrite,
     AdminWhatsAppOtpConfirmWrite,
     AdminWhatsAppOtpConfirmResult,
-    // ── Social media hub ───────────────────────────────────────────────
+    AdminWhatsAppSegment,
+    AdminWhatsAppSegmentWrite,
+    AdminWhatsAppQuickReply,
+    AdminWhatsAppQuickReplyWrite,
+    AdminWhatsAppOrder,
+    AdminWhatsAppOrderUpdate,
     AdminSocialAccount,
     AdminSocialPlatform,
     AdminSocialScheduledPost,
@@ -139,10 +137,11 @@ import type {
     AdminSocialPostCreated,
     AdminSocialFollowerPoint,
     AdminSocialEngagementPoint,
-    // ── Direct orders (social commerce back-office) ────────────────────
     AdminDirectOrder,
     AdminDirectOrderStatus,
+    AdminDirectOrderSource,
     AdminDirectOrderAdvanceWrite,
+    AdminDirectOrderWrite,
     AdminDirectCreator,
     AdminDirectCreatorWrite,
     AdminDirectContent,
@@ -151,9 +150,9 @@ import type {
     AdminDirectLiveWrite,
     AdminDirectProduct,
     AdminDirectProductWrite,
+    AdminDirectProductStatus,
     AdminDirectCreateOrderWrite,
     AdminDirectSendCheckoutLinkWrite,
-    // ── AI & Automations ───────────────────────────────────────────────
     AdminAIOverview,
     AdminAIConversation,
     AdminAIMessage,
@@ -166,8 +165,6 @@ import type {
     AdminAIContentResponse,
     AdminAIContentBulkRequest,
     AdminAIContentBulkResponse,
-    AdminAIContentDraft,
-    AdminAIContentDraftWrite,
     AdminAIAutomation,
     AdminAIAutomationWrite,
     AdminAIAutomationTemplate,
@@ -177,7 +174,7 @@ import type {
     AdminAISettings,
     AdminAISettingsWrite,
     AdminAIUsage,
-    // ── Settings ───────────────────────────────────────────────────────
+    AdminAIChartSpec,
     AdminRuntimeSettings,
     AdminGeneralSettings,
     AdminGeneralSettingsWrite,
@@ -222,7 +219,6 @@ import type {
     AdminEtimsStatus,
     AdminSettingsAuditLog,
     AdminSettingsAuditLogFilters,
-    // ── Users & Roles ──────────────────────────────────────────────────
     AdminStaffUser,
     AdminStaffUserWrite,
     AdminStaffUserStatus,
@@ -232,9 +228,7 @@ import type {
     AdminStaffRole,
     AdminPermissionRow,
     AdminPermissionMatrixWrite,
-    AdminInviteLookup,
     AdminInviteAcceptWrite,
-    // ── Reports & Analytics ────────────────────────────────────────────
     ReportRange,
     ReportQuery,
     ReportSalesResponse,
@@ -251,7 +245,6 @@ import type {
     ReportExportResponse,
     ReportRefreshWrite,
     ReportRefreshResponse,
-    // ── Analytics (dashboard.analytics) ────────────────────────────────
     AnalyticsRange,
     AnalyticsTab,
     AnalyticsQuery,
@@ -262,7 +255,6 @@ import type {
     AnalyticsChannelsResponse,
     AnalyticsRefreshWrite,
     AnalyticsRefreshResponse,
-    // ── Overview (dashboard.overview) ──────────────────────────────────
     OverviewRange,
     OverviewQuery,
     OverviewKpi,
@@ -279,26 +271,58 @@ import type {
     OverviewResponse,
     OverviewRefreshWrite,
     OverviewRefreshResponse,
+    AdminProductVariant,
+    AdminProductVariantWrite,
+    AdminSupplierFull,
+    AdminSupplierFullWrite,
+    AdminPurchaseOrder,
+    AdminPurchaseOrderWrite,
+    AdminLocation,
+    AdminLocationWrite,
+    AdminInventoryMovement,
+    AdminInventoryMovementWrite,
+    AdminInventorySummary,
+    AdminCustomerFull,
+    AdminCustomerFullWrite,
+    AdminCustomerStatsFull,
+    AdminInboxConversation,
+    AdminInboxConversationWrite,
+    AdminInboxMessage,
+    AdminInboxMessageWrite,
+    AdminInboxConvertWrite,
+    AdminTeamMember,
+    AdminTeamMemberWrite,
+    AdminReturnRequest,
+    AdminReturnRequestWrite,
+    AdminExpense,
+    AdminExpenseWrite,
+    AdminAutomation,
+    AdminAutomationWrite,
+    AdminNotification,
+    AdminAuditLog,
+    AdminAuditLogFilters,
+    AdminReviewFull,
+    AdminReviewFullWrite,
+    AdminDeliveryZoneFull,
+    AdminDeliveryZoneFullWrite,
+    AdminCoupon,
+    AdminCouponWrite,
+    AdminCampaignFull,
+    AdminCampaignFullWrite,
+    AdminAttributionLink,
+    AdminAttributionLinkWrite,
+    AdminPayoutBatch,
+    AdminPayoutBatchWrite,
+    AdminAnalyticsSummaryResponse,
+    AdminFinanceSummaryResponse,
 } from './admin-types';
 
-// ── Banners (re-exported from lib/api.ts — no duplication) ────────────────
 import type {
     Banner,
     BannerWriteInput,
     BannerListQuery,
     BannerStats,
 } from './api';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline response shapes for the staff-invite flow.
-//
-// These shadow the types that used to live in `admin-types.ts`. Once
-// you update that file to match the backend (see the notes at the end
-// of this message), delete the three interfaces below and re-add
-// `AdminInviteLookup` and `AdminInviteAcceptResult` to the big import
-// block above. Until then, these local types keep the file
-// type-checking against the actual server responses.
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface StaffInviteCreateResponse {
     id: string;
@@ -332,16 +356,1187 @@ interface MyPermissionsResponse {
     dashboard_url: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Paginated-response unwrapper
-// ─────────────────────────────────────────────────────────────────────────────
+export type WhatsAppCatalogSyncStatus =
+    | 'NOT_SYNCED'
+    | 'SYNCING'
+    | 'SYNCED'
+    | 'OUT_OF_DATE'
+    | 'FAILED'
+    | 'REJECTED';
+
+export type WhatsAppCatalogReviewStatus =
+    | 'PENDING'
+    | 'APPROVED'
+    | 'REJECTED';
+
+export type WhatsAppCatalogEligibilityRule =
+    | 'ALL_ACTIVE'
+    | 'IN_STOCK_ONLY'
+    | 'HAS_IMAGE'
+    | 'TAGGED_WHATSAPP'
+    | 'MANUAL';
+
+export type WhatsAppCatalogDefaultSort =
+    | 'PINNED_FIRST'
+    | 'POPULAR'
+    | 'PRICE_ASC'
+    | 'PRICE_DESC'
+    | 'NEWEST';
+
+export interface AdminWhatsAppCatalogCounts {
+    total: number;
+    eligible: number;
+    synced: number;
+    syncing: number;
+    outOfDate: number;
+    failed: number;
+    linked: number;
+    unlinked: number;
+    inStock: number;
+    pinned: number;
+    removed: number;
+}
+
+export interface AdminWhatsAppCatalog {
+    id: number | null;
+    name: string;
+    metaCatalogId: string;
+    connected: boolean;
+    autoSync: boolean;
+    eligibilityRule: WhatsAppCatalogEligibilityRule;
+    syncFrequencyMinutes: number;
+    hidePrice: boolean;
+    defaultSort: WhatsAppCatalogDefaultSort;
+    excludeOutOfStock: boolean;
+    lastFullSyncAt: string | null;
+    lastSyncAdded: number;
+    lastSyncUpdated: number;
+    lastSyncFailed: number;
+    lastError: string;
+    itemCounts: AdminWhatsAppCatalogCounts;
+    updatedAt: string | null;
+}
+
+export interface AdminWhatsAppCatalogItem {
+    id: number;
+    catalogId: number;
+    retailerId: string;
+    metaProductId: string;
+    storeProductId: string | null;
+    storeCategoryId: number | null;
+    storeProductName: string | null;
+    storeProductSlug: string | null;
+    isLinked: boolean;
+    isRemoved: boolean;
+    isBrowsable: boolean;
+    name: string;
+    displayTitle: string;
+    description: string;
+    displayDescription: string;
+    price: string;
+    salePrice: string | null;
+    effectivePrice: string;
+    currency: string;
+    imageUrl: string;
+    customImageUrl: string;
+    displayImageUrl: string;
+    productUrl: string;
+    category: string;
+    brand: string;
+    tags: string[];
+    inStock: boolean;
+    stockQuantity: number;
+    eligible: boolean;
+    pinned: boolean;
+    sortOrder: number;
+    hidePrice: boolean;
+    isPriceHidden: boolean;
+    customTitle: string;
+    customDescription: string;
+    viewCount: number;
+    addToCartCount: number;
+    removedAt: string | null;
+    syncStatus: WhatsAppCatalogSyncStatus;
+    reviewStatus: WhatsAppCatalogReviewStatus | null;
+    rejectionReason: string;
+    lastError: string;
+    lastSyncedAt: string | null;
+    updatedAt: string;
+}
+
+export interface AdminWhatsAppCatalogItemFilters {
+    search?: string;
+    syncStatus?: WhatsAppCatalogSyncStatus | '';
+    category?: string;
+    eligibleOnly?: boolean;
+    linkedOnly?: boolean;
+    unlinkedOnly?: boolean;
+}
+
+export interface AdminWhatsAppCatalogItemUpdate {
+    eligible?: boolean;
+    pinned?: boolean;
+    sortOrder?: number;
+    hidePrice?: boolean;
+    customTitle?: string;
+    customDescription?: string;
+    customImageUrl?: string;
+}
+
+export interface AdminWhatsAppCatalogItemLinkWrite {
+    store_product_id?: number;
+    store_category_id?: number;
+    retailer_id?: string;
+    auto_sync_now?: boolean;
+}
+
+export interface AdminWhatsAppCatalogItemUnlinkWrite {
+    ids: number[];
+    remove_item?: boolean;
+}
+
+export interface AdminWhatsAppCatalogUpdate {
+    name?: string;
+    autoSync?: boolean;
+    eligibilityRule?: WhatsAppCatalogEligibilityRule;
+    syncFrequencyMinutes?: number;
+    hidePrice?: boolean;
+    defaultSort?: WhatsAppCatalogDefaultSort;
+    excludeOutOfStock?: boolean;
+    connected?: boolean;
+}
+
+export interface AdminWhatsAppCatalogBulkWrite {
+    ids: number[];
+    patch: AdminWhatsAppCatalogItemUpdate;
+}
+
+export interface AdminWhatsAppCatalogSyncSummary {
+    added: number;
+    updated: number;
+    failed: number;
+}
+
+export interface AdminWhatsAppCatalogCreateWrite {
+    name?: string;
+}
+
+export interface AdminWhatsAppTopProduct {
+    id: string;
+    name: string;
+    units: number;
+    revenueKes: number;
+}
+
+export interface AdminWhatsAppRecoveryByProduct {
+    name: string;
+    recovered: number;
+}
+
+export interface AdminWhatsAppCommerceStats {
+    messagesSentToday: number;
+    abandonedCartsRecovered: number;
+    ordersFromWhatsApp: number;
+    ordersRevenueKes: number;
+    averageResponseMin: number;
+    productViews: number;
+    addToCartRate: number;
+    topProducts: AdminWhatsAppTopProduct[];
+    recoveryByProduct: AdminWhatsAppRecoveryByProduct[];
+}
+
+export interface AdminWhatsAppSendProductsWrite {
+    retailerIds: string[];
+    headerText?: string;
+    body?: string;
+}
+
+export interface AdminWhatsAppSendCartWrite {
+    items: {
+        retailer_id: string;
+        name: string;
+        qty: number;
+        price: string;
+    }[];
+    checkoutUrl?: string;
+}
+
+export type AdminWhatsAppSendMediaWrite =
+    | { kind: 'image' | 'video' | 'document'; file: File; caption?: string }
+    | { kind: 'image' | 'video' | 'document'; url: string; caption?: string };
+
+export type AdminWhatsAppSendImageWrite = AdminWhatsAppSendMediaWrite;
+
+export interface AdminWhatsAppSendInteractiveWrite {
+    body: string;
+    buttons: { text: string }[];
+}
+
+export interface AdminWhatsAppReactWrite {
+    emoji: string;
+}
+
+export interface AdminWhatsAppCatalogManualAddWrite {
+    product_ids: number[];
+}
+
+export interface AdminWhatsAppCatalogReorderWrite {
+    ordered_ids: number[];
+}
+
+export interface AdminWhatsAppCatalogManualAddResponse {
+    added: number;
+    skipped: number;
+    item_ids: number[];
+}
+
+export interface AdminWhatsAppCatalogReorderResponse {
+    updated: number;
+}
+
+export interface AdminWhatsAppSettings {
+    id?: number;
+    businessHours: Record<string, unknown>;
+    timezone: string;
+    notifications: Record<string, unknown>;
+    routing: 'ROUND_ROBIN' | 'LOAD_BASED' | 'MANUAL';
+    slaFirstResponseMin: number;
+    slaResolutionMin: number;
+    optOutKeywords: string[];
+    defaultLanguage: string;
+    csatEnabled: boolean;
+    dataRetentionDays: number;
+    welcomeMessage: string;
+    awayMessage: string;
+}
+
+export interface AdminWhatsAppSettingsUpdate {
+    business_hours?: Record<string, unknown>;
+    timezone?: string;
+    notifications?: Record<string, unknown>;
+    routing?: 'ROUND_ROBIN' | 'LOAD_BASED' | 'MANUAL';
+    sla_first_response_min?: number;
+    sla_resolution_min?: number;
+    opt_out_keywords?: string[];
+    default_language?: string;
+    csat_enabled?: boolean;
+    data_retention_days?: number;
+    welcome_message?: string;
+    away_message?: string;
+}
+
+export interface AdminWhatsAppTeamMember {
+    id: number;
+    userId: number;
+    name: string;
+    email: string;
+    role: 'ADMIN' | 'AGENT' | 'VIEWER';
+    online: boolean;
+    lastSeenAt: string | null;
+    activeConversations: number;
+}
+
+export interface AdminWhatsAppTeamMemberWrite {
+    userId: number;
+    role?: 'ADMIN' | 'AGENT' | 'VIEWER';
+}
+
+export interface AdminWhatsAppTeamMemberUpdate {
+    role?: 'ADMIN' | 'AGENT' | 'VIEWER';
+    online?: boolean;
+}
+
+export interface AdminWhatsAppAuditEntry {
+    id: number;
+    actor: number | null;
+    actorName: string;
+    action: string;
+    target: string;
+    payload: Record<string, unknown>;
+    timestamp: string | null;
+}
+
+export interface AdminWhatsAppNotification {
+    id: number;
+    type: 'message' | 'template' | 'order' | 'broadcast' | 'system' | 'quality';
+    title: string;
+    body: string;
+    linkTab: string;
+    read: boolean;
+    payload: Record<string, unknown>;
+    timestamp: string | null;
+}
+
+export interface AdminQRVerifyItem {
+    id: number | string;
+    product_id?: string;
+    name: string;
+    brand?: string;
+    price: string | number;
+    quantity: number;
+    subtotal: string | number;
+    image?: string;
+    serial_number?: string;
+    imei?: string;
+    warranty_months?: number;
+}
+
+export interface AdminQRVerifyResponse {
+    reference: string;
+    customer_name: string;
+    customer_phone: string;
+    customer_email: string;
+    status: string;
+    status_label: string;
+    payment_status: 'unpaid' | 'paid' | 'refunded' | 'failed';
+    payment_status_label: string;
+    payment_method: string;
+    mpesa_receipt_number: string | null;
+    total: string | number;
+    created_at: string;
+    items: AdminQRVerifyItem[];
+    fulfilled: boolean;
+}
+
+export type AdminAIAutomationRunStatus =
+    | 'queued'
+    | 'running'
+    | 'success'
+    | 'failed'
+    | 'skipped'
+    | 'cancelled';
+
+export type AdminAIAutomationTriggeredBy =
+    | 'schedule'
+    | 'manual'
+    | 'event'
+    | 'api';
+
+export interface AdminAIAutomationRun {
+    id: number;
+    automation: number;
+    status: AdminAIAutomationRunStatus;
+    triggeredBy: AdminAIAutomationTriggeredBy;
+    triggeredByUser: number | null;
+    startedAt: string;
+    finishedAt: string | null;
+    durationMs: number;
+    summary: string;
+    output: Record<string, unknown>;
+    itemsAffected: number;
+    errorMessage: string;
+    errorTrace: string;
+    requestId: string;
+    tokensIn: number;
+    tokensOut: number;
+    costKes: number;
+    createdAt: string;
+    startedRelative: string;
+}
+
+export type AdminAIToolCallStatus = 'ok' | 'error' | 'timeout';
+
+export interface AdminAIToolCall {
+    id: number;
+    tool_name: string;
+    arguments: Record<string, unknown> | null;
+    result_summary: string;
+    row_count: number;
+    duration_ms: number;
+    status: AdminAIToolCallStatus;
+    error_message: string;
+    created_at: string;
+}
+
+export type AdminAIAuditAction =
+    | 'chat'
+    | 'query'
+    | 'tool_call'
+    | 'write'
+    | 'destructive'
+    | 'automation_run'
+    | 'automation_toggle'
+    | 'settings_update'
+    | 'alert_dismiss'
+    | 'insight_execute'
+    | 'conversation_clear'
+    | 'export';
+
+export interface AdminAIAuditLog {
+    id: number;
+    user: number | null;
+    userDisplay: string;
+    action: AdminAIAuditAction;
+    tool: string;
+    args: Record<string, unknown> | null;
+    resultSize: number;
+    requestId: string;
+    ipAddress: string | null;
+    userAgent: string;
+    path: string;
+    permissionSnapshot: Record<string, unknown>;
+    wasConfirmed: boolean;
+    isVerified: boolean;
+    createdAt: string;
+    timestamp: string;
+}
+
+export interface AdminAIAuditLogFilters {
+    action?: AdminAIAuditAction | 'all';
+    user?: number;
+    limit?: number;
+}
+
+export type AdminAIAutomationKind =
+    | 'low_stock'
+    | 'abandoned_cart'
+    | 'pending_order'
+    | 'failed_payment'
+    | 'return_refund'
+    | 'sales_summary'
+    | 'newsletter_perf'
+    | 'unusual_change'
+    | 'custom';
+
+export type AdminAIAutomationScheduleKind =
+    | 'interval'
+    | 'hourly'
+    | 'daily'
+    | 'weekly'
+    | 'monthly'
+    | 'event'
+    | 'manual';
+
+export interface AdminAIAutomationExtended {
+    id: number;
+    name: string;
+    kind: AdminAIAutomationKind;
+    description: string;
+    trigger: string;
+    action: string;
+    triggerConfig: Record<string, unknown>;
+    actionConfig: Record<string, unknown>;
+    status: 'Active' | 'Paused' | 'Draft';
+    isEnabled: boolean;
+    scheduleKind: AdminAIAutomationScheduleKind;
+    scheduleIntervalMinutes: number;
+    scheduleCron: string;
+    timezone: string;
+    nextRunAt: string | null;
+    cooldownMinutes: number;
+    maxRunsPerDay: number;
+    requiresApproval: boolean;
+    createdBy: number | null;
+    owner: number | null;
+    runs: number;
+    runsFailed: number;
+    successRate: number;
+    lastRunAt: string | null;
+    lastRunStatus: string;
+    lastError: string;
+    lastRun: string;
+    recentRuns: AdminAIAutomationRun[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminAIAutomationRunRequest {
+    confirm?: boolean;
+    dryRun?: boolean;
+    params?: Record<string, unknown>;
+}
+
+export type AdminAIAlertSeverity = 'high' | 'medium' | 'low';
+export type AdminAIAlertCategory =
+    | 'inventory'
+    | 'orders'
+    | 'payments'
+    | 'customers'
+    | 'returns'
+    | 'messages';
+
+export interface AdminAIAlertFilters {
+    severity?: AdminAIAlertSeverity | 'all';
+    category?: AdminAIAlertCategory | 'all';
+}
+
+export interface AdminAIAlertSnoozeWrite {
+    minutes: number;
+}
+
+export interface AdminAIAlertDismissWrite {
+    reason?: string;
+}
+
+export interface AdminAIInsightExecuteWrite {
+    confirm?: boolean;
+    params?: Record<string, unknown>;
+}
+
+export interface AdminAIToolSchema {
+    type: 'function';
+    function: {
+        name: string;
+        description: string;
+        parameters: Record<string, unknown>;
+    };
+}
+
+export interface AdminAIToolPreviewWrite {
+    name: string;
+    args?: Record<string, unknown>;
+}
+
+export interface AdminAIToolPreviewResponse {
+    items: unknown[];
+    summary?: string;
+    note?: string;
+    chart?: AdminAIChartSpec;
+    table?: { headers: string[]; rows: string[][] };
+    link?: { label: string; href: string };
+    [key: string]: unknown;
+}
+
+export interface AdminAIConversationDetail extends AdminAIConversation {
+    messages: AdminAIMessage[];
+}
+
+export interface AdminAIConversationCreateWrite {
+    title?: string;
+    origin_path?: string;
+    origin_module?: string;
+    model?: string;
+}
+
+export interface AdminAIConversationUpdateWrite {
+    title?: string;
+    status?: 'active' | 'archived';
+    is_pinned?: boolean;
+}
+
+export interface AdminAIUsageLogRow {
+    id: number;
+    feature: string;
+    provider: string;
+    model: string;
+    tokensIn: number;
+    tokensOut: number;
+    costKes: number;
+    user: number | null;
+    conversation: number | null;
+    requestId: string;
+    latencyMs: number;
+    cacheHit: boolean;
+    createdAt: string;
+    timestamp: string;
+}
+
+export interface AdminSocialPaginated<T> {
+    results: T[];
+    page: number;
+    page_size: number;
+    total: number;
+    has_more: boolean;
+}
+
+export interface AdminSocialAccountCapabilities {
+    supports_comments: boolean;
+    supports_direct_messages: boolean;
+    supports_mentions: boolean;
+    supports_demographics: boolean;
+    supports_best_times: boolean;
+    supports_boost: boolean;
+    supports_delete_post: boolean;
+    supports_edit_caption: boolean;
+    supports_first_comment: boolean;
+    supports_stories: boolean;
+    supports_reels: boolean;
+    supports_shorts: boolean;
+    supports_carousel: boolean;
+    max_caption_length: number;
+    max_media_count: number;
+    max_video_duration_sec: number;
+    requires_video: boolean;
+}
+
+export interface AdminSocialAccountDetail {
+    id: string;
+    platform: string;
+    handle: string;
+    display_name: string;
+    platform_user_id: string;
+    is_connected: boolean;
+    is_token_expired: boolean;
+    is_token_expiring_soon: boolean;
+    connected_at: string | null;
+    token_expires_at: string | null;
+    last_synced_at: string | null;
+    scopes: string[];
+    followers: number;
+    avatar_url: string;
+    last_error: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialMediaFolder {
+    id: number;
+    name: string;
+    slug: string;
+    parent_id: number | null;
+    created_at: string;
+}
+
+export interface AdminSocialQueueSlot {
+    id: number;
+    name: string;
+    kind: 'STANDARD' | 'EVERGREEN';
+    days: string[];
+    timeOfDay: string;
+    timezone: string;
+    platforms: string[];
+    isActive: boolean;
+    created_at: string;
+}
+
+export interface AdminSocialQueueSlotWrite {
+    name: string;
+    kind?: 'STANDARD' | 'EVERGREEN';
+    days: string[];
+    timeOfDay: string;
+    timezone?: string;
+    platforms: string[];
+    isActive?: boolean;
+}
+
+export interface AdminSocialEvergreenPost {
+    id: number;
+    caption: string;
+    platforms: string[];
+    productTag: string;
+    lastUsedAt: string | null;
+    useCount: number;
+    isActive: boolean;
+    created_at: string;
+}
+
+export interface AdminSocialEvergreenPostWrite {
+    caption: string;
+    platforms?: string[];
+    productTag?: string;
+    isActive?: boolean;
+}
+
+export type AdminSocialDraftStatus =
+    | 'DRAFT'
+    | 'PENDING'
+    | 'APPROVED'
+    | 'REJECTED'
+    | 'SCHEDULED';
+
+export interface AdminSocialDraftComment {
+    id: number;
+    authorId: number | null;
+    authorName: string;
+    body: string;
+    decision: string;
+    created_at: string;
+}
+
+export interface AdminSocialDraft {
+    id: number;
+    title: string;
+    caption: string;
+    platforms: string[];
+    fields: Record<string, unknown>;
+    status: AdminSocialDraftStatus;
+    authorId: number | null;
+    authorName: string;
+    reviewerId: number | null;
+    reviewerName: string;
+    source_post_id: number | null;
+    comments: AdminSocialDraftComment[];
+    last_edited_at: string;
+    created_at: string;
+}
+
+export interface AdminSocialDraftWrite {
+    title?: string;
+    caption?: string;
+    platforms?: string[];
+    fields?: Record<string, unknown>;
+}
+
+export interface AdminSocialDraftCommentWrite {
+    body: string;
+    decision?: 'APPROVED' | 'REJECTED' | 'CHANGES' | '';
+}
+
+export type AdminSocialInboxItemType = 'COMMENT' | 'DM' | 'MENTION';
+export type AdminSocialInboxStatus = 'OPEN' | 'RESOLVED' | 'SNOOZED' | 'SPAM';
+export type AdminSocialSentiment = 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+
+export interface AdminSocialInboxReply {
+    id: number;
+    authorId: number | null;
+    authorName: string;
+    body: string;
+    isOutbound: boolean;
+    created_at: string;
+}
+
+export interface AdminSocialInboxItem {
+    id: number;
+    itemType: AdminSocialInboxItemType;
+    status: AdminSocialInboxStatus;
+    sentiment: AdminSocialSentiment;
+    platform: string;
+    authorName: string;
+    authorHandle: string;
+    authorAvatar: string;
+    body: string;
+    permalink: string;
+    assignedTo: number | null;
+    assignedName: string;
+    targetId: number | null;
+    postCaption: string;
+    replies: AdminSocialInboxReply[];
+    receivedAt: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialInboxFilters {
+    item_type?: AdminSocialInboxItemType;
+    status?: AdminSocialInboxStatus;
+    platform?: AdminSocialPlatform;
+    sentiment?: AdminSocialSentiment;
+    assigned_to?: 'me' | 'unassigned';
+    search?: string;
+    page?: number;
+    page_size?: number;
+}
+
+export interface AdminSocialTemplate {
+    id: number;
+    name: string;
+    category: string;
+    caption: string;
+    platforms: string[];
+    fields: Record<string, unknown>;
+    isShared: boolean;
+    createdById: number | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialTemplateWrite {
+    name: string;
+    category?: string;
+    caption?: string;
+    platforms?: string[];
+    fields?: Record<string, unknown>;
+    isShared?: boolean;
+}
+
+export interface AdminSocialLink {
+    id: number;
+    shortCode: string;
+    destination: string;
+    utm: Record<string, string>;
+    clicks: number;
+    createdById: number | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialLinkWrite {
+    destination: string;
+    utm?: Record<string, string>;
+}
+
+export type AdminSocialNotificationType =
+    | 'POST_PUBLISHED'
+    | 'POST_FAILED'
+    | 'TOKEN_EXPIRING'
+    | 'TOKEN_EXPIRED'
+    | 'APPROVAL_NEEDED'
+    | 'APPROVAL_GIVEN'
+    | 'NEW_COMMENT'
+    | 'NEW_DM'
+    | 'NEW_MENTION'
+    | 'REPORT_READY';
+
+export interface AdminSocialNotification {
+    id: number;
+    notificationType: AdminSocialNotificationType;
+    title: string;
+    message: string;
+    link: string;
+    isRead: boolean;
+    createdAt: string;
+}
+
+export interface AdminSocialNotificationList extends AdminSocialPaginated<AdminSocialNotification> {
+    unread_count: number;
+}
+
+export type AdminSocialTeamRole = 'OWNER' | 'ADMIN' | 'EDITOR' | 'APPROVER' | 'VIEWER';
+
+export interface AdminSocialTeamMember {
+    id: number;
+    userId: number;
+    email: string;
+    fullName: string;
+    role: AdminSocialTeamRole;
+    isActive: boolean;
+    invited_at: string | null;
+    joined_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminSocialTeamMemberWrite {
+    email: string;
+    role: AdminSocialTeamRole;
+}
+
+export interface AdminSocialTeamMemberPatch {
+    role?: AdminSocialTeamRole;
+    isActive?: boolean;
+}
+
+export interface AdminSocialAuditLog {
+    id: number;
+    actorId: number | null;
+    actorName: string;
+    action: string;
+    targetType: string;
+    targetId: string;
+    details: Record<string, unknown>;
+    createdAt: string;
+}
+
+export interface AdminSocialReport {
+    id: number;
+    name: string;
+    dateFrom: string;
+    dateTo: string;
+    platforms: string[];
+    metrics: string[];
+    branding: Record<string, unknown>;
+    format: 'PDF' | 'CSV' | 'PNG';
+    fileUrl: string | null;
+    createdById: number | null;
+    generatedAt: string | null;
+    created_at: string;
+}
+
+export interface AdminSocialReportWrite {
+    name: string;
+    dateFrom: string;
+    dateTo: string;
+    platforms?: string[];
+    metrics?: string[];
+    branding?: Record<string, unknown>;
+    format?: 'PDF' | 'CSV' | 'PNG';
+}
+
+export interface AdminSocialKpis {
+    total_followers: number;
+    reach: number;
+    engagement_rate: number;
+    posts_published: number;
+    unread_inbox: number;
+    scheduled_this_week: number;
+    failed_posts: number;
+}
+
+export interface AdminSocialOverview {
+    kpis: AdminSocialKpis;
+    expiring_tokens: { platform: string; expires_at: string | null }[];
+    upcoming: AdminSocialScheduledPost[];
+    recent_activity: AdminSocialAuditLog[];
+    top_posts: AdminSocialPublishedPost[];
+}
+
+export interface AdminSocialDemographicSnapshot {
+    id: number;
+    platform: string;
+    date: string;
+    ageBuckets: Record<string, number>;
+    gender: Record<string, number>;
+    topCities: { name: string; count: number }[];
+    topCountries: { code: string; name: string; count: number }[];
+    updated_at: string;
+}
+
+export interface AdminSocialBestTimeRow {
+    id: number;
+    platform: string;
+    dayOfWeek: number;
+    hour: number;
+    score: number;
+    sampleSize: number;
+    updated_at: string;
+}
+
+export interface AdminSocialKpiAnalytics {
+    current: {
+        reach: number;
+        impressions: number;
+        likes: number;
+        comments: number;
+        shares: number;
+        link_clicks: number;
+        posts: number;
+        engagement: number;
+        engagement_rate: number;
+    };
+    previous: {
+        reach: number;
+        impressions: number;
+        likes: number;
+        comments: number;
+        shares: number;
+        link_clicks: number;
+        posts: number;
+        engagement: number;
+        engagement_rate: number;
+    };
+    deltas: {
+        reach: number;
+        engagement: number;
+        engagement_rate: number;
+        link_clicks: number;
+        posts: number;
+    };
+}
+
+export interface AdminSocialPostPatch {
+    caption?: string;
+    first_comment?: string;
+    firstComment?: string;
+    product_tag?: string;
+    productTag?: string;
+    scheduled_for?: string;
+    scheduleAt?: string;
+}
+
+export interface AdminSocialBulkIds {
+    ids: (number | string)[];
+}
+
+export interface AdminSocialBulkReschedule {
+    ids: (number | string)[];
+    scheduleAt: string;
+}
+
+export interface AdminSocialBoostWrite {
+    budget_cents: number;
+    duration_days: number;
+    audience?: Record<string, unknown>;
+}
+
+export interface AdminSocialBoostResult {
+    boost_id: string;
+    status: string;
+    estimated_reach: number;
+}
+
+export interface AdminSocialEditCaptionWrite {
+    caption: string;
+}
+
+export interface InboxReplyCreateBody {
+    body: string;
+}
+
+export interface AdminWhatsAppWebhookEvent {
+    id: number;
+    type: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+    status: 'DELIVERED' | 'FAILED' | 'RETRYING';
+    attempts: number;
+    signatureValid: boolean;
+    latencyMs: number;
+    error: string;
+    receivedAt: string | null;
+}
+
+export interface AdminWhatsAppAnalyticsFunnelStage {
+    stage: string;
+    count: number;
+}
+
+export interface AdminWhatsAppAgentLeaderboardRow {
+    id: number;
+    userId: number;
+    name: string;
+    messages: number;
+    avgResponseMin: number;
+    csat: number;
+    slaRate: number;
+    resolved: number;
+}
+
+export interface AdminWhatsAppInvoice {
+    id: number;
+    periodStart: string;
+    periodEnd: string;
+    amountKes: string;
+    currency: string;
+    status: 'PAID' | 'PENDING' | 'OVERDUE';
+    issuedAt: string;
+    pdfUrl: string;
+}
+
+export interface AdminWhatsAppBotNodeWrite {
+    key: string;
+    kind: string;
+    title: string;
+    body?: string;
+    options?: Array<{ id: string; label: string; next_id?: string }>;
+    config?: Record<string, unknown>;
+    position?: { x: number; y: number };
+}
+
+export interface AdminWhatsAppBotFlowWrite {
+    name?: string;
+    entry_node_key?: string;
+    is_published?: boolean;
+    nodes?: AdminWhatsAppBotNodeWrite[];
+}
+
+export interface AdminWhatsAppBotNode {
+    id: number;
+    flowId: number;
+    key: string;
+    kind: string;
+    title: string;
+    body: string;
+    options: Array<{ id: string; label: string; next_id?: string }>;
+    config: Record<string, unknown>;
+    positionX: number;
+    positionY: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminWhatsAppBotFlow {
+    id: number | null;
+    name: string;
+    isPublished: boolean;
+    entryNodeKey: string;
+    nodes: AdminWhatsAppBotNode[];
+}
+
+export interface AdminWhatsAppContactImportWrite {
+    rows: Array<Record<string, unknown>>;
+}
+
+export interface AdminWhatsAppContactImportResult {
+    added: number;
+    skipped: number;
+}
+
+export interface AdminWhatsAppContactBulkWrite {
+    ids: number[];
+    patch: Partial<AdminWhatsAppContactWrite>;
+}
+
+export interface AdminAIAttachmentInput {
+    id?: string;
+    name: string;
+    size: number;
+    type: string;
+    preview?: string;
+}
+
+export interface AdminAIProvenanceItem {
+    label: string;
+    detail?: string;
+    href?: string;
+    count?: number;
+}
+
+export interface AdminAIMessageAction {
+    id: string;
+    label: string;
+    tone?: 'default' | 'danger' | 'primary';
+    href?: string;
+    prompt?: string;
+    requiresConfirmation?: boolean;
+    params?: Record<string, unknown>;
+}
+
+export interface AdminAIToolCallInline {
+    id: string;
+    name: string;
+    status: 'running' | 'done' | 'error';
+    params?: Record<string, unknown>;
+    resultSummary?: string;
+    durationMs?: number;
+}
+
+export interface AdminAIPendingAction {
+    id: string;
+    tool: string;
+    title: string;
+    description: string;
+    params: Record<string, unknown>;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    destructive?: boolean;
+    preview?: Array<{ label: string; value: string }>;
+}
+
+export interface AdminAIActionExecuteWrite {
+    tool: string;
+    params?: Record<string, unknown>;
+    confirm?: boolean;
+    confirmation_token?: string;
+}
+
+export interface AdminAIActionExecuteResponse {
+    success: boolean;
+    message: string;
+    result: Record<string, unknown>;
+}
+
+export interface AdminAIDigestItem {
+    label: string;
+    value: string;
+    delta?: number;
+    tone: 'blue' | 'emerald' | 'amber' | 'violet' | 'rose' | 'slate';
+    href?: string;
+}
+
+export interface AdminAIDigestResponse {
+    items: AdminAIDigestItem[];
+    generatedAt: string;
+}
+
+export interface AdminAIConversationExportResponse {
+    content: string;
+    filename: string;
+    mimeType: string;
+}
+
+export interface AdminAIMessageFeedbackWrite {
+    feedback: 'up' | 'down';
+}
+
+export interface AdminAIMessageFeedbackResponse {
+    messageId: number | string;
+    feedback: 'up' | 'down';
+}
+
 function unwrapList<T>(res: T[] | { results: T[] }): T[] {
     return Array.isArray(res) ? res : res.results;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CSRF helper
-// ─────────────────────────────────────────────────────────────────────────────
 function readCsrfToken(): string {
     return (
         document.cookie
@@ -351,9 +1546,22 @@ function readCsrfToken(): string {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// File download helper
-// ─────────────────────────────────────────────────────────────────────────────
+export function resolveMediaUrl(
+    mediaUrl: string | null | undefined,
+    apiBase: string =
+        process.env.NEXT_PUBLIC_API_BASE_URL ??
+        process.env.NEXT_PUBLIC_API_URL ??
+        'http://localhost:8000',
+): string {
+    if (!mediaUrl) return '';
+    if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+        return mediaUrl;
+    }
+    const trimmedBase = apiBase.replace(/\/+$/, '');
+    const trimmedPath = mediaUrl.startsWith('/') ? mediaUrl : `/${mediaUrl}`;
+    return `${trimmedBase}${trimmedPath}`;
+}
+
 async function downloadCsv(
     url: string,
     { method = 'GET', body, filename }: {
@@ -389,9 +1597,6 @@ async function downloadCsv(
     setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Direct-orders upload helper
-// ─────────────────────────────────────────────────────────────────────────────
 async function uploadDirectOrderFile(
     file: File,
     kind: 'image' | 'video',
@@ -420,7 +1625,6 @@ async function uploadDirectOrderFile(
             const data = (await res.json()) as { detail?: string };
             if (data?.detail) detail = data.detail;
         } catch {
-            /* not JSON — keep the default */
         }
         throw new Error(detail);
     }
@@ -428,9 +1632,6 @@ async function uploadDirectOrderFile(
     return (await res.json()) as { url: string };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AI Assistant streaming helper
-// ─────────────────────────────────────────────────────────────────────────────
 async function streamAssistantReply(
     conversationId: string,
     content: string,
@@ -438,18 +1639,34 @@ async function streamAssistantReply(
         onChunk,
         onDone,
         onError,
+        onMeta,
+        onAction,
         signal,
+        context,
+        attachments,
     }: {
         onChunk: (text: string) => void;
         onDone: (message: AdminAIMessage) => void;
         onError?: (err: Error) => void;
+        onMeta?: (meta: {
+            chart?: AdminAIMessage['chart'];
+            table?: AdminAIMessage['table'];
+            link?: AdminAIMessage['link'];
+            quickReplies?: AdminAIMessage['quickReplies'];
+            provenance?: AdminAIProvenanceItem[];
+            actions?: AdminAIMessageAction[];
+            toolCalls?: AdminAIToolCallInline[];
+        }) => void;
+        onAction?: (action: AdminAIPendingAction) => void;
         signal?: AbortSignal;
+        context?: { path?: string; module?: string; label?: string; description?: string };
+        attachments?: AdminAIAttachmentInput[];
     },
 ): Promise<void> {
     let res: Response;
     try {
         res = await fetch(
-            `/api/admin/ai/conversations/${encodeURIComponent(conversationId)}/messages/stream/`,
+            `/api/admin/ai/assistant/conversations/${encodeURIComponent(conversationId)}/stream/`,
             {
                 method: 'POST',
                 credentials: 'include',
@@ -458,7 +1675,11 @@ async function streamAssistantReply(
                     'X-CSRFToken': readCsrfToken(),
                     Accept: 'text/event-stream',
                 },
-                body: JSON.stringify({ content }),
+                body: JSON.stringify({
+                    content,
+                    context,
+                    ...(attachments && attachments.length > 0 ? { attachments } : {}),
+                }),
                 signal,
             },
         );
@@ -468,13 +1689,30 @@ async function streamAssistantReply(
     }
 
     if (!res.ok || !res.body) {
-        onError?.(new Error(`Stream failed: ${res.status} ${res.statusText}`));
+        let detail = `Stream failed: ${res.status} ${res.statusText}`;
+        try {
+            const data = (await res.clone().json()) as { detail?: string };
+            if (data?.detail) detail = data.detail;
+        } catch {
+        }
+        onError?.(new Error(detail));
         return;
     }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+
+    let accumulated = '';
+    let meta: {
+        chart?: AdminAIMessage['chart'];
+        table?: AdminAIMessage['table'];
+        link?: AdminAIMessage['link'];
+        quickReplies?: AdminAIMessage['quickReplies'];
+        provenance?: AdminAIProvenanceItem[];
+        actions?: AdminAIMessageAction[];
+        toolCalls?: AdminAIToolCallInline[];
+    } = {};
 
     try {
         while (true) {
@@ -492,9 +1730,21 @@ async function streamAssistantReply(
                 if (!json) continue;
 
                 let payload:
-                    | { type: 'chunk'; text: string }
-                    | { type: 'done'; message: AdminAIMessage }
-                    | { type: 'error'; error: string };
+                    | { type: 'token'; text: string }
+                    | { type: 'delta'; content: string }
+                    | {
+                        type: 'meta';
+                        chart?: AdminAIMessage['chart'];
+                        table?: AdminAIMessage['table'];
+                        link?: AdminAIMessage['link'];
+                        quickReplies?: AdminAIMessage['quickReplies'];
+                        provenance?: AdminAIProvenanceItem[];
+                        actions?: AdminAIMessageAction[];
+                        toolCalls?: AdminAIToolCallInline[];
+                    }
+                    | { type: 'action'; action: AdminAIPendingAction }
+                    | { type: 'done'; messageId: number | string; timestamp: string }
+                    | { type: 'error'; message: string };
 
                 try {
                     payload = JSON.parse(json);
@@ -502,10 +1752,42 @@ async function streamAssistantReply(
                     continue;
                 }
 
-                if (payload.type === 'chunk') onChunk(payload.text);
-                else if (payload.type === 'done') onDone(payload.message);
-                else if (payload.type === 'error') {
-                    onError?.(new Error(payload.error));
+                if (payload.type === 'token') {
+                    accumulated += payload.text;
+                    onChunk(payload.text);
+                } else if (payload.type === 'delta') {
+                    accumulated += payload.content;
+                    onChunk(payload.content);
+                } else if (payload.type === 'meta') {
+                    meta = {
+                        chart: payload.chart ?? meta.chart,
+                        table: payload.table ?? meta.table,
+                        link: payload.link ?? meta.link,
+                        quickReplies: payload.quickReplies ?? meta.quickReplies,
+                        provenance: payload.provenance ?? meta.provenance,
+                        actions: payload.actions ?? meta.actions,
+                        toolCalls: payload.toolCalls ?? meta.toolCalls,
+                    };
+                    onMeta?.(meta);
+                } else if (payload.type === 'action') {
+                    onAction?.(payload.action);
+                } else if (payload.type === 'done') {
+                    const finalMessage: AdminAIMessage = {
+                        id: String(payload.messageId),
+                        role: 'assistant',
+                        content: accumulated,
+                        timestamp: payload.timestamp,
+                        chart: meta.chart,
+                        table: meta.table,
+                        link: meta.link,
+                        quickReplies: meta.quickReplies,
+                        provenance: meta.provenance,
+                        actions: meta.actions,
+                        toolCalls: meta.toolCalls,
+                    } as AdminAIMessage;
+                    onDone(finalMessage);
+                } else if (payload.type === 'error') {
+                    onError?.(new Error(payload.message));
                 }
             }
         }
@@ -516,9 +1798,6 @@ async function streamAssistantReply(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Build query string from a flat filters object, skipping empty values.
-// ─────────────────────────────────────────────────────────────────────────────
 function qsOf(filters: Record<string, unknown> | undefined): string {
     if (!filters) return '';
     const sp = new URLSearchParams();
@@ -530,10 +1809,6 @@ function qsOf(filters: Record<string, unknown> | undefined): string {
     return s ? `?${s}` : '';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reports helper — turns a ReportQuery into the ?range=&start=&end= form
-// the Django views expect.
-// ─────────────────────────────────────────────────────────────────────────────
 function reportQs(query: ReportQuery = {}): string {
     const sp = new URLSearchParams();
     sp.set('range', query.range ?? '7days');
@@ -544,18 +1819,12 @@ function reportQs(query: ReportQuery = {}): string {
     return `?${sp.toString()}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Analytics helper — turns an AnalyticsQuery into ?range=
-// ─────────────────────────────────────────────────────────────────────────────
 function analyticsQs(query: AnalyticsQuery = {}): string {
     const sp = new URLSearchParams();
     sp.set('range', query.range ?? '7days');
     return `?${sp.toString()}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Overview helper — turns an OverviewQuery into ?range=&start=&end=
-// ─────────────────────────────────────────────────────────────────────────────
 function overviewQs(query: OverviewQuery = {}): string {
     const sp = new URLSearchParams();
     sp.set('range', query.range ?? '7d');
@@ -567,9 +1836,6 @@ function overviewQs(query: OverviewQuery = {}): string {
 }
 
 export const adminApi = {
-    // ═══════════════════════════════════════════════════════════════════════
-    // Products
-    // ═══════════════════════════════════════════════════════════════════════
     products: {
         list: async (signal?: AbortSignal): Promise<AdminProduct[]> => {
             const res = await request<
@@ -621,9 +1887,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Categories
-    // ═══════════════════════════════════════════════════════════════════════
     categories: {
         list: async (signal?: AbortSignal): Promise<AdminCategory[]> => {
             const res = await request<
@@ -663,9 +1926,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Brands
-    // ═══════════════════════════════════════════════════════════════════════
     brands: {
         list: async (signal?: AbortSignal): Promise<AdminBrand[]> => {
             const res = await request<
@@ -702,9 +1962,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Banners & Hero (admin)
-    // ═══════════════════════════════════════════════════════════════════════
     banners: {
         list: async (
             query: BannerListQuery = {},
@@ -767,9 +2024,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Newsletter
-    // ═══════════════════════════════════════════════════════════════════════
     newsletter: {
         subscribers: {
             list: async (
@@ -985,9 +2239,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Customers (mini-CRM)
-    // ═══════════════════════════════════════════════════════════════════════
     customers: {
         list: (filters: AdminCustomerFilters = {}, signal?: AbortSignal) => {
             const sp = new URLSearchParams();
@@ -1091,9 +2342,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Suppliers
-    // ═══════════════════════════════════════════════════════════════════════
     suppliers: {
         list: async (signal?: AbortSignal): Promise<AdminSupplier[]> => {
             const res = await request<
@@ -1147,9 +2395,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Inventory
-    // ═══════════════════════════════════════════════════════════════════════
     inventory: {
         list: async (signal?: AbortSignal): Promise<AdminInventoryItem[]> => {
             const res = await request<
@@ -1178,9 +2423,6 @@ export const adminApi = {
         },
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Orders (admin fulfillment view)
-    // ═══════════════════════════════════════════════════════════════════════
     orders: {
         list: (filters: AdminOrderFilters = {}, signal?: AbortSignal) => {
             const sp = new URLSearchParams();
@@ -1288,11 +2530,53 @@ export const adminApi = {
                     body: filters satisfies AdminOrderExportWrite,
                 },
             ),
+
+        downloadPdf: async (
+            reference: string,
+            signal?: AbortSignal,
+        ): Promise<Blob> => {
+            const res = await fetch(
+                `/api/v1/admin/orders/${encodeURIComponent(reference)}/pdf/`,
+                {
+                    credentials: 'include',
+                    headers: {
+                        'X-CSRFToken': readCsrfToken(),
+                    },
+                    signal,
+                },
+            );
+            if (!res.ok) {
+                let detail = `Could not download receipt: ${res.status} ${res.statusText}`;
+                try {
+                    const data = (await res.json()) as { detail?: string };
+                    if (data?.detail) detail = data.detail;
+                } catch {
+                }
+                throw new Error(detail);
+            }
+            return res.blob();
+        },
+
+        verifyQr: (token: string, signal?: AbortSignal) =>
+            request<AdminQRVerifyResponse>(
+                '/api/v1/admin/orders/verify-qr/',
+                {
+                    method: 'POST',
+                    body: { token },
+                    signal,
+                },
+            ),
+
+        fulfillQr: (reference: string, signal?: AbortSignal) =>
+            request<AdminQRVerifyResponse>(
+                `/api/v1/admin/orders/${encodeURIComponent(reference)}/fulfill-qr/`,
+                {
+                    method: 'POST',
+                    signal,
+                },
+            ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Reviews (moderation)
-    // ═══════════════════════════════════════════════════════════════════════
     reviews: {
         list: async (
             filters: AdminReviewFilters = {},
@@ -1379,9 +2663,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Discounts (dashboard promotions)
-    // ═══════════════════════════════════════════════════════════════════════
     discounts: {
         list: async (
             filters: AdminDiscountFilters = {},
@@ -1505,9 +2786,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Transactions (financial ledger)
-    // ═══════════════════════════════════════════════════════════════════════
     transactions: {
         list: async (
             filters: AdminTransactionFilters = {},
@@ -1598,9 +2876,99 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Shipping (admin configuration + tracking)
-    // ═══════════════════════════════════════════════════════════════════════
+    payments: {
+        config: {
+            get: (signal?: AbortSignal) =>
+                request<AdminPaymentConfig>(
+                    '/api/v1/dashboard/payments/config/',
+                    { signal },
+                ),
+
+            update: (payload: AdminPaymentConfigWrite) =>
+                request<AdminPaymentConfig>(
+                    '/api/v1/dashboard/payments/config/',
+                    { method: 'PATCH', body: payload },
+                ),
+
+            test: (signal?: AbortSignal) =>
+                request<AdminPaymentTestResult>(
+                    '/api/v1/dashboard/payments/config/test-connection/',
+                    { method: 'POST', signal },
+                ),
+        },
+
+        summary: (signal?: AbortSignal) =>
+            request<AdminPaymentSummary>(
+                '/api/v1/dashboard/payments/summary/',
+                { signal },
+            ),
+
+        transactions: {
+            list: async (
+                filters: AdminPaymentTransactionFilters = {},
+                signal?: AbortSignal,
+            ): Promise<AdminTransaction[]> => {
+                const sp = new URLSearchParams();
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.status && filters.status !== 'ALL') {
+                    sp.set('status', filters.status);
+                }
+                if (filters.method && filters.method !== 'ALL') {
+                    sp.set('method', filters.method);
+                }
+                if (filters.limit) sp.set('limit', String(filters.limit));
+                const qs = sp.toString();
+                const res = await request<
+                    AdminTransaction[] | { results: AdminTransaction[] }
+                >(
+                    `/api/v1/dashboard/payments/transactions/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
+
+            detail: (id: string, signal?: AbortSignal) =>
+                request<AdminTransaction>(
+                    `/api/v1/dashboard/payments/transactions/${encodeURIComponent(id)}/`,
+                    { signal },
+                ),
+
+            summary: (
+                filters: AdminPaymentTransactionFilters = {},
+                signal?: AbortSignal,
+            ) => {
+                const sp = new URLSearchParams();
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.status && filters.status !== 'ALL') {
+                    sp.set('status', filters.status);
+                }
+                if (filters.method && filters.method !== 'ALL') {
+                    sp.set('method', filters.method);
+                }
+                const qs = sp.toString();
+                return request<AdminTransactionSummary>(
+                    `/api/v1/dashboard/payments/transactions/summary/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+            },
+
+            retry: (id: string, payload: AdminRetryWrite = {}) =>
+                request<AdminTransaction>(
+                    `/api/v1/dashboard/payments/transactions/${encodeURIComponent(id)}/retry/`,
+                    { method: 'POST', body: payload satisfies AdminRetryWrite },
+                ),
+
+            reconcile: (id: string, payload: AdminReconcileWrite) =>
+                request<AdminTransaction>(
+                    `/api/v1/dashboard/payments/transactions/${encodeURIComponent(id)}/reconcile/`,
+                    {
+                        method: 'POST',
+                        body: payload satisfies AdminReconcileWrite,
+                    },
+                ),
+        },
+    },
+
     shipping: {
         regions: (signal?: AbortSignal) =>
             request<AdminKenyaRegions>(
@@ -1724,9 +3092,133 @@ export const adminApi = {
         },
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // WhatsApp (business messaging)
-    // ═══════════════════════════════════════════════════════════════════════
+    returns: {
+        list: (filters: AdminReturnFilters = {}, signal?: AbortSignal) => {
+            const sp = new URLSearchParams();
+            if (filters.q) sp.set('q', filters.q);
+            if (filters.status && filters.status !== 'ALL') {
+                sp.set('status', filters.status);
+            }
+            if (filters.refund_status && filters.refund_status !== 'ALL') {
+                sp.set('refund_status', filters.refund_status);
+            }
+            if (filters.sort) sp.set('sort', filters.sort);
+            const qs = sp.toString();
+            return request<AdminReturnRequest[]>(
+                `/api/v1/dashboard/returns/${qs ? `?${qs}` : ''}`,
+                { signal },
+            );
+        },
+
+        detail: (id: number, signal?: AbortSignal) =>
+            request<AdminReturnRequest>(
+                `/api/v1/dashboard/returns/${id}/`,
+                { signal },
+            ),
+
+        create: (payload: AdminReturnCreateWrite) =>
+            request<AdminReturnRequest>(
+                '/api/v1/dashboard/returns/',
+                { method: 'POST', body: payload },
+            ),
+
+        patch: (id: number, payload: AdminReturnPatchWrite) =>
+            request<AdminReturnRequest>(
+                `/api/v1/dashboard/returns/${id}/`,
+                { method: 'PATCH', body: payload },
+            ),
+
+        approve: (id: number) =>
+            request<AdminReturnRequest>(
+                `/api/v1/dashboard/returns/${id}/approve/`,
+                { method: 'POST' },
+            ),
+
+        reject: (id: number, note = '') =>
+            request<AdminReturnRequest>(
+                `/api/v1/dashboard/returns/${id}/reject/`,
+                {
+                    method: 'POST',
+                    body: { note } satisfies AdminReturnRejectWrite,
+                },
+            ),
+
+        refund: (id: number, payload: AdminReturnRefundWrite = {}) =>
+            request<AdminReturnRequest>(
+                `/api/v1/dashboard/returns/${id}/refund/`,
+                { method: 'POST', body: payload },
+            ),
+
+        setRefundMethod: (id: number, method: AdminRefundMethod) =>
+            request<AdminReturnRequest>(
+                `/api/v1/dashboard/returns/${id}/refund-method/`,
+                {
+                    method: 'PATCH',
+                    body: { refund_method: method } satisfies AdminReturnRefundMethodWrite,
+                },
+            ),
+
+        stats: (signal?: AbortSignal) =>
+            request<AdminReturnStats>(
+                '/api/v1/dashboard/returns/stats/',
+                { signal },
+            ),
+
+        history: (signal?: AbortSignal) =>
+            request<AdminReturnHistoryPoint[]>(
+                '/api/v1/dashboard/returns/history/',
+                { signal },
+            ),
+
+        refunds: (q: string = '', signal?: AbortSignal) => {
+            const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+            return request<AdminRefundRecord[]>(
+                `/api/v1/dashboard/returns/refunds/${qs}`,
+                { signal },
+            );
+        },
+
+        reasons: {
+            list: (signal?: AbortSignal) =>
+                request<AdminReturnReason[]>(
+                    '/api/v1/dashboard/returns/reasons/',
+                    { signal },
+                ),
+
+            create: (payload: AdminReturnReasonWrite) =>
+                request<AdminReturnReason>(
+                    '/api/v1/dashboard/returns/reasons/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminReturnReasonWrite>) =>
+                request<AdminReturnReason>(
+                    `/api/v1/dashboard/returns/reasons/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/returns/reasons/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        settings: {
+            get: (signal?: AbortSignal) =>
+                request<AdminReturnSettings>(
+                    '/api/v1/dashboard/returns/settings/',
+                    { signal },
+                ),
+
+            update: (payload: AdminReturnSettingsWrite) =>
+                request<AdminReturnSettings>(
+                    '/api/v1/dashboard/returns/settings/',
+                    { method: 'PATCH', body: payload },
+                ),
+        },
+    },
+
     whatsapp: {
         connection: {
             get: (signal?: AbortSignal) =>
@@ -1744,7 +3236,7 @@ export const adminApi = {
             setActive: (isActive: boolean) =>
                 request<AdminWhatsAppAccount>(
                     '/api/v1/whatsapp/account/set-active/',
-                    { method: 'POST', body: { isActive } },
+                    { method: 'POST', body: { is_active: isActive } },
                 ),
 
             refresh: (signal?: AbortSignal) =>
@@ -1758,6 +3250,181 @@ export const adminApi = {
                     '/api/v1/whatsapp/account/profile/',
                     { method: 'PATCH', body: payload },
                 ),
+        },
+
+        settings: {
+            get: (signal?: AbortSignal) =>
+                request<AdminWhatsAppSettings>(
+                    '/api/v1/whatsapp/account/settings/',
+                    { signal },
+                ),
+
+            update: (payload: AdminWhatsAppSettingsUpdate) =>
+                request<AdminWhatsAppSettings>(
+                    '/api/v1/whatsapp/account/settings/',
+                    { method: 'PATCH', body: payload },
+                ),
+        },
+
+        team: {
+            list: async (signal?: AbortSignal): Promise<AdminWhatsAppTeamMember[]> => {
+                const res = await request<
+                    | AdminWhatsAppTeamMember[]
+                    | { results: AdminWhatsAppTeamMember[] }
+                >('/api/v1/whatsapp/account/team/', { signal });
+                return unwrapList(res);
+            },
+
+            create: (payload: AdminWhatsAppTeamMemberWrite) =>
+                request<AdminWhatsAppTeamMember>(
+                    '/api/v1/whatsapp/account/team/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: AdminWhatsAppTeamMemberUpdate) =>
+                request<AdminWhatsAppTeamMember>(
+                    `/api/v1/whatsapp/account/team/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/whatsapp/account/team/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        auditLog: {
+            list: async (signal?: AbortSignal): Promise<AdminWhatsAppAuditEntry[]> => {
+                const res = await request<
+                    | AdminWhatsAppAuditEntry[]
+                    | { results: AdminWhatsAppAuditEntry[] }
+                >('/api/v1/whatsapp/account/audit/', { signal });
+                return unwrapList(res);
+            },
+        },
+
+        notifications: {
+            list: async (signal?: AbortSignal): Promise<AdminWhatsAppNotification[]> => {
+                const res = await request<
+                    | AdminWhatsAppNotification[]
+                    | { results: AdminWhatsAppNotification[] }
+                >('/api/v1/whatsapp/account/notifications/', { signal });
+                return unwrapList(res);
+            },
+
+            markRead: (id: number) =>
+                request<AdminWhatsAppNotification>(
+                    `/api/v1/whatsapp/account/notifications/${id}/read/`,
+                    { method: 'POST' },
+                ),
+
+            markAllRead: () =>
+                request<{ updated: number }>(
+                    '/api/v1/whatsapp/account/notifications/mark-all-read/',
+                    { method: 'POST' },
+                ),
+        },
+
+        catalog: {
+            get: (signal?: AbortSignal) =>
+                request<AdminWhatsAppCatalog>(
+                    '/api/v1/whatsapp/catalog/',
+                    { signal },
+                ),
+
+            create: (payload: AdminWhatsAppCatalogCreateWrite = {}) =>
+                request<AdminWhatsAppCatalog>(
+                    '/api/v1/whatsapp/catalog/create/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (payload: AdminWhatsAppCatalogUpdate) =>
+                request<AdminWhatsAppCatalog>(
+                    '/api/v1/whatsapp/catalog/',
+                    { method: 'PATCH', body: payload },
+                ),
+
+            sync: (signal?: AbortSignal) =>
+                request<{ status: 'queued' }>(
+                    '/api/v1/whatsapp/catalog/sync/',
+                    { method: 'POST', signal },
+                ),
+
+            items: {
+                list: async (
+                    filters: AdminWhatsAppCatalogItemFilters = {},
+                    signal?: AbortSignal,
+                ): Promise<AdminWhatsAppCatalogItem[]> => {
+                    const sp = new URLSearchParams();
+                    if (filters.search) sp.set('search', filters.search);
+                    if (filters.syncStatus) sp.set('syncStatus', filters.syncStatus);
+                    if (filters.category) sp.set('category', filters.category);
+                    if (filters.eligibleOnly) sp.set('eligibleOnly', '1');
+                    if (filters.linkedOnly) sp.set('linkedOnly', '1');
+                    if (filters.unlinkedOnly) sp.set('unlinkedOnly', '1');
+                    const qs = sp.toString();
+                    const res = await request<
+                        | AdminWhatsAppCatalogItem[]
+                        | { results: AdminWhatsAppCatalogItem[] }
+                    >(
+                        `/api/v1/whatsapp/catalog/items/${qs ? `?${qs}` : ''}`,
+                        { signal },
+                    );
+                    return unwrapList(res);
+                },
+
+                detail: (id: number, signal?: AbortSignal) =>
+                    request<AdminWhatsAppCatalogItem>(
+                        `/api/v1/whatsapp/catalog/items/${id}/`,
+                        { signal },
+                    ),
+
+                update: (
+                    id: number,
+                    payload: AdminWhatsAppCatalogItemUpdate,
+                ) =>
+                    request<AdminWhatsAppCatalogItem>(
+                        `/api/v1/whatsapp/catalog/items/${id}/`,
+                        { method: 'PATCH', body: payload },
+                    ),
+
+                bulkUpdate: (payload: AdminWhatsAppCatalogBulkWrite) =>
+                    request<{ updated: number }>(
+                        '/api/v1/whatsapp/catalog/items/bulk/',
+                        { method: 'POST', body: payload },
+                    ),
+
+                link: (id: number, payload: AdminWhatsAppCatalogItemLinkWrite) =>
+                    request<AdminWhatsAppCatalogItem>(
+                        `/api/v1/whatsapp/catalog/items/${id}/link/`,
+                        { method: 'POST', body: payload },
+                    ),
+
+                unlink: (payload: AdminWhatsAppCatalogItemUnlinkWrite) =>
+                    request<{ removed?: number; unlinked?: number }>(
+                        '/api/v1/whatsapp/catalog/items/unlink/',
+                        { method: 'POST', body: payload },
+                    ),
+
+                syncItems: (ids: number[]) =>
+                    request<{ queued: number; skipped: number }>(
+                        '/api/v1/whatsapp/catalog/items/sync/',
+                        { method: 'POST', body: { ids } },
+                    ),
+
+                manualAdd: (payload: AdminWhatsAppCatalogManualAddWrite) =>
+                    request<AdminWhatsAppCatalogManualAddResponse>(
+                        '/api/v1/whatsapp/catalog/items/manual-add/',
+                        { method: 'POST', body: payload },
+                    ),
+
+                reorder: (payload: AdminWhatsAppCatalogReorderWrite) =>
+                    request<AdminWhatsAppCatalogReorderResponse>(
+                        '/api/v1/whatsapp/catalog/items/reorder/',
+                        { method: 'POST', body: payload },
+                    ),
+            },
         },
 
         inbox: {
@@ -1794,12 +3461,110 @@ export const adminApi = {
                 payload: {
                     templateName: string;
                     language?: string;
-                    variables?: Record<string, string>;
+                    bodyParams?: string[];
+                    headerParams?: string[];
                     buttonUrlParam?: string;
                 },
             ) =>
                 request<AdminWhatsAppMessage>(
                     `/api/v1/whatsapp/conversations/${conversationId}/send-template/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            sendProduct: (
+                conversationId: number,
+                productId: string,
+            ) =>
+                request<AdminWhatsAppMessage>(
+                    `/api/v1/whatsapp/conversations/${conversationId}/send-product/`,
+                    { method: 'POST', body: { productId } },
+                ),
+
+            sendMedia: (
+                conversationId: number,
+                input: AdminWhatsAppSendMediaWrite,
+                signal?: AbortSignal,
+            ): Promise<AdminWhatsAppMessage> => {
+                const url = `/api/v1/whatsapp/conversations/${conversationId}/send-media/`;
+
+                if ('file' in input) {
+                    const form = new FormData();
+                    form.append('kind', input.kind);
+                    form.append('file', input.file);
+                    if (input.caption) form.append('caption', input.caption);
+
+                    return fetch(url, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'X-CSRFToken': readCsrfToken() },
+                        body: form,
+                        signal,
+                    }).then(async (res) => {
+                        if (!res.ok) {
+                            let detail = `Media send failed: ${res.status}`;
+                            try {
+                                const data = (await res.json()) as { detail?: string };
+                                if (data?.detail) detail = data.detail;
+                            } catch { }
+                            throw new Error(detail);
+                        }
+                        return (await res.json()) as AdminWhatsAppMessage;
+                    });
+                }
+
+                return request<AdminWhatsAppMessage>(url, {
+                    method: 'POST',
+                    body: {
+                        kind: input.kind,
+                        url: input.url,
+                        ...(input.caption ? { caption: input.caption } : {}),
+                    },
+                    signal,
+                });
+            },
+
+            sendImage: (
+                conversationId: number,
+                input:
+                    | { file: File; caption?: string }
+                    | { imageUrl: string; caption?: string },
+                signal?: AbortSignal,
+            ): Promise<AdminWhatsAppMessage> => {
+                if ('file' in input) {
+                    return adminApi.whatsapp.inbox.sendMedia(
+                        conversationId,
+                        { kind: 'image', file: input.file, caption: input.caption },
+                        signal,
+                    );
+                }
+                return adminApi.whatsapp.inbox.sendMedia(
+                    conversationId,
+                    { kind: 'image', url: input.imageUrl, caption: input.caption },
+                    signal,
+                );
+            },
+
+            sendCart: (
+                conversationId: number,
+                payload: AdminWhatsAppSendCartWrite,
+            ) =>
+                request<AdminWhatsAppMessage>(
+                    `/api/v1/whatsapp/conversations/${conversationId}/send-cart/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            sendInteractive: (
+                conversationId: number,
+                payload: AdminWhatsAppSendInteractiveWrite,
+            ) =>
+                request<AdminWhatsAppMessage>(
+                    `/api/v1/whatsapp/conversations/${conversationId}/send-interactive/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            reactToMessage: (messageId: number, payload: AdminWhatsAppReactWrite) =>
+                request<AdminWhatsAppMessage>(
+                    `/api/v1/whatsapp/messages/${messageId}/react/`,
                     { method: 'POST', body: payload },
                 ),
 
@@ -1923,6 +3688,18 @@ export const adminApi = {
                     { method: 'POST' },
                 ),
 
+            pause: (id: number) =>
+                request<AdminWhatsAppTemplate>(
+                    `/api/v1/whatsapp/templates/${id}/pause/`,
+                    { method: 'POST' },
+                ),
+
+            duplicate: (id: number) =>
+                request<AdminWhatsAppTemplate>(
+                    `/api/v1/whatsapp/templates/${id}/duplicate/`,
+                    { method: 'POST' },
+                ),
+
             sync: (signal?: AbortSignal) =>
                 request<AdminWhatsAppTemplateSyncResult>(
                     '/api/v1/whatsapp/templates/sync/',
@@ -1971,6 +3748,12 @@ export const adminApi = {
                 request<AdminWhatsAppAutomation>(
                     `/api/v1/whatsapp/automations/${id}/toggle/`,
                     { method: 'POST', body: payload },
+                ),
+
+            runOnce: (id: number) =>
+                request<{ status: string; automation_id: number }>(
+                    `/api/v1/whatsapp/automations/${id}/run/`,
+                    { method: 'POST' },
                 ),
         },
 
@@ -2060,6 +3843,12 @@ export const adminApi = {
                 return unwrapList(res);
             },
 
+            create: (payload: Partial<AdminWhatsAppContactWrite>) =>
+                request<AdminWhatsAppContact>(
+                    '/api/v1/whatsapp/contacts/',
+                    { method: 'POST', body: payload },
+                ),
+
             detail: (id: number, signal?: AbortSignal) =>
                 request<AdminWhatsAppContactDetail>(
                     `/api/v1/whatsapp/contacts/${id}/`,
@@ -2072,10 +3861,34 @@ export const adminApi = {
                     { method: 'PATCH', body: payload },
                 ),
 
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/whatsapp/contacts/${id}/`,
+                    { method: 'DELETE' },
+                ),
+
             unsubscribe: (id: number, note = '') =>
                 request<AdminWhatsAppContact>(
                     `/api/v1/whatsapp/contacts/${id}/unsubscribe/`,
                     { method: 'POST', body: { note } },
+                ),
+
+            bulkUpdate: (payload: AdminWhatsAppContactBulkWrite) =>
+                request<{ updated: number }>(
+                    '/api/v1/whatsapp/contacts/bulk/',
+                    { method: 'POST', body: payload },
+                ),
+
+            importRows: (payload: AdminWhatsAppContactImportWrite) =>
+                request<AdminWhatsAppContactImportResult>(
+                    '/api/v1/whatsapp/contacts/import/',
+                    { method: 'POST', body: payload },
+                ),
+
+            exportCsv: (): Promise<void> =>
+                downloadCsv(
+                    '/api/v1/whatsapp/contacts/export/',
+                    { method: 'GET', filename: 'contacts.csv' },
                 ),
 
             requestVerification: (payload: AdminWhatsAppOtpRequestWrite) =>
@@ -2089,6 +3902,135 @@ export const adminApi = {
                     '/api/v1/whatsapp/verify-number/confirm/',
                     { method: 'POST', body: payload },
                 ),
+        },
+
+        segments: {
+            list: (signal?: AbortSignal) =>
+                request<AdminWhatsAppSegment[]>(
+                    '/api/v1/whatsapp/segments/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminWhatsAppSegment>(
+                    `/api/v1/whatsapp/segments/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminWhatsAppSegmentWrite) =>
+                request<AdminWhatsAppSegment>(
+                    '/api/v1/whatsapp/segments/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminWhatsAppSegmentWrite>) =>
+                request<AdminWhatsAppSegment>(
+                    `/api/v1/whatsapp/segments/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/whatsapp/segments/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        quickReplies: {
+            list: (signal?: AbortSignal) =>
+                request<AdminWhatsAppQuickReply[]>(
+                    '/api/v1/whatsapp/quick-replies/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminWhatsAppQuickReply>(
+                    `/api/v1/whatsapp/quick-replies/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminWhatsAppQuickReplyWrite) =>
+                request<AdminWhatsAppQuickReply>(
+                    '/api/v1/whatsapp/quick-replies/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminWhatsAppQuickReplyWrite>) =>
+                request<AdminWhatsAppQuickReply>(
+                    `/api/v1/whatsapp/quick-replies/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/whatsapp/quick-replies/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        orders: {
+            list: async (
+                filters: { status?: string; search?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminWhatsAppOrder[]> => {
+                const sp = new URLSearchParams();
+                if (filters.status) sp.set('status', filters.status);
+                if (filters.search) sp.set('search', filters.search);
+                const qs = sp.toString();
+                const res = await request<
+                    AdminWhatsAppOrder[] | { results: AdminWhatsAppOrder[] }
+                >(
+                    `/api/v1/whatsapp/orders/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminWhatsAppOrder>(
+                    `/api/v1/whatsapp/orders/${id}/`,
+                    { signal },
+                ),
+
+            update: (id: number, payload: Partial<AdminWhatsAppOrderUpdate>) =>
+                request<AdminWhatsAppOrder>(
+                    `/api/v1/whatsapp/orders/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+        },
+
+        webhooks: {
+            events: {
+                list: async (
+                    filters: { type?: string; status?: string } = {},
+                    signal?: AbortSignal,
+                ): Promise<AdminWhatsAppWebhookEvent[]> => {
+                    const sp = new URLSearchParams();
+                    if (filters.type) sp.set('type', filters.type);
+                    if (filters.status) sp.set('status', filters.status);
+                    const qs = sp.toString();
+                    const res = await request<
+                        | AdminWhatsAppWebhookEvent[]
+                        | { results: AdminWhatsAppWebhookEvent[] }
+                    >(
+                        `/api/v1/whatsapp/webhooks/events/${qs ? `?${qs}` : ''}`,
+                        { signal },
+                    );
+                    return unwrapList(res);
+                },
+
+                replay: (id: number) =>
+                    request<AdminWhatsAppWebhookEvent>(
+                        `/api/v1/whatsapp/webhooks/events/${id}/replay/`,
+                        { method: 'POST' },
+                    ),
+
+                bulkReplay: (ids: number[]) =>
+                    request<{ replayed: number }>(
+                        '/api/v1/whatsapp/webhooks/events/bulk-replay/',
+                        { method: 'POST', body: { ids } },
+                    ),
+            },
         },
 
         analytics: {
@@ -2133,6 +4075,24 @@ export const adminApi = {
                     { signal },
                 );
             },
+
+            funnel: (signal?: AbortSignal) =>
+                request<AdminWhatsAppAnalyticsFunnelStage[]>(
+                    '/api/v1/whatsapp/analytics/funnel/',
+                    { signal },
+                ),
+
+            agents: (signal?: AbortSignal) =>
+                request<AdminWhatsAppAgentLeaderboardRow[]>(
+                    '/api/v1/whatsapp/analytics/agents/',
+                    { signal },
+                ),
+
+            commerce: (signal?: AbortSignal) =>
+                request<AdminWhatsAppCommerceStats>(
+                    '/api/v1/whatsapp/analytics/commerce/',
+                    { signal },
+                ),
         },
 
         billing: {
@@ -2154,17 +4114,51 @@ export const adminApi = {
                     '/api/v1/whatsapp/billing/refresh/',
                     { method: 'POST', signal },
                 ),
+
+            invoices: (signal?: AbortSignal) =>
+                request<AdminWhatsAppInvoice[]>(
+                    '/api/v1/whatsapp/billing/invoices/',
+                    { signal },
+                ),
+        },
+
+        botFlow: {
+            get: (signal?: AbortSignal) =>
+                request<AdminWhatsAppBotFlow>(
+                    '/api/v1/whatsapp/bot/flow/',
+                    { signal },
+                ),
+
+            save: (payload: AdminWhatsAppBotFlowWrite) =>
+                request<AdminWhatsAppBotFlow>(
+                    '/api/v1/whatsapp/bot/flow/',
+                    { method: 'PUT', body: payload },
+                ),
+
+            publish: () =>
+                request<AdminWhatsAppBotFlow>(
+                    '/api/v1/whatsapp/bot/flow/publish/',
+                    { method: 'POST' },
+                ),
         },
     },
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // Social media hub
-    // ═══════════════════════════════════════════════════════════════════════
     social: {
         accounts: {
             list: (signal?: AbortSignal) =>
                 request<AdminSocialAccount[]>(
                     '/api/v1/admin/social/accounts/',
+                    { signal },
+                ),
+
+            detail: (platform: AdminSocialPlatform, signal?: AbortSignal) =>
+                request<AdminSocialAccountDetail>(
+                    `/api/v1/admin/social/accounts/${encodeURIComponent(platform)}/`,
+                    { signal },
+                ),
+
+            capabilities: (signal?: AbortSignal) =>
+                request<Record<AdminSocialPlatform, AdminSocialAccountCapabilities>>(
+                    '/api/v1/admin/social/accounts/capabilities/',
                     { signal },
                 ),
 
@@ -2181,16 +4175,152 @@ export const adminApi = {
                 ),
         },
 
-        posts: {
-            listScheduled: (signal?: AbortSignal) =>
-                request<AdminSocialScheduledPost[]>(
-                    '/api/v1/admin/social/posts/?status=SCHEDULED',
+        media: {
+            upload: (
+                file: File,
+                extras?: { folderId?: number; title?: string; tags?: string[] },
+                signal?: AbortSignal,
+            ) => {
+                const form = new FormData();
+                form.append('file', file);
+                if (extras?.folderId !== undefined) {
+                    form.append('folder_id', String(extras.folderId));
+                }
+                if (extras?.title) form.append('title', extras.title);
+                for (const tag of extras?.tags ?? []) {
+                    form.append('tags', tag);
+                }
+                return fetch(
+                    '/api/v1/admin/social/media/upload/',
+                    {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'X-CSRFToken': readCsrfToken() },
+                        body: form,
+                        signal,
+                    },
+                ).then(async (res) => {
+                    if (!res.ok) {
+                        let detail = `Upload failed: ${res.status} ${res.statusText}`;
+                        try {
+                            const data = (await res.json()) as { detail?: string };
+                            if (data?.detail) detail = data.detail;
+                        } catch {
+                        }
+                        throw new Error(detail);
+                    }
+                    return (await res.json()) as AdminSocialMedia;
+                });
+            },
+
+            library: (
+                filters: {
+                    folder_id?: number;
+                    media_type?: 'IMAGE' | 'VIDEO';
+                    search?: string;
+                    page?: number;
+                    page_size?: number;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialMedia>>(
+                    `/api/v1/admin/social/media/library/${qsOf(filters)}`,
                     { signal },
                 ),
 
-            listPublished: (signal?: AbortSignal) =>
-                request<AdminSocialPublishedPost[]>(
-                    '/api/v1/admin/social/posts/?status=PUBLISHED',
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSocialMedia>(
+                    `/api/v1/admin/social/media/library/${id}/`,
+                    { signal },
+                ),
+
+            update: (
+                id: number,
+                payload: { title?: string; tags?: string[]; folder_id?: number | null },
+            ) =>
+                request<AdminSocialMedia>(
+                    `/api/v1/admin/social/media/library/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/admin/social/media/library/${id}/`,
+                    { method: 'DELETE' },
+                ),
+
+            folders: {
+                list: (signal?: AbortSignal) =>
+                    request<AdminSocialMediaFolder[]>(
+                        '/api/v1/admin/social/media/folders/',
+                        { signal },
+                    ),
+
+                create: (name: string) =>
+                    request<AdminSocialMediaFolder>(
+                        '/api/v1/admin/social/media/folders/',
+                        { method: 'POST', body: { name } },
+                    ),
+            },
+        },
+
+        posts: {
+            listScheduled: (
+                filters: {
+                    status?: string;
+                    platform?: AdminSocialPlatform;
+                    page?: number;
+                    page_size?: number;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialScheduledPost>>(
+                    `/api/v1/admin/social/posts/scheduled/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            listPublished: (
+                filters: {
+                    status?: string;
+                    platform?: AdminSocialPlatform;
+                    search?: string;
+                    page?: number;
+                    page_size?: number;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialPublishedPost>>(
+                    `/api/v1/admin/social/posts/published/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            publishedDetail: (id: number, signal?: AbortSignal) =>
+                request<AdminSocialPublishedPost>(
+                    `/api/v1/admin/social/posts/published/${id}/`,
+                    { signal },
+                ),
+
+            boost: (id: number, payload: AdminSocialBoostWrite) =>
+                request<AdminSocialBoostResult>(
+                    `/api/v1/admin/social/posts/published/${id}/boost/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            deleteFromPlatform: (id: number) =>
+                request<{ ok: boolean }>(
+                    `/api/v1/admin/social/posts/published/${id}/delete-from-platform/`,
+                    { method: 'POST' },
+                ),
+
+            editCaption: (id: number, caption: string) =>
+                request<{ ok: boolean }>(
+                    `/api/v1/admin/social/posts/published/${id}/edit-caption/`,
+                    { method: 'POST', body: { caption } satisfies AdminSocialEditCaptionWrite },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSocialScheduledPost>(
+                    `/api/v1/admin/social/posts/${id}/`,
                     { signal },
                 ),
 
@@ -2203,38 +4333,388 @@ export const adminApi = {
                             caption: payload.caption,
                             platforms: payload.platforms,
                             ...(payload.productTag !== undefined && {
-                                product_tag: payload.productTag,
+                                productTag: payload.productTag,
                             }),
                             ...(payload.mediaIds !== undefined && {
-                                media_ids: payload.mediaIds,
+                                mediaIds: payload.mediaIds,
                             }),
                             ...(payload.scheduleAt !== undefined && {
-                                schedule_at: payload.scheduleAt,
+                                scheduleAt: payload.scheduleAt,
                             }),
                         },
                     },
                 ),
 
+            update: (id: number, payload: AdminSocialPostPatch) =>
+                request<AdminSocialScheduledPost>(
+                    `/api/v1/admin/social/posts/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
             publishNow: (id: string | number) =>
-                request<AdminSocialPostCreated>(
-                    `/api/v1/admin/social/posts/${encodeURIComponent(String(id))}/publish/`,
+                request<{ ok: boolean }>(
+                    `/api/v1/admin/social/posts/${encodeURIComponent(String(id))}/publish-now/`,
                     { method: 'POST' },
                 ),
 
             remove: (id: string | number) =>
                 request<void>(
-                    `/api/v1/admin/social/posts/${encodeURIComponent(String(id))}/`,
+                    `/api/v1/admin/social/posts/${encodeURIComponent(String(id))}/delete/`,
+                    { method: 'DELETE' },
+                ),
+
+            bulkDelete: (ids: (number | string)[]) =>
+                request<{ deleted: number }>(
+                    '/api/v1/admin/social/posts/bulk-delete/',
+                    { method: 'POST', body: { ids } satisfies AdminSocialBulkIds },
+                ),
+
+            bulkReschedule: (payload: AdminSocialBulkReschedule) =>
+                request<{ updated: number }>(
+                    '/api/v1/admin/social/posts/bulk-reschedule/',
+                    { method: 'POST', body: payload },
+                ),
+        },
+
+        calendar: {
+            list: (
+                params: {
+                    start?: string;
+                    end?: string;
+                    platform?: AdminSocialPlatform;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialScheduledPost[]>(
+                    `/api/v1/admin/social/calendar/${qsOf(params)}`,
+                    { signal },
+                ),
+        },
+
+        queue: {
+            slots: {
+                list: (signal?: AbortSignal) =>
+                    request<AdminSocialQueueSlot[]>(
+                        '/api/v1/admin/social/queue/slots/',
+                        { signal },
+                    ),
+
+                create: (payload: AdminSocialQueueSlotWrite) =>
+                    request<AdminSocialQueueSlot>(
+                        '/api/v1/admin/social/queue/slots/',
+                        { method: 'POST', body: payload },
+                    ),
+
+                update: (id: number, payload: Partial<AdminSocialQueueSlotWrite>) =>
+                    request<AdminSocialQueueSlot>(
+                        `/api/v1/admin/social/queue/slots/${id}/`,
+                        { method: 'PATCH', body: payload },
+                    ),
+
+                remove: (id: number) =>
+                    request<void>(
+                        `/api/v1/admin/social/queue/slots/${id}/`,
+                        { method: 'DELETE' },
+                    ),
+            },
+
+            evergreen: {
+                list: (
+                    filters: { page?: number; page_size?: number } = {},
+                    signal?: AbortSignal,
+                ) =>
+                    request<AdminSocialPaginated<AdminSocialEvergreenPost>>(
+                        `/api/v1/admin/social/queue/evergreen/${qsOf(filters)}`,
+                        { signal },
+                    ),
+
+                create: (payload: AdminSocialEvergreenPostWrite) =>
+                    request<AdminSocialEvergreenPost>(
+                        '/api/v1/admin/social/queue/evergreen/',
+                        { method: 'POST', body: payload },
+                    ),
+
+                update: (id: number, payload: Partial<AdminSocialEvergreenPostWrite>) =>
+                    request<AdminSocialEvergreenPost>(
+                        `/api/v1/admin/social/queue/evergreen/${id}/`,
+                        { method: 'PATCH', body: payload },
+                    ),
+
+                remove: (id: number) =>
+                    request<void>(
+                        `/api/v1/admin/social/queue/evergreen/${id}/`,
+                        { method: 'DELETE' },
+                    ),
+            },
+        },
+
+        drafts: {
+            list: (
+                filters: {
+                    status?: AdminSocialDraftStatus;
+                    page?: number;
+                    page_size?: number;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialDraft>>(
+                    `/api/v1/admin/social/drafts/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSocialDraft>(
+                    `/api/v1/admin/social/drafts/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminSocialDraftWrite) =>
+                request<AdminSocialDraft>(
+                    '/api/v1/admin/social/drafts/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminSocialDraftWrite>) =>
+                request<AdminSocialDraft>(
+                    `/api/v1/admin/social/drafts/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/admin/social/drafts/${id}/`,
+                    { method: 'DELETE' },
+                ),
+
+            comment: (id: number, payload: AdminSocialDraftCommentWrite) =>
+                request<AdminSocialDraftComment>(
+                    `/api/v1/admin/social/drafts/${id}/comments/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            approve: (id: number) =>
+                request<AdminSocialDraft>(
+                    `/api/v1/admin/social/drafts/${id}/approve/`,
+                    { method: 'POST' },
+                ),
+
+            reject: (id: number) =>
+                request<AdminSocialDraft>(
+                    `/api/v1/admin/social/drafts/${id}/reject/`,
+                    { method: 'POST' },
+                ),
+        },
+
+        inbox: {
+            list: (
+                filters: AdminSocialInboxFilters = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialInboxItem>>(
+                    `/api/v1/admin/social/inbox/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSocialInboxItem>(
+                    `/api/v1/admin/social/inbox/${id}/`,
+                    { signal },
+                ),
+
+            reply: (id: number, body: string) =>
+                request<AdminSocialInboxReply>(
+                    `/api/v1/admin/social/inbox/${id}/reply/`,
+                    { method: 'POST', body: { body } satisfies InboxReplyCreateBody },
+                ),
+
+            setStatus: (
+                id: number,
+                status: AdminSocialInboxStatus,
+                snoozed_until?: string,
+            ) =>
+                request<AdminSocialInboxItem>(
+                    `/api/v1/admin/social/inbox/${id}/status/`,
+                    { method: 'POST', body: { status, snoozed_until } },
+                ),
+
+            assign: (id: number, user_id: number | null) =>
+                request<AdminSocialInboxItem>(
+                    `/api/v1/admin/social/inbox/${id}/assign/`,
+                    { method: 'POST', body: { user_id } },
+                ),
+
+            sync: () =>
+                request<{ ok: boolean }>(
+                    '/api/v1/admin/social/inbox/sync/',
+                    { method: 'POST' },
+                ),
+        },
+
+        templates: {
+            list: (
+                filters: {
+                    category?: string;
+                    page?: number;
+                    page_size?: number;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialTemplate>>(
+                    `/api/v1/admin/social/templates/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSocialTemplate>(
+                    `/api/v1/admin/social/templates/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminSocialTemplateWrite) =>
+                request<AdminSocialTemplate>(
+                    '/api/v1/admin/social/templates/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminSocialTemplateWrite>) =>
+                request<AdminSocialTemplate>(
+                    `/api/v1/admin/social/templates/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/admin/social/templates/${id}/`,
                     { method: 'DELETE' },
                 ),
         },
 
-        media: {
-            upload: (file: File, signal?: AbortSignal) =>
-                uploadRequest<AdminSocialMedia>(
-                    '/api/v1/admin/social/media/upload/',
-                    file,
-                    'file',
-                    signal,
+        links: {
+            list: (
+                filters: { page?: number; page_size?: number } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialLink>>(
+                    `/api/v1/admin/social/links/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            create: (payload: AdminSocialLinkWrite) =>
+                request<AdminSocialLink>(
+                    '/api/v1/admin/social/links/',
+                    { method: 'POST', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/admin/social/links/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        notifications: {
+            list: (
+                filters: {
+                    unread?: '1';
+                    page?: number;
+                    page_size?: number;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialNotificationList>(
+                    `/api/v1/admin/social/notifications/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            read: (id: number) =>
+                request<{ ok: boolean }>(
+                    `/api/v1/admin/social/notifications/${id}/read/`,
+                    { method: 'POST' },
+                ),
+
+            readAll: () =>
+                request<{ marked_read: number }>(
+                    '/api/v1/admin/social/notifications/read-all/',
+                    { method: 'POST' },
+                ),
+        },
+
+        team: {
+            list: (signal?: AbortSignal) =>
+                request<AdminSocialTeamMember[]>(
+                    '/api/v1/admin/social/team/',
+                    { signal },
+                ),
+
+            create: (payload: AdminSocialTeamMemberWrite) =>
+                request<AdminSocialTeamMember>(
+                    '/api/v1/admin/social/team/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: AdminSocialTeamMemberPatch) =>
+                request<AdminSocialTeamMember>(
+                    `/api/v1/admin/social/team/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/admin/social/team/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        auditLog: {
+            list: (
+                filters: {
+                    action?: string;
+                    actor?: number;
+                    page?: number;
+                    page_size?: number;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialAuditLog>>(
+                    `/api/v1/admin/social/audit-log/${qsOf(filters)}`,
+                    { signal },
+                ),
+        },
+
+        reports: {
+            list: (
+                filters: { page?: number; page_size?: number } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPaginated<AdminSocialReport>>(
+                    `/api/v1/admin/social/reports/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSocialReport>(
+                    `/api/v1/admin/social/reports/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminSocialReportWrite) =>
+                request<AdminSocialReport>(
+                    '/api/v1/admin/social/reports/',
+                    { method: 'POST', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/admin/social/reports/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        overview: {
+            get: (signal?: AbortSignal) =>
+                request<AdminSocialOverview>(
+                    '/api/v1/admin/social/overview/',
+                    { signal },
                 ),
         },
 
@@ -2250,12 +4730,36 @@ export const adminApi = {
                     '/api/v1/admin/social/analytics/engagement/',
                     { signal },
                 ),
+
+            demographics: (platform?: AdminSocialPlatform, signal?: AbortSignal) =>
+                request<AdminSocialDemographicSnapshot[]>(
+                    `/api/v1/admin/social/analytics/demographics/${qsOf({ platform })}`,
+                    { signal },
+                ),
+
+            bestTimes: (platform?: AdminSocialPlatform, signal?: AbortSignal) =>
+                request<AdminSocialBestTimeRow[]>(
+                    `/api/v1/admin/social/analytics/best-times/${qsOf({ platform })}`,
+                    { signal },
+                ),
+
+            kpis: (days = 30, signal?: AbortSignal) =>
+                request<AdminSocialKpiAnalytics>(
+                    `/api/v1/admin/social/analytics/kpis/?days=${days}`,
+                    { signal },
+                ),
+
+            topPosts: (
+                params: { metric?: string; limit?: number; platform?: AdminSocialPlatform } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<AdminSocialPublishedPost[]>(
+                    `/api/v1/admin/social/analytics/top-posts/${qsOf(params)}`,
+                    { signal },
+                ),
         },
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Direct Orders (social commerce back-office)
-    // ═══════════════════════════════════════════════════════════════════════
     directOrders: {
         uploads: {
             image: (file: File, signal?: AbortSignal) =>
@@ -2269,7 +4773,7 @@ export const adminApi = {
             list: async (
                 filters: {
                     q?: string;
-                    source?: 'whatsapp' | 'admin' | 'phone';
+                    source?: AdminDirectOrderSource;
                     status?: AdminDirectOrderStatus;
                     dateRange?: 'Today' | 'Yesterday' | 'Last 7 Days' | 'Last 30 Days';
                 } = {},
@@ -2302,6 +4806,68 @@ export const adminApi = {
             ) =>
                 request<AdminDirectOrder>(
                     `/api/v1/dashboard/direct-orders/orders/${encodeURIComponent(reference)}/advance/`,
+                    { method: 'POST', body: payload },
+                ),
+        },
+
+        logged: {
+            list: async (
+                filters: {
+                    q?: string;
+                    source?: AdminDirectOrderSource;
+                    status?: AdminDirectOrderStatus;
+                    dateRange?: 'Today' | 'Yesterday' | 'Last 7 Days' | 'Last 30 Days';
+                } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminDirectOrder[]> => {
+                const sp = new URLSearchParams();
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.source) sp.set('source', filters.source);
+                if (filters.status) sp.set('status', filters.status);
+                if (filters.dateRange) sp.set('dateRange', filters.dateRange);
+                const qs = sp.toString();
+                const res = await request<
+                    AdminDirectOrder[] | { results: AdminDirectOrder[] }
+                >(
+                    `/api/v1/dashboard/direct-orders/logged/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
+
+            detail: (reference: string, signal?: AbortSignal) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDirectOrderWrite) =>
+                request<AdminDirectOrder>(
+                    '/api/v1/dashboard/direct-orders/logged/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (
+                reference: string,
+                payload: Partial<AdminDirectOrderWrite>,
+            ) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (reference: string) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
+                    { method: 'DELETE' },
+                ),
+
+            advance: (
+                reference: string,
+                payload: AdminDirectOrderAdvanceWrite,
+            ) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/advance/`,
                     { method: 'POST', body: payload },
                 ),
         },
@@ -2403,11 +4969,22 @@ export const adminApi = {
         },
 
         products: {
-            list: (signal?: AbortSignal) =>
-                request<AdminDirectProduct[]>(
-                    '/api/v1/dashboard/direct-orders/products/',
+            list: async (
+                filters: { status?: AdminDirectProductStatus; q?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminDirectProduct[]> => {
+                const sp = new URLSearchParams();
+                if (filters.status) sp.set('status', filters.status);
+                if (filters.q) sp.set('q', filters.q);
+                const qs = sp.toString();
+                const res = await request<
+                    AdminDirectProduct[] | { results: AdminDirectProduct[] }
+                >(
+                    `/api/v1/dashboard/direct-orders/products/${qs ? `?${qs}` : ''}`,
                     { signal },
-                ),
+                );
+                return unwrapList(res);
+            },
 
             detail: (id: number, signal?: AbortSignal) =>
                 request<AdminDirectProduct>(
@@ -2433,59 +5010,861 @@ export const adminApi = {
                     { method: 'DELETE' },
                 ),
         },
+
+        variants: {
+            list: async (
+                filters: { product?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminProductVariant[]> => {
+                const qs = qsOf(filters);
+                return request<AdminProductVariant[]>(
+                    `/api/v1/dashboard/direct-orders/variants/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminProductVariant>(
+                    `/api/v1/dashboard/direct-orders/variants/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminProductVariantWrite & { productId: number }) =>
+                request<AdminProductVariant>(
+                    '/api/v1/dashboard/direct-orders/variants/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminProductVariantWrite>) =>
+                request<AdminProductVariant>(
+                    `/api/v1/dashboard/direct-orders/variants/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/variants/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        suppliers: {
+            list: async (
+                filters: { q?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminSupplierFull[]> => {
+                const qs = qsOf(filters);
+                return request<AdminSupplierFull[]>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSupplierFull>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminSupplierFullWrite) =>
+                request<AdminSupplierFull>(
+                    '/api/v1/dashboard/direct-orders/suppliers/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminSupplierFullWrite>) =>
+                request<AdminSupplierFull>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        purchaseOrders: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminPurchaseOrder[]> => {
+                const qs = qsOf(filters);
+                return request<AdminPurchaseOrder[]>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminPurchaseOrder>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminPurchaseOrderWrite) =>
+                request<AdminPurchaseOrder>(
+                    '/api/v1/dashboard/direct-orders/purchase-orders/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminPurchaseOrderWrite>) =>
+                request<AdminPurchaseOrder>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        locations: {
+            list: (signal?: AbortSignal) =>
+                request<AdminLocation[]>(
+                    '/api/v1/dashboard/direct-orders/locations/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminLocation>(
+                    `/api/v1/dashboard/direct-orders/locations/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminLocationWrite) =>
+                request<AdminLocation>(
+                    '/api/v1/dashboard/direct-orders/locations/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminLocationWrite>) =>
+                request<AdminLocation>(
+                    `/api/v1/dashboard/direct-orders/locations/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/locations/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        inventory: {
+            movements: {
+                list: async (
+                    filters: { product?: number; kind?: string } = {},
+                    signal?: AbortSignal,
+                ): Promise<AdminInventoryMovement[]> => {
+                    const qs = qsOf(filters);
+                    return request<AdminInventoryMovement[]>(
+                        `/api/v1/dashboard/direct-orders/inventory/movements/${qs}`,
+                        { signal },
+                    );
+                },
+
+                detail: (id: number, signal?: AbortSignal) =>
+                    request<AdminInventoryMovement>(
+                        `/api/v1/dashboard/direct-orders/inventory/movements/${id}/`,
+                        { signal },
+                    ),
+
+                create: (payload: AdminInventoryMovementWrite) =>
+                    request<AdminInventoryMovement>(
+                        '/api/v1/dashboard/direct-orders/inventory/movements/',
+                        { method: 'POST', body: payload },
+                    ),
+            },
+
+            summary: (signal?: AbortSignal) =>
+                request<AdminInventorySummary>(
+                    '/api/v1/dashboard/direct-orders/inventory/summary/',
+                    { signal },
+                ),
+        },
+
+        customers: {
+            list: async (
+                filters: { segment?: string; q?: string; limit?: number; offset?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCustomerFull[] | { results: AdminCustomerFull[] }> => {
+                const qs = qsOf(filters);
+                return request<AdminCustomerFull[] | { results: AdminCustomerFull[] }>(
+                    `/api/v1/dashboard/direct-orders/customers/${qs}`,
+                    { signal },
+                );
+            },
+
+            stats: (signal?: AbortSignal) =>
+                request<AdminCustomerStatsFull>(
+                    '/api/v1/dashboard/direct-orders/customers/stats/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCustomerFull>(
+                    `/api/v1/dashboard/direct-orders/customers/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCustomerFullWrite) =>
+                request<AdminCustomerFull>(
+                    '/api/v1/dashboard/direct-orders/customers/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCustomerFullWrite>) =>
+                request<AdminCustomerFull>(
+                    `/api/v1/dashboard/direct-orders/customers/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/customers/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        inbox: {
+            list: async (
+                filters: { channel?: string; status?: string; q?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminInboxConversation[]> => {
+                const qs = qsOf(filters);
+                return request<AdminInboxConversation[]>(
+                    `/api/v1/dashboard/direct-orders/inbox/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminInboxConversation>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminInboxConversationWrite) =>
+                request<AdminInboxConversation>(
+                    '/api/v1/dashboard/direct-orders/inbox/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminInboxConversationWrite>) =>
+                request<AdminInboxConversation>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/`,
+                    { method: 'DELETE' },
+                ),
+
+            convert: (id: number, payload: AdminInboxConvertWrite) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/convert/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            messages: {
+                list: async (
+                    filters: { conversation?: number } = {},
+                    signal?: AbortSignal,
+                ): Promise<AdminInboxMessage[]> => {
+                    const qs = qsOf(filters);
+                    return request<AdminInboxMessage[]>(
+                        `/api/v1/dashboard/direct-orders/inbox/messages/${qs}`,
+                        { signal },
+                    );
+                },
+
+                create: (payload: AdminInboxMessageWrite) =>
+                    request<AdminInboxMessage>(
+                        '/api/v1/dashboard/direct-orders/inbox/messages/',
+                        { method: 'POST', body: payload },
+                    ),
+            },
+        },
+
+        team: {
+            list: async (
+                filters: { role?: string; status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminTeamMember[]> => {
+                const qs = qsOf(filters);
+                return request<AdminTeamMember[]>(
+                    `/api/v1/dashboard/direct-orders/team/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminTeamMember>(
+                    `/api/v1/dashboard/direct-orders/team/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminTeamMemberWrite) =>
+                request<AdminTeamMember>(
+                    '/api/v1/dashboard/direct-orders/team/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminTeamMemberWrite>) =>
+                request<AdminTeamMember>(
+                    `/api/v1/dashboard/direct-orders/team/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/team/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        returns: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminReturnRequest[]> => {
+                const qs = qsOf(filters);
+                return request<AdminReturnRequest[]>(
+                    `/api/v1/dashboard/direct-orders/returns/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminReturnRequest>(
+                    `/api/v1/dashboard/direct-orders/returns/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminReturnRequestWrite) =>
+                request<AdminReturnRequest>(
+                    '/api/v1/dashboard/direct-orders/returns/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminReturnRequestWrite>) =>
+                request<AdminReturnRequest>(
+                    `/api/v1/dashboard/direct-orders/returns/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/returns/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        expenses: {
+            list: async (
+                filters: { category?: string; limit?: number; offset?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminExpense[] | { results: AdminExpense[] }> => {
+                const qs = qsOf(filters);
+                return request<AdminExpense[] | { results: AdminExpense[] }>(
+                    `/api/v1/dashboard/direct-orders/expenses/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminExpense>(
+                    `/api/v1/dashboard/direct-orders/expenses/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminExpenseWrite) =>
+                request<AdminExpense>(
+                    '/api/v1/dashboard/direct-orders/expenses/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminExpenseWrite>) =>
+                request<AdminExpense>(
+                    `/api/v1/dashboard/direct-orders/expenses/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/expenses/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        automations: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAutomation[]> => {
+                const qs = qsOf(filters);
+                return request<AdminAutomation[]>(
+                    `/api/v1/dashboard/direct-orders/automations/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminAutomation>(
+                    `/api/v1/dashboard/direct-orders/automations/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminAutomationWrite) =>
+                request<AdminAutomation>(
+                    '/api/v1/dashboard/direct-orders/automations/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminAutomationWrite>) =>
+                request<AdminAutomation>(
+                    `/api/v1/dashboard/direct-orders/automations/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/automations/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        notifications: {
+            list: async (
+                filters: { unread?: boolean } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminNotification[]> => {
+                const qs = qsOf(filters);
+                return request<AdminNotification[]>(
+                    `/api/v1/dashboard/direct-orders/notifications/${qs}`,
+                    { signal },
+                );
+            },
+
+            markRead: (id: number) =>
+                request<AdminNotification>(
+                    `/api/v1/dashboard/direct-orders/notifications/${id}/read/`,
+                    { method: 'POST' },
+                ),
+
+            markAllRead: () =>
+                request<{ ok: boolean }>(
+                    '/api/v1/dashboard/direct-orders/notifications/read-all/',
+                    { method: 'POST' },
+                ),
+        },
+
+        audit: {
+            list: async (
+                filters: AdminAuditLogFilters = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAuditLog[] | { results: AdminAuditLog[] }> => {
+                const qs = qsOf(filters);
+                return request<AdminAuditLog[] | { results: AdminAuditLog[] }>(
+                    `/api/v1/dashboard/direct-orders/audit/${qs}`,
+                    { signal },
+                );
+            },
+        },
+
+        reviews: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminReviewFull[]> => {
+                const qs = qsOf(filters);
+                return request<AdminReviewFull[]>(
+                    `/api/v1/dashboard/direct-orders/reviews/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminReviewFull>(
+                    `/api/v1/dashboard/direct-orders/reviews/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminReviewFullWrite) =>
+                request<AdminReviewFull>(
+                    '/api/v1/dashboard/direct-orders/reviews/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminReviewFullWrite>) =>
+                request<AdminReviewFull>(
+                    `/api/v1/dashboard/direct-orders/reviews/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/reviews/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        deliveryZones: {
+            list: (signal?: AbortSignal) =>
+                request<AdminDeliveryZoneFull[]>(
+                    '/api/v1/dashboard/direct-orders/delivery-zones/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminDeliveryZoneFull>(
+                    `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDeliveryZoneFullWrite) =>
+                request<AdminDeliveryZoneFull>(
+                    '/api/v1/dashboard/direct-orders/delivery-zones/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminDeliveryZoneFullWrite>) =>
+                request<AdminDeliveryZoneFull>(
+                    `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        coupons: {
+            list: async (
+                filters: { active?: boolean } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCoupon[]> => {
+                const qs = qsOf(filters);
+                return request<AdminCoupon[]>(
+                    `/api/v1/dashboard/direct-orders/coupons/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCoupon>(
+                    `/api/v1/dashboard/direct-orders/coupons/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCouponWrite) =>
+                request<AdminCoupon>(
+                    '/api/v1/dashboard/direct-orders/coupons/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCouponWrite>) =>
+                request<AdminCoupon>(
+                    `/api/v1/dashboard/direct-orders/coupons/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/coupons/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        campaigns: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCampaignFull[]> => {
+                const qs = qsOf(filters);
+                return request<AdminCampaignFull[]>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCampaignFull>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCampaignFullWrite) =>
+                request<AdminCampaignFull>(
+                    '/api/v1/dashboard/direct-orders/campaigns/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCampaignFullWrite>) =>
+                request<AdminCampaignFull>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        attribution: {
+            list: async (
+                filters: { creator?: number; campaign?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAttributionLink[]> => {
+                const qs = qsOf(filters);
+                return request<AdminAttributionLink[]>(
+                    `/api/v1/dashboard/direct-orders/attribution/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminAttributionLink>(
+                    `/api/v1/dashboard/direct-orders/attribution/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminAttributionLinkWrite) =>
+                request<AdminAttributionLink>(
+                    '/api/v1/dashboard/direct-orders/attribution/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminAttributionLinkWrite>) =>
+                request<AdminAttributionLink>(
+                    `/api/v1/dashboard/direct-orders/attribution/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/attribution/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        payouts: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminPayoutBatch[]> => {
+                const qs = qsOf(filters);
+                return request<AdminPayoutBatch[]>(
+                    `/api/v1/dashboard/direct-orders/payouts/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminPayoutBatch>(
+                    `/api/v1/dashboard/direct-orders/payouts/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminPayoutBatchWrite & { saleIds?: number[] }) =>
+                request<AdminPayoutBatch>(
+                    '/api/v1/dashboard/direct-orders/payouts/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminPayoutBatchWrite>) =>
+                request<AdminPayoutBatch>(
+                    `/api/v1/dashboard/direct-orders/payouts/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/payouts/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        analytics: {
+            summary: (signal?: AbortSignal) =>
+                request<AdminAnalyticsSummaryResponse>(
+                    '/api/v1/dashboard/direct-orders/analytics/summary/',
+                    { signal },
+                ),
+        },
+
+        finance: {
+            summary: (signal?: AbortSignal) =>
+                request<AdminFinanceSummaryResponse>(
+                    '/api/v1/dashboard/direct-orders/finance/summary/',
+                    { signal },
+                ),
+        },
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // AI & Automations
-    // ═══════════════════════════════════════════════════════════════════════
     ai: {
         overview: (signal?: AbortSignal) =>
             request<AdminAIOverview>('/api/admin/ai/overview/', { signal }),
 
+        digest: (signal?: AbortSignal) =>
+            request<AdminAIDigestResponse>('/api/admin/ai/digest/', { signal }),
+
         assistant: {
             conversations: {
-                list: async (signal?: AbortSignal): Promise<AdminAIConversation[]> => {
+                list: async (
+                    signal?: AbortSignal,
+                ): Promise<AdminAIConversation[]> => {
                     const res = await request<
-                        AdminAIConversation[] | { results: AdminAIConversation[] }
-                    >('/api/admin/ai/conversations/', { signal });
+                        | AdminAIConversation[]
+                        | { results: AdminAIConversation[] }
+                    >('/api/admin/ai/assistant/conversations/', { signal });
                     return unwrapList(res);
                 },
 
-                create: () =>
+                create: (payload: AdminAIConversationCreateWrite = {}) =>
                     request<AdminAIConversation>(
-                        '/api/admin/ai/conversations/',
+                        '/api/admin/ai/assistant/conversations/',
+                        { method: 'POST', body: payload },
+                    ),
+
+                detail: (id: string | number, signal?: AbortSignal) =>
+                    request<AdminAIConversationDetail>(
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(id))}/`,
+                        { signal },
+                    ),
+
+                update: (
+                    id: string | number,
+                    payload: AdminAIConversationUpdateWrite,
+                ) =>
+                    request<AdminAIConversation>(
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(id))}/`,
+                        { method: 'PATCH', body: payload },
+                    ),
+
+                remove: (id: string | number) =>
+                    request<void>(
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(id))}/`,
+                        { method: 'DELETE' },
+                    ),
+
+                rename: (id: string | number, title: string) =>
+                    request<AdminAIConversation>(
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(id))}/rename/`,
+                        { method: 'POST', body: { title } },
+                    ),
+
+                togglePin: (id: string | number) =>
+                    request<AdminAIConversation>(
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(id))}/pin/`,
                         { method: 'POST' },
                     ),
 
-                remove: (id: string) =>
-                    request<void>(
-                        `/api/admin/ai/conversations/${encodeURIComponent(id)}/`,
-                        { method: 'DELETE' },
+                export: (id: string | number, signal?: AbortSignal) =>
+                    request<AdminAIConversationExportResponse>(
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(id))}/export/`,
+                        { signal },
                     ),
             },
 
             messages: {
                 list: async (
-                    conversationId: string,
+                    conversationId: string | number,
                     signal?: AbortSignal,
                 ): Promise<AdminAIMessage[]> => {
                     const res = await request<
                         AdminAIMessage[] | { results: AdminAIMessage[] }
                     >(
-                        `/api/admin/ai/conversations/${encodeURIComponent(conversationId)}/messages/`,
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(conversationId))}/messages/`,
                         { signal },
                     );
                     return unwrapList(res);
                 },
 
-                create: (conversationId: string, payload: AdminAIMessageWrite) =>
+                create: (
+                    conversationId: string | number,
+                    payload: AdminAIMessageWrite,
+                ) =>
                     request<AdminAIMessage>(
-                        `/api/admin/ai/conversations/${encodeURIComponent(conversationId)}/messages/`,
+                        `/api/admin/ai/assistant/conversations/${encodeURIComponent(String(conversationId))}/messages/`,
                         { method: 'POST', body: payload },
                     ),
 
                 stream: streamAssistantReply,
+
+                toolCalls: (
+                    messageId: string | number,
+                    signal?: AbortSignal,
+                ) =>
+                    request<AdminAIToolCall[]>(
+                        `/api/admin/ai/assistant/messages/${encodeURIComponent(String(messageId))}/tool-calls/`,
+                        { signal },
+                    ),
+
+                feedback: (
+                    messageId: string | number,
+                    feedback: 'up' | 'down',
+                ) =>
+                    request<AdminAIMessageFeedbackResponse>(
+                        `/api/admin/ai/assistant/messages/${encodeURIComponent(String(messageId))}/feedback/`,
+                        {
+                            method: 'POST',
+                            body: { feedback } satisfies AdminAIMessageFeedbackWrite,
+                        },
+                    ),
             },
+        },
+
+        tools: {
+            schemas: (signal?: AbortSignal) =>
+                request<{ schemas: AdminAIToolSchema[]; count: number; names: string[] }>(
+                    '/api/admin/ai/tools/',
+                    { signal },
+                ),
+
+            preview: (payload: AdminAIToolPreviewWrite) =>
+                request<AdminAIToolPreviewResponse>(
+                    '/api/admin/ai/tools/preview/',
+                    { method: 'POST', body: payload },
+                ),
+        },
+
+        actions: {
+            preview: (payload: Omit<AdminAIPendingAction, 'id'> & { id?: string }) =>
+                request<AdminAIPendingAction>(
+                    '/api/admin/ai/actions/preview/',
+                    { method: 'POST', body: payload },
+                ),
+
+            execute: (payload: AdminAIActionExecuteWrite) =>
+                request<AdminAIActionExecuteResponse>(
+                    '/api/admin/ai/actions/execute/',
+                    { method: 'POST', body: payload },
+                ),
+        },
+
+        content: {
+            generate: (payload: AdminAIContentRequest) =>
+                request<AdminAIContentResponse>(
+                    '/api/admin/ai/content/generate/',
+                    { method: 'POST', body: payload },
+                ),
+
+            bulk: (payload: AdminAIContentBulkRequest) =>
+                request<AdminAIContentBulkResponse>(
+                    '/api/admin/ai/content/bulk/',
+                    { method: 'POST', body: payload },
+                ),
         },
 
         search: {
@@ -2514,85 +5893,88 @@ export const adminApi = {
                 ),
         },
 
-        content: {
-            generate: (payload: AdminAIContentRequest) =>
-                request<AdminAIContentResponse>(
-                    '/api/admin/ai/content/generate/',
-                    { method: 'POST', body: payload },
-                ),
-
-            bulk: (payload: AdminAIContentBulkRequest) =>
-                request<AdminAIContentBulkResponse>(
-                    '/api/admin/ai/content/bulk/',
-                    { method: 'POST', body: payload },
-                ),
-
-            drafts: {
-                list: async (
-                    filters: { product_id?: string } = {},
-                    signal?: AbortSignal,
-                ): Promise<AdminAIContentDraft[]> => {
-                    const sp = new URLSearchParams();
-                    if (filters.product_id) sp.set('product_id', filters.product_id);
-                    const qs = sp.toString();
-                    const res = await request<
-                        AdminAIContentDraft[] | { results: AdminAIContentDraft[] }
-                    >(
-                        `/api/admin/ai/content/drafts/${qs ? `?${qs}` : ''}`,
-                        { signal },
-                    );
-                    return unwrapList(res);
-                },
-
-                create: (payload: AdminAIContentDraftWrite) =>
-                    request<AdminAIContentDraft>(
-                        '/api/admin/ai/content/drafts/',
-                        { method: 'POST', body: payload },
-                    ),
-
-                remove: (id: string) =>
-                    request<void>(
-                        `/api/admin/ai/content/drafts/${encodeURIComponent(id)}/`,
-                        { method: 'DELETE' },
-                    ),
-            },
-        },
-
         automations: {
-            list: async (signal?: AbortSignal): Promise<AdminAIAutomation[]> => {
+            list: async (
+                filters: { status?: string; kind?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAIAutomationExtended[]> => {
+                const sp = new URLSearchParams();
+                if (filters.status && filters.status !== 'all') {
+                    sp.set('status', filters.status);
+                }
+                if (filters.kind && filters.kind !== 'all') {
+                    sp.set('kind', filters.kind);
+                }
+                const qs = sp.toString();
                 const res = await request<
-                    AdminAIAutomation[] | { results: AdminAIAutomation[] }
-                >('/api/admin/ai/automations/', { signal });
+                    | AdminAIAutomationExtended[]
+                    | { results: AdminAIAutomationExtended[] }
+                >(
+                    `/api/admin/ai/automations/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
                 return unwrapList(res);
             },
 
-            detail: (id: string, signal?: AbortSignal) =>
-                request<AdminAIAutomation>(
-                    `/api/admin/ai/automations/${encodeURIComponent(id)}/`,
+            detail: (id: string | number, signal?: AbortSignal) =>
+                request<AdminAIAutomationExtended>(
+                    `/api/admin/ai/automations/${encodeURIComponent(String(id))}/`,
                     { signal },
                 ),
 
             create: (payload: AdminAIAutomationWrite) =>
-                request<AdminAIAutomation>(
+                request<AdminAIAutomationExtended>(
                     '/api/admin/ai/automations/',
                     { method: 'POST', body: payload },
                 ),
 
-            update: (id: string, payload: Partial<AdminAIAutomationWrite>) =>
-                request<AdminAIAutomation>(
-                    `/api/admin/ai/automations/${encodeURIComponent(id)}/`,
+            update: (
+                id: string | number,
+                payload: Partial<AdminAIAutomationWrite>,
+            ) =>
+                request<AdminAIAutomationExtended>(
+                    `/api/admin/ai/automations/${encodeURIComponent(String(id))}/`,
                     { method: 'PATCH', body: payload },
                 ),
 
-            remove: (id: string) =>
+            remove: (id: string | number) =>
                 request<void>(
-                    `/api/admin/ai/automations/${encodeURIComponent(id)}/`,
+                    `/api/admin/ai/automations/${encodeURIComponent(String(id))}/`,
                     { method: 'DELETE' },
                 ),
 
-            setStatus: (id: string, payload: AdminAIAutomationStatusWrite) =>
-                request<AdminAIAutomation>(
-                    `/api/admin/ai/automations/${encodeURIComponent(id)}/status/`,
+            setStatus: (
+                id: string | number,
+                payload: AdminAIAutomationStatusWrite,
+            ) =>
+                request<AdminAIAutomationExtended>(
+                    `/api/admin/ai/automations/${encodeURIComponent(String(id))}/status/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            runs: (
+                id: string | number,
+                filters: { status?: string; limit?: number } = {},
+                signal?: AbortSignal,
+            ) => {
+                const sp = new URLSearchParams();
+                if (filters.status && filters.status !== 'all') {
+                    sp.set('status', filters.status);
+                }
+                if (filters.limit) sp.set('limit', String(filters.limit));
+                const qs = sp.toString();
+                return request<AdminAIAutomationRun[]>(
+                    `/api/admin/ai/automations/${encodeURIComponent(String(id))}/runs/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+            },
+
+            runNow: (
+                id: string | number,
+                payload: AdminAIAutomationRunRequest = {},
+            ) =>
+                request<AdminAIAutomationRun>(
+                    `/api/admin/ai/automations/${encodeURIComponent(String(id))}/run/`,
                     { method: 'POST', body: payload },
                 ),
 
@@ -2607,6 +5989,67 @@ export const adminApi = {
                     return unwrapList(res);
                 },
             },
+        },
+
+        alerts: {
+            list: async (
+                filters: AdminAIAlertFilters = {},
+                signal?: AbortSignal,
+            ) => {
+                const sp = new URLSearchParams();
+                if (filters.severity && filters.severity !== 'all') {
+                    sp.set('severity', filters.severity);
+                }
+                if (filters.category && filters.category !== 'all') {
+                    sp.set('category', filters.category);
+                }
+                const qs = sp.toString();
+                const res = await request<
+                    | Array<{
+                        id: number;
+                        severity: AdminAIAlertSeverity;
+                        category: AdminAIAlertCategory;
+                        title: string;
+                        description: string;
+                        href: string;
+                        actionLabel: string;
+                        count: number;
+                        timestamp: string;
+                        isActive: boolean;
+                    }>
+                    | { results: Array<unknown> }
+                >(
+                    `/api/admin/ai/alerts/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return Array.isArray(res)
+                    ? res
+                    : (res as { results: unknown[] }).results;
+            },
+
+            dismiss: (
+                id: string | number,
+                payload: AdminAIAlertDismissWrite = {},
+            ) =>
+                request<void>(
+                    `/api/admin/ai/alerts/${encodeURIComponent(String(id))}/dismiss/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            acknowledge: (id: string | number) =>
+                request<void>(
+                    `/api/admin/ai/alerts/${encodeURIComponent(String(id))}/acknowledge/`,
+                    { method: 'POST' },
+                ),
+
+            snooze: (id: string | number, minutes: number) =>
+                request<{ snoozedUntil: string }>(
+                    `/api/admin/ai/alerts/${encodeURIComponent(String(id))}/snooze/`,
+                    {
+                        method: 'POST',
+                        body: { minutes } satisfies AdminAIAlertSnoozeWrite,
+                    },
+                ),
         },
 
         insights: {
@@ -2628,46 +6071,65 @@ export const adminApi = {
                 return unwrapList(res);
             },
 
-            dismiss: (id: string) =>
+            dismiss: (id: string | number) =>
                 request<void>(
-                    `/api/admin/ai/insights/${encodeURIComponent(id)}/dismiss/`,
+                    `/api/admin/ai/insights/${encodeURIComponent(String(id))}/dismiss/`,
                     { method: 'POST' },
                 ),
 
-            execute: (id: string) =>
+            execute: (
+                id: string | number,
+                payload: AdminAIInsightExecuteWrite = {},
+            ) =>
                 request<AdminAIInsightExecuteResponse>(
-                    `/api/admin/ai/insights/${encodeURIComponent(id)}/execute/`,
-                    { method: 'POST' },
+                    `/api/admin/ai/insights/${encodeURIComponent(String(id))}/execute/`,
+                    { method: 'POST', body: payload },
                 ),
         },
 
         settings: {
             get: (signal?: AbortSignal) =>
-                request<AdminAISettings>(
-                    '/api/admin/ai/settings/',
-                    { signal },
-                ),
+                request<AdminAISettings>('/api/admin/ai/settings/', { signal }),
 
             update: (payload: Partial<AdminAISettingsWrite>) =>
-                request<AdminAISettings>(
-                    '/api/admin/ai/settings/',
-                    { method: 'PATCH', body: payload },
-                ),
+                request<AdminAISettings>('/api/admin/ai/settings/', {
+                    method: 'PATCH',
+                    body: payload,
+                }),
 
             disable: () =>
-                request<{ enabled: boolean }>(
-                    '/api/admin/ai/disable/',
-                    { method: 'POST' },
-                ),
+                request<AdminAISettings>('/api/admin/ai/settings/disable/', {
+                    method: 'POST',
+                }),
         },
 
         usage: (signal?: AbortSignal) =>
             request<AdminAIUsage>('/api/admin/ai/usage/', { signal }),
+
+        usageRecent: (signal?: AbortSignal) =>
+            request<AdminAIUsageLogRow[]>('/api/admin/ai/usage/recent/', { signal }),
+
+        auditLog: async (
+            filters: AdminAIAuditLogFilters = {},
+            signal?: AbortSignal,
+        ): Promise<AdminAIAuditLog[]> => {
+            const sp = new URLSearchParams();
+            if (filters.action && filters.action !== 'all') {
+                sp.set('action', filters.action);
+            }
+            if (filters.user) sp.set('user', String(filters.user));
+            if (filters.limit) sp.set('limit', String(filters.limit));
+            const qs = sp.toString();
+            const res = await request<
+                AdminAIAuditLog[] | { results: AdminAIAuditLog[] }
+            >(
+                `/api/admin/ai/audit/${qs ? `?${qs}` : ''}`,
+                { signal },
+            );
+            return unwrapList(res);
+        },
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Users & Roles (staff accounts, roles, permission matrix, invites)
-    // ═══════════════════════════════════════════════════════════════════════
     users: {
         list: async (
             filters: AdminStaffFilters = {},
@@ -2718,13 +6180,6 @@ export const adminApi = {
                 { method: 'POST' },
             ),
 
-        /**
-         * GET /api/v1/admin/users/me/permissions/
-         *
-         * Effective module list for the currently authenticated staff
-         * member. The sidebar filters its nav items against `modules`
-         * to hide pages the caller can't access.
-         */
         myPermissions: (signal?: AbortSignal) =>
             request<MyPermissionsResponse>(
                 '/api/v1/admin/users/me/permissions/',
@@ -2756,14 +6211,6 @@ export const adminApi = {
         },
 
         invites: {
-            /**
-             * GET /api/v1/admin/invites/
-             *
-             * Admin list of pending invites. The URL intentionally
-             * lives at `/admin/invites/` (not nested under `/users/`)
-             * so it can grow sibling actions — resend, cancel,
-             * duplicate — without colliding with the user resource.
-             */
             list: async (signal?: AbortSignal): Promise<AdminStaffInvite[]> => {
                 const res = await request<
                     AdminStaffInvite[] | { results: AdminStaffInvite[] }
@@ -2771,26 +6218,12 @@ export const adminApi = {
                 return unwrapList(res);
             },
 
-            /**
-             * POST /api/v1/admin/invites/
-             *
-             * Creates the invite and dispatches the email via Celery.
-             * Response shape is the created invite — {id, email,
-             * name, role, department, status, expires_at} — not a
-             * generic `{detail, invite_id}` envelope.
-             */
             create: (payload: AdminStaffUserInviteWrite) =>
                 request<StaffInviteCreateResponse>(
                     '/api/v1/admin/invites/',
                     { method: 'POST', body: payload },
                 ),
 
-            /**
-             * DELETE /api/v1/admin/invites/<uuid>/
-             *
-             * Soft-cancels the invite — the row stays for the audit
-             * trail. Id is a UUID, not an integer.
-             */
             revoke: (id: string) =>
                 request<void>(
                     `/api/v1/admin/invites/${encodeURIComponent(id)}/`,
@@ -2799,30 +6232,12 @@ export const adminApi = {
         },
 
         publicInvite: {
-            /**
-             * GET /api/v1/staff-invites/<uuid>/
-             *
-             * Public — prefills the register page for the invitee.
-             * Returns 410 Gone if the invite is expired / cancelled /
-             * accepted. Response includes `valid: true` as a sanity
-             * flag the frontend can check before showing the form.
-             */
             lookup: (token: string, signal?: AbortSignal) =>
                 request<StaffInviteLookupResponse>(
                     `/api/v1/staff-invites/${encodeURIComponent(token)}/`,
                     { signal },
                 ),
 
-            /**
-             * POST /api/v1/staff-invites/<uuid>/accept/
-             *
-             * Public — creates the User + StaffProfile, logs the new
-             * staff member in via session cookie, and returns the
-             * redirect target computed from their role.
-             *
-             * Body: { password, password_confirm } — the token is in
-             * the URL, not the payload.
-             */
             accept: (token: string, payload: AdminInviteAcceptWrite) =>
                 request<StaffInviteAcceptResponse>(
                     `/api/v1/staff-invites/${encodeURIComponent(token)}/accept/`,
@@ -2831,21 +6246,7 @@ export const adminApi = {
         },
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Settings (store-wide configuration)
-    // ═══════════════════════════════════════════════════════════════════════
     settings: {
-        /**
-         * Flat snapshot of every settings value any admin page might gate
-         * on. Backend caches for 5 minutes and auto-invalidates on save.
-         *
-         * Use this instead of calling each `settings.<section>.get()` on
-         * mount — one request, one cache, one source of truth.
-         *
-         * After a successful write to any settings section, call
-         * `adminApi.settings.runtime()` again (or the frontend context's
-         * `refresh()`) so every other mounted page picks up the new value.
-         */
         runtime: (signal?: AbortSignal) =>
             request<AdminRuntimeSettings>(
                 '/api/v1/admin/settings/runtime/',
@@ -3145,11 +6546,6 @@ export const adminApi = {
                     { signal },
                 ),
 
-            /**
-             * Force-rerun every health check and return the refreshed
-             * status rows. Backs the "Refresh status" button on the
-             * Integrations tab.
-             */
             refresh: (signal?: AbortSignal) =>
                 request<AdminIntegrationStatus[]>(
                     '/api/v1/admin/settings/integrations/refresh/',
@@ -3170,10 +6566,6 @@ export const adminApi = {
                     { method: 'PATCH', body: payload },
                 ),
 
-            /**
-             * Read-only view of eTIMS configuration. Exposes KRA PIN,
-             * control unit id, and device serial — never API credentials.
-             */
             etimsStatus: (signal?: AbortSignal) =>
                 request<AdminEtimsStatus>(
                     '/api/v1/admin/settings/tax/etims-status/',
@@ -3208,9 +6600,6 @@ export const adminApi = {
         },
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Reports & Analytics
-    // ═══════════════════════════════════════════════════════════════════════
     reports: {
         sales: (query: ReportQuery = {}, signal?: AbortSignal) =>
             request<ReportSalesResponse>(
@@ -3285,9 +6674,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Analytics (dashboard.analytics)
-    // ═══════════════════════════════════════════════════════════════════════
     analytics: {
         traffic: (query: AnalyticsQuery = {}, signal?: AbortSignal) =>
             request<AnalyticsTrafficResponse>(
@@ -3326,9 +6712,6 @@ export const adminApi = {
             ),
     },
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Overview (dashboard.overview)
-    // ═══════════════════════════════════════════════════════════════════════
     overview: {
         get: (query: OverviewQuery = {}, signal?: AbortSignal) =>
             request<OverviewResponse>(
@@ -3340,6 +6723,63 @@ export const adminApi = {
             request<OverviewRefreshResponse>(
                 '/api/v1/admin/overview/refresh/',
                 { method: 'POST', body: payload },
+            ),
+    },
+
+    campaigns: {
+        list: async (signal?: AbortSignal): Promise<AdminMetaCampaign[]> => {
+            const res = await request<
+                AdminMetaCampaign[] | { results: AdminMetaCampaign[] }
+            >('/api/v1/admin/campaigns/', { signal });
+            return unwrapList(res);
+        },
+
+        detail: (id: string, signal?: AbortSignal) =>
+            request<AdminMetaCampaign>(
+                `/api/v1/admin/campaigns/${encodeURIComponent(id)}/`,
+                { signal },
+            ),
+
+        create: (payload: AdminMetaCampaignWrite) =>
+            request<AdminMetaCampaign>('/api/v1/admin/campaigns/', {
+                method: 'POST',
+                body: payload,
+            }),
+
+        update: (id: string, payload: Partial<AdminMetaCampaignWrite>) =>
+            request<AdminMetaCampaign>(
+                `/api/v1/admin/campaigns/${encodeURIComponent(id)}/`,
+                { method: 'PATCH', body: payload },
+            ),
+
+        remove: (id: string) =>
+            request<void>(
+                `/api/v1/admin/campaigns/${encodeURIComponent(id)}/`,
+                { method: 'DELETE' },
+            ),
+
+        dispatch: (id: string) =>
+            request<AdminMetaCampaign>(
+                `/api/v1/admin/campaigns/${encodeURIComponent(id)}/dispatch/`,
+                { method: 'POST' },
+            ),
+
+        pause: (id: string) =>
+            request<AdminMetaCampaign>(
+                `/api/v1/admin/campaigns/${encodeURIComponent(id)}/pause/`,
+                { method: 'POST' },
+            ),
+
+        resume: (id: string) =>
+            request<AdminMetaCampaign>(
+                `/api/v1/admin/campaigns/${encodeURIComponent(id)}/resume/`,
+                { method: 'POST' },
+            ),
+
+        analytics: (id: string, signal?: AbortSignal) =>
+            request<AdminMetaCampaignAnalytics>(
+                `/api/v1/admin/campaigns/${encodeURIComponent(id)}/analytics/`,
+                { signal },
             ),
     },
 };

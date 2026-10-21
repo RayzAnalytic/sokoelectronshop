@@ -8,35 +8,49 @@ from django.middleware.csrf import get_token
 from django.shortcuts import redirect
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
-from .google import build_authorize_url, exchange_code, fetch_userinfo, new_state
+from .google import (
+    build_authorize_url,
+    exchange_code,
+    fetch_userinfo,
+    new_state,
+    read_state,                    # ✅ FIX #5: signed state reader
+)
 from .models import (
+    EmailVerificationCode,
     PasswordResetToken,
     Role,
     Status,
     User,
 )
-from .permissions import IsAdminRole
+from .permissions import IsAdminRole, IsPendingVerification
 from .serializers import (
     ChangePasswordSerializer,
     CustomerProfileSerializer,
     CustomerRegisterSerializer,
+    CustomTokenObtainPairSerializer,
     ForgotPasswordSerializer,
     GENERIC_LOGIN_ERROR,
     LoginSerializer,
     MeSerializer,
+    ResendVerificationSerializer,
     ResetPasswordSerializer,
+    VerifyEmailSerializer,
     VerifyResetTokenSerializer,
 )
 from .throttles import LoginThrottle, PasswordResetThrottle
 
-# ── Invite handling lives in dashboard.users ─────────────────────
-# The StaffInvite model, its status enum, and the StaffProfile that
-# every accepted invite creates all live there. The auth app just
-# serves the HTTP endpoints that verify and accept them.
 from dashboard.users.constants import ROLE_DASHBOARD_MAP, STAFF_ROLES
 from dashboard.users.models import (
     InviteStatus,
@@ -47,24 +61,22 @@ from dashboard.users.models import (
 
 GENERIC_FORGOT_MESSAGE = "If that email exists, a reset link has been sent."
 
-# Where OAuth sends the user when no explicit `next` is provided.
 DEFAULT_CUSTOMER_REDIRECT = "/pages/account"
-
-# Where a signed-in CUSTOMER lands after a successful password login.
 DEFAULT_CUSTOMER_LOGIN_REDIRECT = "/pages/account"
-
-# Where OWNER/STAFF land after login when their `redirect_path` is empty.
 DEFAULT_ADMIN_LOGIN_REDIRECT = "/admin"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# ✅ FIX #1: Shared authentication classes so every view that needs auth
+# accepts BOTH a session cookie and a JWT Bearer token.
+#
+# Combined with REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES in settings,
+# this makes MeView / ProfileView / ChangePasswordView work regardless of
+# whether the user logged in via password (JWT) or via Google (JWT) or via
+# Django admin (session).
+DUAL_AUTH = [JWTAuthentication, SessionAuthentication]
+
+
 def _safe_next(raw: str | None) -> str | None:
-    """
-    Accept only same-origin paths. Rejects absolute URLs, protocol-relative
-    URLs (`//evil.com`), and anything that doesn't start with a single `/`.
-    """
     if not raw:
         return None
     raw = raw.strip()
@@ -76,23 +88,12 @@ def _safe_next(raw: str | None) -> str | None:
 
 
 def _is_admin_role(user) -> bool:
-    """
-    OWNER/STAFF are 'admin' for our purposes. CUSTOMER is not.
-    Uses the model's own property when present, falls back to the
-    role field so this module doesn't hard-depend on the property's
-    name.
-    """
     if hasattr(user, "is_admin_role"):
         return bool(user.is_admin_role)
     return getattr(user, "role", None) in (Role.OWNER, Role.STAFF)
 
 
 def _flatten_errors(errors) -> str:
-    """
-    Collapse a DRF serializer error tree into a single human string
-    so the frontend's `detail` parser gets something usable.
-    Priority: non_field_errors → first field error → "Invalid input."
-    """
     if isinstance(errors, dict):
         if "non_field_errors" in errors:
             return _flatten_errors(errors["non_field_errors"])
@@ -109,14 +110,6 @@ def _flatten_errors(errors) -> str:
 
 
 def _unauthorized() -> Response:
-    """
-    Uniform 401 body. DRF's `IsAuthenticated` downgrades its 401 to a
-    403 when the authentication class doesn't send a `WWW-Authenticate`
-    header — which `SessionAuthentication` doesn't. That turns every
-    signed-out page mount into six `Forbidden` lines in the runserver
-    log. Returning the 401 explicitly keeps the log clean and the
-    semantics honest.
-    """
     return Response(
         {"detail": "Not authenticated."},
         status=status.HTTP_401_UNAUTHORIZED,
@@ -124,25 +117,12 @@ def _unauthorized() -> Response:
 
 
 def _display_name(user) -> str:
-    """
-    Best-effort human name for the current user.
-
-    The project's custom `authentication.User` model does NOT implement
-    Django's `get_full_name()` (it inherits AbstractBaseUser, not
-    AbstractUser), so we compose the name from `first_name` +
-    `last_name` directly. Every lookup is `getattr`-guarded so a future
-    model change can never turn this into a 500.
-
-    Fallback chain:
-        first_name + last_name → username → email → em-dash
-    """
     first = getattr(user, "first_name", "") or ""
     last = getattr(user, "last_name", "") or ""
     composed = f"{first} {last}".strip()
     if composed:
         return composed
 
-    # Optional methods — guarded in case the model drops them.
     for method in ("get_username", "get_short_name"):
         fn = getattr(user, method, None)
         if callable(fn):
@@ -151,7 +131,6 @@ def _display_name(user) -> str:
                 if value:
                     return str(value)
             except Exception:
-                # Never let a name helper take down an auth endpoint.
                 pass
 
     email = getattr(user, "email", "") or ""
@@ -159,21 +138,41 @@ def _display_name(user) -> str:
 
 
 def _serialize_me(user) -> dict:
-    """
-    Return MeSerializer output with a guaranteed `name` key.
-
-    The admin sidebar and header read `name` to render the account
-    chip. If MeSerializer doesn't expose one, we compute it here so
-    the frontend never has to know about `first_name` / `last_name`
-    or which of the possible shapes the serializer happens to produce.
-
-    Safe to call from every view that returns the current user:
-    register, login, /me/, staff-invite accept.
-    """
     data = dict(MeSerializer(user).data)
     if not data.get("name"):
         data["name"] = _display_name(user)
     return data
+
+
+def _issue_tokens(user) -> dict:
+    """
+    ✅ FIX #2: Single helper that produces the token payload returned by
+    EVERY login/register/invite-accept endpoint. Keeps the response shape
+    consistent so the frontend only needs ONE auth contract.
+    """
+    refresh = RefreshToken.for_user(user)
+    return {
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+    }
+
+
+def _auth_response(user, *, redirect_to: str, extra: dict | None = None,
+                   http_status: int = status.HTTP_200_OK) -> Response:
+    """
+    ✅ FIX #2: Unified auth response payload.
+
+    Shape: { access, refresh, user, redirect_to, ...extra }
+    Used by LoginView, RegisterView, StaffInviteAcceptView, GoogleCallbackView.
+    """
+    payload = {
+        **_issue_tokens(user),
+        "user": _serialize_me(user),
+        "redirect_to": redirect_to,
+    }
+    if extra:
+        payload.update(extra)
+    return Response(payload, status=http_status)
 
 
 def _send_html_email(
@@ -184,18 +183,6 @@ def _send_html_email(
     *,
     fail_silently: bool = True,
 ) -> None:
-    """
-    One place for outbound transactional email.
-
-    Anymail routes every Django email through SendGrid's v3 API —
-    never import the SendGrid SDK directly, it bypasses Anymail's
-    configuration.
-
-    `fail_silently` defaults to True for password resets (anti-
-    enumeration: a SendGrid outage shouldn't hint at valid emails).
-    Invites pass False so a broken transport surfaces as a 500 and
-    the admin retries.
-    """
     msg = EmailMultiAlternatives(
         subject=subject,
         body=text_body,
@@ -207,41 +194,19 @@ def _send_html_email(
     msg.send(fail_silently=fail_silently)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CSRF bootstrap (called once by the frontend on load)
-# ─────────────────────────────────────────────────────────────────────────────
 class CsrfBootstrapView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        get_token(request)  # forces Set-Cookie: csrftoken
+        get_token(request)
         return Response({"detail": "ok"})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Register — CUSTOMER self-service sign-up
+# Registration / Email verification
 # ─────────────────────────────────────────────────────────────────────────────
+
 class RegisterView(APIView):
-    """
-    POST /api/v1/auth/register/
-
-    Body: { email, phone, password, confirm_password? }
-
-    Response: { user: Me, redirect_to: str }  → 201
-
-    Only creates CUSTOMER accounts. `role`, `status`, `is_staff`, and
-    `is_superuser` are forced in the serializer's create() — they are
-    never read from request.data, so a crafted payload cannot escalate
-    a customer into admin. OWNER/STAFF are seeded out-of-band.
-
-    Auto-logs the customer in after registration and returns their
-    redirect target so the frontend can bounce them to /pages/account.
-
-    Errors:
-      * 400 — validation (weak password, bad email, missing phone)
-      * 403 — email belongs to an OWNER/STAFF record (ReservedEmail)
-      * 409 — email or phone already belongs to a CUSTOMER (Conflict)
-    """
     permission_classes = [AllowAny]
     authentication_classes = []
 
@@ -259,9 +224,7 @@ class RegisterView(APIView):
 
         user = serializer.save()
 
-        # Auto sign-in — drop this if you switch to email verification
-        # (then set status=PENDING in the serializer's create() and
-        # route the frontend to a "check your inbox" page instead).
+        # ✅ FIX #3: Also log in via session for Django admin compatibility
         django_login(
             request,
             user,
@@ -269,48 +232,77 @@ class RegisterView(APIView):
         )
         request.session["device_mode"] = "customer"
 
-        return Response(
-            {
-                "user": _serialize_me(user),
-                "redirect_to": user.redirect_path,
-            },
-            status=status.HTTP_201_CREATED,
+        # ✅ FIX #3: Return JWT tokens so the SPA can authenticate API calls.
+        return _auth_response(
+            user,
+            redirect_to=user.redirect_path,
+            extra={"verify_required": True},
+            http_status=status.HTTP_201_CREATED,
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Login — serves both customers and staff
-# ─────────────────────────────────────────────────────────────────────────────
-class LoginView(APIView):
-    """
-    POST /api/v1/auth/login/
-
-    Body: { email, password, remember? }
-
-    Response: { user: Me, redirect_to: str }
-
-    The same endpoint serves CUSTOMERs and OWNER/STAFF. The response's
-    `redirect_to` field tells the frontend where to send them:
-
-      * OWNER/STAFF   → their stored `redirect_path`, or /admin
-      * CUSTOMER      → their stored `redirect_path`, or /pages/account
-
-    `device_mode` on the session is set to reflect the role:
-      * "admin"    for OWNER/STAFF
-      * "customer" for CUSTOMER
-
-    `remember` accepts `remember`, `remember_me`, or `rememberMe` from
-    the request body — the frontend uses `rememberMe` in the API layer
-    but the underlying helper may snake-case it.
-    """
-    permission_classes = [AllowAny]
-    throttle_classes = [LoginThrottle]
+class VerifyEmailView(APIView):
+    permission_classes = [IsPendingVerification]
+    authentication_classes = DUAL_AUTH  # ✅ FIX #4
 
     def post(self, request):
-        # Same-device rule: an admin session on this browser blocks
-        # customer logins, and vice versa. Checked BEFORE we try to
-        # authenticate so we don't waste a throttle slot on a request
-        # that's going to be rejected anyway.
+        serializer = VerifyEmailSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "detail": _flatten_errors(serializer.errors),
+                    "errors": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = serializer.save()
+
+        return Response({
+            "user": _serialize_me(user),
+            "redirect_to": user.redirect_path,
+            "already_verified": bool(
+                serializer.validated_data.get("already_verified")
+            ),
+        })
+
+
+class ResendVerificationView(APIView):
+    permission_classes = [IsPendingVerification]
+    authentication_classes = DUAL_AUTH  # ✅ FIX #4
+
+    def post(self, request):
+        serializer = ResendVerificationSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        if not serializer.is_valid():
+            return Response(
+                {"detail": _flatten_errors(serializer.errors)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer.save()
+
+        return Response({
+            "detail": "A new code is on its way. Check your inbox.",
+            "resend_in": int(EmailVerificationCode.RESEND_COOLDOWN.total_seconds()),
+        })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Login / Logout
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [LoginThrottle]
+    authentication_classes = DUAL_AUTH  # ✅ FIX #5
+
+    def post(self, request):
         current_mode = request.session.get("device_mode")
         if request.user.is_authenticated and current_mode == "admin":
             return Response(
@@ -327,19 +319,19 @@ class LoginView(APIView):
         user = serializer.validated_data["user"]
         is_admin = _is_admin_role(user)
 
+        # Keep Django session for admin site compatibility
         django_login(request, user)
         request.session["device_mode"] = "admin" if is_admin else "customer"
 
-        # "Remember me" controls how long the session survives.
         remember = bool(
             request.data.get("remember")
             or request.data.get("remember_me")
             or request.data.get("rememberMe")
         )
         if remember:
-            request.session.set_expiry(60 * 60 * 24 * 30)  # 30 days
+            request.session.set_expiry(60 * 60 * 24 * 30)
         else:
-            request.session.set_expiry(0)  # expires at browser close
+            request.session.set_expiry(0)
 
         redirect_to = (
             getattr(user, "redirect_path", None)
@@ -347,74 +339,56 @@ class LoginView(APIView):
                 else DEFAULT_CUSTOMER_LOGIN_REDIRECT)
         )
 
-        return Response({
-            "user": _serialize_me(user),
-            "redirect_to": redirect_to,
-        })
+        # ✅ FIX #5: Return access/refresh so the SPA has JWTs too.
+        return _auth_response(user, redirect_to=redirect_to)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Logout
-# ─────────────────────────────────────────────────────────────────────────────
 class LogoutView(APIView):
+    """
+    ✅ FIX #6: Logs out BOTH the session and blacklists the JWT refresh token.
+    The frontend should POST { "refresh": "<token>" } if it has one.
+    """
     permission_classes = [AllowAny]
+    authentication_classes = DUAL_AUTH
 
     def post(self, request):
+        refresh_token = request.data.get("refresh")
+        if refresh_token:
+            try:
+                RefreshToken(refresh_token).blacklist()
+            except TokenError:
+                # Token was already expired or invalid — ignore.
+                pass
+
         django_logout(request)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Me — read by api.me() on every page mount, including the success page
+# Current user / profile / password
 # ─────────────────────────────────────────────────────────────────────────────
+
 class MeView(APIView):
     """
-    GET /api/v1/auth/me/
-
-    Reads the current session. Returns 200 with the user JSON when
-    signed in, 401 when not.
-
-    Deliberately NOT DRF's `IsAuthenticated` permission class: DRF
-    downgrades its 401 to a 403 because `SessionAuthentication` doesn't
-    send a `WWW-Authenticate` header. That's semantically wrong for
-    "not logged in" and turns every signed-out page mount into six
-    `Forbidden` lines in the runserver log.
-
-    The frontend's `api.me()` treats both 401 and 403 as "not signed
-    in" and returns null, so functionally either would work — this is
-    about log hygiene and correct HTTP semantics.
+    ✅ FIX #7: Uses IsAuthenticated + DUAL_AUTH so this endpoint works with
+    EITHER a session cookie OR an Authorization: Bearer <jwt> header.
+    This is the endpoint that was returning 401 after Google login.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    authentication_classes = DUAL_AUTH
 
     def get(self, request):
-        if not request.user.is_authenticated:
-            return _unauthorized()
         return Response(_serialize_me(request.user))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Profile — customer self-service read/update
-# ─────────────────────────────────────────────────────────────────────────────
 class ProfileView(APIView):
-    """
-    GET   /api/v1/auth/profile/  → full profile
-    PATCH /api/v1/auth/profile/  → partial update
-    PUT   /api/v1/auth/profile/  → same as PATCH (idempotent convenience)
-
-    Email is read-only here — changing it must go through a verify-email
-    flow, not a free-text PATCH. Role, status, and permission flags are
-    not in the serializer's field list at all, so they can't be set.
-    """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]           # ✅ FIX #8
+    authentication_classes = DUAL_AUTH
 
     def get(self, request):
-        if not request.user.is_authenticated:
-            return _unauthorized()
         return Response(CustomerProfileSerializer(request.user).data)
 
     def patch(self, request):
-        if not request.user.is_authenticated:
-            return _unauthorized()
         serializer = CustomerProfileSerializer(
             request.user,
             data=request.data,
@@ -435,31 +409,11 @@ class ProfileView(APIView):
         return self.patch(request)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Change password (authenticated)
-# ─────────────────────────────────────────────────────────────────────────────
 class ChangePasswordView(APIView):
-    """
-    POST /api/v1/auth/change-password/
-
-    Body: { current_password, new_password }
-
-    The current password is verified against the stored hash. The
-    session is preserved via `update_session_auth_hash` inside the
-    serializer — without it, Django would log the user out.
-
-    Errors:
-      * 400 — validation errors (weak password, mismatch)
-      * 401 — not authenticated
-      * 403 — user has no usable password (Google-only account)
-    """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]           # ✅ FIX #8
+    authentication_classes = DUAL_AUTH
 
     def post(self, request):
-        if not request.user.is_authenticated:
-            return _unauthorized()
-
-        # Google-only users have no password to change.
         if not request.user.has_usable_password():
             return Response(
                 {
@@ -488,34 +442,10 @@ class ChangePasswordView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Forgot / verify / reset password
+# Forgot / Reset password
 # ─────────────────────────────────────────────────────────────────────────────
+
 class ForgotPasswordView(APIView):
-    """
-    POST /api/v1/auth/forgot-password/
-
-    Body: { email }
-
-    Response: always the same generic message, regardless of whether
-    the email exists — this prevents account enumeration.
-
-    Sends a reset link to any user (CUSTOMER, OWNER, or STAFF) whose
-    email matches. The link target depends on the role:
-
-      * CUSTOMER      → /auth/reset-password on the storefront
-      * OWNER/STAFF   → /admin/reset-password on the admin panel
-
-    Google-only users (no usable password) are skipped silently —
-    sending them a "reset your password" link would be confusing since
-    they never had one. If you want to nudge them toward setting one,
-    send a different email; do NOT create a reset token for them.
-
-    The token is a PasswordResetToken row, not Django's default token
-    generator. Reason: the frontend's reset page reads only
-    `?token=...` from the URL — no uid. Storing the user FK on the row
-    lets the backend resolve the user server-side without exposing
-    their id in the email link.
-    """
     permission_classes = [AllowAny]
     throttle_classes = [PasswordResetThrottle]
 
@@ -526,12 +456,7 @@ class ForgotPasswordView(APIView):
 
         user = User.objects.filter(email=email).first()
 
-        # Only create a token if the account can actually be reset.
         if user and user.is_active and user.has_usable_password():
-            # Invalidate any previous outstanding tokens for this user
-            # so only the newest link is valid. This prevents an old
-            # leaked link from staying live after the user clicks the
-            # "resend" button.
             now = timezone.now()
             PasswordResetToken.objects.filter(
                 user=user, used_at__isnull=True,
@@ -569,15 +494,10 @@ class ForgotPasswordView(APIView):
                 to_email=user.email,
             )
 
-        # Always the same response — no enumeration.
         return Response({"detail": GENERIC_FORGOT_MESSAGE})
 
     @staticmethod
     def _client_ip(request) -> str | None:
-        """
-        Best-effort client IP for the audit column. Prefer the first
-        entry in X-Forwarded-For (proxy chain) if present.
-        """
         xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
         if xff:
             return xff.split(",")[0].strip()
@@ -585,17 +505,6 @@ class ForgotPasswordView(APIView):
 
 
 class VerifyResetTokenView(APIView):
-    """
-    GET /api/v1/auth/verify-reset-token/?token=...
-
-    Called by the frontend on mount of /auth/reset-password so it can
-    decide whether to show the reset form or the "link expired" screen
-    before the user types anything.
-
-    Response:
-        200 → { "valid": true }
-        400 → { "detail": "Invalid or expired reset link." }
-    """
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -610,21 +519,6 @@ class VerifyResetTokenView(APIView):
 
 
 class ResetPasswordView(APIView):
-    """
-    POST /api/v1/auth/reset-password/
-
-    Body: { token, new_password, confirm_password? }
-
-    Response: { "detail": "Password has been reset." }
-
-    Consumes the token: `used_at` is stamped on success, and any other
-    pending tokens for the same user are invalidated (a password change
-    should kill every outstanding key, not just the one that was used).
-
-    Errors:
-        400 → invalid/expired token, or password validation failure
-        410 → token was valid on lookup but expired mid-transaction
-    """
     permission_classes = [AllowAny]
     throttle_classes = [PasswordResetThrottle]
 
@@ -645,90 +539,90 @@ class ResetPasswordView(APIView):
 # ─────────────────────────────────────────────────────────────────────────────
 # Google OAuth
 # ─────────────────────────────────────────────────────────────────────────────
+
 class GoogleStartView(APIView):
+    """
+    ✅ FIX #9: Uses signed state (via .google.new_state) that embeds the
+    `next` path. No more session-stored state → works even when the session
+    cookie is dropped between /auth/google/ and /auth/google/callback/.
+    """
     permission_classes = [AllowAny]
 
     def get(self, request):
-        # An admin session on this browser blocks customer OAuth.
         if request.session.get("device_mode") == "admin":
             return redirect(f"{settings.FRONTEND_URL}{DEFAULT_ADMIN_LOGIN_REDIRECT}")
 
-        # Stash a same-origin `next` path so the callback can return there.
-        # Rejects protocol-relative and absolute URLs.
-        nxt = _safe_next(request.query_params.get("next"))
-        if nxt:
-            request.session["oauth_next"] = nxt
-        else:
-            request.session.pop("oauth_next", None)
+        nxt = _safe_next(request.query_params.get("next")) or DEFAULT_CUSTOMER_REDIRECT
 
-        state = new_state()
-        request.session["google_oauth_state"] = state
+        # new_state(next_path) should sign and return a string.
+        state = new_state(nxt)
         return redirect(build_authorize_url(state))
 
 
 class GoogleCallbackView(APIView):
+    """
+    ✅ FIX #10: Complete rewrite of the redirect logic.
+
+    1. Reads next_path from signed state instead of session.
+    2. Redirects to a DEDICATED /auth/callback route on the frontend
+       (not to `next_path` directly, which would silently drop the
+       #access=... fragment).
+    3. Includes the serialized user in the fragment so the frontend
+       can hydrate immediately without a second round trip.
+    """
     permission_classes = [AllowAny]
 
     def get(self, request):
-        # An admin session on this browser blocks customer OAuth.
+        from urllib.parse import urlencode
+        import json as _json
+
         if request.session.get("device_mode") == "admin":
             return redirect(f"{settings.FRONTEND_URL}{DEFAULT_ADMIN_LOGIN_REDIRECT}")
 
-        # Always pull the stashed next — pop so it's single-use.
-        next_path = (
-            request.session.pop("oauth_next", None)
-            or DEFAULT_CUSTOMER_REDIRECT
-        )
-
-        def back(error: str | None = None):
+        def back(error: str | None = None, next_path: str = DEFAULT_CUSTOMER_REDIRECT):
             target = f"{settings.FRONTEND_URL}{next_path}"
             if error:
                 sep = "&" if "?" in target else "?"
                 target = f"{target}{sep}error={error}"
             return redirect(target)
 
-        # Google sends ?error=access_denied if the user cancels.
+        # Error returned by Google itself
         if request.query_params.get("error"):
             return back("google")
 
-        # CSRF: state must match what we stashed at the start.
-        state = request.query_params.get("state")
-        expected = request.session.pop("google_oauth_state", None)
-        if not state or state != expected:
+        # ✅ FIX #10a: Read next_path from signed state (no session dependency)
+        state = request.query_params.get("state") or ""
+        next_path = read_state(state) if state else None
+        if not next_path:
             return back("state")
+        next_path = _safe_next(next_path) or DEFAULT_CUSTOMER_REDIRECT
 
         code = request.query_params.get("code")
         if not code:
-            return back("code")
+            return back("code", next_path)
 
-        # Trade code for token, then fetch profile.
         try:
             token_data = exchange_code(code)
             userinfo = fetch_userinfo(token_data["access_token"])
         except Exception:
-            return back("exchange")
+            return back("exchange", next_path)
 
         email = (userinfo.get("email") or "").strip().lower()
         sub = userinfo.get("sub") or ""
         email_verified = bool(userinfo.get("email_verified"))
 
-        # Reject unverified emails — Google sometimes returns profiles
-        # for unverified addresses. The frontend has a specific message
-        # for this (`email` error code).
         if not email or not email_verified:
-            return back("email")
+            return back("email", next_path)
 
         existing = User.objects.filter(email=email).first()
         if existing and _is_admin_role(existing):
-            # Admin email must never authenticate via Google.
-            return back("admin_email")
+            return back("admin_email", next_path)
 
-        # Reject suspended / inactive accounts.
         if existing and (
             not existing.is_active
-            or getattr(existing, "status", None) != Status.ACTIVE
+            or getattr(existing, "status", None) == Status.SUSPENDED
         ):
-            return back("google")
+            return back("google", next_path)
 
         if existing:
             user = existing
@@ -740,12 +634,15 @@ class GoogleCallbackView(APIView):
                 user.is_email_verified = True
                 user.email_verified_at = timezone.now()
                 update_fields += ["is_email_verified", "email_verified_at"]
+            if user.status == Status.PENDING:
+                user.status = Status.ACTIVE
+                update_fields.append("status")
             if update_fields:
                 user.save(update_fields=update_fields)
         else:
             user = User.objects.create_user(
                 email=email,
-                password=None,  # unusable password — Google-only account
+                password=None,
                 role=Role.CUSTOMER,
                 status=Status.ACTIVE,
                 is_email_verified=True,
@@ -755,40 +652,41 @@ class GoogleCallbackView(APIView):
                 last_name=userinfo.get("family_name", "") or "",
             )
 
-        django_login(request, user)
+        # Also open a Django session (for admin site compatibility)
+        django_login(
+            request,
+            user,
+            backend="django.contrib.auth.backends.ModelBackend",
+        )
         request.session["device_mode"] = "customer"
 
-        return redirect(f"{settings.FRONTEND_URL}{next_path}")
+        tokens = _issue_tokens(user)
+
+        is_admin = _is_admin_role(user)
+        redirect_to = (
+            getattr(user, "redirect_path", None)
+            or (DEFAULT_ADMIN_LOGIN_REDIRECT if is_admin
+                else DEFAULT_CUSTOMER_REDIRECT)
+        )
+
+        # ✅ FIX #10b: Land on /auth/callback, not next_path. The frontend
+        # handler stores tokens, then navigates to `next`.
+        fragment = urlencode({
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
+            "redirect_to": redirect_to,
+            "next": next_path,
+            "user": _json.dumps(_serialize_me(user), separators=(",", ":")),
+        })
+
+        return redirect(f"{settings.FRONTEND_URL}/auth/callback#{fragment}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Staff invite — public endpoints
+# Staff invites
 # ─────────────────────────────────────────────────────────────────────────────
+
 class StaffInviteVerifyView(APIView):
-    """
-    GET /api/v1/auth/invite/verify/?token=...
-
-    Called by the frontend on mount of /auth/staff/register so it can
-    show the accept form (with the email locked to the invite) or the
-    "expired" screen.
-
-    Response (200):
-        {
-          "valid": true,
-          "email": "...",
-          "name": "...",
-          "role": "Sales Staff",
-          "department": "Sales",
-          "invited_by": "Owner Admin",
-          "expires_at": "2026-10-13T09:00:00Z"
-        }
-
-    Response (400):
-        { "detail": "Invalid or expired invite." }
-
-    Reads from `dashboard.users.StaffInvite` — the invite model lives
-    there. This view only handles the HTTP lookup.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -827,28 +725,6 @@ class StaffInviteVerifyView(APIView):
 
 
 class StaffInviteAcceptView(APIView):
-    """
-    POST /api/v1/auth/invite/accept/
-
-    Body: { token, password, password_confirm?, phone?, confirm_password? }
-
-    Response: { user: Me, redirect_to: "/admin" }  → 201
-
-    Creates a User AND a StaffProfile in one transaction. The
-    StaffProfile's presence is what makes the account "staff" — a
-    post_save signal on the model then flips `user.is_staff = True`.
-
-    The email and granular role come from the invite row — the client
-    cannot influence either. Auth-level `User.role` is set to OWNER
-    for an Administrator invite, STAFF for everyone else.
-
-    The accept view auto-logs the new staff member in — intentional.
-    The email link IS the authentication proof.
-
-    Errors:
-        400 → invalid/expired invite, weak password, mismatch
-        409 → email already belongs to an account
-    """
     permission_classes = [AllowAny]
     authentication_classes = []
 
@@ -862,7 +738,6 @@ class StaffInviteAcceptView(APIView):
         )
         phone = (request.data.get("phone") or "").strip()
 
-        # ── 1. Validate input ────────────────────────────────
         if not token:
             return Response(
                 {"detail": "Invite token is required."},
@@ -887,7 +762,6 @@ class StaffInviteAcceptView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── 2. Resolve the invite ────────────────────────────
         invite = StaffInvite.objects.filter(token=token).first()
         if not invite or not invite.is_valid:
             return Response(
@@ -895,20 +769,17 @@ class StaffInviteAcceptView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── 3. Guard against existing accounts ───────────────
         if User.objects.filter(email=invite.email).exists():
             return Response(
                 {"detail": "An account with this email already exists."},
                 status=status.HTTP_409_CONFLICT,
             )
 
-        # ── 4. Create User + StaffProfile atomically ─────────
         with transaction.atomic():
             name_parts = (invite.name or "").split(maxsplit=1)
             first_name = name_parts[0] if name_parts else ""
             last_name = name_parts[1] if len(name_parts) > 1 else ""
 
-            # Auth-level role — OWNER for Administrator, STAFF otherwise.
             auth_role = (
                 Role.OWNER if invite.role == "Administrator" else Role.STAFF
             )
@@ -925,8 +796,6 @@ class StaffInviteAcceptView(APIView):
                 email_verified_at=timezone.now(),
             )
 
-            # The StaffProfile is what makes this user "staff". Its
-            # post_save signal flips `user.is_staff` to True.
             StaffProfile.objects.create(
                 user=user,
                 name=invite.name,
@@ -935,10 +804,8 @@ class StaffInviteAcceptView(APIView):
                 department=invite.department,
             )
 
-            # Mark the invite consumed — this also stamps accepted_by.
             invite.mark_accepted(user)
 
-        # ── 5. Log the new staff member in ───────────────────
         django_login(
             request,
             user,
@@ -948,38 +815,17 @@ class StaffInviteAcceptView(APIView):
 
         redirect_to = ROLE_DASHBOARD_MAP.get(invite.role, "/admin")
 
-        return Response(
-            {
-                "user": _serialize_me(user),
-                "redirect_to": redirect_to,
-            },
-            status=status.HTTP_201_CREATED,
+        # ✅ FIX #11: Return JWT tokens for the admin dashboard SPA.
+        return _auth_response(
+            user,
+            redirect_to=redirect_to,
+            http_status=status.HTTP_201_CREATED,
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Staff invite — admin management endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 class StaffInviteListCreateView(APIView):
-    """
-    GET  /api/v1/admin/invites/   → list all invites
-    POST /api/v1/admin/invites/   → create and send a new invite
-
-    Body: { email, role, name, department?, message? }
-
-    `role` is a granular staff role — one of STAFF_ROLES from
-    `dashboard.users.constants`. The frontend sends these values
-    directly; the previous version's coarse `'STAFF'/'OWNER'` check
-    was mismatched with what the admin UI sends.
-
-    Only accessible by OWNER and STAFF. Inviting someone who already
-    has an account is rejected — an admin should change their role
-    directly in the Users page instead.
-
-    The email contains a link to:
-        {FRONTEND_URL}{STAFF_INVITE_ACCEPT_PATH}?token=<token>
-    """
     permission_classes = [IsAdminRole]
+    authentication_classes = DUAL_AUTH  # ✅ FIX #12
 
     def get(self, request):
         qs = (
@@ -1023,7 +869,6 @@ class StaffInviteListCreateView(APIView):
         department = (request.data.get("department") or "").strip()
         message = (request.data.get("message") or "").strip()
 
-        # ── Validation ───────────────────────────────────────
         if not email:
             return Response(
                 {"detail": "Email is required."},
@@ -1044,7 +889,6 @@ class StaffInviteListCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Can't invite an email that already has an account.
         if User.objects.filter(email=email).exists():
             return Response(
                 {
@@ -1056,7 +900,6 @@ class StaffInviteListCreateView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
-        # Can't have two pending invites for the same email.
         if StaffInvite.objects.filter(
             email=email, status=InviteStatus.PENDING,
         ).exists():
@@ -1070,7 +913,6 @@ class StaffInviteListCreateView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
-        # ── Create + dispatch ────────────────────────────────
         with transaction.atomic():
             invite = StaffInvite.objects.create(
                 email=email,
@@ -1082,9 +924,6 @@ class StaffInviteListCreateView(APIView):
                 expires_at=StaffInvite.default_expiry(),
             )
 
-        # Fire the email via Celery so the HTTP request doesn't block
-        # on SendGrid. on_commit ensures the row is visible to the
-        # worker when the task runs.
         from dashboard.users.tasks import send_invite_email
         transaction.on_commit(
             lambda: send_invite_email.delay(str(invite.id))
@@ -1105,15 +944,8 @@ class StaffInviteListCreateView(APIView):
 
 
 class StaffInviteDetailView(APIView):
-    """
-    POST   /api/v1/admin/invites/<uuid>/resend/  → regenerate + resend
-    DELETE /api/v1/admin/invites/<uuid>/         → cancel (soft)
-
-    `invite_id` is a UUID — the model's primary key. Resend cancels
-    the old row and creates a fresh one, so the audit trail shows the
-    original attempt alongside its replacement.
-    """
     permission_classes = [IsAdminRole]
+    authentication_classes = DUAL_AUTH  # ✅ FIX #12
 
     def post(self, request, invite_id):
         try:
@@ -1130,9 +962,6 @@ class StaffInviteDetailView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
-        # Regenerate the token + expiry, cancel the old row, create a
-        # fresh one. Same pattern as before, now using the model's
-        # explicit transitions.
         with transaction.atomic():
             invite.mark_cancelled()
 
@@ -1179,3 +1008,50 @@ class StaffInviteDetailView(APIView):
 
         invite.mark_cancelled()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JWT endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JWTObtainPairView(TokenObtainPairView):
+    permission_classes = [AllowAny]
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+class JWTRefreshView(TokenRefreshView):
+    permission_classes = [AllowAny]
+
+
+class JWTLogoutView(APIView):
+    """
+    Deprecated: use LogoutView instead, which also clears the Django session.
+    Kept for backwards compatibility with existing frontend calls.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response(
+                {"detail": "Refresh token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            pass
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class JWTVerifyMeView(APIView):
+    """
+    JWT-only mirror of MeView. Kept for backwards compatibility.
+    New frontend code should call /auth/me/ (which now supports both).
+    """
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request):
+        return Response(_serialize_me(request.user))

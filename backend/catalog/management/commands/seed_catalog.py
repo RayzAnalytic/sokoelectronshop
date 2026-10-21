@@ -1,14 +1,3 @@
-"""
-Seed catalog data from the frontend's data/products.ts.
-
-Usage:
-    python manage.py seed_catalog --public-dir ../frontend/public
-    python manage.py seed_catalog --public-dir ../frontend/public --clear
-
-Brand logos are read from `<public-dir>/brands/<slug>.png` — see
-BRAND_LOGOS below. Missing logos are logged and skipped; the brand row
-is still created.
-"""
 from __future__ import annotations
 
 from datetime import datetime, timezone as dt_timezone
@@ -30,9 +19,6 @@ from catalog.models import (
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 15 categories
-# ─────────────────────────────────────────────────────────────────────────────
 CATEGORY_ICONS = {
     "Smartphones":       "Smartphone",
     "Laptops":           "Laptop",
@@ -52,9 +38,6 @@ CATEGORY_ICONS = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Category images (reusing existing files — swap later)
-# ─────────────────────────────────────────────────────────────────────────────
 CATEGORY_IMAGES = {
     "Smartphones":       "/smartphone2.jpeg",
     "Laptops":           "/laptop2.jpeg",
@@ -74,28 +57,6 @@ CATEGORY_IMAGES = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Brand → logo path inside the Next.js `public/` folder.
-#
-# Drop the corresponding files into `public/brands/` before seeding.
-# Any path that isn't on disk is logged and skipped — the brand row
-# still gets created, just without a logo. The frontend then falls
-# back to the brand name as text.
-#
-# Suggested filenames (lowercase, slugified, PNG with transparent bg):
-#     public/brands/apple.png
-#     public/brands/samsung.png
-#     public/brands/western-digital.png
-#     ...
-# ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
-# Brand → logo path inside the Next.js `public/` folder.
-#
-# TEMPORARY: every brand points at an existing product image so the
-# seeder can populate `Brand.logo` today without waiting for real brand
-# assets. Swap each value for `/brands/<slug>.png` once you have proper
-# logos, then re-run `seed_catalog --clear`.
-# ─────────────────────────────────────────────────────────────────────────────
 BRAND_LOGOS = {
     "Apple":            "/phone.jpeg",
     "Samsung":          "/smartphone2.jpeg",
@@ -129,11 +90,7 @@ BRAND_LOGOS = {
     "Western Digital":  "/harddrives.jpeg",
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 50 products
-# ─────────────────────────────────────────────────────────────────────────────
 PRODUCTS = [
-    # ═══════════════ FEATURED / BEST SELLERS (16) ═══════════════════════════
     {
         "id": "prod_8f29s7",
         "name": 'Samsung 55" Crystal UHD 4K Smart TV',
@@ -374,8 +331,6 @@ PRODUCTS = [
         "features": ["Apple M4 chip", "Ultra Retina XDR Tandem OLED", "5.1mm ultra-thin design", "All-day battery life"],
         "specs": {"Display": '13" Ultra Retina XDR', "Processor": "Apple M4", "Storage": "256GB", "Connectivity": "Wi-Fi 6E, USB-C Thunderbolt"},
     },
-
-    # ═══════════════ SMARTPHONES (+3) ════════════════════════════════════════
     {
         "id": "prd_sp_01",
         "name": "Google Pixel 8 Pro 128GB - Obsidian",
@@ -421,8 +376,6 @@ PRODUCTS = [
         "features": ["50MP dual camera", '6.6" 90Hz display', "5000mAh battery", "18W fast charge"],
         "specs": {"Display": "6.6 inches", "Processor": "Unisoc T606", "Storage": "128GB", "Battery": "5000 mAh"},
     },
-
-    # ═══════════════ LAPTOPS (+2) ════════════════════════════════════════════
     {
         "id": "prd_lp_01",
         "name": 'Dell XPS 15 Core i7 13th Gen 32GB 1TB',
@@ -453,8 +406,6 @@ PRODUCTS = [
         "features": ["Intel Core Ultra 7 155H", "32GB LPDDR5 RAM", "1.09kg lightweight chassis", '14" 2.8K OLED display'],
         "specs": {"Processor": "Intel Core Ultra 7", "RAM": "32GB", "Storage": "1TB SSD", "Weight": "1.09 kg"},
     },
-
-    # ═══════════════ TABLETS (+1) ════════════════════════════════════════════
     {
         "id": "prd_tb_01",
         "name": "Samsung Galaxy Tab S9 FE 128GB Wi-Fi",
@@ -470,8 +421,6 @@ PRODUCTS = [
         "features": ["S Pen included", "IP68 water and dust resistance", '10.9" 90Hz display', "8000mAh battery"],
         "specs": {"Display": '10.9" LCD', "Processor": "Exynos 1380", "Storage": "128GB", "Battery": "8000 mAh"},
     },
-
-    # ═══════════════ TVs (+2) ════════════════════════════════════════════════
     {
         "id": "prd_tv_01",
         "name": 'Sony Bravia XR A80L 65" OLED 4K TV',
@@ -502,8 +451,6 @@ PRODUCTS = [
         "features": ["4K HDR picture", "Google TV with voice remote", "Dolby Audio", "3x HDMI inputs"],
         "specs": {"Screen Size": "43 inches", "Resolution": "3840 x 2160", "Refresh Rate": "60Hz", "HDR": "HDR10"},
     },
-
-    # ═══════════════ AUDIO (+3) ══════════════════════════════════════════════
     {
         "id": "prd_au_01",
         "name": "Apple AirPods Pro (2nd Gen) USB-C",
@@ -549,8 +496,6 @@ PRODUCTS = [
         "features": ["4-mic ENC for clear calls", "40 hours total playtime", "IPX5 sweat and splash resistant", "Low-latency gaming mode"],
         "specs": {"Battery": "40h (with case)", "Bluetooth": "5.3", "Water Resistance": "IPX5", "Charging": "USB-C"},
     },
-
-    # ═══════════════ GAMING (+2) ═════════════════════════════════════════════
     {
         "id": "prd_gm_01",
         "name": "Sony PlayStation 5 Slim Disc Edition",
@@ -581,8 +526,6 @@ PRODUCTS = [
         "features": ["60g ultralight design", "HERO 2 sensor with 32K DPI", "Up to 95 hours battery", "LIGHTSPEED wireless"],
         "specs": {"Sensor": "HERO 2", "DPI": "Up to 32,000", "Battery": "95 hours", "Weight": "60g"},
     },
-
-    # ═══════════════ CAMERAS (+2) ════════════════════════════════════════════
     {
         "id": "prd_cm_01",
         "name": "Canon EOS R6 Mark II Mirrorless Body",
@@ -613,8 +556,6 @@ PRODUCTS = [
         "features": ["5.3K video at 60fps", "HyperSmooth 6.0 stabilization", "Waterproof to 33ft without housing", "Enduro battery included"],
         "specs": {"Video": "5.3K 60fps", "Photos": "27MP", "Waterproof": "33ft / 10m", "Battery": "1720mAh Enduro"},
     },
-
-    # ═══════════════ WEARABLES (+2) ══════════════════════════════════════════
     {
         "id": "prd_wr_01",
         "name": "Apple Watch Series 9 GPS 45mm",
@@ -645,8 +586,6 @@ PRODUCTS = [
         "features": ["Rotating physical bezel", "Advanced sleep coaching", "Body composition analysis", "Wear OS with Google apps"],
         "specs": {"Display": '1.5" Super AMOLED', "Chip": "Exynos W930", "Battery": "425 mAh", "Water Resistance": "5 ATM + IP68"},
     },
-
-    # ═══════════════ SPEAKERS (+1) ═══════════════════════════════════════════
     {
         "id": "prd_sk_01",
         "name": "JBL Flip 6 Portable Bluetooth Speaker",
@@ -662,8 +601,6 @@ PRODUCTS = [
         "features": ["JBL Pro Sound with racetrack driver", "12 hours playtime", "IP67 waterproof and dustproof", "PartyBoost stereo pairing"],
         "specs": {"Battery Life": "12 hours", "Water Resistance": "IP67", "Bluetooth": "5.1", "Charging": "USB-C"},
     },
-
-    # ═══════════════ NETWORKING (+1) ═════════════════════════════════════════
     {
         "id": "prd_nw_01",
         "name": "TP-Link Deco X60 AX3000 Mesh Wi-Fi System (3-pack)",
@@ -679,8 +616,6 @@ PRODUCTS = [
         "features": ["Covers up to 6500 sq ft", "Wi-Fi 6 AX3000 speed", "Seamless roaming with AI mesh", "TP-Link HomeShield security"],
         "specs": {"Standard": "Wi-Fi 6 (802.11ax)", "Speed": "3000 Mbps", "Coverage": "6500 sq ft", "Units": "3-pack"},
     },
-
-    # ═══════════════ ACCESSORIES (+2) ════════════════════════════════════════
     {
         "id": "prd_ac_01",
         "name": "Anker 737 Power Bank 24000mAh 140W",
@@ -711,8 +646,6 @@ PRODUCTS = [
         "features": ["65W GaN II technology", "Three ports (2x USB-C, 1x USB-A)", "58% smaller than stock chargers", "Foldable plug design"],
         "specs": {"Output": "65W total", "Ports": "2x USB-C, 1x USB-A", "Technology": "GaN II", "Weight": "112g"},
     },
-
-    # ═══════════════ STORAGE (+3) ════════════════════════════════════════════
     {
         "id": "prd_st_01",
         "name": "Samsung T7 Shield 2TB Portable SSD",
@@ -758,8 +691,6 @@ PRODUCTS = [
         "features": ["4TB storage capacity", "USB 3.0 interface", "Plug-and-play with Windows", "Includes power adapter"],
         "specs": {"Capacity": "4TB", "Interface": "USB 3.0", "Form Factor": "Desktop 3.5-inch", "Warranty": "2 years"},
     },
-
-    # ═══════════════ SMART HOME (+2) ═════════════════════════════════════════
     {
         "id": "prd_sh_01",
         "name": "Ring Video Doorbell Wired (2nd Gen)",
@@ -790,8 +721,6 @@ PRODUCTS = [
         "features": ["1300Pa suction power", "100 minutes runtime", "Slim 2.85-inch profile", "Quiet operation under 55dB"],
         "specs": {"Suction": "1300Pa", "Runtime": "100 minutes", "Height": "2.85 inches", "Noise Level": "<55dB"},
     },
-
-    # ═══════════════ MONITORS (+2) ═══════════════════════════════════════════
     {
         "id": "prd_mn_01",
         "name": 'LG UltraGear 27" QHD 165Hz Gaming Monitor',
@@ -822,8 +751,6 @@ PRODUCTS = [
         "features": ["Super ultrawide 5120x1440", "240Hz refresh rate", "1000R curved VA panel", "HDR1000 certification"],
         "specs": {"Screen Size": "49 inches", "Resolution": "5120 x 1440", "Refresh Rate": "240Hz", "Curvature": "1000R"},
     },
-
-    # ═══════════════ STREAMING DEVICES (+3) ══════════════════════════════════
     {
         "id": "prd_sd_01",
         "name": "Amazon Fire TV Stick 4K Max (2nd Gen)",
@@ -872,7 +799,6 @@ PRODUCTS = [
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def _parse_dt(value):
     if not value:
         return None
@@ -914,7 +840,6 @@ class Command(BaseCommand):
             Brand.objects.all().delete()
             Category.objects.all().delete()
 
-        # ── Categories ────────────────────────────────────────────
         cat_stats = {"images": 0, "missing_images": []}
         for idx, (cat_name, icon_name) in enumerate(CATEGORY_ICONS.items(), start=1):
             cat, created = Category.objects.update_or_create(
@@ -937,7 +862,6 @@ class Command(BaseCommand):
             verb = "created" if created else "kept"
             self.stdout.write(f"  Category {cat_name!r} — {verb}")
 
-        # ── Brands ────────────────────────────────────────────────
         brand_stats = {"logos": 0, "missing_logos": []}
         for brand_name in sorted({p["brand"] for p in PRODUCTS}):
             brand, created = Brand.objects.update_or_create(
@@ -955,7 +879,6 @@ class Command(BaseCommand):
             verb = "created" if created else "kept"
             self.stdout.write(f"  Brand {brand_name!r} — {verb}")
 
-        # ── Products ──────────────────────────────────────────────
         stats = {"products": 0, "images": 0, "features": 0, "specs": 0, "missing_images": []}
 
         for p in PRODUCTS:
@@ -1014,7 +937,6 @@ class Command(BaseCommand):
 
             stats["products"] += 1
 
-        # ── Report ────────────────────────────────────────────────
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(
             f"Seeded {stats['products']} products, "
@@ -1052,7 +974,6 @@ class Command(BaseCommand):
             for path in brand_stats["missing_logos"]:
                 self.stdout.write(f"  {path}")
 
-    # ── Helpers ───────────────────────────────────────────────────
     def _delete_all_product_images(self):
         for img in ProductImage.objects.all():
             if img.image:
@@ -1087,11 +1008,6 @@ class Command(BaseCommand):
         return True
 
     def _attach_brand_logo(self, brand, brand_name, public_path):
-        """
-        Copy the brand logo from the Next.js `public/` folder into the
-        Brand's `logo` ImageField. Returns True on success, False if the
-        mapping is missing or the file isn't on disk.
-        """
         logo_path = BRAND_LOGOS.get(brand_name)
         if not logo_path:
             return False

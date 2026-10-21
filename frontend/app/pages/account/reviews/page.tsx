@@ -16,9 +16,6 @@ import {
     type ReviewWriteInput,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Local view types
-// ─────────────────────────────────────────────────────────────────────────────
 type ReviewStatus = 'Published' | 'Pending' | 'Rejected';
 
 interface Review {
@@ -36,6 +33,7 @@ interface Review {
     status: ReviewStatus;
     rejectionReason?: string;
     orderReference: string;
+    isVerifiedPurchase: boolean;
 }
 
 interface ReviewDraft {
@@ -51,9 +49,6 @@ interface ProductPreview {
     brand?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mapping: backend row → local view
-// ─────────────────────────────────────────────────────────────────────────────
 const titleCase = (s: string): string =>
     s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
 
@@ -73,12 +68,10 @@ function rowToReview(row: ReviewRow): Review {
         status: titleCase(row.status) as ReviewStatus,
         rejectionReason: row.rejection_reason || undefined,
         orderReference: row.order_reference || '',
+        isVerifiedPurchase: row.is_verified_purchase === true,
     };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE_MB = 5;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -87,9 +80,6 @@ const BODY_MIN = 10;
 const BODY_MAX = 1200;
 const PAGE_SIZE = 5;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
     try {
         return new Date(iso).toLocaleDateString('en-KE', {
@@ -124,9 +114,6 @@ function statusIcon(s: ReviewStatus) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Editor state
-// ─────────────────────────────────────────────────────────────────────────────
 type EditorState =
     | {
         mode: 'edit';
@@ -141,9 +128,6 @@ type EditorState =
         draft: ReviewDraft;
     };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function ReviewsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -162,7 +146,6 @@ export default function ReviewsPage() {
         setTimeout(() => setToast(null), 2500);
     };
 
-    // ── Initial fetch ──
     useEffect(() => {
         let cancelled = false;
 
@@ -192,7 +175,6 @@ export default function ReviewsPage() {
         };
     }, []);
 
-    // ── Deep-link: ?order=REF or ?product=ID ──
     useEffect(() => {
         if (pending.length === 0) return;
 
@@ -213,7 +195,6 @@ export default function ReviewsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pending, searchParams, router]);
 
-    // ── Summary stats ──
     const stats = useMemo(() => {
         const total = reviews.length;
         const avg =
@@ -225,7 +206,6 @@ export default function ReviewsPage() {
         return { total, avg, pending: pendingCount, withPhotos };
     }, [reviews]);
 
-    // Reset pagination when the review list changes identity.
     useEffect(() => {
         setVisibleCount(PAGE_SIZE);
     }, [reviews.length]);
@@ -237,7 +217,6 @@ export default function ReviewsPage() {
 
     const hasMore = visibleCount < reviews.length;
 
-    // ── Open editors ──
     const openEdit = (review: Review) => {
         setEditorOpen({
             mode: 'edit',
@@ -275,7 +254,6 @@ export default function ReviewsPage() {
 
     const closeEditor = () => setEditorOpen(null);
 
-    // ── Save (create or update) ──
     const saveReview = async (draft: ReviewDraft) => {
         const open = editorOpen;
         if (!open) return;
@@ -332,7 +310,6 @@ export default function ReviewsPage() {
         }
     };
 
-    // ── Delete ──
     const confirmDelete = async () => {
         if (!deleteTarget) return;
         const target = deleteTarget;
@@ -358,21 +335,16 @@ export default function ReviewsPage() {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-5">
-            {/* Toast */}
+        <div className="space-y-3">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
                     <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                     <span className="leading-relaxed">{toast}</span>
                 </div>
             )}
 
-            {/* Header */}
-            <div className="bg-white border border-slate-200 rounded-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <MessageSquare className="h-5 w-5 text-blue-950" />
@@ -395,15 +367,13 @@ export default function ReviewsPage() {
                 </Link>
             </div>
 
-            {/* Load error */}
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
             )}
 
-            {/* Summary cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <SummaryCard
                     label="Total Reviews"
@@ -436,9 +406,8 @@ export default function ReviewsPage() {
                 />
             </div>
 
-            {/* Awaiting Your Review */}
             {!isLoading && pending.length > 0 && (
-                <section className="space-y-3">
+                <section className="space-y-2">
                     <div className="flex items-center gap-2 px-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
                         <h2 className="text-sm font-semibold text-slate-900">
@@ -448,7 +417,7 @@ export default function ReviewsPage() {
                             ({pending.length})
                         </span>
                     </div>
-                    <ul className="space-y-3">
+                    <ul className="space-y-2">
                         {pending.map((item) => (
                             <li key={`${item.order_reference}-${item.product_id}`}>
                                 <PendingCard
@@ -461,8 +430,7 @@ export default function ReviewsPage() {
                 </section>
             )}
 
-            {/* Your Reviews */}
-            <section className="space-y-3">
+            <section className="space-y-2">
                 {!isLoading && reviews.length > 0 && (
                     <h2 className="text-sm font-semibold text-slate-900 px-1">
                         Your Reviews ({reviews.length})
@@ -470,14 +438,14 @@ export default function ReviewsPage() {
                 )}
 
                 {isLoading ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                         {[0, 1, 2].map((i) => (
                             <ReviewSkeleton key={i} />
                         ))}
                     </div>
                 ) : reviews.length === 0 ? (
                     <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
-                        <MessageSquare className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                        <MessageSquare className="h-10 w-10 text-slate-300 mx-auto mb-2" />
                         <h2 className="text-sm font-semibold text-slate-900">
                             You haven&apos;t written any reviews yet.
                         </h2>
@@ -489,7 +457,7 @@ export default function ReviewsPage() {
                         {pending.length === 0 && (
                             <Link
                                 href="/pages/products"
-                                className="mt-4 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition-colors"
+                                className="mt-3 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition-colors"
                             >
                                 <ShoppingBag className="h-3.5 w-3.5" />
                                 Start Shopping
@@ -498,7 +466,7 @@ export default function ReviewsPage() {
                     </div>
                 ) : (
                     <>
-                        <ul className="space-y-3">
+                        <ul className="space-y-2">
                             {visible.map((review) => (
                                 <li key={review.id}>
                                     <ReviewCard
@@ -527,7 +495,6 @@ export default function ReviewsPage() {
                 )}
             </section>
 
-            {/* Editor modal */}
             {editorOpen && (
                 <ReviewEditor
                     title={
@@ -542,7 +509,6 @@ export default function ReviewsPage() {
                 />
             )}
 
-            {/* Delete confirmation */}
             {deleteTarget && (
                 <DeleteConfirm
                     review={deleteTarget}
@@ -553,10 +519,6 @@ export default function ReviewsPage() {
         </div>
     );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
 
 function SummaryCard({
     label,
@@ -572,7 +534,7 @@ function SummaryCard({
     sub?: React.ReactNode;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-4">
+        <div className="bg-white border border-slate-200 rounded-sm p-3">
             <div className="flex items-center justify-between mb-2">
                 <span
                     className={`w-9 h-9 rounded-sm flex items-center justify-center ${tint}`}
@@ -628,7 +590,7 @@ function PendingCard({
     onWrite: () => void;
 }) {
     return (
-        <article className="bg-white border border-slate-200 rounded-sm p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <article className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <img
                 src={item.product_image || '/placeholder.png'}
                 alt={item.product_name}
@@ -636,7 +598,7 @@ function PendingCard({
             />
             <div className="flex-1 min-w-0">
                 {item.product_brand && (
-                    <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                    <p className="text-[10px] uppercase text-slate-500 font-medium">
                         {item.product_brand}
                     </p>
                 )}
@@ -661,7 +623,7 @@ function PendingCard({
             <button
                 type="button"
                 onClick={onWrite}
-                className="shrink-0 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                className="shrink-0 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-xs transition"
             >
                 <Pencil className="h-3 w-3" />
                 Write Review
@@ -679,14 +641,12 @@ function ReviewCard({
     onEdit: () => void;
     onDelete: () => void;
 }) {
-    // Reviews created before the catalog FK existed may have an empty
-    // slug — fall back to a search query so the link never 404s.
     const productHref = review.productSlug
         ? `/pages/products/${review.productSlug}`
         : `/pages/products?q=${encodeURIComponent(review.productName)}`;
 
     return (
-        <article className="bg-white border border-slate-200 rounded-sm p-5">
+        <article className="bg-white border border-slate-200 rounded-sm p-3">
             <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                     href={productHref}
@@ -731,7 +691,7 @@ function ReviewCard({
                         <span className="text-[11px] text-slate-500">
                             {review.rating.toFixed(1)}
                         </span>
-                        {review.orderReference && (
+                        {review.isVerifiedPurchase && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                                 <Check className="h-2.5 w-2.5" />
                                 Verified purchase
@@ -752,7 +712,7 @@ function ReviewCard({
                     )}
 
                     {review.images.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-2 flex flex-wrap gap-2">
                             {review.images.map((src, idx) => (
                                 <a
                                     key={idx}
@@ -773,7 +733,7 @@ function ReviewCard({
                     )}
 
                     {review.status === 'Rejected' && review.rejectionReason && (
-                        <div className="mt-3 bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-start gap-2">
+                        <div className="mt-2 bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-start gap-2">
                             <AlertCircle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
                             <p className="text-[11px] text-red-800 leading-relaxed">
                                 {review.rejectionReason}
@@ -781,7 +741,7 @@ function ReviewCard({
                         </div>
                     )}
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                         <p className="text-[11px] text-slate-500">
                             Reviewed {formatDate(review.date)}
                         </p>
@@ -820,7 +780,7 @@ function ReviewCard({
 
 function ReviewSkeleton() {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-5 animate-pulse">
+        <div className="bg-white border border-slate-200 rounded-sm p-3 animate-pulse">
             <div className="flex gap-4">
                 <div className="w-20 h-20 rounded-sm bg-slate-200 shrink-0" />
                 <div className="flex-1 space-y-3">
@@ -835,9 +795,6 @@ function ReviewSkeleton() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Review editor — handles both create and edit
-// ─────────────────────────────────────────────────────────────────────────────
 function ReviewEditor({
     title,
     preview,
@@ -957,7 +914,7 @@ function ReviewEditor({
 
     return (
         <div
-            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
             onClick={() => !busy && onCancel()}
             role="dialog"
             aria-modal="true"
@@ -967,7 +924,7 @@ function ReviewEditor({
                 className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
-                <header className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+                <header className="flex items-center justify-between px-3 py-3 border-b border-slate-100 shrink-0">
                     <h2
                         id="review-editor-title"
                         className="text-sm font-semibold text-slate-900"
@@ -984,8 +941,7 @@ function ReviewEditor({
                     </button>
                 </header>
 
-                <div className="p-5 overflow-y-auto space-y-5">
-                    {/* Product context */}
+                <div className="p-3 overflow-y-auto space-y-3">
                     <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-sm">
                         <img
                             src={preview.image || '/placeholder.png'}
@@ -994,7 +950,7 @@ function ReviewEditor({
                         />
                         <div className="min-w-0">
                             {preview.brand && (
-                                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                                <p className="text-[10px] uppercase text-slate-500 font-medium">
                                     {preview.brand}
                                 </p>
                             )}
@@ -1004,9 +960,8 @@ function ReviewEditor({
                         </div>
                     </div>
 
-                    {/* Rating */}
                     <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                        <label className="block text-[11px] font-semibold uppercase text-slate-500 mb-1.5">
                             Rating <span className="text-red-500">*</span>
                         </label>
                         <StarSelector
@@ -1028,7 +983,6 @@ function ReviewEditor({
                         )}
                     </div>
 
-                    {/* Title */}
                     <div>
                         <div className="flex items-baseline justify-between mb-1">
                             <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -1063,10 +1017,9 @@ function ReviewEditor({
                         )}
                     </div>
 
-                    {/* Body */}
                     <div>
                         <div className="flex items-baseline justify-between mb-1">
-                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            <label className="block text-[11px] font-semibold uppercase text-slate-500">
                                 Review <span className="text-red-500">*</span>
                             </label>
                             <span
@@ -1097,9 +1050,8 @@ function ReviewEditor({
                         )}
                     </div>
 
-                    {/* Images */}
                     <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                        <label className="block text-[11px] font-semibold uppercase text-slate-500 mb-1.5">
                             Photos ({draft.images.length}/{MAX_IMAGES})
                         </label>
 
@@ -1166,12 +1118,12 @@ function ReviewEditor({
                     </div>
                 </div>
 
-                <footer className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 shrink-0">
+                <footer className="px-3 py-3 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 shrink-0">
                     <button
                         type="button"
                         onClick={onCancel}
                         disabled={busy}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60"
                     >
                         Cancel
                     </button>
@@ -1283,7 +1235,7 @@ function DeleteConfirm({
             aria-modal="true"
         >
             <div
-                className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-md p-5"
+                className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-md p-3"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start gap-3">
@@ -1294,7 +1246,7 @@ function DeleteConfirm({
                         <h3 className="text-sm font-bold text-slate-900">
                             Delete this review?
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        <p className="text-xs text-slate-500 mt-1">
                             Your review of{' '}
                             <span className="font-medium text-slate-700">
                                 {review.productName}
@@ -1309,7 +1261,7 @@ function DeleteConfirm({
                         type="button"
                         onClick={onCancel}
                         disabled={deleting}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60"
                     >
                         Cancel
                     </button>
@@ -1318,7 +1270,7 @@ function DeleteConfirm({
                         onClick={handleConfirm}
                         disabled={deleting}
                         aria-busy={deleting}
-                        className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         {deleting ? (
                             <>

@@ -13,8 +13,7 @@ import {
 } from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────
-// Helpers — identical to the ones in app/pages/products/page.tsx
-// so both pages format prices and parse decimals the same way.
+// Helpers
 // ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
     if (v === null || v === undefined) return 0;
@@ -29,6 +28,45 @@ function formatKES(amount: number): string {
 }
 
 const FEATURED_LIMIT = 8;
+
+
+type StockKind = 'in' | 'low' | 'out' | 'unknown';
+
+function normalizeStock(raw: string | undefined): StockKind {
+    const s = (raw || '').toLowerCase().replace(/[_\s-]/g, '');
+    if (s === 'instock' || s === 'in') return 'in';
+    if (s === 'lowstock' || s === 'low') return 'low';
+    if (s === 'outofstock' || s === 'out' || s === 'soldout') return 'out';
+    return 'unknown';
+}
+
+
+const STOCK_STYLES: Record<StockKind, { bg: string; dot: boolean; label: string }> = {
+    in: {
+        bg: 'bg-green-600 text-white',
+        dot: false,
+        label: 'In Stock',
+    },
+    low: {
+        bg: 'bg-orange-500 text-white',
+        dot: false,
+        label: 'Low Stock',
+    },
+    out: {
+        bg: 'bg-red-600 text-white',
+        dot: false,
+        label: 'Out of Stock',
+    },
+    unknown: {
+        bg: 'bg-slate-500 text-white',
+        dot: false,
+        label: 'Unknown',
+    },
+};
+
+function stockStyle(raw: string | undefined) {
+    return STOCK_STYLES[normalizeStock(raw)];
+}
 
 export default function FeaturedProducts() {
     const [products, setProducts] = useState<CatalogProduct[]>([]);
@@ -70,7 +108,8 @@ export default function FeaturedProducts() {
         ): Promise<void> => {
             e.preventDefault();
             e.stopPropagation();
-            if (product.stock === 'Out of Stock') return;
+
+            if (normalizeStock(product.stock) === 'out') return;
 
             setCartAddingId(product.id);
             try {
@@ -97,22 +136,22 @@ export default function FeaturedProducts() {
     );
 
     return (
-        <section className="bg-white py-6 lg:py-8 border-b border-slate-200">
+        <section className="bg-white py-6 lg:py-6 border-b border-slate-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Section Header */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8">
+          
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6">
                     <div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
                             Featured Electronics
                         </h2>
-                        <p className="text-[13px] text-slate-600 mt-1">
+                        <p className="text-[14px] text-slate-600 mt-0.5">
                             Top-rated hardware and audio essentials handpicked for
                             performance and reliability.
                         </p>
                     </div>
                     <Link
                         href="/pages/products"
-                        className="text-[13px] font-medium text-blue-950 hover:underline mt-2 sm:mt-0 inline-flex items-center"
+                        className="text-[14px] font-medium text-blue-950 hover:underline mt-1 sm:mt-0 inline-flex items-center"
                     >
                         View all products →
                     </Link>
@@ -144,15 +183,11 @@ export default function FeaturedProducts() {
                         ))}
                     </div>
                 )}
-
-                {/* Empty state */}
                 {!loading && !error && products.length === 0 && (
                     <p className="text-center py-10 text-[13px] text-slate-500">
                         No featured products at the moment.
                     </p>
                 )}
-
-                {/* Product Grid — 4 columns, same layout as before */}
                 {!loading && !error && products.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {products.map((product) => {
@@ -163,8 +198,6 @@ export default function FeaturedProducts() {
                                     ? toNum(product.compareAtPrice)
                                     : null;
 
-                            // Prefer the backend's discount percentage; fall back
-                            // to computing it when the field is null.
                             const discountPercentage =
                                 product.discountPercentage ??
                                 (comparePrice && comparePrice > price
@@ -172,6 +205,10 @@ export default function FeaturedProducts() {
                                         ((comparePrice - price) / comparePrice) * 100,
                                     )
                                     : null);
+
+                            const stockKind = normalizeStock(product.stock);
+                            const stock = STOCK_STYLES[stockKind];
+                            const isOutOfStock = stockKind === 'out';
 
                             return (
                                 <Link
@@ -181,7 +218,7 @@ export default function FeaturedProducts() {
                                 >
                                     <div>
                                         {/* Product Image */}
-                                        <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
+                                        <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
                                             <img
                                                 src={product.images[0] ?? '/placeholder.jpeg'}
                                                 alt={product.name}
@@ -191,19 +228,22 @@ export default function FeaturedProducts() {
                                             {/* Left stack — discount + stock badges */}
                                             <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1.5">
                                                 {discountPercentage && (
-                                                    <span className="bg-red-600 text-white font-semibold text-[10px] px-2 py-0.5 rounded shadow-xs">
+                                                    <span className="bg-red-600 text-white font-semibold text-[11px] px-2 py-0.5 rounded shadow-sm">
                                                         -{discountPercentage}%
                                                     </span>
                                                 )}
+
+                                                {/* Stock badge — solid bg, dot only on In Stock */}
                                                 <span
-                                                    className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stock === 'In Stock'
-                                                            ? 'bg-emerald-100 text-emerald-800'
-                                                            : product.stock === 'Low Stock'
-                                                                ? 'bg-amber-100 text-amber-800'
-                                                                : 'bg-red-100 text-red-800'
-                                                        }`}
+                                                    className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
                                                 >
-                                                    {product.stock}
+                                                    {stock.dot && (
+                                                        <span
+                                                            className="w-1.5 h-1.5 rounded-full bg-white/90"
+                                                            aria-hidden="true"
+                                                        />
+                                                    )}
+                                                    {stock.label}
                                                 </span>
                                             </div>
 
@@ -225,12 +265,12 @@ export default function FeaturedProducts() {
                                         </div>
 
                                         {/* Content Area */}
-                                        <div className="p-3 pb-2">
+                                        <div className="p-2 pb-2">
                                             <div className="flex items-center justify-between">
-                                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                                                <p className="text-[12px] font-medium text-slate-500 uppercase">
                                                     {product.brand}
                                                 </p>
-                                                <p className="text-[11px] text-slate-400">
+                                                <p className="text-[12px] text-slate-400">
                                                     {product.category}
                                                 </p>
                                             </div>
@@ -240,14 +280,14 @@ export default function FeaturedProducts() {
                                             </h3>
 
                                             {Number(product.rating) > 0 && (
-                                                <div className="flex items-center space-x-1 mb-2">
+                                                <div className="flex items-center space-x-1 mb-1">
                                                     <div className="flex items-center text-amber-500">
                                                         <Star className="w-3.5 h-3.5 fill-current" />
                                                     </div>
                                                     <span className="text-[12px] font-medium text-slate-800">
                                                         {toNum(product.rating).toFixed(1)}
                                                     </span>
-                                                    <span className="text-[11px] text-slate-500">
+                                                    <span className="text-[12px] text-slate-500">
                                                         ({product.reviewCount})
                                                     </span>
                                                 </div>
@@ -256,14 +296,14 @@ export default function FeaturedProducts() {
                                     </div>
 
                                     {/* Price and Add to Cart */}
-                                    <div className="p-3 pt-0 mt-auto">
+                                    <div className="p-2 pt-0 mt-auto">
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-baseline space-x-2">
                                                 <span className="text-sm font-bold text-slate-900">
                                                     {formatKES(price)}
                                                 </span>
                                                 {comparePrice !== null && (
-                                                    <span className="text-[11px] text-slate-500 line-through">
+                                                    <span className="text-[12px] text-slate-500 line-through">
                                                         {formatKES(comparePrice)}
                                                     </span>
                                                 )}
@@ -273,10 +313,7 @@ export default function FeaturedProducts() {
                                         <button
                                             type="button"
                                             onClick={(e) => handleAddToCart(product, e)}
-                                            disabled={
-                                                isAdding ||
-                                                product.stock === 'Out of Stock'
-                                            }
+                                            disabled={isAdding || isOutOfStock}
                                             className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
                                         >
                                             {isAdding ? (
@@ -302,7 +339,7 @@ export default function FeaturedProducts() {
                                                     </svg>
                                                     <span>Adding...</span>
                                                 </>
-                                            ) : product.stock === 'Out of Stock' ? (
+                                            ) : isOutOfStock ? (
                                                 <span>Sold Out</span>
                                             ) : (
                                                 <>

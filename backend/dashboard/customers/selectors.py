@@ -1,11 +1,3 @@
-"""
-Read logic. Every queryset and aggregation used by the admin page.
-
-Rule: views never touch the ORM directly for reads — they call a
-selector. This keeps the query surface in one file and makes the
-serializers trivial.
-"""
-
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -21,16 +13,7 @@ from .models import CommunicationLog, CustomerNote, CustomerProfile, SupportTick
 User = get_user_model()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Base queryset
-# ─────────────────────────────────────────────────────────────────────────────
 def customers_base_qs():
-    """
-    Every customer — anyone with the CUSTOMER role.
-
-    `select_related('customer_profile')` means the list serializer does
-    not fire an extra query per row to read the cached segment.
-    """
     return (
         User.objects
         .filter(role="CUSTOMER")
@@ -38,19 +21,7 @@ def customers_base_qs():
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# List + filters
-# ─────────────────────────────────────────────────────────────────────────────
 def list_customers(*, search=None, segment=None, order_count=None, spent_range=None):
-    """
-    Return a filtered queryset of customers.
-
-    All filtering happens in SQL so pagination stays correct.
-
-    `order_count` accepts: "1", "2-5", "5+"
-    `spent_range` accepts: "100k+", "50k-100k", "<50k"
-    `segment` accepts the CustomerSegment values.
-    """
     qs = customers_base_qs()
 
     if search:
@@ -90,16 +61,7 @@ def list_customers(*, search=None, segment=None, order_count=None, spent_range=N
     return qs.order_by("-date_joined")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detail — one customer, all tabs loaded up front
-# ─────────────────────────────────────────────────────────────────────────────
 def get_customer_detail(user_id: int):
-    """
-    Return the user plus every related object the detail page needs.
-
-    Uses `prefetch_related` so the whole detail render is a small,
-    bounded number of queries regardless of tab count.
-    """
     return (
         customers_base_qs()
         .filter(pk=user_id)
@@ -132,9 +94,6 @@ def get_customer_wishlist(user_id: int):
 
 
 def get_customer_cart(user_id: int):
-    """
-    Read-only. Returns an empty list when the user has no cart yet.
-    """
     return (
         CartItem.objects
         .filter(cart__user_id=user_id)
@@ -167,16 +126,7 @@ def get_customer_communication(user_id: int):
     return CommunicationLog.objects.filter(user_id=user_id).order_by("-created_at")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Dashboard stats
-# ─────────────────────────────────────────────────────────────────────────────
 def get_dashboard_stats():
-    """
-    Headline numbers for the Customers list view.
-
-    Single aggregate query over CustomerProfile (a cache) rather than
-    two passes over Order. Falls back gracefully when the cache is empty.
-    """
     profiles = CustomerProfile.objects.all()
 
     total_customers = customers_base_qs().count()
@@ -213,10 +163,6 @@ def get_dashboard_stats():
 
 
 def get_segment_counts() -> dict[str, int]:
-    """
-    Returns `{"VIP": 3, "Loyal": 5, ...}` for every segment, including
-    zeros. The frontend chips render from this map.
-    """
     counts = {s: 0 for s in CustomerSegment.values}
     rows = (
         CustomerProfile.objects

@@ -13,8 +13,7 @@ import {
 } from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────
-// Helpers — identical to app/pages/new-arrivals/page.tsx so both
-// views format prices and parse decimals the same way.
+// Helpers
 // ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
     if (v === null || v === undefined) return 0;
@@ -29,6 +28,22 @@ function formatKES(amount: number): string {
 }
 
 const NEW_ARRIVALS_LIMIT = 4;
+
+type StockKind = 'in' | 'low' | 'out' | 'unknown';
+
+function normalizeStock(raw: string | undefined): StockKind {
+    const s = (raw || '').toLowerCase().replace(/[_\s-]/g, '');
+    if (s === 'instock' || s === 'in') return 'in';
+    if (s === 'lowstock' || s === 'low') return 'low';
+    if (s === 'outofstock' || s === 'out' || s === 'soldout') return 'out';
+    return 'unknown';
+}
+const STOCK_STYLES: Record<StockKind, { bg: string; label: string }> = {
+    in:      { bg: 'bg-green-600 text-white',   label: 'In Stock' },
+    low:     { bg: 'bg-orange-500 text-white',  label: 'Low Stock' },
+    out:     { bg: 'bg-red-600 text-white',     label: 'Out of Stock' },
+    unknown: { bg: 'bg-slate-500 text-white',   label: 'Unknown' },
+};
 
 export default function NewArrivals() {
     const [products, setProducts] = useState<CatalogNewArrival[]>([]);
@@ -69,7 +84,8 @@ export default function NewArrivals() {
         ): Promise<void> => {
             e.preventDefault();
             e.stopPropagation();
-            if (product.stockStatus === 'Out of Stock') return;
+
+            if (normalizeStock(product.stockStatus) === 'out') return;
 
             setCartAddingId(product.id);
             try {
@@ -95,17 +111,17 @@ export default function NewArrivals() {
         [addItem],
     );
 
-    // ── Loading skeleton (keeps layout from jumping) ──────────
+    // ── Loading skeleton ──────────────────────────────────────
     if (loading && products.length === 0) {
         return (
-            <section className="bg-blue-950 py-6 lg:py-8 border-b border-blue-900">
+            <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-6 lg:py-6 border-b border-blue-950">
                 <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-3 gap-2">
                         <div>
                             <h2 className="text-xl sm:text-2xl font-bold text-white">
                                 New Arrivals
                             </h2>
-                            <p className="text-xs sm:text-sm text-blue-100">
+                            <p className="text-sm sm:text-sm text-blue-100">
                                 Explore the latest electronics added to our store.
                             </p>
                         </div>
@@ -133,13 +149,13 @@ export default function NewArrivals() {
     // ── Error state ───────────────────────────────────────────
     if (error && products.length === 0) {
         return (
-            <section className="bg-blue-950 py-12 border-b border-blue-900">
+            <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-12 border-b border-blue-950">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <h2 className="text-xl font-bold text-white mb-1">New Arrivals</h2>
                     <p className="text-xs text-blue-100 mb-4">{error}</p>
                     <Link
                         href="/pages/new-arrivals"
-                        className="inline-flex items-center space-x-1 text-xs font-medium text-white hover:text-blue-100 hover:underline"
+                        className="inline-flex items-center space-x-1 text-sm font-medium text-white hover:text-blue-100 hover:underline"
                     >
                         <span>Browse All Products</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -152,15 +168,15 @@ export default function NewArrivals() {
     // ── Empty state ───────────────────────────────────────────
     if (products.length === 0) {
         return (
-            <section className="bg-blue-950 py-12 border-b border-blue-900">
+            <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-12 border-b border-blue-950">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <h2 className="text-xl font-bold text-white mb-1">New Arrivals</h2>
-                    <p className="text-xs text-blue-100 mb-4">
+                    <p className="text-sm text-blue-100 mb-4">
                         No new products are available right now.
                     </p>
                     <Link
                         href="/pages/new-arrivals"
-                        className="inline-flex items-center space-x-1 text-xs font-medium text-white hover:text-blue-100 hover:underline"
+                        className="inline-flex items-center space-x-1 text-sm font-medium text-white hover:text-blue-100 hover:underline"
                     >
                         <span>Browse All Products</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -172,7 +188,7 @@ export default function NewArrivals() {
 
     // ── Grid ──────────────────────────────────────────────────
     return (
-        <section className="bg-blue-950 py-6 lg:py-8 border-b border-blue-900">
+        <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-6 lg:py-6 border-b border-blue-950">
             <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
                 {/* Section Header */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 gap-2">
@@ -185,8 +201,8 @@ export default function NewArrivals() {
                         </p>
                     </div>
                     <Link
-                        href="/pages/new-arrivals"
-                        className="text-xs font-semibold text-white hover:text-blue-100 hover:underline inline-flex items-center space-x-1 shrink-0"
+                        href="/pages/products/newarrivals"
+                        className="text-sm font-semibold text-white hover:text-blue-100 hover:underline inline-flex items-center space-x-1 shrink-0"
                     >
                         <span>View All</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -203,6 +219,10 @@ export default function NewArrivals() {
                                 ? toNum(product.compareAtPrice)
                                 : null;
 
+                        const stockKind = normalizeStock(product.stockStatus);
+                        const stock = STOCK_STYLES[stockKind];
+                        const isOutOfStock = stockKind === 'out';
+
                         return (
                             <Link
                                 key={product.id}
@@ -211,19 +231,18 @@ export default function NewArrivals() {
                             >
                                 <div>
                                     {/* Image */}
-                                    <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
+                                    <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
                                         <img
                                             src={product.images[0] ?? '/placeholder.jpeg'}
                                             alt={product.name}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
 
-                                        {/* 45° NEW ribbon */}
-                                        <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none z-10">
-                                            <div className="absolute transform -rotate-45 bg-blue-950 text-white font-bold text-[10px] tracking-widest py-1 left-[-40px] top-[18px] w-[140px] text-center shadow-xs">
-                                                NEW
-                                            </div>
-                                        </div>
+                                       <div className="absolute top-0 left-0 w-26 h-26 overflow-hidden pointer-events-none z-10">
+    <div className="absolute transform -rotate-45 bg-gradient-to-br from-blue-800 via-blue-900 to-blue-950 text-white font-bold text-[13px] tracking-widest py-1 left-[-40px] top-[18px] w-[140px] text-center shadow-sm">
+        NEW
+    </div>
+</div>
 
                                         {/* Wishlist heart — top right */}
                                         <WishlistButton
@@ -241,26 +260,20 @@ export default function NewArrivals() {
                                             className="absolute top-2 right-2 z-10"
                                         />
 
-                                        {/* Stock status — bottom left */}
+                                        {/* Stock status — bottom left, solid bg */}
                                         <span
-                                            className={`absolute bottom-2 left-2 z-10 text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
-                                                ? 'bg-emerald-100 text-emerald-800'
-                                                : product.stockStatus === 'Low Stock'
-                                                    ? 'bg-amber-100 text-amber-800'
-                                                    : 'bg-red-100 text-red-800'
-                                                }`}
+                                            className={`absolute bottom-2 left-2 z-10 text-[12px] font-semibold px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
                                         >
-                                            {product.stockStatus}
+                                            {stock.label}
                                         </span>
                                     </div>
 
-                                    {/* Details */}
-                                    <div className="p-3 pb-2">
-                                        <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                                    <div className="p-2 pb-2">
+                                        <p className="text-[12px] font-semibold text-slate-500 uppercase mb-1">
                                             {product.brand}
                                         </p>
 
-                                        <h3 className="text-xs font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mb-1">
+                                        <h3 className="text-sm font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mb-1">
                                             {product.name}
                                         </h3>
 
@@ -270,7 +283,7 @@ export default function NewArrivals() {
                                                 <span className="text-xs font-medium text-slate-800">
                                                     {toNum(product.rating).toFixed(1)}
                                                 </span>
-                                                <span className="text-[11px] text-slate-500">
+                                                <span className="text-[12px] text-slate-500">
                                                     ({product.reviewCount})
                                                 </span>
                                             </div>
@@ -278,14 +291,13 @@ export default function NewArrivals() {
                                     </div>
                                 </div>
 
-                                {/* Price + Button */}
-                                <div className="p-4 pt-0 mt-auto">
+                                <div className="p-3 pt-0 mt-auto">
                                     <div className="flex items-baseline space-x-2 mb-3">
                                         <span className="text-sm font-bold text-slate-900">
                                             {formatKES(price)}
                                         </span>
                                         {comparePrice !== null && (
-                                            <span className="text-[11px] text-slate-500 line-through">
+                                            <span className="text-[12px] text-slate-500 line-through">
                                                 {formatKES(comparePrice)}
                                             </span>
                                         )}
@@ -294,15 +306,12 @@ export default function NewArrivals() {
                                     <button
                                         type="button"
                                         onClick={(e) => handleAddToCart(product, e)}
-                                        disabled={
-                                            isAdding ||
-                                            product.stockStatus === 'Out of Stock'
-                                        }
+                                        disabled={isAdding || isOutOfStock}
                                         className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-sm transition duration-150 ease-in-out disabled:opacity-50 flex items-center justify-center space-x-1.5"
                                     >
                                         {isAdding ? (
                                             <span>Adding...</span>
-                                        ) : product.stockStatus === 'Out of Stock' ? (
+                                        ) : isOutOfStock ? (
                                             <span>Sold Out</span>
                                         ) : (
                                             <>

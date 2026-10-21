@@ -39,14 +39,7 @@ import type {
   AdminCustomerFilters,
 } from '@/lib/admin-types';
 
-// ═════════════════════════════════════════════════════════════════════════════
-// WHATSAPP ICON
-//
-// Official WhatsApp glyph. Rendered inline so it inherits `currentColor`
-// and can be sized via the `className` prop just like a Lucide icon.
-// Used in the header button and in every channel badge where a
-// communication log entry has `channel === 'WhatsApp'`.
-// ═════════════════════════════════════════════════════════════════════════════
+
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -61,9 +54,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// CONSTANTS
-// ═════════════════════════════════════════════════════════════════════════════
+
 const SEGMENTS: AdminCustomerSegment[] = [
   'VIP', 'Loyal', 'New', 'At Risk', 'Churned', 'Regular',
 ];
@@ -214,7 +205,7 @@ function CustomersListPage({
   return (
     <>
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button
@@ -253,7 +244,7 @@ function CustomersListPage({
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -331,7 +322,7 @@ function CustomersListPage({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -371,7 +362,7 @@ function CustomersListPage({
         </div>
 
         {selectedIds.length > 0 && (
-          <div className="bg-blue-950 text-white rounded-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="bg-blue-950 text-white rounded-sm px-2 py-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[13px] font-medium">
               {selectedIds.length} selected
             </span>
@@ -407,14 +398,14 @@ function CustomersListPage({
                       className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                     />
                   </th>
-                  <th className="py-2 px-3 font-medium">Customer</th>
-                  <th className="py-2 px-3 font-medium">Contact</th>
-                  <th className="py-2 px-3 font-medium">Segment</th>
-                  <th className="py-2 px-3 font-medium text-center">Orders</th>
-                  <th className="py-2 px-3 font-medium text-right">Spent</th>
-                  <th className="py-2 px-3 font-medium">Last order</th>
-                  <th className="py-2 px-3 font-medium">Status</th>
-                  <th className="py-2 px-3 w-12"></th>
+                  <th className="py-2 px-2 font-medium">Customer</th>
+                  <th className="py-2 px-2 font-medium">Contact</th>
+                  <th className="py-2 px-2 font-medium">Segment</th>
+                  <th className="py-2 px-2 font-medium text-center">Orders</th>
+                  <th className="py-2 px-2 font-medium text-right">Spent</th>
+                  <th className="py-2 px-2 font-medium">Last order</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                  <th className="py-2 px-2 w-12"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -441,7 +432,7 @@ function CustomersListPage({
                         className={`hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/50' : ''
                           }`}
                       >
-                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -449,7 +440,7 @@ function CustomersListPage({
                             className="rounded border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                           />
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <div className="flex items-center gap-2">
                             <span className="w-8 h-8 rounded-full bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0 text-[12px] font-semibold">
                               {c.name.slice(0, 1).toUpperCase()}
@@ -464,7 +455,7 @@ function CustomersListPage({
                             </div>
                           </div>
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <p className="text-slate-600 truncate max-w-[180px]">
                             {c.email}
                           </p>
@@ -472,7 +463,7 @@ function CustomersListPage({
                             {c.phone || '—'}
                           </p>
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${segmentBadge(
                               c.segment,
@@ -481,16 +472,16 @@ function CustomersListPage({
                             {c.segment}
                           </span>
                         </td>
-                        <td className="py-2 px-3 text-center text-slate-700">
+                        <td className="py-2 px-2 text-center text-slate-700">
                           {c.ordersCount}
                         </td>
-                        <td className="py-2 px-3 text-right font-medium text-slate-900">
+                        <td className="py-2 px-2 text-right font-medium text-slate-900">
                           {c.totalSpent.toLocaleString()}
                         </td>
-                        <td className="py-2 px-3 font-mono text-slate-400">
+                        <td className="py-2 px-2 font-mono text-slate-400">
                           {c.lastOrderDate || '—'}
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${c.status === 'Active'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
@@ -500,7 +491,7 @@ function CustomersListPage({
                             {c.status}
                           </span>
                         </td>
-                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => onSelectCustomer(c.id)}
                             className="p-1.5 rounded-sm bg-slate-100 hover:bg-blue-950 hover:text-white text-slate-700 transition"
@@ -740,8 +731,8 @@ function CustomerDetailPage({
 
   if (error || !customer) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-3">
-        <div className="bg-white border border-slate-200 rounded-sm p-6 max-w-md w-full text-center space-y-3">
+      <div className="min-h-screen flex items-center justify-center p-2">
+        <div className="bg-white border border-slate-200 rounded-sm p-6 max-w-md w-full text-center space-y-2">
           <div className="w-12 h-12 bg-red-50 text-red-600 rounded-sm flex items-center justify-center mx-auto">
             <AlertCircle className="w-6 h-6" />
           </div>
@@ -833,7 +824,7 @@ function CustomerDetailPage({
   return (
     <>
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button
@@ -846,7 +837,7 @@ function CustomerDetailPage({
       )}
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-2 flex-wrap">
+        <div className="max-w-[1700px] mx-auto px-2 py-3 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={onBack}
@@ -915,7 +906,7 @@ function CustomerDetailPage({
           </div>
         </div>
 
-        <div className="max-w-[1600px] mx-auto px-3 pb-2 flex items-center gap-1 overflow-x-auto border-t border-slate-100 pt-2">
+        <div className="max-w-[1700px] mx-auto px-2 pb-2 flex items-center gap-1 overflow-x-auto border-t border-slate-100 pt-2">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -941,7 +932,7 @@ function CustomerDetailPage({
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-3">
         {/* OVERVIEW */}
         {activeTab === 'Overview' && (
           <div className="space-y-3">
@@ -1114,35 +1105,35 @@ function CustomerDetailPage({
                 <table className="w-full text-left border-collapse text-[13px]">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                      <th className="py-2 px-3 font-medium">Order #</th>
-                      <th className="py-2 px-3 font-medium">Date</th>
-                      <th className="py-2 px-3 font-medium text-center">Items</th>
-                      <th className="py-2 px-3 font-medium text-right">Total</th>
-                      <th className="py-2 px-3 font-medium">Payment</th>
-                      <th className="py-2 px-3 font-medium">Status</th>
+                      <th className="py-2 px-2 font-medium">Order #</th>
+                      <th className="py-2 px-2 font-medium">Date</th>
+                      <th className="py-2 px-2 font-medium text-center">Items</th>
+                      <th className="py-2 px-2 font-medium text-right">Total</th>
+                      <th className="py-2 px-2 font-medium">Payment</th>
+                      <th className="py-2 px-2 font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {customer.orders.slice(0, 3).map((ord) => (
                       <tr key={ord.id} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                        <td className="py-2 px-2 font-mono font-medium text-blue-950">
                           {ord.orderNumber}
                         </td>
-                        <td className="py-2 px-3 font-mono text-slate-400">
+                        <td className="py-2 px-2 font-mono text-slate-400">
                           {ord.date}
                         </td>
-                        <td className="py-2 px-3 text-center text-slate-700">
+                        <td className="py-2 px-2 text-center text-slate-700">
                           {ord.itemsCount}
                         </td>
-                        <td className="py-2 px-3 text-right font-medium text-slate-900">
+                        <td className="py-2 px-2 text-right font-medium text-slate-900">
                           {ord.total.toLocaleString()}
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                             {ord.paymentMethod}
                           </span>
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-blue-50 text-blue-950 border border-blue-100">
                             {ord.status}
                           </span>
@@ -1166,7 +1157,7 @@ function CustomerDetailPage({
         {/* ORDERS */}
         {activeTab === 'Orders' && (
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-200">
+            <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Order history · {customer.orders.length}
               </p>
@@ -1175,33 +1166,33 @@ function CustomerDetailPage({
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                    <th className="py-2 px-3 font-medium">Order #</th>
-                    <th className="py-2 px-3 font-medium">Date</th>
-                    <th className="py-2 px-3 font-medium text-center">Items</th>
-                    <th className="py-2 px-3 font-medium text-right">Total</th>
-                    <th className="py-2 px-3 font-medium">Payment</th>
-                    <th className="py-2 px-3 font-medium">Fulfillment</th>
+                    <th className="py-2 px-2 font-medium">Order #</th>
+                    <th className="py-2 px-2 font-medium">Date</th>
+                    <th className="py-2 px-2 font-medium text-center">Items</th>
+                    <th className="py-2 px-2 font-medium text-right">Total</th>
+                    <th className="py-2 px-2 font-medium">Payment</th>
+                    <th className="py-2 px-2 font-medium">Fulfillment</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {customer.orders.map((ord) => (
                     <tr key={ord.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-3 font-mono font-medium text-blue-950">
+                      <td className="py-2 px-2 font-mono font-medium text-blue-950">
                         {ord.orderNumber}
                       </td>
-                      <td className="py-2 px-3 font-mono text-slate-400">{ord.date}</td>
-                      <td className="py-2 px-3 text-center text-slate-700">
+                      <td className="py-2 px-2 font-mono text-slate-400">{ord.date}</td>
+                      <td className="py-2 px-2 text-center text-slate-700">
                         {ord.itemsCount}
                       </td>
-                      <td className="py-2 px-3 text-right font-medium text-slate-900">
+                      <td className="py-2 px-2 text-right font-medium text-slate-900">
                         {ord.total.toLocaleString()}
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-2">
                         <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                           {ord.paymentMethod}
                         </span>
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-2">
                         <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-blue-50 text-blue-950 border border-blue-100">
                           {ord.status}
                         </span>
@@ -1216,9 +1207,9 @@ function CustomerDetailPage({
 
         {/* WISHLIST & CART */}
         {activeTab === 'Wishlist & Cart' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             <div className="bg-white border border-slate-200 rounded-sm">
-              <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
+              <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Heart className="w-3.5 h-3.5 text-red-500" />
                   <p className="text-[13px] font-semibold text-slate-900">
@@ -1264,7 +1255,7 @@ function CustomerDetailPage({
             </div>
 
             <div className="bg-white border border-slate-200 rounded-sm">
-              <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
+              <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <ShoppingCart className="w-3.5 h-3.5 text-blue-950" />
                   <p className="text-[13px] font-semibold text-slate-900">
@@ -1314,7 +1305,7 @@ function CustomerDetailPage({
         {/* REVIEWS */}
         {activeTab === 'Reviews' && (
           <div className="bg-white border border-slate-200 rounded-sm">
-            <div className="px-3 py-2 border-b border-slate-200">
+            <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Product reviews · {customer.reviews.length}
               </p>
@@ -1377,7 +1368,7 @@ function CustomerDetailPage({
         {/* SUPPORT TICKETS */}
         {activeTab === 'Support Tickets' && (
           <div className="bg-white border border-slate-200 rounded-sm">
-            <div className="px-3 py-2 border-b border-slate-200">
+            <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Support tickets · {customer.supportTickets.length}
               </p>
@@ -1386,11 +1377,11 @@ function CustomerDetailPage({
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                    <th className="py-2 px-3 font-medium">Subject</th>
-                    <th className="py-2 px-3 font-medium">Priority</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                    <th className="py-2 px-3 font-medium">Opened</th>
-                    <th className="py-2 px-3 font-medium">Last update</th>
+                    <th className="py-2 px-2 font-medium">Subject</th>
+                    <th className="py-2 px-2 font-medium">Priority</th>
+                    <th className="py-2 px-2 font-medium">Status</th>
+                    <th className="py-2 px-2 font-medium">Opened</th>
+                    <th className="py-2 px-2 font-medium">Last update</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1403,10 +1394,10 @@ function CustomerDetailPage({
                   ) : (
                     customer.supportTickets.map((t) => (
                       <tr key={t.id} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-medium text-slate-900">
+                        <td className="py-2 px-2 font-medium text-slate-900">
                           {t.subject}
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${priorityBadge(
                               t.priority,
@@ -1415,7 +1406,7 @@ function CustomerDetailPage({
                             {t.priority}
                           </span>
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-2">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${ticketStatusBadge(
                               t.status,
@@ -1424,8 +1415,8 @@ function CustomerDetailPage({
                             {t.status}
                           </span>
                         </td>
-                        <td className="py-2 px-3 font-mono text-slate-400">{t.date}</td>
-                        <td className="py-2 px-3 font-mono text-slate-400">
+                        <td className="py-2 px-2 font-mono text-slate-400">{t.date}</td>
+                        <td className="py-2 px-2 font-mono text-slate-400">
                           {t.lastUpdate}
                         </td>
                       </tr>
@@ -1440,7 +1431,7 @@ function CustomerDetailPage({
         {/* COMMUNICATION */}
         {activeTab === 'Communication' && (
           <div className="bg-white border border-slate-200 rounded-sm">
-            <div className="px-3 py-2 border-b border-slate-200">
+            <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Communication history · {customer.communicationLog.length}
               </p>
@@ -1496,7 +1487,7 @@ function CustomerDetailPage({
 
         {/* ADDRESSES */}
         {activeTab === 'Addresses' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {customer.addresses.length === 0 ? (
                 <p className="text-[13px] text-slate-400 italic py-6 col-span-full text-center">
@@ -1605,7 +1596,7 @@ function CustomerDetailPage({
 
         {/* NOTES */}
         {activeTab === 'Notes' && (
-          <div className="max-w-2xl space-y-3">
+          <div className="max-w-2xl space-y-2">
             <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 text-[13px]">
               <p className="font-semibold text-slate-900">Internal notes</p>
 
@@ -1659,11 +1650,11 @@ function CustomerDetailPage({
       {/* WHATSAPP MODAL */}
       {whatsAppOpen && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
           onClick={() => setWhatsAppOpen(false)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl space-y-3 text-[13px]"
+            className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl space-y-2 text-[13px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -1729,11 +1720,11 @@ function CustomerDetailPage({
       {/* EMAIL MODAL */}
       {emailOpen && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
           onClick={() => setEmailOpen(false)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl space-y-3 text-[13px]"
+            className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-2 shadow-xl space-y-2 text-[13px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -1794,11 +1785,11 @@ function CustomerDetailPage({
       {/* BLOCK CONFIRM */}
       {blockConfirmOpen && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
           onClick={() => setBlockConfirmOpen(false)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl text-center space-y-3 text-[13px]"
+            className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-2 shadow-xl text-center space-y-2 text-[13px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div

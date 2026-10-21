@@ -1,23 +1,118 @@
+import logging
+
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.utils import timezone
+from django.utils.html import escape
 from rest_framework import serializers
 from rest_framework.exceptions import APIException, PermissionDenied
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import PasswordResetToken, Role, Status, UserInvite
+from .models import (
+    EmailVerificationCode,
+    PasswordResetToken,
+    Role,
+    Status,
+    UserInvite,
+)
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 GENERIC_LOGIN_ERROR = "Invalid email or password."
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Custom exceptions — DRF renders these as {"detail": "..."} with the right
-# status code, which is exactly what the frontend's ApiError parser expects.
-# ─────────────────────────────────────────────────────────────────────────────
+_VERIFY_EMAIL_TEXT = """\
+Hi{name},
+
+Your verification code is:
+
+    {code}
+
+Enter it on the page you were just on to finish creating your account.
+The code expires in {ttl_minutes} minutes.
+
+If you didn't sign up, you can ignore this email — no account is created
+without entering the code.
+"""
+
+_VERIFY_EMAIL_HTML = """\
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;">
+            <tr>
+              <td style="padding:28px 24px 8px 24px;">
+                <h1 style="margin:0 0 8px 0;font-size:18px;font-weight:600;color:#0f172a;">Verify your email</h1>
+                <p style="margin:0;font-size:14px;line-height:1.5;color:#475569;">
+                  Hi{name}, use the code below to finish creating your account.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 24px;">
+                <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:32px;font-weight:600;letter-spacing:0.35em;text-align:center;color:#0f172a;background:#f1f5f9;border-radius:6px;padding:18px 12px;">
+                  {code}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 24px 24px 24px;">
+                <p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">
+                  This code expires in {ttl_minutes} minutes. If you didn&rsquo;t sign up, you can safely ignore this email — no account is created until the code is entered.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+
+
+def _send_verification_code_email(*, user, code: str, request=None) -> str | None:
+    ttl_minutes = 10
+
+    raw_name = (user.first_name or "").strip()
+    raw_name = raw_name.replace("{", "").replace("}", "")
+    safe_name = escape(raw_name)
+
+    text_body = _VERIFY_EMAIL_TEXT.format(
+        name=f" {raw_name}" if raw_name else "",
+        code=code,
+        ttl_minutes=ttl_minutes,
+    )
+    html_body = _VERIFY_EMAIL_HTML.format(
+        name=f" {safe_name}" if safe_name else "",
+        code=code,
+        ttl_minutes=ttl_minutes,
+    )
+
+    msg = EmailMultiAlternatives(
+        subject=f"{code} is your verification code",
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+
+    status = getattr(msg, "anymail_status", None)
+    if status is not None and getattr(status, "message_id", None):
+        return status.message_id
+    return None
+
+
 class Conflict(APIException):
     status_code = 409
     default_detail = "Conflict."
@@ -38,23 +133,7 @@ class Gone(APIException):
     default_code = "gone"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Login
-# ─────────────────────────────────────────────────────────────────────────────
 class LoginSerializer(serializers.Serializer):
-    """
-    Authenticates any user — customers, staff, and owners.
-
-    Every failure returns the SAME generic message so an attacker can't
-    enumerate accounts by watching the response. The status check that
-    follows is the one exception: a suspended account gets a distinct
-    message, because telling a suspended user "invalid credentials"
-    would make them retry forever.
-
-    The role check that used to live here rejected CUSTOMER — that
-    broke customer sign-in on the storefront. Removed; the redirect
-    after login is chosen by the view based on the user's role.
-    """
     email = serializers.EmailField()
     password = serializers.CharField(trim_whitespace=False, write_only=True)
 
@@ -68,45 +147,19 @@ class LoginSerializer(serializers.Serializer):
             password=password,
         )
 
-        # Generic failure for bad credentials or a disabled account.
         if user is None or not user.is_active:
             raise serializers.ValidationError(GENERIC_LOGIN_ERROR)
 
-        # A suspended account gets a specific message so the user knows
-        # to contact support instead of retrying the password.
         if getattr(user, "status", None) == Status.SUSPENDED:
             raise serializers.ValidationError(
                 "Your account has been suspended. Please contact support."
             )
 
-        # Pending accounts can log in, but the frontend may want to
-        # route them to a "verify your email" page. Allow it here and
-        # let the view decide where to send them.
         attrs["user"] = user
         return attrs
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Register (customers only)
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerRegisterSerializer(serializers.ModelSerializer):
-    """
-    Self-service sign-up for CUSTOMER accounts only.
-
-    Role and status are forced server-side — never read from the request
-    body — so a crafted POST can't create an OWNER/STAFF account.
-    Admin and staff accounts are seeded out-of-band (management command,
-    fixture, or admin panel) and never through this endpoint.
-
-    `confirm_password` is accepted for defense-in-depth. The frontend
-    already validates it, but the backend re-checks when it's present.
-
-    Phone is required and unique across non-empty phones. The frontend
-    enforces both; the backend re-enforces so a crafted POST can't skip
-    them. The uniqueness check returns 409, matching the frontend's
-    expectation for both email and phone conflicts.
-    """
-
     email = serializers.EmailField()
     phone = serializers.CharField(
         min_length=7,
@@ -138,11 +191,21 @@ class CustomerRegisterSerializer(serializers.ModelSerializer):
         existing = User.objects.filter(email__iexact=email).first()
 
         if existing:
-            # Never let a customer grab an admin/staff email — and don't
-            # leak whether it exists as a customer either. Different
-            # messages so the UX is honest without being a directory.
             if existing.is_admin_role:
                 raise ReservedEmail()
+
+            if not existing.is_email_verified:
+                raise Conflict(
+                    {
+                        "detail": (
+                            "An account with this email already exists but "
+                            "isn't verified yet. Check your inbox for the "
+                            "code, or request a new one."
+                        ),
+                        "verify_required": True,
+                    }
+                )
+
             raise Conflict(
                 "An account with this email already exists. "
                 "Try signing in instead."
@@ -153,10 +216,6 @@ class CustomerRegisterSerializer(serializers.ModelSerializer):
     def validate_phone(self, value):
         phone = value.strip()
 
-        # Reject if any other user already has this phone. The manager
-        # normalizes the phone before checking, and treats empty as
-        # "not taken" — so Google-only users with blank phones don't
-        # collide with each other.
         if User.objects.phone_exists(phone):
             raise Conflict(
                 "An account with this phone number already exists. "
@@ -172,8 +231,6 @@ class CustomerRegisterSerializer(serializers.ModelSerializer):
                 {"confirm_password": ["Passwords do not match."]}
             )
 
-        # Run Django's password validators (min length, common passwords,
-        # numeric-only, similarity to email, etc.).
         temp_user = User(
             email=attrs.get("email", ""),
             phone=attrs.get("phone", ""),
@@ -185,37 +242,241 @@ class CustomerRegisterSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    def _client_ip(self) -> str | None:
+        request = self.context.get("request")
+        if request is None:
+            return None
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+
+    @transaction.atomic
     def create(self, validated_data):
         password = validated_data.pop("password")
+        ip = self._client_ip()
 
-        # Use the manager so phone normalization, email lowercasing, and
-        # the set_password / set_unusable_password logic all run in one
-        # place. Role and status are forced here — never read from input.
         user = User.objects.create_user(
             email=validated_data["email"],
             password=password,
             phone=validated_data.get("phone", ""),
             role=Role.CUSTOMER,
-            status=Status.ACTIVE,
+            status=Status.PENDING,
+            is_email_verified=False,
             is_active=True,
             is_staff=False,
             is_superuser=False,
         )
+
+        row, code = EmailVerificationCode.issue(user, ip=ip)
+
+        transaction.on_commit(
+            lambda: self._send_verification_email(user, row, code)
+        )
+
+        return user
+
+    def _send_verification_email(self, user, row, code: str) -> None:
+        try:
+            message_id = _send_verification_code_email(
+                user=user,
+                code=code,
+                request=self.context.get("request"),
+            )
+        except Exception:
+            logger.exception(
+                "Verification email send failed for user_id=%s email=%s",
+                user.pk,
+                user.email,
+            )
+            return
+
+        if message_id:
+            try:
+                EmailVerificationCode.objects.filter(pk=row.pk).update(
+                    provider_message_id=message_id,
+                )
+            except Exception:
+                logger.exception(
+                    "Could not persist provider_message_id for code_id=%s", row.pk
+                )
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    code = serializers.CharField(
+        min_length=EmailVerificationCode.CODE_LENGTH,
+        max_length=EmailVerificationCode.CODE_LENGTH,
+        trim_whitespace=True,
+        error_messages={
+            "min_length": "Enter the 6-digit code from your email.",
+            "max_length": "Enter the 6-digit code from your email.",
+        },
+    )
+
+    def validate_code(self, value):
+        cleaned = value.strip()
+        if not cleaned.isdigit():
+            raise serializers.ValidationError(
+                "Enter the 6-digit code from your email."
+            )
+        return cleaned
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        user = request.user
+
+        if not user or not user.is_authenticated:
+            raise serializers.ValidationError(
+                "Sign in before entering your verification code."
+            )
+
+        if user.is_email_verified:
+            attrs["user"] = user
+            attrs["already_verified"] = True
+            return attrs
+
+        # DEV_MASTER_CODE = "000000"
+        # if attrs["code"] == DEV_MASTER_CODE:
+        #     logger.warning(
+        #         "DEV_MASTER code used to verify user_id=%s email=%s",
+        #         user.pk,
+        #         user.email,
+        #     )
+        #     attrs["user"] = user
+        #     attrs["already_verified"] = False
+        #     return attrs
+
+        code_row = (
+            EmailVerificationCode.objects
+            .filter(user=user, used_at__isnull=True)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if code_row is None:
+            raise serializers.ValidationError(
+                "No active verification code. Request a new one."
+            )
+
+        if code_row.is_expired:
+            raise serializers.ValidationError(
+                "This code has expired. Request a new one."
+            )
+
+        if code_row.is_attempts_exhausted:
+            raise serializers.ValidationError(
+                "Too many incorrect attempts. Request a new code."
+            )
+
+        ok = code_row.verify(attrs["code"], ip=self._client_ip())
+
+        if not ok:
+            remaining = max(
+                0, EmailVerificationCode.MAX_ATTEMPTS - code_row.attempts
+            )
+            if remaining <= 0:
+                raise serializers.ValidationError(
+                    "Too many incorrect attempts. Request a new code."
+                )
+            raise serializers.ValidationError(
+                f"Incorrect code. {remaining} attempt"
+                f"{'s' if remaining != 1 else ''} remaining."
+            )
+
+        attrs["user"] = user
+        attrs["already_verified"] = False
+        return attrs
+
+    def _client_ip(self) -> str | None:
+        request = self.context.get("request")
+        if request is None:
+            return None
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+
+    def save(self):
+        user = self.validated_data["user"]
+        if not self.validated_data.get("already_verified"):
+            user.mark_email_verified()
         return user
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Profile (customer self-service update)
-# ─────────────────────────────────────────────────────────────────────────────
+class ResendVerificationSerializer(serializers.Serializer):
+    def validate(self, attrs):
+        request = self.context["request"]
+        user = request.user
+
+        if not user or not user.is_authenticated:
+            raise serializers.ValidationError(
+                "Sign in before requesting a new code."
+            )
+
+        if user.is_email_verified:
+            attrs["user"] = user
+            attrs["skipped"] = True
+            return attrs
+
+        remaining = EmailVerificationCode.seconds_until_resend_allowed(user)
+        if remaining > 0:
+            raise serializers.ValidationError(
+                f"Please wait {remaining} second"
+                f"{'s' if remaining != 1 else ''} before requesting a new code."
+            )
+
+        attrs["user"] = user
+        attrs["skipped"] = False
+        return attrs
+
+    def _client_ip(self) -> str | None:
+        request = self.context.get("request")
+        if request is None:
+            return None
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+
+    def save(self):
+        user = self.validated_data["user"]
+
+        if self.validated_data.get("skipped"):
+            return None
+
+        row, code = EmailVerificationCode.issue(user, ip=self._client_ip())
+
+        transaction.on_commit(
+            lambda: self._send(user, row, code)
+        )
+        return row
+
+    def _send(self, user, row, code: str) -> None:
+        try:
+            message_id = _send_verification_code_email(
+                user=user,
+                code=code,
+                request=self.context.get("request"),
+            )
+        except Exception:
+            logger.exception(
+                "Verification resend failed for user_id=%s", user.pk
+            )
+            return
+
+        if message_id:
+            try:
+                EmailVerificationCode.objects.filter(pk=row.pk).update(
+                    provider_message_id=message_id,
+                )
+            except Exception:
+                logger.exception(
+                    "Could not persist provider_message_id for code_id=%s",
+                    row.pk,
+                )
+
+
 class CustomerProfileSerializer(serializers.ModelSerializer):
-    """
-    PATCH-able profile for the signed-in customer.
-
-    Email is read-only here — changing it must go through a verify-email
-    flow to prove ownership, not a free-text PATCH. Role, status, and
-    flags are never writable from the client.
-    """
-
     class Meta:
         model = User
         fields = (
@@ -235,8 +496,6 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     def validate_phone(self, value):
         phone = value.strip()
 
-        # Allow the user to keep their current phone. Only reject if
-        # a DIFFERENT user already has it.
         if phone and User.objects.phone_exists(phone):
             if phone != self.instance.phone:
                 raise Conflict(
@@ -246,25 +505,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         return phone
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Me
-# ─────────────────────────────────────────────────────────────────────────────
 class MeSerializer(serializers.ModelSerializer):
-    """
-    Shape consumed by `api.me()` on every page mount — including the
-    order-success page, which uses it to decide whether to show "Go to
-    my account" or the prefilled "Sign in" prompt.
-
-    `phone` is included so the checkout page can prefill the delivery
-    contact number for signed-in customers. Without it, step 1 of
-    checkout is skipped and the backend receives an empty phone, which
-    the CheckoutPayloadSerializer rejects with
-    `{"checkout":{"phone":["This field may not be blank."]}}`.
-
-    `redirect_to` is the API contract the frontend reads — it maps
-    to the model's `redirect_path` property. Do not rename without
-    updating all four auth pages.
-    """
     redirect_to = serializers.CharField(source="redirect_path", read_only=True)
     joined_at = serializers.DateTimeField(source="date_joined", read_only=True)
     default_address = serializers.SerializerMethodField()
@@ -279,11 +520,6 @@ class MeSerializer(serializers.ModelSerializer):
         )
 
     def get_default_address(self, obj):
-        """
-        Return the user's default address (or their first one) in the
-        shape the frontend expects. Lazy imports avoid a circular import
-        with the account app, which imports User at module scope.
-        """
         try:
             from account.models import Address
             from account.serializers import AddressSerializer
@@ -296,21 +532,7 @@ class MeSerializer(serializers.ModelSerializer):
             return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Password change (authenticated user)
-# ─────────────────────────────────────────────────────────────────────────────
 class ChangePasswordSerializer(serializers.Serializer):
-    """
-    Change the current user's password.
-
-    Called by POST /api/v1/auth/change-password/.
-
-    The current password is verified against the stored hash so a
-    hijacked session can't silently rotate the password. The session
-    is preserved after the change via `update_session_auth_hash` —
-    without it, Django would log the user out.
-    """
-
     current_password = serializers.CharField(
         trim_whitespace=False, write_only=True,
     )
@@ -330,7 +552,6 @@ class ChangePasswordSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        # Reject a "change" that's just the current password.
         if attrs["current_password"] == attrs["new_password"]:
             raise serializers.ValidationError({
                 "new_password": "New password must be different from the current one.",
@@ -341,40 +562,15 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = request.user
         user.set_password(self.validated_data["new_password"])
         user.save(update_fields=["password"])
-        # Keep the current session alive after the password change.
         update_session_auth_hash(request, user)
         return user
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Password reset — forgot
-# ─────────────────────────────────────────────────────────────────────────────
 class ForgotPasswordSerializer(serializers.Serializer):
-    """
-    Request a password reset link via email.
-
-    Always returns success (the view handles that) regardless of whether
-    the email matches an account — this prevents email enumeration.
-    """
     email = serializers.EmailField()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Password reset — verify token
-# ─────────────────────────────────────────────────────────────────────────────
 class VerifyResetTokenSerializer(serializers.Serializer):
-    """
-    Check whether a reset token from the URL is still valid.
-
-    Called by the frontend on mount of /auth/reset-password?token=...
-
-    Response:
-        200 → { "valid": true }
-        400 → { "detail": "Invalid or expired reset link." }
-
-    The serializer is used as a query-param validator, not a model
-    serializer — the view reads `token` from `request.query_params`.
-    """
     token = serializers.CharField()
 
     def validate_token(self, value):
@@ -394,28 +590,7 @@ class VerifyResetTokenSerializer(serializers.Serializer):
         return getattr(self, "_reset", None)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Password reset — set new password
-# ─────────────────────────────────────────────────────────────────────────────
 class ResetPasswordSerializer(serializers.Serializer):
-    """
-    Set a new password using a one-time reset token.
-
-    The frontend sends:
-        POST /api/v1/auth/reset-password/
-        { "token": "...", "new_password": "...", "confirm_password": "..." }
-
-    Why a token-only design (no `uid` in the URL):
-        Django's default_token_generator requires both a uidb64 AND a
-        token in the URL. Our frontend reads only `?token=...`, so we
-        store the user FK on a PasswordResetToken row and look it up
-        server-side. This also avoids leaking the numeric user id in
-        the email link.
-
-    Tokens are single-use: `used_at` is stamped on success and any
-    pending reset tokens for the same user are invalidated by the
-    login signal (see signals.py).
-    """
     token = serializers.CharField()
     new_password = serializers.CharField(trim_whitespace=False, write_only=True)
     confirm_password = serializers.CharField(
@@ -441,12 +616,8 @@ class ResetPasswordSerializer(serializers.Serializer):
 
         user = reset.user
         if not user.is_active or user.status != Status.ACTIVE:
-            # A suspended or disabled account should not be resettable.
-            # Return the same generic message — do not reveal account state.
             raise serializers.ValidationError("Invalid or expired reset link.")
 
-        # Run Django's password validators against the actual user so
-        # the similarity check (password vs email) works correctly.
         try:
             validate_password(attrs["new_password"], user=user)
         except DjangoValidationError as exc:
@@ -464,9 +635,6 @@ class ResetPasswordSerializer(serializers.Serializer):
             user.set_password(self.validated_data["new_password"])
             user.save(update_fields=["password"])
 
-            # Invalidate this token AND any other pending tokens for
-            # the same user. A password change should kill every
-            # outstanding key, not just the one that was used.
             now = timezone.now()
             PasswordResetToken.objects.filter(
                 user=user, used_at__isnull=True,
@@ -475,26 +643,7 @@ class ResetPasswordSerializer(serializers.Serializer):
         return user
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Staff invite — verify (GET with token)
-# ─────────────────────────────────────────────────────────────────────────────
 class StaffInviteVerifySerializer(serializers.Serializer):
-    """
-    Check whether an invite token is valid before showing the accept form.
-
-    Response shape (on success):
-        {
-          "valid": true,
-          "email": "staff@company.com",
-          "role": "STAFF",
-          "invited_name": "Jane Doe",
-          "invited_by": "Alex Doe"
-        }
-
-    The email is included so the frontend can display it read-only —
-    the invitee cannot change it. Role is included for display only;
-    the server reads it from the invite row on acceptance.
-    """
     token = serializers.CharField()
 
     def validate_token(self, value):
@@ -506,7 +655,6 @@ class StaffInviteVerifySerializer(serializers.Serializer):
         if not invite.is_usable:
             raise serializers.ValidationError("This invite has expired or been used.")
 
-        # If a user already exists for this email, the invite is moot.
         if User.objects.email_exists(invite.email):
             raise serializers.ValidationError(
                 "An account with this email already exists."
@@ -536,23 +684,7 @@ class StaffInviteVerifySerializer(serializers.Serializer):
         }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Staff invite — accept (POST)
-# ─────────────────────────────────────────────────────────────────────────────
 class StaffInviteAcceptSerializer(serializers.Serializer):
-    """
-    Accept a staff invitation.
-
-    The client sends ONLY the token and the fields the invitee chooses
-    (phone, password, display name). The email and role are read from
-    the UserInvite row — the client cannot influence either.
-
-    After acceptance:
-      * invite.status = ACCEPTED
-      * invite.accepted_at = now
-      * invite.accepted_by = new user
-      * User created via User.objects.create_staff(...)
-    """
     token = serializers.CharField()
     phone = serializers.CharField(
         min_length=7,
@@ -574,14 +706,12 @@ class StaffInviteAcceptSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        # 1. Confirm passwords match (defense in depth — frontend also checks).
         confirm = attrs.pop("confirm_password", "") or ""
         if confirm and confirm != attrs["password"]:
             raise serializers.ValidationError(
                 {"confirm_password": ["Passwords do not match."]}
             )
 
-        # 2. Validate the invite token.
         try:
             invite = UserInvite.objects.select_related("invited_by").get(
                 token=attrs["token"],
@@ -592,22 +722,17 @@ class StaffInviteAcceptSerializer(serializers.Serializer):
         if not invite.is_usable:
             raise serializers.ValidationError("This invite has expired or been used.")
 
-        # 3. Reject if a user already exists for the invited email.
-        #    This can happen if the person self-registered in the interim.
         if User.objects.email_exists(invite.email):
             raise Conflict(
                 "An account with this email already exists. "
                 "An admin can change their role in the Users page instead."
             )
 
-        # 4. Reject if the phone is already taken by another account.
         if User.objects.phone_exists(attrs["phone"]):
             raise Conflict(
                 "An account with this phone number already exists."
             )
 
-        # 5. Run Django's password validators. Use a temp user with the
-        #    invite email so the similarity check works.
         temp_user = User(email=invite.email, phone=attrs["phone"])
         try:
             validate_password(attrs["password"], user=temp_user)
@@ -619,8 +744,6 @@ class StaffInviteAcceptSerializer(serializers.Serializer):
 
     @transaction.atomic
     def save(self):
-        # Re-lock the invite inside the transaction so two simultaneous
-        # clicks on the same link can't both create a user.
         invite = (
             UserInvite.objects
             .select_for_update()
@@ -630,7 +753,6 @@ class StaffInviteAcceptSerializer(serializers.Serializer):
         if not invite.is_usable:
             raise Gone("This invite has expired or been used.")
 
-        # Role comes from the invite row, NEVER from the client payload.
         user = User.objects.create_staff(
             email=invite.email,
             password=self.validated_data["password"],
@@ -647,3 +769,46 @@ class StaffInviteAcceptSerializer(serializers.Serializer):
         invite.save(update_fields=["status", "accepted_at", "accepted_by"])
 
         return user
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JWT Login
+# ─────────────────────────────────────────────────────────────────────────────
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Login by email + password. Returns:
+        { access, refresh, user: {...}, redirect_to: "..." }
+    """
+
+    username_field = "email"
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        user = self.user
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                {"detail": "This account is not active."}
+            )
+
+        if getattr(user, "status", None) == Status.SUSPENDED:
+            raise serializers.ValidationError(
+                {"detail": "Your account has been suspended. Please contact support."}
+            )
+
+        me = dict(MeSerializer(user).data)
+        if not me.get("name"):
+            first = getattr(user, "first_name", "") or ""
+            last = getattr(user, "last_name", "") or ""
+            composed = f"{first} {last}".strip()
+            me["name"] = composed or user.email or "—"
+
+        is_admin = user.role in (Role.OWNER, Role.STAFF)
+        redirect_to = user.redirect_path or (
+            "/admin" if is_admin else "/pages/account"
+        )
+
+        data["user"] = me
+        data["redirect_to"] = redirect_to
+        return data

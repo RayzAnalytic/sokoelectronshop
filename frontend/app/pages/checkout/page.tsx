@@ -1,5 +1,5 @@
 // app/pages/checkout/page.tsx
-'use client';
+"use client";
 
 import React, {
   useMemo,
@@ -8,9 +8,9 @@ import React, {
   useRef,
   Suspense,
   useCallback,
-} from 'react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+} from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ShieldCheck,
   CreditCard,
@@ -37,8 +37,8 @@ import {
   Wallet,
   ShoppingCart,
   RefreshCw,
-} from 'lucide-react';
-import { useCart } from '@/lib/store/cart';
+} from "lucide-react";
+import { useCart } from "@/lib/store/cart";
 import {
   api,
   cartApi,
@@ -46,21 +46,19 @@ import {
   paymentsApi,
   pollPayment,
   ApiError,
+  isInsufficientStockError,
   type Payment,
   type Me,
   type CheckoutPayload,
   type CheckoutConfig,
   type Cart as ServerCart,
-} from '@/lib/api';
+} from "@/lib/api";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-type PaymentChoice = 'pay-on-delivery' | 'pay-now';
-type PayNowMethod = 'mpesa';
-type DeliveryMethod = 'express' | 'standard' | 'pickup';
+type PaymentChoice = "pay-on-delivery" | "pay-now";
+type PayNowMethod = "mpesa";
+type DeliveryMethod = "express" | "standard" | "pickup";
 type Step = 1 | 2;
-type Phase = 'idle' | 'submitting' | 'awaiting-pin' | 'failed';
+type Phase = "idle" | "submitting" | "awaiting-pin" | "failed";
 
 interface CheckoutItem {
   id: string;
@@ -99,15 +97,19 @@ interface OrderDraft {
   items: CheckoutItem[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fallback constants — used only when /checkout/config/ hasn't loaded yet
-// or fails. If any of these disagree with the shop's real settings, the
-// backend will reject the order with a pricing_mismatch, which is the
-// correct behavior (never silently accept a wrong total).
-// ─────────────────────────────────────────────────────────────────────────────
 const FALLBACK_COUNTIES = [
-  'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 'Machakos',
-  'Kajiado', 'Uasin Gishu', 'Kakamega', 'Meru', 'Nyeri', 'Kilifi',
+  "Nairobi",
+  "Mombasa",
+  "Kisumu",
+  "Nakuru",
+  "Kiambu",
+  "Machakos",
+  "Kajiado",
+  "Uasin Gishu",
+  "Kakamega",
+  "Meru",
+  "Nyeri",
+  "Kilifi",
 ];
 
 const FALLBACK_DELIVERY_FEES: Record<DeliveryMethod, number> = {
@@ -117,18 +119,19 @@ const FALLBACK_DELIVERY_FEES: Record<DeliveryMethod, number> = {
 };
 
 const FALLBACK_FREE_DELIVERY_THRESHOLD = 5000;
-const FALLBACK_TAX_RATE_DECIMAL = 0.16;  // 16% as a decimal
+const FALLBACK_TAX_RATE_DECIMAL = 0.16;
 const FALLBACK_PRICES_INCLUDE_TAX = true;
+const FALLBACK_MAX_STK_AMOUNT = 250_000;
 
-const SESSION_KEY = 'checkout:form:v4';
-const ORDER_KEY_PREFIX = 'order:';
+const SESSION_KEY = "checkout:form:v4";
+const ORDER_KEY_PREFIX = "order:";
 
 const EMAIL_RE = /\S+@\S+\.\S+/;
 
 function formatKES(n: number | string): string {
-  const num = typeof n === 'string' ? parseFloat(n) : n;
-  if (!Number.isFinite(num)) return 'KES 0';
-  return `KES ${num.toLocaleString('en-KE', {
+  const num = typeof n === "string" ? parseFloat(n) : n;
+  if (!Number.isFinite(num)) return "KES 0";
+  return `KES ${num.toLocaleString("en-KE", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })}`;
@@ -139,62 +142,87 @@ function round2(n: number): number {
 }
 
 function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
 
+function extractServerMessage(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+
+  const d = data as Record<string, unknown>;
+
+  if (typeof d.detail === "string" && d.detail.trim()) {
+    return d.detail;
+  }
+
+  const parts: string[] = [];
+  const walk = (obj: Record<string, unknown>, prefix = "") => {
+    for (const [key, value] of Object.entries(obj)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (Array.isArray(value) && value.length > 0) {
+        const first = value[0];
+        if (typeof first === "string") {
+          parts.push(path === "non_field_errors" ? first : `${path}: ${first}`);
+        }
+      } else if (typeof value === "string") {
+        parts.push(path === "non_field_errors" ? value : `${path}: ${value}`);
+      } else if (value && typeof value === "object") {
+        walk(value as Record<string, unknown>, path);
+      }
+    }
+  };
+  walk(d);
+
+  return parts.join(" • ");
+}
+
 function describeStatus(status: string): string {
   switch (status) {
-    case 'TIMEOUT':
-      return 'The M-Pesa request timed out. You can try again.';
-    case 'CANCELLED':
-      return 'The payment was cancelled.';
-    case 'FAILED':
-      return 'The M-Pesa request was not completed.';
+    case "TIMEOUT":
+      return "The M-Pesa request timed out. You can try again.";
+    case "CANCELLED":
+      return "The payment was cancelled.";
+    case "FAILED":
+      return "The M-Pesa request was not completed.";
     default:
-      return '';
+      return "";
   }
 }
 
 function describeError(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.status === 0) return 'Network error. Check your connection.';
-    if (err.status === 400) return err.message || 'Please check your details.';
+    const fromData = extractServerMessage(err.data);
+    if (fromData) return fromData;
+
+    if (err.status === 0) return "Network error. Check your connection.";
+    if (err.status === 400) return err.message || "Please check your details.";
     if (err.status === 409)
-      return 'A payment for this order is already in progress.';
+      return "A payment for this order is already in progress.";
     if (err.status === 502)
-      return err.message || 'Could not reach M-Pesa. Please try again.';
+      return err.message || "Could not reach M-Pesa. Please try again.";
     if (err.status >= 500)
-      return 'Something went wrong on our side. Please try again.';
+      return "Something went wrong on our side. Please try again.";
     return err.message;
   }
   if (err instanceof Error) return err.message;
-  return 'Something went wrong. Please try again.';
+  return "Something went wrong. Please try again.";
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Normalised tax config
-//
-// Reads whatever shape the API returns and normalises to a single object.
-// Handles the current nested shape (`config.tax.rate`) and a legacy flat
-// shape (`config.tax_rate`) so nothing crashes during a rollout.
-//
-// The rate is normalised to a DECIMAL (0.16 for 16%), not a percentage.
-// All downstream math uses the decimal form.
-// ─────────────────────────────────────────────────────────────────────────────
 interface NormalisedTaxConfig {
   enabled: boolean;
-  rate: number;             // decimal, e.g. 0.16
+  rate: number;
   pricesIncludeTax: boolean;
 }
 
-function normaliseTaxConfig(config: CheckoutConfig | null): NormalisedTaxConfig {
+function normaliseTaxConfig(
+  config: CheckoutConfig | null,
+): NormalisedTaxConfig {
   if (!config) {
     return {
       enabled: true,
@@ -203,24 +231,27 @@ function normaliseTaxConfig(config: CheckoutConfig | null): NormalisedTaxConfig 
     };
   }
 
-  // Nested shape — the current API contract.
   const cfg = config as unknown as {
-    tax?: { enabled?: boolean; rate?: string | number; prices_include_tax?: boolean };
+    tax?: {
+      enabled?: boolean;
+      rate?: string | number;
+      prices_include_tax?: boolean;
+    };
     tax_rate?: string | number;
   };
 
-  if (cfg.tax && (cfg.tax.rate !== undefined || cfg.tax.enabled !== undefined)) {
+  if (
+    cfg.tax &&
+    (cfg.tax.rate !== undefined || cfg.tax.enabled !== undefined)
+  ) {
     const rawRate = Number(cfg.tax.rate ?? 0);
     return {
       enabled: cfg.tax.enabled ?? true,
-      // If the API ever returns 16 instead of "16", divide by 100 to
-      // keep the decimal contract. If it returns "0.16", leave it alone.
       rate: rawRate > 1 ? rawRate / 100 : rawRate,
       pricesIncludeTax: cfg.tax.prices_include_tax ?? false,
     };
   }
 
-  // Legacy flat shape.
   const legacyRate = Number(cfg.tax_rate ?? 0);
   return {
     enabled: true,
@@ -229,9 +260,6 @@ function normaliseTaxConfig(config: CheckoutConfig | null): NormalisedTaxConfig 
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Outer — Suspense for useSearchParams
-// ─────────────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
   return (
     <Suspense
@@ -246,9 +274,6 @@ export default function CheckoutPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Inner
-// ─────────────────────────────────────────────────────────────────────────────
 function CheckoutInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -257,17 +282,16 @@ function CheckoutInner() {
   const localClearCart = useCart((s) => s.clear);
 
   const itemIds = useMemo(() => {
-    const raw = searchParams.get('items');
-    return raw ? raw.split(',').filter(Boolean) : [];
+    const raw = searchParams.get("items");
+    return raw ? raw.split(",").filter(Boolean) : [];
   }, [searchParams]);
 
-  const urlDelivery = searchParams.get('delivery');
-  const urlCoupon = searchParams.get('coupon');
-  const urlNotes = searchParams.get('notes') ?? '';
+  const urlDelivery = searchParams.get("delivery");
+  const urlCoupon = searchParams.get("coupon");
+  const urlNotes = searchParams.get("notes") ?? "";
 
-  // ── UI state ──
   const [step, setStep] = useState<Step>(1);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>("idle");
   const [me, setMe] = useState<Me | null>(null);
   const [authResolved, setAuthResolved] = useState(false);
   const [serverCart, setServerCart] = useState<ServerCart | null>(null);
@@ -275,50 +299,49 @@ function CheckoutInner() {
   const [config, setConfig] = useState<CheckoutConfig | null>(null);
   const [configResolved, setConfigResolved] = useState(false);
 
-  // ── Form ──
   const [formData, setFormData] = useState({
-    email: '',
-    fullName: '',
-    contactPhone: '',
-    county: 'Nairobi',
-    town: '',
-    street: '',
-    postalCode: '',
-    deliveryMethod: 'express' as DeliveryMethod,
-    paymentChoice: 'pay-now' as PaymentChoice,
-    payNowMethod: 'mpesa' as PayNowMethod,
-    mpesaPhone: '',
+    email: "",
+    fullName: "",
+    contactPhone: "",
+    county: "Nairobi",
+    town: "",
+    street: "",
+    postalCode: "",
+    deliveryMethod: "express" as DeliveryMethod,
+    paymentChoice: "pay-now" as PaymentChoice,
+    payNowMethod: "mpesa" as PayNowMethod,
+    mpesaPhone: "",
     orderNotes: urlNotes,
     agreeTerms: false,
     subscribe: true,
   });
 
-  // ── Coupon ──
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState('');
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState("");
   const [appliedDiscountPct, setAppliedDiscountPct] = useState(0);
-  const [couponMessage, setCouponMessage] = useState('');
+  const [couponMessage, setCouponMessage] = useState("");
   const [couponValid, setCouponValid] = useState(false);
   const [couponChecking, setCouponChecking] = useState(false);
 
-  // ── Submit / payment state ──
-  const [errorMessage, setErrorMessage] = useState('');
-  const [paymentError, setPaymentError] = useState('');
+  const [errorMessage, setErrorMessage] = useState("");
+  const [paymentError, setPaymentError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [orderDraft, setOrderDraft] = useState<OrderDraft | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
 
-  // ── Refs ──
   const paymentAbortRef = useRef<AbortController | null>(null);
   const idempotencyKeyRef = useRef<string | null>(null);
+
+  // ── Synchronous source of truth for the current order reference ────
+  // `orderDraft` is React state and lags behind by a render. If the
+  // shopper cancels the STK push in the same tick the push is sent,
+  // `abandonCurrentOrder()` would read a stale `null` and no-op. This
+  // ref is always up to date the moment a push succeeds.
+  const currentOrderRef = useRef<string | null>(null);
+
   const [hydrated, setHydrated] = useState(false);
 
-  // ═════════════════════════════════════════════════════════════════════════
-  // ALL HOOKS BELOW — no early returns before this block finishes.
-  // ═════════════════════════════════════════════════════════════════════════
-
-  // ── Live config ──
   useEffect(() => {
     let cancelled = false;
     checkoutApi
@@ -327,7 +350,7 @@ function CheckoutInner() {
         if (!cancelled) setConfig(cfg);
       })
       .catch(() => {
-        /* fall back to FALLBACK_* constants — never block the page */
+        /* fall back to FALLBACK_* constants */
       })
       .finally(() => {
         if (!cancelled) setConfigResolved(true);
@@ -337,7 +360,6 @@ function CheckoutInner() {
     };
   }, []);
 
-  // ── Derived: live values ──
   const counties = config?.counties ?? FALLBACK_COUNTIES;
 
   const expressFee = useMemo(() => {
@@ -364,15 +386,17 @@ function CheckoutInner() {
     ? Number(config.free_delivery_threshold)
     : FALLBACK_FREE_DELIVERY_THRESHOLD;
 
-  // ── Normalised tax config ──
-  // Single source of truth for tax math. Reads from the API response
-  // via `normaliseTaxConfig()` which handles both nested and flat shapes.
+  const maxStkAmount = useMemo(() => {
+    const raw = config?.checkout?.max_amount_kes;
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : FALLBACK_MAX_STK_AMOUNT;
+  }, [config]);
+
   const taxConfig: NormalisedTaxConfig = useMemo(
     () => normaliseTaxConfig(config),
     [config],
   );
 
-  // ── Restore form from sessionStorage ──
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(SESSION_KEY);
@@ -395,7 +419,6 @@ function CheckoutInner() {
     }
   }, [formData, hydrated]);
 
-  // ── Resolve auth + load server cart ──
   useEffect(() => {
     let cancelled = false;
 
@@ -418,18 +441,18 @@ function CheckoutInner() {
           const cart =
             localSnapshot.length > 0
               ? await cartApi.merge(
-                localSnapshot.map((i) => ({
-                  productId: i.productId,
-                  name: i.name,
-                  brand: i.brand,
-                  image: i.image,
-                  unitPrice: i.unitPrice,
-                  compareAtPrice: i.compareAtPrice ?? null,
-                  quantity: i.quantity,
-                  stock: i.stock,
-                  stockCount: i.stockCount,
-                })),
-              )
+                  localSnapshot.map((i) => ({
+                    productId: i.productId,
+                    name: i.name,
+                    brand: i.brand,
+                    image: i.image,
+                    unitPrice: i.unitPrice,
+                    compareAtPrice: i.compareAtPrice ?? null,
+                    quantity: i.quantity,
+                    stock: i.stock,
+                    stockCount: i.stockCount,
+                  })),
+                )
               : await cartApi.get();
 
           if (cancelled) return;
@@ -439,7 +462,7 @@ function CheckoutInner() {
             useCart.getState().clear();
           }
         } catch {
-          /* fall through — the empty-cart guard will render */
+          /* fall through */
         }
       } finally {
         if (!cancelled) {
@@ -454,19 +477,18 @@ function CheckoutInner() {
     };
   }, []);
 
-  // ── Resolve checkout items ──
   const checkoutItems: CheckoutItem[] = useMemo(() => {
     if (me && serverCart) {
       const source =
         itemIds.length > 0
-          ? serverCart.items.filter((i) => itemIds.includes(String(i.id)))
+          ? serverCart.items.filter((i) => itemIds.includes(i.productId))
           : serverCart.items;
 
       return source.map((i) => ({
         id: String(i.id),
         productId: i.productId,
         name: i.name,
-        brand: i.brand ?? '',
+        brand: i.brand ?? "",
         price: Number.parseFloat(i.unitPrice) || 0,
         quantity: i.quantity,
         image: i.image,
@@ -475,47 +497,40 @@ function CheckoutInner() {
 
     const source =
       itemIds.length > 0
-        ? localCartItems.filter((i) => itemIds.includes(i.id))
+        ? localCartItems.filter((i) => itemIds.includes(i.productId))
         : localCartItems;
 
     return source.map((i) => ({
       id: i.id,
       productId: i.productId,
       name: i.name,
-      brand: i.brand ?? '',
+      brand: i.brand ?? "",
       price: i.unitPrice,
       quantity: i.quantity,
       image: i.image,
     }));
   }, [me, serverCart, localCartItems, itemIds]);
 
-  // ── Totals ──
   const subtotal = useMemo(
     () =>
-      round2(
-        checkoutItems.reduce((acc, i) => acc + i.price * i.quantity, 0),
-      ),
+      round2(checkoutItems.reduce((acc, i) => acc + i.price * i.quantity, 0)),
     [checkoutItems],
   );
 
   const discountAmount = round2(subtotal * appliedDiscountPct);
 
   const shippingFee = useMemo(() => {
-    if (formData.deliveryMethod === 'pickup') return 0;
+    if (formData.deliveryMethod === "pickup") return 0;
     if (subtotal - discountAmount >= freeDeliveryThreshold) return 0;
     return deliveryFees[formData.deliveryMethod];
-  }, [formData.deliveryMethod, subtotal, discountAmount, freeDeliveryThreshold, deliveryFees]);
+  }, [
+    formData.deliveryMethod,
+    subtotal,
+    discountAmount,
+    freeDeliveryThreshold,
+    deliveryFees,
+  ]);
 
-  // ── Tax + total — RESPECTING prices_include_tax ──
-  //
-  // When `pricesIncludeTax = true`, the shop's display prices already
-  // contain VAT. The `tax` line is a BREAKDOWN (extracted from the
-  // subtotal), not an addition. Adding it again would double-count.
-  //
-  // When `pricesIncludeTax = false`, VAT is added on top of the subtotal.
-  //
-  // This mirrors `checkout/services.py::recompute_totals` exactly. Any
-  // divergence here produces a pricing_mismatch from the backend.
   const { taxAmount, totalAmount } = useMemo(() => {
     const taxable = subtotal - discountAmount;
     let tax = 0;
@@ -523,27 +538,21 @@ function CheckoutInner() {
 
     if (taxConfig.enabled) {
       if (taxConfig.pricesIncludeTax) {
-        // Extract VAT from the subtotal — total unchanged.
-        tax = round2(taxable * taxConfig.rate / (1 + taxConfig.rate));
+        tax = round2((taxable * taxConfig.rate) / (1 + taxConfig.rate));
       } else {
-        // Add VAT on top of the subtotal.
         tax = round2(taxable * taxConfig.rate);
         total += tax;
       }
     }
 
-    // Flat transaction fee — 0 unless the shop owner set one.
     const txnFee = config?.checkout?.transaction_fee_kes
       ? Number(config.checkout.transaction_fee_kes)
       : 0;
     total += txnFee;
 
-    // Final safety net — if any read produced NaN (e.g. malformed
-    // config), fall back to the sum of known parts. Better to send a
-    // wrong total than a NaN the backend cannot parse.
     if (!Number.isFinite(total)) {
       // eslint-disable-next-line no-console
-      console.error('Checkout totals produced NaN — check config shape:', {
+      console.error("Checkout totals produced NaN — check config shape:", {
         config,
         taxConfig,
         subtotal,
@@ -556,7 +565,6 @@ function CheckoutInner() {
     return { taxAmount: tax, totalAmount: round2(total) };
   }, [subtotal, discountAmount, shippingFee, taxConfig, config]);
 
-  // ── Coupon validator ──
   const applyCouponCode = useCallback(
     async (code: string, silent = false) => {
       const trimmed = code.trim().toUpperCase();
@@ -573,19 +581,17 @@ function CheckoutInner() {
           setCouponMessage(result.message);
           setCouponValid(true);
         } else {
-          setAppliedCoupon('');
+          setAppliedCoupon("");
           setAppliedDiscountPct(0);
-          setCouponMessage(result.message || 'Invalid coupon code');
+          setCouponMessage(result.message || "Invalid coupon code");
           setCouponValid(false);
         }
       } catch (err) {
-        setAppliedCoupon('');
+        setAppliedCoupon("");
         setAppliedDiscountPct(0);
         setCouponValid(false);
         setCouponMessage(
-          err instanceof ApiError
-            ? err.message
-            : 'Could not validate coupon.',
+          err instanceof ApiError ? err.message : "Could not validate coupon.",
         );
       } finally {
         setCouponChecking(false);
@@ -595,59 +601,50 @@ function CheckoutInner() {
     [subtotal],
   );
 
-  // ── Auto-apply coupon from URL ──
   useEffect(() => {
     if (!urlCoupon) return;
     void applyCouponCode(urlCoupon, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Prefill identity fields from the signed-in account ──
   useEffect(() => {
     if (!hydrated || !me) return;
     setFormData((p) => ({
       ...p,
-      email: p.email || me.email || '',
+      email: p.email || me.email || "",
       fullName:
         p.fullName ||
-        `${me.first_name ?? ''} ${me.last_name ?? ''}`.trim() ||
-        '',
-      contactPhone: p.contactPhone || me.phone || '',
+        `${me.first_name ?? ""} ${me.last_name ?? ""}`.trim() ||
+        "",
+      contactPhone: p.contactPhone || me.phone || "",
     }));
   }, [hydrated, me]);
 
-  // ── Hydrate delivery method from URL ──
   useEffect(() => {
     if (
-      urlDelivery === 'express' ||
-      urlDelivery === 'standard' ||
-      urlDelivery === 'pickup'
+      urlDelivery === "express" ||
+      urlDelivery === "standard" ||
+      urlDelivery === "pickup"
     ) {
       setFormData((p) => ({ ...p, deliveryMethod: urlDelivery }));
     }
   }, [urlDelivery]);
 
-  // ── Warn before leaving while waiting for PIN ──
   useEffect(() => {
-    if (phase !== 'awaiting-pin') return;
+    if (phase !== "awaiting-pin") return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = '';
+      e.returnValue = "";
     };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
   }, [phase]);
 
-  // ── Cleanup abort on unmount ──
   useEffect(() => {
     return () => {
       paymentAbortRef.current?.abort();
     };
   }, []);
-
-  // ═════════════════════════════════════════════════════════════════════════
-  // END OF HOOKS. Early returns are safe below this point.
-  // ═════════════════════════════════════════════════════════════════════════
 
   const isResolving = !authResolved || !cartResolved || !configResolved;
 
@@ -683,28 +680,28 @@ function CheckoutInner() {
     );
   }
 
-  // ── Pure derivations (no hooks) — safe after the early returns ──
   const estimatedDelivery = (() => {
     const d = new Date();
     const days = config?.delivery_days
-      ? config.delivery_days[formData.deliveryMethod] ?? 0
-      : formData.deliveryMethod === 'express'
+      ? (config.delivery_days[formData.deliveryMethod] ?? 0)
+      : formData.deliveryMethod === "express"
         ? 1
-        : formData.deliveryMethod === 'pickup'
+        : formData.deliveryMethod === "pickup"
           ? 0
           : 3;
     d.setDate(d.getDate() + days);
-    return d.toLocaleDateString('en-KE', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
+    return d.toLocaleDateString("en-KE", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
     });
   })();
 
   const paymentLabel =
-    formData.paymentChoice === 'pay-on-delivery' ? 'Cash on delivery' : 'M-PESA';
+    formData.paymentChoice === "pay-on-delivery"
+      ? "Cash on delivery"
+      : "M-PESA";
 
-  // ── Handlers ──
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -713,7 +710,7 @@ function CheckoutInner() {
     const { name, value, type, checked } = e.target as HTMLInputElement;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === "checkbox" ? checked : value,
     }));
     if (fieldErrors[name]) {
       setFieldErrors((prev) => {
@@ -722,34 +719,33 @@ function CheckoutInner() {
         return next;
       });
     }
-    if (errorMessage) setErrorMessage('');
+    if (errorMessage) setErrorMessage("");
   };
 
   const validateStep1 = () => {
     const errors: Record<string, string> = {};
     if (!formData.email.trim()) {
-      errors.email = 'Email is required';
+      errors.email = "Email is required";
     } else if (!EMAIL_RE.test(formData.email.trim())) {
-      errors.email = 'Enter a valid email';
+      errors.email = "Enter a valid email";
     }
-    if (!formData.fullName.trim())
-      errors.fullName = 'Full name is required';
+    if (!formData.fullName.trim()) errors.fullName = "Full name is required";
     if (!formData.contactPhone.trim())
-      errors.contactPhone = 'Contact phone is required';
-    if (!formData.street.trim()) errors.street = 'Street address is required';
-    if (!formData.town.trim()) errors.town = 'Town / city is required';
-    if (!formData.county.trim()) errors.county = 'County is required';
+      errors.contactPhone = "Contact phone is required";
+    if (!formData.street.trim()) errors.street = "Street address is required";
+    if (!formData.town.trim()) errors.town = "Town / city is required";
+    if (!formData.county.trim()) errors.county = "County is required";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const validateStep2 = () => {
     const errors: Record<string, string> = {};
-    if (formData.paymentChoice === 'pay-now') {
+    if (formData.paymentChoice === "pay-now") {
       const mpesa = formData.mpesaPhone.trim() || formData.contactPhone.trim();
-      if (!mpesa) errors.mpesaPhone = 'M-Pesa phone number is required';
+      if (!mpesa) errors.mpesaPhone = "M-Pesa phone number is required";
     }
-    if (!formData.agreeTerms) errors.agreeTerms = 'You must accept the terms';
+    if (!formData.agreeTerms) errors.agreeTerms = "You must accept the terms";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -770,13 +766,13 @@ function CheckoutInner() {
 
   const goNext = () => {
     if (step === 1 && !validateStep1()) return;
-    setErrorMessage('');
+    setErrorMessage("");
     setStep((prev) => (prev < 2 ? ((prev + 1) as Step) : prev));
   };
 
   const goBack = () => {
-    if (phase !== 'idle') return;
-    setErrorMessage('');
+    if (phase !== "idle") return;
+    setErrorMessage("");
     setStep((prev) => (prev > 1 ? ((prev - 1) as Step) : prev));
   };
 
@@ -786,14 +782,13 @@ function CheckoutInner() {
   };
 
   const removeCoupon = () => {
-    setAppliedCoupon('');
+    setAppliedCoupon("");
     setAppliedDiscountPct(0);
-    setCouponCode('');
-    setCouponMessage('');
+    setCouponCode("");
+    setCouponMessage("");
     setCouponValid(false);
   };
 
-  // ── Build draft + payload ──
   const buildOrderDraft = (): OrderDraft => ({
     orderReference: null,
     date: new Date().toISOString(),
@@ -852,30 +847,102 @@ function CheckoutInner() {
     },
   });
 
+  // ── Persist the draft + reference atomically ──────────────────────
+  // Previously this only wrote to sessionStorage, which left the
+  // in-memory `orderDraft` stale (still null). `abandonCurrentOrder`
+  // then had no reference to work with and silently no-op'd, leaving
+  // the M-Pesa PENDING order alive when the shopper switched to COD.
+  //
+  // We now write all three destinations in one call:
+  //   1. sessionStorage — survives a page reload
+  //   2. currentOrderRef — synchronous, survives a re-render race
+  //   3. orderDraft state — for display / subsequent reads
   const saveDraft = (draft: OrderDraft, reference: string) => {
+    const next: OrderDraft = { ...draft, orderReference: reference };
+
+    currentOrderRef.current = reference;
+
     try {
       sessionStorage.setItem(
         `${ORDER_KEY_PREFIX}${reference}`,
-        JSON.stringify({ ...draft, orderReference: reference }),
+        JSON.stringify(next),
       );
     } catch {
       /* quota, ignore */
     }
+
+    setOrderDraft(next);
   };
 
-  // ── Submit ──
   const handlePlaceOrder = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     void submit();
   };
 
+  // ── Sync cart after a stock / pricing rejection ────────────────────
+  // The backend tells us exactly which SKU ran out; re-fetch the cart
+  // so the offending line disappears and totals recompute before the
+  // shopper tries again.
+  const refreshServerCart = async () => {
+    if (!me) return;
+    try {
+      const fresh = await cartApi.get();
+      setServerCart(fresh);
+    } catch {
+      /* leave existing cart in place */
+    }
+  };
+
+  // ── Abandon the current PENDING order (if any) ─────────────────────
+  // Called when the shopper switches payment method, so the M-Pesa
+  // attempt doesn't leave a second order alive when COD eventually
+  // succeeds. Prefers the synchronous ref over React state so we never
+  // race a render.
+  const abandonCurrentOrder = async () => {
+    const ref =
+      currentOrderRef.current ||
+      orderDraft?.orderReference ||
+      payment?.order_reference ||
+      null;
+
+    if (!ref) {
+      // Not an error — the COD flow calls this unconditionally and
+      // there is simply nothing to abandon on a fresh session.
+      return;
+    }
+
+    try {
+      await checkoutApi.abandonOrder(ref);
+      currentOrderRef.current = null;
+    } catch (err) {
+      // The order may already be cancelled / paid / not abandonable —
+      // all of those are fine. We log so a genuine backend failure
+      // (auth, network, 500) doesn't vanish into the void.
+      // eslint-disable-next-line no-console
+      console.warn("[checkout] abandonOrder failed for", ref, err);
+    }
+  };
+
   const submit = async () => {
-    if (phase !== 'idle') return;
+    if (phase !== "idle") return;
     if (!validateAll()) return;
 
-    setErrorMessage('');
-    setPaymentError('');
-    setPhase('submitting');
+    const amountRounded = Math.round(totalAmount);
+    if (amountRounded < 1) {
+      setErrorMessage("Your order total is too small to place an order.");
+      return;
+    }
+    if (formData.paymentChoice === "pay-now" && amountRounded > maxStkAmount) {
+      setErrorMessage(
+        `M-Pesa can only process payments up to ${formatKES(maxStkAmount)}. ` +
+          `Please reduce your cart or choose Pay on delivery.`,
+      );
+      return;
+    }
+
+    setErrorMessage("");
+    setPaymentError("");
+    setPhase("submitting");
 
     let draft = orderDraft;
     if (!draft) {
@@ -884,20 +951,31 @@ function CheckoutInner() {
       idempotencyKeyRef.current = generateUUID();
     }
 
-    if (formData.paymentChoice === 'pay-on-delivery') {
+    if (formData.paymentChoice === "pay-on-delivery") {
+      // Cancel any M-Pesa attempt order first, so switching methods
+      // doesn't produce two orders for one cart. `abandonCurrentOrder`
+      // is what cancels the PENDING M-Pesa order AND any live STK
+      // payment attached to it — the backend now kills the payment
+      // before marking the order cancelled.
+      await abandonCurrentOrder();
+
+      // The abandoned M-Pesa reference is dead. Don't let a later COD
+      // retry try to abandon it again.
+      currentOrderRef.current = null;
+
       try {
         const order = await checkoutApi.createOrder(
           {
             checkout: buildCheckoutPayload(draft),
-            payment_method: 'COD',
+            payment_method: "COD",
           },
           idempotencyKeyRef.current ?? generateUUID(),
         );
         saveDraft(draft, order.reference);
         finalizeSuccess(order.reference);
       } catch (err) {
-        setPhase('idle');
-        handleCreateOrderError(err);
+        setPhase("idle");
+        void handleCreateOrderError(err);
       }
       return;
     }
@@ -905,19 +983,43 @@ function CheckoutInner() {
     await fireStkPush(draft);
   };
 
-  const handleCreateOrderError = (err: unknown) => {
-    if (err instanceof ApiError) {
+  const handleCreateOrderError = async (err: unknown) => {
+    // ── Narrow `err` before reading `.message` ───────────────────────
+    // `isInsufficientStockError` returns plain `boolean`, so it does
+    // NOT narrow `err` from `unknown`. We re-check with `instanceof
+    // ApiError` here so TypeScript is happy and we still get a real
+    // message at runtime.
+    if (isInsufficientStockError(err)) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "A product in your cart is no longer available.";
+      setErrorMessage(msg);
+      await refreshServerCart();
+      return;
+    }
+    if (err instanceof ApiError && err.isPricingError()) {
       setErrorMessage(
-        err.message || 'Could not place your order. Please try again.',
+        "Prices changed while you were checking out. Please review your cart.",
+      );
+      await refreshServerCart();
+      return;
+    }
+    if (err instanceof ApiError) {
+      const detail = extractServerMessage(err.data);
+      setErrorMessage(
+        detail ||
+          err.message ||
+          "Could not place your order. Please try again.",
       );
       return;
     }
-    setErrorMessage('Could not place your order. Please try again.');
+    setErrorMessage("Could not place your order. Please try again.");
   };
 
   const fireStkPush = async (draft: OrderDraft) => {
-    setPhase('submitting');
-    setPaymentError('');
+    setPhase("submitting");
+    setPaymentError("");
 
     const phone = formData.mpesaPhone.trim() || formData.contactPhone.trim();
     const amount = Math.round(draft.total);
@@ -939,19 +1041,55 @@ function CheckoutInner() {
         idemKey,
       );
     } catch (err) {
-      setPhase('failed');
+      // eslint-disable-next-line no-console
+      console.error("STK push failed:", err, (err as ApiError)?.data);
+
+      // Stock / pricing rejections aren't M-Pesa failures — surface
+      // the real reason and refresh the cart so the shopper can act.
+      if (isInsufficientStockError(err)) {
+        setPhase("idle");
+        // See note in `handleCreateOrderError` — narrow before reading.
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "A product in your cart is no longer available.";
+        setErrorMessage(msg);
+        await refreshServerCart();
+        return;
+      }
+      if (err instanceof ApiError && err.isPricingError()) {
+        setPhase("idle");
+        setErrorMessage(
+          "Prices changed while you were checking out. Please review your cart.",
+        );
+        await refreshServerCart();
+        return;
+      }
+      if (err instanceof ApiError && err.isCouponError()) {
+        setPhase("idle");
+        setErrorMessage(err.message);
+        removeCoupon();
+        return;
+      }
+
+      setPhase("failed");
       setPaymentError(
         err instanceof ApiError
-          ? err.message || 'Could not reach M-Pesa. Please try again.'
-          : 'Could not start the M-Pesa request. Please try again.',
+          ? extractServerMessage(err.data) ||
+              err.message ||
+              "Could not reach M-Pesa. Please try again."
+          : "Could not start the M-Pesa request. Please try again.",
       );
       return;
     }
 
+    // `saveDraft` now also updates the ref and React state, so
+    // `abandonCurrentOrder` will have a reference to work with even
+    // if the shopper cancels on the very next tick.
     saveDraft(draft, stk.order_reference);
 
     setPayment(stk);
-    setPhase('awaiting-pin');
+    setPhase("awaiting-pin");
     await pollUntilDone(stk.order_reference, stk.id);
   };
 
@@ -965,21 +1103,21 @@ function CheckoutInner() {
         onPoll: (p) => setPayment(p),
       });
 
-      if (finalPayment.status === 'SUCCESS') {
+      if (finalPayment.status === "SUCCESS") {
         finalizeSuccess(orderReference);
         return;
       }
 
       setPayment(finalPayment);
-      setPhase('failed');
+      setPhase("failed");
       setPaymentError(
         finalPayment.result_description ||
-        describeStatus(finalPayment.status) ||
-        'Payment could not be completed.',
+          describeStatus(finalPayment.status) ||
+          "Payment could not be completed.",
       );
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      setPhase('failed');
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setPhase("failed");
       setPaymentError(describeError(err));
     } finally {
       paymentAbortRef.current = null;
@@ -1001,48 +1139,74 @@ function CheckoutInner() {
       localClearCart();
     }
 
+    currentOrderRef.current = null;
     router.push(`/pages/order-success/${orderReference}`);
   };
 
   const handleRetryPayment = () => {
+    // Always start a fresh idempotency key on retry so the backend
+    // creates a new Payment row rather than returning the failed one.
     idempotencyKeyRef.current = generateUUID();
 
-    if (!orderDraft) return;
+    // Prefer the synchronous ref — it is the authoritative source for
+    // the order we are retrying.
+    const ref =
+      currentOrderRef.current ||
+      orderDraft?.orderReference ||
+      payment?.order_reference ||
+      null;
 
-    if (payment?.order_reference && !orderDraft.orderReference) {
-      const withRef = {
-        ...orderDraft,
-        orderReference: payment.order_reference,
-      };
-      setOrderDraft(withRef);
-      void fireStkPush(withRef);
-      return;
-    }
+    const baseDraft = orderDraft ?? {
+      ...buildOrderDraft(),
+      orderReference: ref,
+    };
+    const nextDraft: OrderDraft = {
+      ...baseDraft,
+      orderReference: ref ?? baseDraft.orderReference,
+    };
 
-    void fireStkPush(orderDraft);
+    // Keep the ref in sync with the draft we're about to retry.
+    if (ref) currentOrderRef.current = ref;
+
+    setOrderDraft(nextDraft);
+    void fireStkPush(nextDraft);
   };
 
-  const handleChangeMethod = () => {
+  const handleChangeMethod = async () => {
+    // Stop any in-flight polling first.
     paymentAbortRef.current?.abort();
+
+    // Cancel the still-open M-Pesa payment server-side. This must
+    // finish BEFORE we abandon the order — otherwise the backend's
+    // "kill live payments" step races an in-flight cancel and the
+    // safety net can miss a PROCESSING payment.
     if (
       payment &&
-      (payment.status === 'PROCESSING' || payment.status === 'PENDING')
+      (payment.status === "PROCESSING" || payment.status === "PENDING")
     ) {
-      void paymentsApi.cancel(payment.id).catch(() => {
-        /* swallow */
-      });
+      try {
+        await paymentsApi.cancel(payment.id);
+      } catch (err) {
+        // Swallow — the abandon step below is the real source of
+        // truth. Log so we know if the endpoint is misbehaving.
+        // eslint-disable-next-line no-console
+        console.warn("[checkout] cancel payment failed", payment.id, err);
+      }
     }
+
+    // Cancel the PENDING order so switching to COD doesn't leave
+    // a second order behind.
+    await abandonCurrentOrder();
+    currentOrderRef.current = null;
+
     setOrderDraft(null);
     setPayment(null);
-    setPaymentError('');
-    setPhase('idle');
+    setPaymentError("");
+    setPhase("idle");
     setStep(2);
     idempotencyKeyRef.current = null;
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────────────────────
   const taxRatePercent = Math.round(taxConfig.rate * 100);
 
   return (
@@ -1050,10 +1214,12 @@ function CheckoutInner() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-3 h-14 flex items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="w-7 h-7 rounded-sm bg-blue-950 text-white font-semibold flex items-center justify-center text-[13px]">
-              N
-            </span>
-            <span className="text-[13px] font-semibold text-slate-900 tracking-tight">
+            <img
+              src="/logo.jpeg"
+              alt="Logo"
+              className="w-10 h-10 rounded-sm object-contain"
+            />
+            <span className="text-[13px] font-semibold text-slate-900">
               Secure checkout
             </span>
           </Link>
@@ -1076,11 +1242,11 @@ function CheckoutInner() {
         {me && (
           <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <p className="text-[13px] text-emerald-900">
-              Signed in as{' '}
+              Signed in as{" "}
               <span className="font-medium">
-                {`${me.first_name ?? ''} ${me.last_name ?? ''}`.trim() ||
+                {`${me.first_name ?? ""} ${me.last_name ?? ""}`.trim() ||
                   me.email}
-              </span>{' '}
+              </span>{" "}
               <span className="text-emerald-700">({me.email})</span>
             </p>
             <Link
@@ -1114,8 +1280,8 @@ function CheckoutInner() {
                     title="Your details"
                     subtitle={
                       me
-                        ? 'Prefilled from your account — edit if needed'
-                        : 'How we reach you about this order'
+                        ? "Prefilled from your account — edit if needed"
+                        : "How we reach you about this order"
                     }
                   />
 
@@ -1258,7 +1424,7 @@ function CheckoutInner() {
               </>
             )}
 
-            {step === 2 && phase === 'idle' && (
+            {step === 2 && phase === "idle" && (
               <>
                 <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
                   <SectionHeader
@@ -1273,28 +1439,31 @@ function CheckoutInner() {
                       onClick={() =>
                         setFormData((p) => ({
                           ...p,
-                          paymentChoice: 'pay-on-delivery',
+                          paymentChoice: "pay-on-delivery",
                         }))
                       }
-                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${formData.paymentChoice === 'pay-on-delivery'
-                        ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
-                        : 'border-slate-200 hover:bg-slate-50'
-                        }`}
+                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${
+                        formData.paymentChoice === "pay-on-delivery"
+                          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
+                          : "border-slate-200 hover:bg-slate-50"
+                      }`}
                     >
                       <span
-                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${formData.paymentChoice === 'pay-on-delivery'
-                          ? 'bg-blue-950 text-white'
-                          : 'bg-slate-100 text-slate-500'
-                          }`}
+                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${
+                          formData.paymentChoice === "pay-on-delivery"
+                            ? "bg-blue-950 text-white"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
                       >
                         <Banknote className="w-4 h-4" />
                       </span>
                       <span className="min-w-0">
                         <span
-                          className={`block text-[13px] font-medium ${formData.paymentChoice === 'pay-on-delivery'
-                            ? 'text-blue-950'
-                            : 'text-slate-800'
-                            }`}
+                          className={`block text-[13px] font-medium ${
+                            formData.paymentChoice === "pay-on-delivery"
+                              ? "text-blue-950"
+                              : "text-slate-800"
+                          }`}
                         >
                           Pay on delivery
                         </span>
@@ -1307,27 +1476,30 @@ function CheckoutInner() {
                     <button
                       type="button"
                       onClick={() =>
-                        setFormData((p) => ({ ...p, paymentChoice: 'pay-now' }))
+                        setFormData((p) => ({ ...p, paymentChoice: "pay-now" }))
                       }
-                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${formData.paymentChoice === 'pay-now'
-                        ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
-                        : 'border-slate-200 hover:bg-slate-50'
-                        }`}
+                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${
+                        formData.paymentChoice === "pay-now"
+                          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
+                          : "border-slate-200 hover:bg-slate-50"
+                      }`}
                     >
                       <span
-                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${formData.paymentChoice === 'pay-now'
-                          ? 'bg-blue-950 text-white'
-                          : 'bg-slate-100 text-slate-500'
-                          }`}
+                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${
+                          formData.paymentChoice === "pay-now"
+                            ? "bg-blue-950 text-white"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
                       >
                         <Wallet className="w-4 h-4" />
                       </span>
                       <span className="min-w-0">
                         <span
-                          className={`block text-[13px] font-medium ${formData.paymentChoice === 'pay-now'
-                            ? 'text-blue-950'
-                            : 'text-slate-800'
-                            }`}
+                          className={`block text-[13px] font-medium ${
+                            formData.paymentChoice === "pay-now"
+                              ? "text-blue-950"
+                              : "text-slate-800"
+                          }`}
                         >
                           Pay now
                         </span>
@@ -1338,7 +1510,7 @@ function CheckoutInner() {
                     </button>
                   </div>
 
-                  {formData.paymentChoice === 'pay-now' && (
+                  {formData.paymentChoice === "pay-now" && (
                     <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-3 space-y-3 text-[13px]">
                       <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
                         <Smartphone className="w-3.5 h-3.5" />
@@ -1350,19 +1522,19 @@ function CheckoutInner() {
                         value={formData.mpesaPhone}
                         onChange={handleChange}
                         placeholder={
-                          formData.contactPhone || '+254 7XX XXX XXX'
+                          formData.contactPhone || "+254 7XX XXX XXX"
                         }
                         error={fieldErrors.mpesaPhone}
                       />
                       <p className="text-[13px] text-slate-600">
                         We&apos;ll send an STK push to this number. Enter your
-                        PIN to complete the payment. If you leave this blank,
-                        we use the contact number above.
+                        PIN to complete the payment. If you leave this blank, we
+                        use the contact number above.
                       </p>
                     </div>
                   )}
 
-                  {formData.paymentChoice === 'pay-on-delivery' && (
+                  {formData.paymentChoice === "pay-on-delivery" && (
                     <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 space-y-2 text-[13px]">
                       <div className="flex items-center gap-1.5 text-slate-800 font-medium">
                         <Banknote className="w-3.5 h-3.5" />
@@ -1403,20 +1575,20 @@ function CheckoutInner() {
                       className="mt-0.5 h-4 w-4 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
                     />
                     <span className="text-[13px] text-slate-700">
-                      I agree to the{' '}
+                      I agree to the{" "}
                       <Link
                         href="/terms"
                         className="text-blue-950 font-medium hover:underline"
                       >
                         Terms of Service
                       </Link>
-                      ,{' '}
+                      ,{" "}
                       <Link
                         href="/privacy"
                         className="text-blue-950 font-medium hover:underline"
                       >
                         Privacy Policy
-                      </Link>{' '}
+                      </Link>{" "}
                       and 30-day return policy.
                     </span>
                   </label>
@@ -1442,7 +1614,7 @@ function CheckoutInner() {
               </>
             )}
 
-            {step === 2 && phase === 'awaiting-pin' && (
+            {step === 2 && phase === "awaiting-pin" && (
               <PinWaitingScreen
                 phone={
                   payment?.phone_number ||
@@ -1454,7 +1626,7 @@ function CheckoutInner() {
               />
             )}
 
-            {step === 2 && phase === 'failed' && (
+            {step === 2 && phase === "failed" && (
               <PaymentFailedScreen
                 message={paymentError}
                 onRetry={handleRetryPayment}
@@ -1462,7 +1634,7 @@ function CheckoutInner() {
               />
             )}
 
-            {phase === 'idle' && (
+            {phase === "idle" && (
               <div className="flex items-center justify-between gap-2">
                 {step > 1 ? (
                   <button
@@ -1496,7 +1668,7 @@ function CheckoutInner() {
               </div>
             )}
 
-            {phase === 'idle' && (
+            {phase === "idle" && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <TrustBadge
                   icon={<Lock className="w-3.5 h-3.5" />}
@@ -1523,7 +1695,7 @@ function CheckoutInner() {
                 <h2 className="text-[15px] font-semibold text-slate-900">
                   Order summary
                 </h2>
-                {phase === 'idle' && (
+                {phase === "idle" && (
                   <Link
                     href="/pages/cart"
                     className="text-[13px] font-medium text-blue-950 hover:underline"
@@ -1559,13 +1731,14 @@ function CheckoutInner() {
                 ))}
               </ul>
 
-              {phase === 'idle' && (
+              {phase === "idle" && (
                 <div className="pt-2 border-t border-slate-100">
                   {appliedCoupon ? (
                     <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1.5">
                       <span className="text-[13px] font-medium text-emerald-700 inline-flex items-center gap-1.5">
                         <Tag className="w-3.5 h-3.5" />
-                        {appliedCoupon} — {Math.round(appliedDiscountPct * 100)}% off
+                        {appliedCoupon} — {Math.round(appliedDiscountPct * 100)}
+                        % off
                       </span>
                       <button
                         type="button"
@@ -1585,7 +1758,7 @@ function CheckoutInner() {
                           value={couponCode}
                           onChange={(e) => setCouponCode(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === "Enter") {
                               e.preventDefault();
                               handleApplyCoupon();
                             }
@@ -1603,15 +1776,16 @@ function CheckoutInner() {
                         {couponChecking ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
-                          'Apply'
+                          "Apply"
                         )}
                       </button>
                     </div>
                   )}
                   {couponMessage && (
                     <p
-                      className={`text-[13px] mt-1.5 ${couponValid ? 'text-emerald-600' : 'text-red-600'
-                        }`}
+                      className={`text-[13px] mt-1.5 ${
+                        couponValid ? "text-emerald-600" : "text-red-600"
+                      }`}
                     >
                       {couponMessage}
                     </p>
@@ -1623,15 +1797,16 @@ function CheckoutInner() {
                 <Row label="Subtotal" value={formatKES(subtotal)} />
                 {discountAmount > 0 && (
                   <Row
-                    label={`Discount${appliedCoupon ? ` (${appliedCoupon})` : ''
-                      }`}
+                    label={`Discount${
+                      appliedCoupon ? ` (${appliedCoupon})` : ""
+                    }`}
                     value={`- ${formatKES(discountAmount)}`}
                     success
                   />
                 )}
                 <Row
                   label={`Shipping (${formData.deliveryMethod})`}
-                  value={shippingFee === 0 ? 'Free' : formatKES(shippingFee)}
+                  value={shippingFee === 0 ? "Free" : formatKES(shippingFee)}
                 />
                 {taxConfig.enabled && (
                   <Row
@@ -1661,33 +1836,33 @@ function CheckoutInner() {
                 </span>
               </div>
 
-              {step === 2 && phase === 'idle' && (
+              {step === 2 && phase === "idle" && (
                 <button
                   type="submit"
                   disabled={!authResolved}
                   className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Lock className="w-3.5 h-3.5" />
-                  {formData.paymentChoice === 'pay-on-delivery'
+                  {formData.paymentChoice === "pay-on-delivery"
                     ? `Place order — ${formatKES(totalAmount)}`
                     : `Pay ${formatKES(totalAmount)}`}
                 </button>
               )}
 
-              {step === 2 && phase === 'submitting' && (
+              {step === 2 && phase === "submitting" && (
                 <button
                   type="button"
                   disabled
                   className="w-full bg-blue-950 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 opacity-70 cursor-not-allowed"
                 >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {formData.paymentChoice === 'pay-now'
-                    ? 'Sending M-Pesa request…'
-                    : 'Placing order…'}
+                  {formData.paymentChoice === "pay-now"
+                    ? "Sending M-Pesa request…"
+                    : "Placing order…"}
                 </button>
               )}
 
-              {step < 2 && phase === 'idle' && (
+              {step < 2 && phase === "idle" && (
                 <button
                   type="button"
                   onClick={goNext}
@@ -1710,10 +1885,6 @@ function CheckoutInner() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
-
 function PinWaitingScreen({
   phone,
   amount,
@@ -1734,7 +1905,7 @@ function PinWaitingScreen({
           Check your phone
         </h2>
         <p className="text-[13px] text-slate-500">
-          We sent an M-Pesa request to{' '}
+          We sent an M-Pesa request to{" "}
           <span className="font-mono text-slate-700">{phone}</span>
         </p>
       </div>
@@ -1792,7 +1963,7 @@ function PaymentFailedScreen({
           Payment failed
         </h2>
         <p className="text-[13px] text-slate-600 max-w-md mx-auto">
-          {message || 'The M-Pesa request could not be completed.'}
+          {message || "The M-Pesa request could not be completed."}
         </p>
       </div>
 
@@ -1824,8 +1995,8 @@ function PaymentFailedScreen({
 
 function StepIndicator({ current }: { current: Step }) {
   const steps = [
-    { n: 1 as Step, label: 'Details' },
-    { n: 2 as Step, label: 'Payment' },
+    { n: 1 as Step, label: "Details" },
+    { n: 2 as Step, label: "Payment" },
   ];
   return (
     <ol className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
@@ -1835,29 +2006,32 @@ function StepIndicator({ current }: { current: Step }) {
         return (
           <li key={s.n} className="flex items-center gap-2 flex-1">
             <span
-              className={`w-6 h-6 rounded-sm flex items-center justify-center text-[13px] font-medium shrink-0 ${isComplete
-                ? 'bg-emerald-500 text-white'
-                : isActive
-                  ? 'bg-blue-950 text-white'
-                  : 'bg-slate-100 text-slate-500'
-                }`}
+              className={`w-6 h-6 rounded-sm flex items-center justify-center text-[13px] font-medium shrink-0 ${
+                isComplete
+                  ? "bg-emerald-500 text-white"
+                  : isActive
+                    ? "bg-blue-950 text-white"
+                    : "bg-slate-100 text-slate-500"
+              }`}
             >
               {isComplete ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.n}
             </span>
             <span
-              className={`text-[13px] font-medium truncate ${isActive
-                ? 'text-blue-950'
-                : isComplete
-                  ? 'text-emerald-700'
-                  : 'text-slate-500'
-                }`}
+              className={`text-[13px] font-medium truncate ${
+                isActive
+                  ? "text-blue-950"
+                  : isComplete
+                    ? "text-emerald-700"
+                    : "text-slate-500"
+              }`}
             >
               {s.label}
             </span>
             {idx < steps.length - 1 && (
               <span
-                className={`flex-1 h-px ${isComplete ? 'bg-emerald-500' : 'bg-slate-200'
-                  }`}
+                className={`flex-1 h-px ${
+                  isComplete ? "bg-emerald-500" : "bg-slate-200"
+                }`}
               />
             )}
           </li>
@@ -1899,7 +2073,7 @@ function Field({
   value,
   onChange,
   placeholder,
-  type = 'text',
+  type = "text",
   error,
   icon,
   mono,
@@ -1929,11 +2103,13 @@ function Field({
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full bg-white border rounded-sm py-2 text-[13px] focus:outline-none focus:ring-1 ${icon ? 'pl-8 pr-3' : 'px-3'
-            } ${error
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-slate-200 focus:border-blue-950 focus:ring-blue-950'
-            } ${mono ? 'font-mono' : ''}`}
+          className={`w-full bg-white border rounded-sm py-2 text-[13px] focus:outline-none focus:ring-1 ${
+            icon ? "pl-8 pr-3" : "px-3"
+          } ${
+            error
+              ? "border-red-500 focus:ring-red-500"
+              : "border-slate-200 focus:border-blue-950 focus:ring-blue-950"
+          } ${mono ? "font-mono" : ""}`}
         />
       </div>
       {error && <p className="text-[13px] text-red-600 mt-1">{error}</p>}
@@ -1963,22 +2139,25 @@ function DeliveryOption({
     <button
       type="button"
       onClick={() => onSelect(id)}
-      className={`w-full flex items-center justify-between gap-2 p-2 border rounded-sm text-left transition ${active
-        ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-950'
-        : 'border-slate-200 hover:bg-slate-50'
-        }`}
+      className={`w-full flex items-center justify-between gap-2 p-2 border rounded-sm text-left transition ${
+        active
+          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
+          : "border-slate-200 hover:bg-slate-50"
+      }`}
     >
       <span className="flex items-start gap-2 min-w-0">
         <span
-          className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${active ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-500'
-            }`}
+          className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${
+            active ? "bg-blue-950 text-white" : "bg-slate-100 text-slate-500"
+          }`}
         >
           {icon}
         </span>
         <span className="min-w-0">
           <span
-            className={`block text-[13px] font-medium ${active ? 'text-blue-950' : 'text-slate-800'
-              }`}
+            className={`block text-[13px] font-medium ${
+              active ? "text-blue-950" : "text-slate-800"
+            }`}
           >
             {title}
           </span>
@@ -1986,7 +2165,7 @@ function DeliveryOption({
         </span>
       </span>
       <span className="text-[13px] font-medium text-slate-900 shrink-0">
-        {price === 0 ? 'Free' : formatKES(price)}
+        {price === 0 ? "Free" : formatKES(price)}
       </span>
     </button>
   );
@@ -2032,13 +2211,14 @@ function Row({
   return (
     <div className="flex items-center justify-between gap-2">
       <span
-        className={emphasis ? 'text-slate-900 font-medium' : 'text-slate-500'}
+        className={emphasis ? "text-slate-900 font-medium" : "text-slate-500"}
       >
         {label}
       </span>
       <span
-        className={`${emphasis ? 'text-slate-900 font-semibold' : ''} ${success ? 'text-emerald-600 font-medium' : ''
-          } ${mono ? 'font-mono' : ''}`}
+        className={`${emphasis ? "text-slate-900 font-semibold" : ""} ${
+          success ? "text-emerald-600 font-medium" : ""
+        } ${mono ? "font-mono" : ""}`}
       >
         {value}
       </span>

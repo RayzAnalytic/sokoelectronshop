@@ -11,7 +11,7 @@ interface ProductsLayoutProps {
 
 export default function ProductsLayout({ children }: ProductsLayoutProps) {
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+        <div className="min-h-screen w-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
             {/* Global Homepage Navigation Header */}
             <Header />
 

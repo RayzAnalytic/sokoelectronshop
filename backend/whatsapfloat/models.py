@@ -1,40 +1,22 @@
+from django.core.validators import RegexValidator
 from django.db import models
 
 
 class WhatsAppConfig(models.Model):
-    """
-    Singleton row holding the storefront floating-button config.
-
-    Backs GET /api/whatsapp/config/ (public).
-    Reuses the pre-existing `whatsapp_whatsappconfig` table.
-    """
-
-    enabled = models.BooleanField(
-        default=True,
-        help_text='Turn the floating button on or off across the storefront.',
+    phone_validator = RegexValidator(
+        regex=r'^\d{10,15}$',
+        message='Enter digits only, no + or spaces. Example: 254712345678.',
     )
+
+    enabled = models.BooleanField(default=True)
     phone_number = models.CharField(
         max_length=20,
-        help_text='E.164 without +, e.g. 254712345678. Used to build wa.me links.',
+        validators=[phone_validator],
     )
-    display_number = models.CharField(
-        max_length=32,
-        blank=True,
-        help_text='Human-friendly number shown in the panel footer.',
-    )
-    shop_name = models.CharField(
-        max_length=120,
-        help_text='Shown in the panel header: "Chat with <shop name>".',
-    )
-    hours_label = models.CharField(
-        max_length=120,
-        blank=True,
-        help_text='Short status line, e.g. "Mon–Sat, 9am–6pm".',
-    )
-    default_message = models.TextField(
-        blank=True,
-        help_text='Prefilled message when the customer taps "Open WhatsApp".',
-    )
+    display_number = models.CharField(max_length=32, blank=True, default='')
+    shop_name = models.CharField(max_length=120)
+    hours_label = models.CharField(max_length=120, blank=True, default='')
+    default_message = models.TextField(blank=True, default='')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -47,16 +29,25 @@ class WhatsAppConfig(models.Model):
     def __str__(self):
         return f'{self.shop_name} ({self.phone_number})'
 
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def build_wa_link(self, message: str | None = None) -> str:
+        text = (message or self.default_message or '').strip()
+        base = f'https://wa.me/{self.phone_number}'
+        if not text:
+            return base
+        from urllib.parse import quote
+        return f'{base}?text={quote(text)}'
+
 
 class WhatsAppQuickAction(models.Model):
-    """
-    One row per quick-question button in the floating panel.
-
-    Icon values must stay in sync with:
-      * ICON_CHOICES below
-      * ICON_MAP in components/WhatsAppButton.tsx
-    """
-
     ICON_CHOICES = [
         ('shopping_bag', 'Shopping bag'),
         ('package', 'Package'),
@@ -67,9 +58,7 @@ class WhatsAppQuickAction(models.Model):
     ]
 
     label = models.CharField(max_length=80)
-    message = models.TextField(
-        help_text='Prefilled WhatsApp message sent when this button is tapped.',
-    )
+    message = models.TextField()
     icon = models.CharField(
         max_length=24,
         choices=ICON_CHOICES,

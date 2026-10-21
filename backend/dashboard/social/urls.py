@@ -2,34 +2,371 @@ from django.urls import path
 
 from .views import (
     AccountConnectView,
+    AccountDetailView,
     AccountDisconnectView,
     AccountListView,
+    AuditLogListView,
+    BestTimeAnalyticsView,
+    CalendarView,
+    DemographicAnalyticsView,
+    DraftApproveView,
+    DraftCommentListView,
+    DraftDetailView,
+    DraftListView,
+    DraftRejectView,
     EngagementAnalyticsView,
+    EvergreenDetailView,
+    EvergreenListView,
     FollowerAnalyticsView,
+    InboxAssignView,
+    InboxDetailView,
+    InboxListView,
+    InboxReplyView,
+    InboxStatusView,
+    InboxSyncView,
+    KpiAnalyticsView,
+    LinkDetailView,
+    LinkListView,
+    MediaDetailView,
+    MediaFolderListView,
+    MediaLibraryListView,
     MediaUploadView,
-    OAuthCallbackView,
+    NotificationListView,
+    NotificationReadAllView,
+    NotificationReadView,
+    OverviewView,
+    PlatformCapabilitiesView,
+    PostBoostView,
+    PostBulkDeleteView,
+    PostBulkRescheduleView,
+    PostCreateView,
+    PostDeleteFromPlatformView,
     PostDeleteView,
-    PostListCreateView,
+    PostDetailView,
+    PostEditCaptionView,
     PostPublishNowView,
+    PublishedPostDetailView,
+    PublishedPostListView,
+    QueueSlotDetailView,
+    QueueSlotListView,
+    ReportDetailView,
+    ReportListView,
+    ScheduledPostListView,
+    TeamListView,
+    TeamMemberDetailView,
+    TemplateDetailView,
+    TemplateListView,
+    TopPostsAnalyticsView,
 )
 
 app_name = "social"
 
 urlpatterns = [
-    # ── Accounts ─────────────────────────────────────────────────────────
-    path("accounts/",                       AccountListView.as_view(),        name="account-list"),
-    path("accounts/<str:platform>/connect/",    AccountConnectView.as_view(),    name="account-connect"),
-    path("accounts/<str:platform>/disconnect/", AccountDisconnectView.as_view(), name="account-disconnect"),
+    # ── Accounts ──────────────────────────────────────────────────────────
+    path(
+        "accounts/",
+        AccountListView.as_view(),
+        name="account-list",
+    ),
+    path(
+        "accounts/capabilities/",
+        PlatformCapabilitiesView.as_view(),
+        name="account-capabilities",
+    ),
+    path(
+        "accounts/<str:platform>/",
+        AccountDetailView.as_view(),
+        name="account-detail",
+    ),
+    path(
+        "accounts/<str:platform>/connect/",
+        AccountConnectView.as_view(),
+        name="account-connect",
+    ),
+    path(
+        "accounts/<str:platform>/disconnect/",
+        AccountDisconnectView.as_view(),
+        name="account-disconnect",
+    ),
 
-    # ── Posts ────────────────────────────────────────────────────────────
-    path("posts/",                    PostListCreateView.as_view(), name="post-list"),
-    path("posts/<int:pk>/",           PostDeleteView.as_view(),     name="post-detail"),
-    path("posts/<int:pk>/publish/",   PostPublishNowView.as_view(), name="post-publish"),
+    # ── Media ─────────────────────────────────────────────────────────────
+    path(
+        "media/upload/",
+        MediaUploadView.as_view(),
+        name="media-upload",
+    ),
+    path(
+        "media/library/",
+        MediaLibraryListView.as_view(),
+        name="media-library",
+    ),
+    path(
+        "media/library/<int:pk>/",
+        MediaDetailView.as_view(),
+        name="media-detail",
+    ),
+    path(
+        "media/folders/",
+        MediaFolderListView.as_view(),
+        name="media-folders",
+    ),
 
-    # ── Media ────────────────────────────────────────────────────────────
-    path("media/upload/",             MediaUploadView.as_view(),    name="media-upload"),
+    # ── Posts ─────────────────────────────────────────────────────────────
+    path(
+        "posts/",
+        PostCreateView.as_view(),
+        name="post-create",
+    ),
+    path(
+        "posts/scheduled/",
+        ScheduledPostListView.as_view(),
+        name="post-scheduled",
+    ),
+    path(
+        "posts/published/",
+        PublishedPostListView.as_view(),
+        name="post-published",
+    ),
+    path(
+        "posts/published/<int:pk>/",
+        PublishedPostDetailView.as_view(),
+        name="published-post-detail",
+    ),
+    path(
+        "posts/published/<int:pk>/boost/",
+        PostBoostView.as_view(),
+        name="published-post-boost",
+    ),
+    path(
+        "posts/published/<int:pk>/delete-from-platform/",
+        PostDeleteFromPlatformView.as_view(),
+        name="published-post-delete-from-platform",
+    ),
+    path(
+        "posts/published/<int:pk>/edit-caption/",
+        PostEditCaptionView.as_view(),
+        name="published-post-edit-caption",
+    ),
+    path(
+        "posts/bulk-delete/",
+        PostBulkDeleteView.as_view(),
+        name="post-bulk-delete",
+    ),
+    path(
+        "posts/bulk-reschedule/",
+        PostBulkRescheduleView.as_view(),
+        name="post-bulk-reschedule",
+    ),
+    path(
+        "posts/<int:pk>/",
+        PostDetailView.as_view(),
+        name="post-detail",
+    ),
+    path(
+        "posts/<int:pk>/delete/",
+        PostDeleteView.as_view(),
+        name="post-delete",
+    ),
+    path(
+        "posts/<int:pk>/publish-now/",
+        PostPublishNowView.as_view(),
+        name="post-publish-now",
+    ),
 
-    # ── Analytics ────────────────────────────────────────────────────────
-    path("analytics/followers/",      FollowerAnalyticsView.as_view(),   name="analytics-followers"),
-    path("analytics/engagement/",     EngagementAnalyticsView.as_view(), name="analytics-engagement"),
+    # ── Calendar ──────────────────────────────────────────────────────────
+    path(
+        "calendar/",
+        CalendarView.as_view(),
+        name="calendar",
+    ),
+
+    # ── Queue slots ───────────────────────────────────────────────────────
+    path(
+        "queue/slots/",
+        QueueSlotListView.as_view(),
+        name="queue-slots",
+    ),
+    path(
+        "queue/slots/<int:pk>/",
+        QueueSlotDetailView.as_view(),
+        name="queue-slot-detail",
+    ),
+    path(
+        "queue/evergreen/",
+        EvergreenListView.as_view(),
+        name="queue-evergreen",
+    ),
+    path(
+        "queue/evergreen/<int:pk>/",
+        EvergreenDetailView.as_view(),
+        name="queue-evergreen-detail",
+    ),
+
+    # ── Drafts & approvals ────────────────────────────────────────────────
+    path(
+        "drafts/",
+        DraftListView.as_view(),
+        name="draft-list",
+    ),
+    path(
+        "drafts/<int:pk>/",
+        DraftDetailView.as_view(),
+        name="draft-detail",
+    ),
+    path(
+        "drafts/<int:pk>/comments/",
+        DraftCommentListView.as_view(),
+        name="draft-comments",
+    ),
+    path(
+        "drafts/<int:pk>/approve/",
+        DraftApproveView.as_view(),
+        name="draft-approve",
+    ),
+    path(
+        "drafts/<int:pk>/reject/",
+        DraftRejectView.as_view(),
+        name="draft-reject",
+    ),
+
+    # ── Inbox (comments, DMs, mentions) ───────────────────────────────────
+    path(
+        "inbox/",
+        InboxListView.as_view(),
+        name="inbox-list",
+    ),
+    path(
+        "inbox/<int:pk>/",
+        InboxDetailView.as_view(),
+        name="inbox-detail",
+    ),
+    path(
+        "inbox/<int:pk>/reply/",
+        InboxReplyView.as_view(),
+        name="inbox-reply",
+    ),
+    path(
+        "inbox/<int:pk>/status/",
+        InboxStatusView.as_view(),
+        name="inbox-status",
+    ),
+    path(
+        "inbox/<int:pk>/assign/",
+        InboxAssignView.as_view(),
+        name="inbox-assign",
+    ),
+    path(
+        "inbox/sync/",
+        InboxSyncView.as_view(),
+        name="inbox-sync",
+    ),
+
+    # ── Templates ─────────────────────────────────────────────────────────
+    path(
+        "templates/",
+        TemplateListView.as_view(),
+        name="template-list",
+    ),
+    path(
+        "templates/<int:pk>/",
+        TemplateDetailView.as_view(),
+        name="template-detail",
+    ),
+
+    # ── Link manager ──────────────────────────────────────────────────────
+    path(
+        "links/",
+        LinkListView.as_view(),
+        name="link-list",
+    ),
+    path(
+        "links/<int:pk>/",
+        LinkDetailView.as_view(),
+        name="link-detail",
+    ),
+
+    # ── Notifications ─────────────────────────────────────────────────────
+    path(
+        "notifications/",
+        NotificationListView.as_view(),
+        name="notification-list",
+    ),
+    path(
+        "notifications/<int:pk>/read/",
+        NotificationReadView.as_view(),
+        name="notification-read",
+    ),
+    path(
+        "notifications/read-all/",
+        NotificationReadAllView.as_view(),
+        name="notification-read-all",
+    ),
+
+    # ── Team & audit ──────────────────────────────────────────────────────
+    path(
+        "team/",
+        TeamListView.as_view(),
+        name="team-list",
+    ),
+    path(
+        "team/<int:pk>/",
+        TeamMemberDetailView.as_view(),
+        name="team-detail",
+    ),
+    path(
+        "audit-log/",
+        AuditLogListView.as_view(),
+        name="audit-log",
+    ),
+
+    # ── Reports ───────────────────────────────────────────────────────────
+    path(
+        "reports/",
+        ReportListView.as_view(),
+        name="report-list",
+    ),
+    path(
+        "reports/<int:pk>/",
+        ReportDetailView.as_view(),
+        name="report-detail",
+    ),
+
+    # ── Overview / dashboard ──────────────────────────────────────────────
+    path(
+        "overview/",
+        OverviewView.as_view(),
+        name="overview",
+    ),
+
+    # ── Analytics ─────────────────────────────────────────────────────────
+    path(
+        "analytics/followers/",
+        FollowerAnalyticsView.as_view(),
+        name="analytics-followers",
+    ),
+    path(
+        "analytics/engagement/",
+        EngagementAnalyticsView.as_view(),
+        name="analytics-engagement",
+    ),
+    path(
+        "analytics/demographics/",
+        DemographicAnalyticsView.as_view(),
+        name="analytics-demographics",
+    ),
+    path(
+        "analytics/best-times/",
+        BestTimeAnalyticsView.as_view(),
+        name="analytics-best-times",
+    ),
+    path(
+        "analytics/kpis/",
+        KpiAnalyticsView.as_view(),
+        name="analytics-kpis",
+    ),
+    path(
+        "analytics/top-posts/",
+        TopPostsAnalyticsView.as_view(),
+        name="analytics-top-posts",
+    ),
 ]

@@ -1,5 +1,3 @@
-# dashboard/users/admin.py
-
 from django.contrib import admin
 
 from .models import (
@@ -12,21 +10,8 @@ from .models import (
 )
 
 
-# ─────────────────────────────────────────────────────────────
-# STAFF PROFILE
-# ─────────────────────────────────────────────────────────────
-
 @admin.register(StaffProfile)
 class StaffProfileAdmin(admin.ModelAdmin):
-    """
-    Django-admin view of staff accounts.
-
-    Note on `last_login_at`:
-        The model field was dropped — Django's `auth.User.last_login`
-        already tracks this and duplicating it invites drift. The
-        admin reads through to `user.last_login` via the `last_login`
-        method below.
-    """
     list_display = (
         'name',
         'get_email',
@@ -46,17 +31,8 @@ class StaffProfileAdmin(admin.ModelAdmin):
 
     @admin.display(description='Last login', ordering='user__last_login')
     def last_login(self, obj):
-        """
-        Read through to the auth User. Guarded with `obj.user_id` so a
-        profile row that somehow lost its user doesn't blow up the
-        admin list.
-        """
         return obj.user.last_login if obj.user_id else None
 
-
-# ─────────────────────────────────────────────────────────────
-# ROLE
-# ─────────────────────────────────────────────────────────────
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
@@ -64,10 +40,6 @@ class RoleAdmin(admin.ModelAdmin):
     list_filter = ('is_customer',)
     search_fields = ('name',)
 
-
-# ─────────────────────────────────────────────────────────────
-# MODULE PERMISSION
-# ─────────────────────────────────────────────────────────────
 
 @admin.register(ModulePermission)
 class ModulePermissionAdmin(admin.ModelAdmin):
@@ -77,20 +49,8 @@ class ModulePermissionAdmin(admin.ModelAdmin):
     ordering = ('group', 'module', 'role')
 
 
-# ─────────────────────────────────────────────────────────────
-# STAFF INVITE
-# ─────────────────────────────────────────────────────────────
-
 @admin.register(StaffInvite)
 class StaffInviteAdmin(admin.ModelAdmin):
-    """
-    Read-mostly view of staff invites.
-
-    `status` is the lifecycle column — Pending / Accepted / Cancelled /
-    Expired. `is_valid` isn't a real field, so it isn't in list_display
-    (it's a Python property and calling it in a list column would fire
-    a query per row on the model's `expires_at` check).
-    """
     list_display = (
         'email',
         'name',

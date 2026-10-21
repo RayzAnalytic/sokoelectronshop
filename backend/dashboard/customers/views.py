@@ -1,10 +1,3 @@
-"""
-Admin-facing endpoints for the Customers page.
-
-Every view requires `IsAdminUser`. No endpoint returns raw ORM data —
-all reads go through selectors, all writes go through services.
-"""
-
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
@@ -30,9 +23,6 @@ def _error(message, code="error", http=status.HTTP_400_BAD_REQUEST):
     return Response({"code": code, "detail": message}, status=http)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# List + stats + segments
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerListView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -65,9 +55,6 @@ class SegmentCountsView(APIView):
         return Response(selectors.get_segment_counts())
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detail
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomerDetailView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -78,9 +65,6 @@ class CustomerDetailView(APIView):
         return Response(CustomerDetailSerializer(user).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — status
-# ─────────────────────────────────────────────────────────────────────────────
 class BlockCustomerView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -91,9 +75,6 @@ class BlockCustomerView(APIView):
         return Response({"status": user.status})
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — consent
-# ─────────────────────────────────────────────────────────────────────────────
 class MarketingConsentView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -104,9 +85,6 @@ class MarketingConsentView(APIView):
         return Response({"consent": ser.validated_data["consent"]})
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — notes
-# ─────────────────────────────────────────────────────────────────────────────
 class NoteListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -133,9 +111,6 @@ class NoteDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — messages
-# ─────────────────────────────────────────────────────────────────────────────
 class WhatsAppSendView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -165,9 +140,6 @@ class EmailSendView(APIView):
         return Response({"id": log.pk})
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Actions — addresses
-# ─────────────────────────────────────────────────────────────────────────────
 class AddressCreateView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -204,16 +176,9 @@ class AddressDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Export
-# ─────────────────────────────────────────────────────────────────────────────
 class ExportCustomersView(APIView):
     permission_classes = [IsAdminUser]
 
     def post(self, request):
-        """
-        Synchronous CSV export. Swap for an async task + email link
-        when the customer base grows past a few thousand rows.
-        """
         csv_text = services.export_customers_csv_sync(request.data or {})
         return Response({"csv": csv_text})

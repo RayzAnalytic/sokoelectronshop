@@ -1,22 +1,8 @@
-"""
-Suppliers serializers.
-
-The wire shape is camelCase to match the frontend's TypeScript types:
-    taxPin, regNumber, paymentTerms, paymentMethod, createdAt
-
-Money fields serialize as numbers (FloatField) because the frontend
-sums them with `reduce((a, p) => a + p.totalAmount, 0)` — a string
-would concatenate instead of adding.
-"""
-
 from rest_framework import serializers
 
 from .models import Purchase, Supplier, SupplierActivity, SupplierProduct
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Nested read serializers
-# ─────────────────────────────────────────────────────────────────────────────
 class SupplierProductSerializer(serializers.ModelSerializer):
     productId = serializers.CharField(source="product_id")
     name = serializers.CharField(source="product_name")
@@ -34,18 +20,6 @@ class SupplierProductSerializer(serializers.ModelSerializer):
         source="last_purchase_date", allow_null=True,
     )
 
-    # Live stock level, read from the catalogue.
-    #
-    # `product_id` on this row is a CharField (matching the catalogue's
-    # string PK convention), not a ForeignKey, so we can't use Django's
-    # auto-join. Instead we do an explicit lookup. The view prefetches
-    # the whole `Product` map into `self.context["product_stock_map"]`
-    # so this is a dict lookup per row, not a query per row.
-    #
-    # If the map isn't in context (serializer used outside the viewset,
-    # e.g. in a shell or a test), fall back to a single query. That
-    # keeps correctness even when the prefetch is missing — at the
-    # cost of an N+1, which is why the view always populates the map.
     currentStock = serializers.SerializerMethodField()
 
     class Meta:
@@ -66,8 +40,6 @@ class SupplierProductSerializer(serializers.ModelSerializer):
         if stock_map is not None:
             return stock_map.get(obj.product_id, 0)
 
-        # Fallback: no prefetch available. Single query for one row.
-        # Only hit when the serializer is used outside the viewset.
         from catalog.models import Product
         return (
             Product.objects
@@ -103,16 +75,7 @@ class SupplierActivitySerializer(serializers.ModelSerializer):
         fields = ("id", "type", "description", "user", "date")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Supplier read / write
-# ─────────────────────────────────────────────────────────────────────────────
 class SupplierReadSerializer(serializers.ModelSerializer):
-    """
-    Full nested payload. The frontend list view reads
-    `s.purchases.reduce(...)` and `s.products.length`, so both nested
-    arrays must always be present, not just on detail.
-    """
-
     name = serializers.CharField(source="contact_name")
     taxPin = serializers.CharField(source="tax_pin", allow_blank=True)
     regNumber = serializers.CharField(source="reg_number", allow_blank=True)
@@ -140,8 +103,6 @@ class SupplierReadSerializer(serializers.ModelSerializer):
 
 
 class SupplierWriteSerializer(serializers.ModelSerializer):
-    """Create / update payload. Only the flat supplier fields."""
-
     name = serializers.CharField(source="contact_name", max_length=150)
     taxPin = serializers.CharField(
         source="tax_pin", required=False, allow_blank=True,
@@ -179,15 +140,7 @@ class SupplierWriteSerializer(serializers.ModelSerializer):
         return (value or "").strip().lower()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Input shape for `add-products` action
-# ─────────────────────────────────────────────────────────────────────────────
 class SupplierProductInputSerializer(serializers.Serializer):
-    """
-    One entry in the `add-products` payload. Mirrors the camelCase
-    object the frontend builds in `AddProductsModal.submit()`.
-    """
-
     productId = serializers.CharField(max_length=64)
     name = serializers.CharField(max_length=255)
     sku = serializers.CharField(max_length=80, required=False, allow_blank=True)
@@ -207,7 +160,6 @@ class SupplierProductInputSerializer(serializers.Serializer):
     lastPurchaseDate = serializers.DateField(required=False, allow_null=True)
 
     def to_model_kwargs(self) -> dict:
-        """Translate camelCase → snake_case for the ORM."""
         d = self.validated_data
         return {
             "product_id": d["productId"],
@@ -224,9 +176,6 @@ class SupplierProductInputSerializer(serializers.Serializer):
         }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Input shape for `purchases` create (optional endpoint)
-# ─────────────────────────────────────────────────────────────────────────────
 class PurchaseInputSerializer(serializers.Serializer):
     number = serializers.CharField(max_length=40)
     date = serializers.DateField()

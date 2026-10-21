@@ -1,34 +1,65 @@
-# dashboard/discounts/urls.py
-
-"""
-URL table for the dashboard discounts API.
-
-Mounted under `/api/v1/admin/discounts/` in `config/urls.py`.
-
-Order matters:
-  1. Literal routes (`analytics/`, `rules/`) go first so they aren't
-     shadowed by the router's dynamic `<id>/` pattern.
-  2. The router comes last and handles list/create/retrieve/update/
-     destroy plus the custom `<id>/duplicate/`, `<id>/pause/`, etc.
-"""
-
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 from .views import AnalyticsView, DiscountAdminViewSet, RulesView
 
 
-router = DefaultRouter()
-router.register("", DiscountAdminViewSet, basename="discount-admin")
-
-
 urlpatterns = [
-    # Literal routes first — must come before the router.
-    path("analytics/", AnalyticsView.as_view(), name="discount-analytics"),
-    path("rules/", RulesView.as_view(), name="discount-rules"),
-
-    # Viewset routes — list, create, retrieve, update, destroy,
-    # plus <id>/duplicate/, <id>/pause/, <id>/resume/,
-    # plus slow_moving/ and bulk_clearance/.
-    path("", include(router.urls)),
+    path(
+        "analytics/",
+        AnalyticsView.as_view(),
+        name="discount-analytics",
+    ),
+    path(
+        "rules/",
+        RulesView.as_view(),
+        name="discount-rules",
+    ),
+    path(
+        "slow_moving/",
+        DiscountAdminViewSet.as_view({"get": "slow_moving"}),
+        name="discount-slow-moving",
+    ),
+    path(
+        "bulk_clearance/",
+        DiscountAdminViewSet.as_view({"post": "bulk_clearance"}),
+        name="discount-bulk-clearance",
+    ),
+    path(
+        "upload_media/",
+        DiscountAdminViewSet.as_view({"post": "upload_media"}),
+        name="discount-upload-media",
+    ),
+    path(
+        "",
+        DiscountAdminViewSet.as_view({
+            "get": "list",
+            "post": "create",
+        }),
+        name="discount-list",
+    ),
+    path(
+        "<str:id>/",
+        DiscountAdminViewSet.as_view({
+            "get": "retrieve",
+            "put": "update",
+            "patch": "partial_update",
+            "delete": "destroy",
+        }),
+        name="discount-detail",
+    ),
+    path(
+        "<str:id>/duplicate/",
+        DiscountAdminViewSet.as_view({"post": "duplicate"}),
+        name="discount-duplicate",
+    ),
+    path(
+        "<str:id>/pause/",
+        DiscountAdminViewSet.as_view({"post": "pause"}),
+        name="discount-pause",
+    ),
+    path(
+        "<str:id>/resume/",
+        DiscountAdminViewSet.as_view({"post": "resume"}),
+        name="discount-resume",
+    ),
 ]

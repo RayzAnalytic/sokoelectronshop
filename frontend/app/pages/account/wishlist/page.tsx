@@ -10,9 +10,6 @@ import { useCart } from '@/lib/store/cart';
 import { useAuth } from '@/lib/hooks/use-auth';
 import { useWishlist, type WishlistItem } from '@/lib/store/wishlist';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 const formatKES = (n: number | string): string => {
     const num = typeof n === 'string' ? parseFloat(n) : n;
     if (!Number.isFinite(num)) return 'KES 0';
@@ -35,18 +32,12 @@ const stockBadgeClass = (stock: WishlistStock | undefined): string => {
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function WishlistPage() {
     const addToCart = useCart((s) => s.addItem);
 
-    // Cached across the app — one `/me/` request per session.
     const { me, loading: authLoading } = useAuth();
     const isSignedIn = me !== null;
 
-    // Store — single source of truth. Every mutation here is
-    // reflected in the product-card hearts and the nav badge.
     const items = useWishlist((s) => s.items);
     const hydrated = useWishlist((s) => s._hydrated);
     const hydrate = useWishlist((s) => s.hydrate);
@@ -62,22 +53,16 @@ export default function WishlistPage() {
         setTimeout(() => setToast(null), 2500);
     };
 
-    // ── Hydrate on mount / when auth state resolves ──
-    // Idempotent — no-op if the store already has data for the
-    // current auth state. Guests read from localStorage; signed-in
-    // customers read from the server.
     useEffect(() => {
         if (authLoading) return;
         void hydrate(isSignedIn);
     }, [authLoading, isSignedIn, hydrate]);
 
-    // ── Derived counts ──
     const inStockCount = items.filter(
         (i) => i.stock !== 'Out of Stock',
     ).length;
     const hasInStock = inStockCount > 0;
 
-    // ── Remove ──
     const handleRemove = async (item: WishlistItem) => {
         setRemovingId(item.variant_id);
         try {
@@ -94,26 +79,22 @@ export default function WishlistPage() {
         }
     };
 
-    // ── Store entry → cart payload ──
-    // The store keeps snake_case (server shape); the cart takes
-    // camelCase. This is the one bridge.
     const toCartPayload = (item: WishlistItem) => ({
         variantId: String(item.variant_id),
         productId: String(item.product_id),
         name: item.product_name,
         brand: item.product_brand ?? '',
         image: item.product_image || item.variant_image || '',
+        variantLabel: item.variant_name ?? '',
         unitPrice: item.unit_price,
         compareAtPrice:
             item.compare_at_price != null
                 ? item.compare_at_price
                 : undefined,
-        slug: item.product_slug ?? '',
         stockCount: item.stock_count ?? 0,
         stock: item.stock ?? 'In Stock',
     });
 
-    // ── Add to cart (single) ──
     const handleAddToCart = async (item: WishlistItem) => {
         if (item.stock === 'Out of Stock') return;
         setAddingId(item.variant_id);
@@ -132,7 +113,6 @@ export default function WishlistPage() {
         }
     };
 
-    // ── Add all in-stock items ──
     const handleAddAllToCart = async () => {
         if (isAddingAll) return;
 
@@ -173,23 +153,18 @@ export default function WishlistPage() {
         }
     };
 
-    // ── Loading state ──
     const isLoading = authLoading || !hydrated;
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-5">
+        <div className="space-y-3">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-center gap-2 max-w-sm">
+                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-center gap-2 max-w-sm">
                     <Check className="h-4 w-4 text-emerald-400 shrink-0" />
                     <span className="truncate">{toast}</span>
                 </div>
             )}
 
-            {/* Header */}
-            <div className="bg-white border border-slate-200 rounded-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <Heart className="h-5 w-5 text-rose-600" />
@@ -207,7 +182,7 @@ export default function WishlistPage() {
                     <button
                         onClick={handleAddAllToCart}
                         disabled={!hasInStock || isAddingAll}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isAddingAll ? (
                             <>
@@ -224,7 +199,6 @@ export default function WishlistPage() {
                 )}
             </div>
 
-            {/* Loading skeleton */}
             {isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {[0, 1, 2].map((i) => (
@@ -243,7 +217,6 @@ export default function WishlistPage() {
                     ))}
                 </div>
             ) : items.length === 0 ? (
-                /* Empty state */
                 <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
                     <Heart className="h-10 w-10 text-slate-300 mx-auto mb-3" />
                     <h2 className="text-sm font-semibold text-slate-900">
@@ -254,13 +227,12 @@ export default function WishlistPage() {
                     </p>
                     <Link
                         href="/pages/products"
-                        className="mt-4 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                        className="mt-4 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-3 rounded-sm text-xs transition"
                     >
                         Browse Products
                     </Link>
                 </div>
             ) : (
-                /* Grid */
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {items.map((item) => {
                         const isAdding = addingId === item.variant_id;
@@ -283,8 +255,7 @@ export default function WishlistPage() {
                                 className={`group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all flex flex-col ${isRemoving ? 'opacity-50' : ''
                                     }`}
                             >
-                                {/* Image */}
-                                <div className="aspect-[16/10] w-full bg-slate-100 relative overflow-hidden">
+                                <div className="aspect-[20/16] w-full bg-slate-100 relative overflow-hidden">
                                     <Link href={href}>
                                         <img
                                             src={imgSrc}
@@ -318,10 +289,9 @@ export default function WishlistPage() {
                                     )}
                                 </div>
 
-                                {/* Content */}
                                 <div className="p-3 flex-1 flex flex-col">
                                     {item.product_brand && (
-                                        <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                                        <p className="text-[10px] uppercase text-slate-500 font-medium">
                                             {item.product_brand}
                                         </p>
                                     )}

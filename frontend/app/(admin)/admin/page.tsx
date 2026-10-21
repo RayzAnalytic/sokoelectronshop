@@ -289,11 +289,11 @@ function AdminDashboardInner() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-8">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-4">
 
       {/* TOAST */}
       {toast && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toast}</span>
           <button onClick={() => setToast(null)} className="text-slate-400 hover:text-white">
@@ -304,7 +304,7 @@ function AdminDashboardInner() {
 
       {/* PAGE HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div className="max-w-[1700px] mx-auto px-2 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Dashboard</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">Overview of your store performance</p>
@@ -314,19 +314,19 @@ function AdminDashboardInner() {
             <button
               onClick={handleRefresh}
               disabled={isLoading}
-              className="bg-white border border-slate-200 rounded-sm p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="bg-white border border-slate-200 rounded p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               title="Refresh dashboard"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
 
-            <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200">
+            <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200">
               {(['Today', '7d', '30d', '90d', 'Custom'] as UiDateRange[]).map((range) => (
                 <button
                   key={range}
                   onClick={() => setDateRange(range)}
-                  className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition ${dateRange === range
-                    ? 'bg-white text-blue-950 shadow-sm'
+                  className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition ${dateRange === range
+                    ? 'bg-white text-blue-950 shadow'
                     : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
@@ -337,7 +337,7 @@ function AdminDashboardInner() {
 
             <button
               onClick={() => showToast('Exporting report…')}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-3 py-2 rounded-sm transition"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-3 py-2 rounded transition"
             >
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Export</span>
@@ -346,7 +346,7 @@ function AdminDashboardInner() {
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
         {/* ERROR */}
         {error && !isLoading && (
           <div className="bg-red-50 border border-red-100 rounded-sm p-3 flex items-start gap-2 text-[13px]">
@@ -365,7 +365,7 @@ function AdminDashboardInner() {
         )}
 
         {/* KPI CARDS — ROW 1 */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {kpis.slice(0, 5).map((kpi) => (
             <KpiCard
               key={kpi.id}
@@ -375,7 +375,7 @@ function AdminDashboardInner() {
             />
           ))}
           {!isLoading && kpis.length === 0 && (
-            <p className="col-span-full text-[13px] text-slate-400 italic text-center py-4">
+            <p className="col-span-full text-[13px] text-slate-400 italic text-center py-2">
               No KPI data available.
             </p>
           )}
@@ -383,7 +383,7 @@ function AdminDashboardInner() {
 
         {/* KPI CARDS — ROW 2 */}
         {kpis.length > 5 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {kpis.slice(5).map((kpi) => (
               <KpiCard
                 key={kpi.id}
@@ -396,19 +396,19 @@ function AdminDashboardInner() {
         )}
 
         {/* ROW: Revenue + Orders by Status */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="lg:col-span-2 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+          <div className="lg:col-span-2 bg-white border border-slate-200 rounded p-2 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-[13px] font-semibold text-slate-900">Revenue &amp; Orders Overview</h2>
                 <p className="text-[13px] text-slate-500">Performance metrics across selected period</p>
               </div>
-              <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200">
+              <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200">
                 {(['Revenue', 'Orders'] as RevenueTab[]).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setRevenueTab(tab)}
-                    className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition ${revenueTab === tab
+                    className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition ${revenueTab === tab
                       ? 'bg-white text-blue-950 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                       }`}
@@ -420,9 +420,9 @@ function AdminDashboardInner() {
             </div>
 
             {isLoading ? (
-              <div className="h-64 bg-slate-100 rounded-sm animate-pulse" />
+              <div className="h-76 bg-slate-100 rounded-sm animate-pulse" />
             ) : (
-              <div className="h-64 w-full">
+              <div className="h-76 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={revenueChart}>
                     <defs>
@@ -476,13 +476,13 @@ function AdminDashboardInner() {
             </div>
 
             {isLoading ? (
-              <div className="h-56 bg-slate-100 rounded-sm animate-pulse" />
+              <div className="h-60 bg-slate-100 rounded-sm animate-pulse" />
             ) : orderStatus.length === 0 ? (
               <p className="text-[13px] text-slate-400 italic py-6 text-center">
                 No orders in this range.
               </p>
             ) : (
-              <div className="h-56 w-full relative">
+              <div className="h-60 w-full relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -536,18 +536,18 @@ function AdminDashboardInner() {
 
         {/* ROW: Sales by Period + Top Categories */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+          <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-[13px] font-semibold text-slate-900">Sales by Period</h2>
                 <p className="text-[13px] text-slate-500">Revenue grouped by day, week, or month</p>
               </div>
-              <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200">
+              <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200">
                 {(['Day', 'Week', 'Month'] as SalesGrouping[]).map((g) => (
                   <button
                     key={g}
                     onClick={() => setSalesGrouping(g)}
-                    className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition ${salesGrouping === g
+                    className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition ${salesGrouping === g
                       ? 'bg-white text-blue-950 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                       }`}
@@ -559,9 +559,9 @@ function AdminDashboardInner() {
             </div>
 
             {isLoading ? (
-              <div className="h-56 bg-slate-100 rounded-sm animate-pulse" />
+              <div className="h-66 bg-slate-100 rounded-sm animate-pulse" />
             ) : (
-              <div className="h-56 w-full">
+              <div className="h-66 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={salesByPeriod[salesGrouping]}>
                     <XAxis dataKey="label" stroke="#94a3b8" fontSize={13} tickLine={false} />
@@ -581,7 +581,7 @@ function AdminDashboardInner() {
                         fontSize: '13px',
                       }}
                     />
-                    <Bar dataKey="revenue" fill={BLUE} radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="revenue" fill={BLUE} radius={[0, 0, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -633,7 +633,7 @@ function AdminDashboardInner() {
 
         {/* ROW: Top Products + Recent Orders */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-          <div className="lg:col-span-7 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+          <div className="lg:col-span-7 bg-white border border-slate-200 rounded p-2 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-[13px] font-semibold text-slate-900">Top Selling Products</h2>
@@ -675,13 +675,13 @@ function AdminDashboardInner() {
                               <img
                                 src={img}
                                 alt={p.name}
-                                className="w-8 h-8 rounded-sm object-cover border border-slate-200 shrink-0 bg-slate-100"
+                                className="w-8 h-8 rounded object-cover border border-slate-200 shrink-0 bg-slate-100"
                                 onError={(e) => {
                                   (e.currentTarget as HTMLImageElement).style.display = 'none';
                                 }}
                               />
                             ) : (
-                              <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-slate-400">
+                              <span className="w-8 h-8 rounded bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-slate-400">
                                 <Package className="w-3.5 h-3.5" />
                               </span>
                             )}
@@ -731,7 +731,7 @@ function AdminDashboardInner() {
                     <div className="text-right shrink-0 ml-2">
                       <p className="font-semibold text-slate-900">{formatKES(ord.amount)}</p>
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${STATUS_STYLES[ord.status] || 'bg-slate-50 text-slate-600 border-slate-200'
+                        className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border ${STATUS_STYLES[ord.status] || 'bg-slate-50 text-slate-600 border-slate-200'
                           }`}
                       >
                         {ord.status}
@@ -745,8 +745,8 @@ function AdminDashboardInner() {
         </div>
 
         {/* ROW: Recent Customers + Recent Transactions */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+          <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-blue-950" />
@@ -922,7 +922,7 @@ function AdminDashboardInner() {
               <p className="text-[13px] text-slate-500">Volume distribution across gateways</p>
             </div>
 
-            <div className="h-56 w-full pt-1">
+            <div className="h-66 w-full pt-1">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   layout="vertical"
@@ -968,8 +968,8 @@ function AdminDashboardInner() {
 
       {/* KPI MODAL */}
       {selectedKpi && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 space-y-3 shadow-xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-2 space-y-2 shadow-xl relative">
             <button
               onClick={() => setSelectedKpi(null)}
               className="absolute top-3 right-3 text-slate-400 hover:text-slate-900 p-1.5 rounded-sm hover:bg-slate-100 transition"
@@ -1031,7 +1031,7 @@ function AdminDashboardInner() {
             <div className="flex justify-end pt-1">
               <button
                 onClick={() => setSelectedKpi(null)}
-                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px] transition"
               >
                 Close
               </button>
@@ -1045,7 +1045,7 @@ function AdminDashboardInner() {
         const img = resolveImageUrl(selectedProduct.image);
         return (
           <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white border-l border-slate-200 w-full max-w-md h-full p-3 overflow-y-auto shadow-xl flex flex-col justify-between">
+            <div className="bg-white border-l border-slate-200 w-full max-w-md h-full p-2 overflow-y-auto shadow-xl flex flex-col justify-between">
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <h3 className="text-[13px] font-semibold text-slate-900">Product Details</h3>
@@ -1058,7 +1058,7 @@ function AdminDashboardInner() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="w-full h-40 rounded-sm bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                  <div className="w-full h-40 rounded bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
                     {img ? (
                       <img
                         src={img}
@@ -1114,7 +1114,7 @@ function AdminDashboardInner() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+              <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
                 <button
                   onClick={() => {
                     setRestockError(null);
@@ -1130,7 +1130,7 @@ function AdminDashboardInner() {
                     });
                     setSelectedProduct(null);
                   }}
-                  className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded-sm text-[13px] transition"
+                  className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded-sm text-[13px] transition"
                 >
                   Restock
                 </button>
@@ -1148,8 +1148,8 @@ function AdminDashboardInner() {
 
       {/* RESTOCK MODAL */}
       {restockProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 space-y-3 shadow-xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white border border-slate-200 rounded max-w-md w-full p-3 space-y-3 shadow-xl relative">
             <button
               onClick={() => {
                 if (isRestocking) return;
@@ -1157,7 +1157,7 @@ function AdminDashboardInner() {
                 setRestockError(null);
               }}
               disabled={isRestocking}
-              className="absolute top-3 right-3 text-slate-400 hover:text-slate-900 p-1.5 rounded-sm hover:bg-slate-100 transition disabled:opacity-50"
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-900 p-1.5 rounded hover:bg-slate-100 transition disabled:opacity-50"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1170,7 +1170,7 @@ function AdminDashboardInner() {
               </p>
             </div>
 
-            <form onSubmit={handleRestock} className="space-y-3">
+            <form onSubmit={handleRestock} className="space-y-2">
               <div>
                 <label className="block text-[13px] font-medium text-slate-700 mb-1">
                   Units to add
@@ -1203,14 +1203,14 @@ function AdminDashboardInner() {
                     setRestockError(null);
                   }}
                   disabled={isRestocking}
-                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-50"
+                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] transition disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isRestocking}
-                  className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
                 >
                   {isRestocking && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {isRestocking ? 'Adding…' : 'Confirm'}

@@ -1,10 +1,3 @@
-"""
-Write logic. Every mutation goes through here.
-
-No ORM writes in views or serializers. Services return the affected
-model instance or None; callers serialize the result.
-"""
-
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
@@ -20,20 +13,7 @@ from .models import CommunicationLog, CustomerNote, CustomerProfile, SupportTick
 User = get_user_model()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Status — block / unblock
-# ─────────────────────────────────────────────────────────────────────────────
 def set_customer_status(user_id: int, blocked: bool) -> User:
-    """
-    Flip the customer between ACTIVE and SUSPENDED.
-
-    Blocking maps to SUSPENDED on the User model — the frontend only
-    knows two states, but the User model has three. PENDING (email
-    unverified) is left untouched by admin actions.
-
-    Purely a User field write. No profile cache update needed — status
-    is read from User at serialize time.
-    """
     user = User.objects.get(pk=user_id, role="CUSTOMER")
     user.status = "SUSPENDED" if blocked else "ACTIVE"
     user.save(update_fields=["status"])
@@ -50,21 +30,8 @@ def set_customer_status(user_id: int, blocked: bool) -> User:
     return user
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Marketing consent
-# ─────────────────────────────────────────────────────────────────────────────
 @transaction.atomic
 def set_marketing_consent(user_id: int, consent: str) -> User:
-    """
-    Apply a single consent value to the four boolean flags on User.
-
-    "Subscribed"    → all four flags True
-    "Unsubscribed"  → all four flags False
-    "Pending"       → leave flags unchanged (the frontend only reads)
-
-    The computed value is derived from the flags at serialize time, so
-    this remains the single source of truth.
-    """
     user = User.objects.get(pk=user_id, role="CUSTOMER")
 
     if consent == "Subscribed":
@@ -89,19 +56,11 @@ def set_marketing_consent(user_id: int, consent: str) -> User:
             "sms_promotions",
             "newsletter",
         ])
-    # "Pending" → no-op
 
     return user
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Notes
-# ─────────────────────────────────────────────────────────────────────────────
 def add_note(*, user_id: int, author_id: int | None, text: str) -> CustomerNote:
-    """
-    Create an internal note. `text` is stripped — serializers reject
-    empty strings, so this is a second line of defence.
-    """
     text = text.strip()
     if not text:
         raise ValueError("Note text cannot be empty.")
@@ -117,9 +76,6 @@ def delete_note(note_id: int) -> None:
     CustomerNote.objects.filter(pk=note_id).delete()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Support tickets
-# ─────────────────────────────────────────────────────────────────────────────
 def create_support_ticket(
     *,
     user_id: int,
@@ -142,9 +98,6 @@ def update_support_ticket_status(ticket_id: int, status: str) -> SupportTicket:
     return ticket
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Communication
-# ─────────────────────────────────────────────────────────────────────────────
 def log_communication(
     *,
     user_id: int,
@@ -153,13 +106,6 @@ def log_communication(
     subject: str,
     agent: str = "",
 ) -> CommunicationLog:
-    """
-    Append an entry to the customer's communication timeline.
-
-    Callers are responsible for actually sending the message first.
-    This is the audit step, not the delivery step — see
-    `send_whatsapp` / `send_email` below for the outline.
-    """
     return CommunicationLog.objects.create(
         user_id=user_id,
         channel=channel,
@@ -169,22 +115,7 @@ def log_communication(
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# WhatsApp / Email — provider stubs
-# ─────────────────────────────────────────────────────────────────────────────
 def send_whatsapp(*, user_id: int, message: str, agent: str = "Admin") -> CommunicationLog:
-    """
-    Placeholder. Replace the body with a real provider call.
-
-    When integrating:
-      * Build the payload from `message`
-      * Call the provider (Twilio / Africa's Talking / Meta Cloud API)
-      * Only log to CommunicationLog after the provider returns success
-      * Raise on failure so the view can surface it
-
-    Returning the log entry keeps the call site uniform with email.
-    """
-    # TODO: integrate WhatsApp Business API.
     return log_communication(
         user_id=user_id,
         channel=CommunicationChannel.WHATSAPP,
@@ -201,11 +132,6 @@ def send_email(
     body: str,
     agent: str = "Admin",
 ) -> CommunicationLog:
-    """
-    Placeholder. Replace with `django.core.mail.send_mail` or an
-    external provider (SendGrid, Mailgun, etc.).
-    """
-    # TODO: integrate email delivery.
     return log_communication(
         user_id=user_id,
         channel=CommunicationChannel.EMAIL,
@@ -215,10 +141,44 @@ def send_email(
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Profile refresh — used by signals and manual repair
-# ─────────────────────────────────────────────────────────────────────────────
 def refresh_profile(user_id: int) -> CustomerProfile:
     profile, _ = CustomerProfile.objects.get_or_create(user_id=user_id)
     profile.refresh_stats()
     return profile
+
+
+def export_customers_csv_sync(filters: dict | None = None) -> str:
+    import csv
+    import io
+
+    from .constants import CustomerSegment
+    from .selectors import list_customers
+
+    filters = filters or {}
+    qs = list_customers(**filters).select_related("customer_profile")
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "id", "email", "phone", "first_name", "last_name",
+        "segment", "status", "orders_count", "total_spent",
+        "last_order_date", "date_joined",
+    ])
+
+    for user in qs.iterator(chunk_size=500):
+        p = getattr(user, "customer_profile", None)
+        writer.writerow([
+            user.pk,
+            user.email,
+            user.phone,
+            user.first_name,
+            user.last_name,
+            p.segment if p else CustomerSegment.REGULAR,
+            user.status,
+            p.orders_count if p else 0,
+            f"{p.total_spent:.2f}" if p else "0.00",
+            p.last_order_date.isoformat() if p and p.last_order_date else "",
+            user.date_joined.isoformat(),
+        ])
+
+    return buf.getvalue()

@@ -16,21 +16,8 @@ from .serializers import (
 
 
 class ProductAdminViewSet(viewsets.ModelViewSet):
-    """
-    CRUD for products, used by the admin dashboard.
-
-    GET    /api/v1/admin/products/           → list
-    POST   /api/v1/admin/products/           → create
-    GET    /api/v1/admin/products/<id>/      → detail
-    PATCH  /api/v1/admin/products/<id>/      → partial update
-    PUT    /api/v1/admin/products/<id>/      → full update
-    DELETE /api/v1/admin/products/<id>/      → delete
-    POST   /api/v1/admin/products/bulk/      → bulk create
-    POST   /api/v1/admin/products/<id>/toggle-featured/
-    POST   /api/v1/admin/products/<id>/toggle-best-seller/
-    """
     permission_classes = [IsAdminUser]
-    pagination_class = None          # ← plain array, not {count, results}
+    pagination_class = None
     lookup_field = "id"
 
     def get_queryset(self):
@@ -87,7 +74,6 @@ class ProductAdminViewSet(viewsets.ModelViewSet):
         return AdminProductWriteSerializer
 
     def create(self, request, *args, **kwargs):
-        """Create → respond with the read shape (nested children)."""
         ser = self.get_serializer(data=request.data)
         if not ser.is_valid():
             return Response(
@@ -102,7 +88,6 @@ class ProductAdminViewSet(viewsets.ModelViewSet):
         return Response(read.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
-        """Update → respond with the read shape."""
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
         ser = self.get_serializer(
@@ -121,7 +106,6 @@ class ProductAdminViewSet(viewsets.ModelViewSet):
         return Response(read.data)
 
     def bulk(self, request):
-        """Bulk import from the CSV importer — creates one Product per row."""
         rows = request.data.get("rows", [])
         if not isinstance(rows, list):
             return Response(

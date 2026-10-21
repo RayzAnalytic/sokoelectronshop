@@ -82,10 +82,6 @@ import type {
   AnalyticsChannelRow,
   AnalyticsTopCustomer,
 } from '@/lib/admin-types';
-
-// ─────────────────────────────────────────────────────────────
-// Local-only types (chart helpers, not part of the API)
-// ─────────────────────────────────────────────────────────────
 type AreaMetric = 'sessions' | 'visitors' | 'pageviews';
 
 type PageTab = AnalyticsTab;
@@ -98,9 +94,6 @@ interface AnalyticsDataMap {
   channels?: AnalyticsChannelsResponse;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Static style maps (unchanged)
-// ─────────────────────────────────────────────────────────────
 const PRODUCT_STATUS_STYLES: Record<AnalyticsProductStatus, string> = {
   best: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   low: 'bg-amber-50 text-amber-700 border-amber-100',
@@ -114,9 +107,6 @@ const PRODUCT_STATUS_LABELS: Record<AnalyticsProductStatus, string> = {
   out: 'Out of Stock',
   abandoned: 'Abandoned',
 };
-
-// Backend sends the channel icon as a string name — map it back
-// to the actual icon component.
 const CHANNEL_ICON_MAP: Record<
   string,
   React.ComponentType<{ className?: string }>
@@ -136,9 +126,6 @@ const formatKES = (val: number) =>
     maximumFractionDigits: 0,
   }).format(val);
 
-// ═════════════════════════════════════════════════════════════════════════════
-// PAGE — wrapped in Suspense (future-proofing for searchParams use)
-// ═════════════════════════════════════════════════════════════════════════════
 export default function AnalyticsPage() {
   return (
     <Suspense
@@ -274,7 +261,7 @@ function AnalyticsPageInner() {
 
       {/* TOAST */}
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
@@ -282,13 +269,11 @@ function AnalyticsPageInner() {
           </button>
         </div>
       )}
-
-      {/* ============ KPI MODAL ============ */}
       {selectedKpi && (
         <Modal onClose={() => setSelectedKpi(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedKpi.label}</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">{selectedKpi.label}</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedKpi.value}</h3>
               <p className="text-[13px] text-slate-500 mt-1">{selectedKpi.detail}</p>
             </div>
@@ -335,11 +320,9 @@ function AnalyticsPageInner() {
           </div>
         </Modal>
       )}
-
-      {/* ============ SOURCE MODAL ============ */}
       {selectedSource && (
         <Modal onClose={() => setSelectedSource(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedSource.color }} />
               <div>
@@ -377,9 +360,9 @@ function AnalyticsPageInner() {
       {/* ============ FUNNEL STAGE MODAL ============ */}
       {selectedStage && (
         <Modal onClose={() => setSelectedStage(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">Funnel Stage</p>
+              <p className="text-[13px] font-medium text-blue-950 uppercase">Funnel Stage</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedStage.stage}</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">
                 {selectedStage.count.toLocaleString()} users reached this stage
@@ -387,7 +370,7 @@ function AnalyticsPageInner() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-[13px] font-medium text-slate-500 uppercase tracking-wide">By source</p>
+              <p className="text-[13px] font-medium text-slate-500 uppercase">By source</p>
               {selectedStage.breakdown.map((b) => {
                 const pct = selectedStage.count ? Math.round((b.users / selectedStage.count) * 100) : 0;
                 return (
@@ -410,7 +393,7 @@ function AnalyticsPageInner() {
       {/* ============ DEVICE MODAL ============ */}
       {selectedDevice && (
         <Modal onClose={() => setSelectedDevice(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span
                 className="w-9 h-9 rounded-sm flex items-center justify-center"
@@ -442,7 +425,7 @@ function AnalyticsPageInner() {
       {/* ============ COUNTY MODAL ============ */}
       {selectedCounty && (
         <Modal onClose={() => setSelectedCounty(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
                 <MapPin className="w-4 h-4" />
@@ -461,11 +444,9 @@ function AnalyticsPageInner() {
           </div>
         </Modal>
       )}
-
-      {/* ============ SALES ROW MODAL ============ */}
       {selectedSalesRow && (
         <Modal onClose={() => setSelectedSalesRow(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               {selectedSalesRow.image ? (
                 <img
@@ -501,11 +482,9 @@ function AnalyticsPageInner() {
           </div>
         </Modal>
       )}
-
-      {/* ============ CUSTOMER METRIC MODAL ============ */}
       {selectedCustomerMetric && (
         <Modal onClose={() => setSelectedCustomerMetric(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
               <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedCustomerMetric.label}</p>
               <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedCustomerMetric.value}</h3>
@@ -520,11 +499,9 @@ function AnalyticsPageInner() {
           </div>
         </Modal>
       )}
-
-      {/* ============ PRODUCT PERF DRAWER ============ */}
       {selectedProductPerf && (
         <Drawer onClose={() => setSelectedProductPerf(null)}>
-          <div className="space-y-3 text-[13px]">
+          <div className="space-y-2 text-[13px]">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedProductPerf.category}</p>
@@ -573,7 +550,7 @@ function AnalyticsPageInner() {
 
             <button
               onClick={() => showToast(`Opening ${selectedProductPerf.name} in Products`)}
-              className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded-sm text-[13px]"
+              className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded-sm text-[13px]"
             >
               View in Products
             </button>
@@ -584,13 +561,13 @@ function AnalyticsPageInner() {
       {/* ============ CHANNEL MODAL ============ */}
       {selectedChannel && (
         <Modal onClose={() => setSelectedChannel(null)}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               {(() => {
                 const Icon = CHANNEL_ICON_MAP[selectedChannel.icon] ?? Target;
                 return (
                   <span
-                    className="w-10 h-10 rounded-sm flex items-center justify-center"
+                    className="w-10 h-10 rounded flex items-center justify-center"
                     style={{ backgroundColor: `${selectedChannel.color}20`, color: selectedChannel.color }}
                   >
                     <Icon className="w-5 h-5" />
@@ -615,8 +592,8 @@ function AnalyticsPageInner() {
 
       {/* ============ ABANDONED CARTS MODAL ============ */}
       {cartModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
-          <div className="bg-white border border-slate-200 rounded-sm max-w-2xl w-full p-3 shadow-xl space-y-3 text-[13px]">
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2">
+          <div className="bg-white border border-slate-200 rounded-sm max-w-2xl w-full p-2 shadow-xl space-y-2 text-[13px]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -684,7 +661,7 @@ function AnalyticsPageInner() {
                   setCartModalOpen(false);
                   setSelectedCartDay(null);
                 }}
-                className="px-3 py-2 bg-slate-900 text-white font-medium rounded-sm hover:bg-slate-800 transition text-[13px]"
+                className="px-2 py-2 bg-slate-900 text-white font-medium rounded-sm hover:bg-slate-800 transition text-[13px]"
               >
                 Close
               </button>
@@ -695,7 +672,7 @@ function AnalyticsPageInner() {
 
       {/* PAGE HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="max-w-[1600px] mx-auto px-2 py-2 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Analytics</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -713,7 +690,7 @@ function AnalyticsPageInner() {
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
 
-            <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-sm px-2 py-2 text-[13px] font-medium text-slate-700 cursor-pointer hover:bg-slate-50">
+            <label className="flex items-center gap-2 bg-white border border-slate-200 rounded px-2 py-2 text-[13px] font-medium text-slate-700 cursor-pointer hover:bg-slate-50">
               <input
                 type="checkbox"
                 checked={comparePrevious}
@@ -723,7 +700,7 @@ function AnalyticsPageInner() {
               <span>Compare previous</span>
             </label>
 
-            <div className="bg-white border border-slate-200 rounded-sm px-2 py-2 flex items-center gap-2 text-[13px] font-medium text-slate-700">
+            <div className="bg-white border border-slate-200 rounded px-2 py-2 flex items-center gap-2 text-[13px] font-medium text-slate-700">
               <Calendar className="w-3.5 h-3.5 text-blue-950" />
               <select
                 value={dateRange}
@@ -739,7 +716,7 @@ function AnalyticsPageInner() {
 
             <button
               onClick={() => showToast('Exporting analytics report as CSV…')}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-3 py-2 rounded-sm transition"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-2 py-2 rounded-sm transition"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Export</span>
@@ -748,7 +725,7 @@ function AnalyticsPageInner() {
         </div>
 
         {/* SECTION TABS */}
-        <div className="max-w-[1600px] mx-auto px-3 pb-2">
+        <div className="max-w-[1600px] mx-auto px-2 pb-2">
           <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200 overflow-x-auto max-w-full">
             {([
               { id: 'traffic', label: 'Traffic' },
@@ -760,7 +737,7 @@ function AnalyticsPageInner() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                className={`px-2 py-1.5 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
                 {tab.label}
@@ -771,11 +748,11 @@ function AnalyticsPageInner() {
       </header>
 
       {/* MAIN */}
-      <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
 
         {/* ERROR */}
         {error && !isLoading && (
-          <div className="bg-red-50 border border-red-100 rounded-sm p-3 flex items-start gap-2 text-[13px]">
+          <div className="bg-red-50 border border-red-100 rounded-sm p-2 flex items-start gap-2 text-[13px]">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium text-red-700">Couldn&apos;t load this report</p>
@@ -792,7 +769,7 @@ function AnalyticsPageInner() {
 
         {/* LOADING */}
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="h-20 bg-slate-100 rounded-sm w-full animate-pulse" />
             <div className="h-64 bg-slate-100 rounded-sm w-full animate-pulse" />
             <div className="h-56 bg-slate-100 rounded-sm w-full animate-pulse" />
@@ -829,20 +806,20 @@ function AnalyticsPageInner() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                  <div className="lg:col-span-8 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
+                  <div className="lg:col-span-8 bg-white border border-slate-200 rounded p-2 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <h3 className="text-[13px] font-semibold text-slate-900">Traffic Overview</h3>
                         <p className="text-[13px] text-slate-500">Real-time engagement over selected range</p>
                       </div>
 
-                      <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-sm">
+                      <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded">
                         {(['sessions', 'visitors', 'pageviews'] as AreaMetric[]).map((m) => (
                           <button
                             key={m}
                             onClick={() => setAreaMetric(m)}
-                            className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition capitalize ${areaMetric === m ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                            className={`px-0.5 py-1.5 rounded text-[13px] font-medium transition capitalize ${areaMetric === m ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                               }`}
                           >
                             {m}
@@ -851,7 +828,7 @@ function AnalyticsPageInner() {
                       </div>
                     </div>
 
-                    <div className="h-64 w-full pt-1">
+                    <div className="h-70 w-full pt-1">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={sessionsTimeline}>
                           <defs>
@@ -877,13 +854,13 @@ function AnalyticsPageInner() {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-4 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                  <div className="lg:col-span-4 bg-white border border-slate-200 rounded p-2 space-y-2">
                     <div>
                       <h3 className="text-[13px] font-semibold text-slate-900">Traffic Sources</h3>
                       <p className="text-[13px] text-slate-500">Click a slice for details</p>
                     </div>
 
-                    <div className="h-40 w-full">
+                    <div className="h-48 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
@@ -915,7 +892,7 @@ function AnalyticsPageInner() {
                         <button
                           key={src.name}
                           onClick={() => setSelectedSource(src)}
-                          className="w-full flex items-center justify-between hover:bg-slate-50 rounded-sm px-2 py-2 transition"
+                          className="w-full flex items-center justify-between hover:bg-slate-50 rounded px-2 py-2 transition"
                         >
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: src.color }} />
@@ -959,7 +936,7 @@ function AnalyticsPageInner() {
                       <p className="text-[13px] text-slate-500">Click a bar for stats</p>
                     </div>
 
-                    <div className="h-52 w-full">
+                    <div className="h-60 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={devicesData} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -998,13 +975,13 @@ function AnalyticsPageInner() {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2">
                     <div>
                       <h3 className="text-[13px] font-semibold text-slate-900">Top Locations</h3>
                       <p className="text-[13px] text-slate-500">Click a county for order details</p>
                     </div>
 
-                    <div className="space-y-3 pt-1">
+                    <div className="space-y-2 pt-1">
                       {counties.length === 0 ? (
                         <p className="text-[13px] text-slate-400 italic py-6 text-center">No address data yet.</p>
                       ) : (
@@ -1012,7 +989,7 @@ function AnalyticsPageInner() {
                           <button
                             key={loc.county}
                             onClick={() => setSelectedCounty(loc)}
-                            className="w-full space-y-1 text-[13px] text-left hover:bg-slate-50 rounded-sm px-2 py-2 transition"
+                            className="w-full space-y-1 text-[13px] text-left hover:bg-slate-50 rounded px-2 py-2 transition"
                           >
                             <div className="flex items-center justify-between">
                               <span className="font-medium text-slate-800">{loc.county}</span>
@@ -1020,8 +997,8 @@ function AnalyticsPageInner() {
                                 {loc.visitors.toLocaleString()} ({loc.share}%)
                               </span>
                             </div>
-                            <div className="w-full bg-slate-100 h-2 rounded-sm overflow-hidden">
-                              <div className="bg-blue-950 h-full rounded-sm" style={{ width: `${loc.share}%` }} />
+                            <div className="w-full bg-slate-100 h-2 rounded overflow-hidden">
+                              <div className="bg-blue-950 h-full rounded" style={{ width: `${loc.share}%` }} />
                             </div>
                           </button>
                         ))
@@ -1030,7 +1007,7 @@ function AnalyticsPageInner() {
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="space-y-1">
                       <div className="text-[13px] font-medium text-red-600">Cart Abandonment Rate</div>
@@ -1045,14 +1022,14 @@ function AnalyticsPageInner() {
                         setSelectedCartDay(null);
                         setCartModalOpen(true);
                       }}
-                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded-sm transition text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2 py-2 rounded-sm transition text-[13px]"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>Recover ({abandonedCarts.length})</span>
                     </button>
                   </div>
 
-                  <div className="h-40 w-full">
+                  <div className="h-50 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={abandonedTrend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1140,7 +1117,7 @@ function AnalyticsPageInner() {
                     <h3 className="text-[13px] font-semibold text-slate-900">Sales Trend — Gross vs Net</h3>
                     <p className="text-[13px] text-slate-500">Daily revenue after refunds and discounts</p>
                   </div>
-                  <div className="h-56 w-full">
+                  <div className="h-60 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={sales.trend}>
                         <defs>
@@ -1180,7 +1157,7 @@ function AnalyticsPageInner() {
                     { title: 'Sales by Category', data: sales.by_category },
                     { title: 'Sales by Brand', data: sales.by_brand },
                   ].map((block) => (
-                    <div key={block.title} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                    <div key={block.title} className="bg-white border border-slate-200 rounded p-2 space-y-2">
                       <div>
                         <h3 className="text-[13px] font-semibold text-slate-900">{block.title}</h3>
                         <p className="text-[13px] text-slate-500">Click any row for details</p>
@@ -1221,8 +1198,6 @@ function AnalyticsPageInner() {
                 </div>
               </>
             )}
-
-            {/* ═════════ CUSTOMERS TAB ═════════ */}
             {activeTab === 'customers' && customers && (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -1254,7 +1229,7 @@ function AnalyticsPageInner() {
                     <h3 className="text-[13px] font-semibold text-slate-900">New vs Returning Customers</h3>
                     <p className="text-[13px] text-slate-500">Daily split of first-time vs repeat buyers</p>
                   </div>
-                  <div className="h-56 w-full">
+                  <div className="h-60 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={customers.new_vs_returning}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1279,7 +1254,7 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">
                       Top Customers by Lifetime Value
                     </span>
@@ -1291,10 +1266,10 @@ function AnalyticsPageInner() {
                     <table className="w-full text-left border-collapse text-[13px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Customer</th>
-                          <th className="py-2 px-3 font-medium">Tier</th>
-                          <th className="py-2 px-3 font-medium text-right">Orders</th>
-                          <th className="py-2 px-3 font-medium text-right">Lifetime Spend</th>
+                          <th className="py-2 px-2 font-medium">Customer</th>
+                          <th className="py-2 px-2 font-medium">Tier</th>
+                          <th className="py-2 px-2 font-medium text-right">Orders</th>
+                          <th className="py-2 px-2 font-medium text-right">Lifetime Spend</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1307,7 +1282,7 @@ function AnalyticsPageInner() {
                         ) : (
                           customers.top_customers.map((c: AnalyticsTopCustomer) => (
                             <tr key={c.id} className="hover:bg-slate-50 transition">
-                              <td className="py-2 px-3 flex items-center gap-2">
+                              <td className="py-2 px-2 flex items-center gap-2">
                                 <div className="h-8 w-8 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
                                   {c.avatar}
                                 </div>
@@ -1316,7 +1291,7 @@ function AnalyticsPageInner() {
                                   <p className="text-[13px] text-slate-400 truncate">{c.email}</p>
                                 </div>
                               </td>
-                              <td className="py-2 px-3">
+                              <td className="py-2 px-2">
                                 <span
                                   className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${c.tier === 'VIP'
                                       ? 'bg-violet-50 text-violet-700 border-violet-100'
@@ -1328,8 +1303,8 @@ function AnalyticsPageInner() {
                                   {c.tier}
                                 </span>
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-slate-700">{c.orders}</td>
-                              <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900">
+                              <td className="py-2 px-2 text-right font-mono text-slate-700">{c.orders}</td>
+                              <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900">
                                 {formatKES(c.spent)}
                               </td>
                             </tr>
@@ -1354,9 +1329,9 @@ function AnalyticsPageInner() {
                     { label: 'Out of Stock', value: products.summary.out_of_stock.toString(), icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
                     { label: 'Abandoned', value: products.summary.abandoned.toString(), icon: Package, color: 'text-slate-600 bg-slate-50' },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-2">
                       <div className="flex items-center gap-1.5">
-                        <span className={`w-6 h-6 rounded-sm flex items-center justify-center ${s.color}`}>
+                        <span className={`w-6 h-6 rounded flex items-center justify-center ${s.color}`}>
                           <s.icon className="w-3.5 h-3.5" />
                         </span>
                         <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
@@ -1367,7 +1342,7 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Product Performance</span>
                     <span className="text-[13px] text-blue-950 font-medium">Click a row for details</span>
                   </div>
@@ -1375,13 +1350,13 @@ function AnalyticsPageInner() {
                     <table className="w-full text-left border-collapse text-[13px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                          <th className="py-2 px-3 font-medium">Product</th>
-                          <th className="py-2 px-3 font-medium text-right">Views</th>
-                          <th className="py-2 px-3 font-medium text-right">Purchases</th>
-                          <th className="py-2 px-3 font-medium text-right">Revenue</th>
-                          <th className="py-2 px-3 font-medium text-right">Stock</th>
-                          <th className="py-2 px-3 font-medium text-right">Conversion</th>
-                          <th className="py-2 px-3 font-medium text-right">Status</th>
+                          <th className="py-2 px-2 font-medium">Product</th>
+                          <th className="py-2 px-2 font-medium text-right">Views</th>
+                          <th className="py-2 px-2 font-medium text-right">Purchases</th>
+                          <th className="py-2 px-2 font-medium text-right">Revenue</th>
+                          <th className="py-2 px-2 font-medium text-right">Stock</th>
+                          <th className="py-2 px-2 font-medium text-right">Conversion</th>
+                          <th className="py-2 px-2 font-medium text-right">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1398,7 +1373,7 @@ function AnalyticsPageInner() {
                               onClick={() => setSelectedProductPerf(p)}
                               className="hover:bg-slate-50 cursor-pointer transition"
                             >
-                              <td className="py-2 px-3">
+                              <td className="py-2 px-2">
                                 <div className="flex items-center gap-2">
                                   {p.image ? (
                                     <img
@@ -1417,19 +1392,19 @@ function AnalyticsPageInner() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-slate-700">{p.views.toLocaleString()}</td>
-                              <td className="py-2 px-3 text-right font-mono text-slate-700">{p.purchases}</td>
-                              <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900">
+                              <td className="py-2 px-2 text-right font-mono text-slate-700">{p.views.toLocaleString()}</td>
+                              <td className="py-2 px-2 text-right font-mono text-slate-700">{p.purchases}</td>
+                              <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900">
                                 {formatKES(p.revenue)}
                               </td>
                               <td
-                                className={`py-2 px-3 text-right font-mono ${p.stock === 0 ? 'text-red-600 font-semibold' : 'text-slate-700'
+                                className={`py-2 px-2 text-right font-mono ${p.stock === 0 ? 'text-red-600 font-semibold' : 'text-slate-700'
                                   }`}
                               >
                                 {p.stock === 0 ? 'Out' : p.stock}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-slate-600">{p.conversion}</td>
-                              <td className="py-2 px-3 text-right">
+                              <td className="py-2 px-2 text-right font-mono text-slate-600">{p.conversion}</td>
+                              <td className="py-2 px-2 text-right">
                                 <span
                                   className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${PRODUCT_STATUS_STYLES[p.status]}`}
                                 >
@@ -1449,14 +1424,14 @@ function AnalyticsPageInner() {
             {/* ═════════ CHANNELS TAB ═════════ */}
             {activeTab === 'channels' && channels && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {channels.channels.map((ch) => {
                     const Icon = CHANNEL_ICON_MAP[ch.icon] ?? Target;
                     return (
                       <button
                         key={ch.name}
                         onClick={() => setSelectedChannel(ch)}
-                        className="text-left bg-white border border-slate-200 rounded-sm p-3 space-y-2 hover:border-blue-950 transition-all"
+                        className="text-left bg-white border border-slate-200 rounded-sm p-2 space-y-2 hover:border-blue-950 transition-all"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -1507,7 +1482,7 @@ function AnalyticsPageInner() {
                   })}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div>
                     <h3 className="text-[13px] font-semibold text-slate-900">Channel Traffic Trend</h3>
                     <p className="text-[13px] text-slate-500">Daily visitors per channel over the selected range</p>
@@ -1530,7 +1505,7 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                  <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                     <div>
                       <h3 className="text-[13px] font-semibold text-slate-900">Social Activity</h3>
                       <p className="text-[13px] text-slate-500">Connected platforms feeding the storefront</p>
@@ -1544,7 +1519,7 @@ function AnalyticsPageInner() {
                         channels.social_activity.map((s) => (
                           <div
                             key={s.platform}
-                            className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-sm"
+                            className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
@@ -1574,7 +1549,7 @@ function AnalyticsPageInner() {
                       {channels.attribution.map((p) => (
                         <div
                           key={p.platform}
-                          className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-sm"
+                          className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded"
                         >
                           <div className="min-w-0">
                             <p className="text-[13px] font-medium text-slate-900 truncate">{p.platform}</p>
@@ -1603,11 +1578,11 @@ function AnalyticsPageInner() {
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
       onClick={onClose}
     >
       <div
-        className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl relative"
+        className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-2 shadow-xl relative"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -1630,7 +1605,7 @@ function Drawer({ children, onClose }: { children: React.ReactNode; onClose: () 
       onClick={onClose}
     >
       <div
-        className="bg-white border-l border-slate-200 w-full max-w-md h-full p-3 overflow-y-auto shadow-xl"
+        className="bg-white border-l border-slate-200 w-full max-w-md h-full p-2 overflow-y-auto shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -1641,7 +1616,7 @@ function Drawer({ children, onClose }: { children: React.ReactNode; onClose: () 
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
+    <div className="bg-slate-50 border border-slate-200 rounded p-2">
       <p className="text-[13px] font-medium text-slate-500">{label}</p>
       <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{value}</p>
     </div>

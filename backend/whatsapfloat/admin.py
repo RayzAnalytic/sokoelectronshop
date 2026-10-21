@@ -1,4 +1,5 @@
 from django.contrib import admin
+
 from .models import WhatsAppConfig, WhatsAppQuickAction
 
 
@@ -19,7 +20,6 @@ class WhatsAppConfigAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
-        # Singleton: only allow adding if no row exists yet.
         return not WhatsAppConfig.objects.exists()
 
     def has_delete_permission(self, request, obj=None):

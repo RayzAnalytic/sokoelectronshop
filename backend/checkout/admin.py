@@ -1,49 +1,3 @@
-"""
-checkout/admin.py
-
-Admin registrations for the checkout app.
-
-AUTH MODEL:
-    Checkout accepts BOTH guest and authenticated orders.
-
-      * Signed-in customer → `Order.user` is set at creation time.
-      * Guest customer     → `Order.user` is NULL. The order is
-                             claimable on login via the
-                             `user_logged_in` signal, matching on
-                             `contact_email` OR `contact_phone`.
-
-    `customer_display` renders the email + a "guest" tag for unowned
-    orders. That tag is not legacy — it's the actual state of any
-    order placed by an anonymous visitor between placement and their
-    first login.
-
-STATUS CHANGES MUST GO THROUGH THE SERVICE:
-    Every admin action that changes `Order.status` calls
-    `change_order_status()` — never a bulk `.update()`. That service:
-
-      * Updates the field
-      * Writes an `OrderStatusEvent` (the timeline)
-      * Fires the customer notification on the transitions that
-        matter (shipped, delivered, cancelled)
-      * Triggers any inventory side-effects (release on cancel, when
-        inventory lands)
-
-    A bulk update skips all of that and leaves the audit trail
-    silently broken. It's tempting because it's one SQL statement
-    instead of a loop; it's wrong because it bypasses business rules.
-
-Cart admin notes:
-
-  * Cart is viewable and searchable, but not creatable or editable
-    by hand. The row is auto-created on first item add via
-    `get_or_create_cart`; every mutation goes through the service
-    layer so variant uniqueness, snapshot refresh, and stock rules
-    stay enforced.
-
-  * CartItem lives as a read-only inline under Cart. An item without
-    a cart is meaningless, so there is no standalone registration.
-"""
-
 from decimal import Decimal
 
 from django.contrib import admin, messages
@@ -63,9 +17,6 @@ from .models import (
 from .services import change_order_status, transition_payment
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Order
-# ═════════════════════════════════════════════════════════════════════════════
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
@@ -77,21 +28,10 @@ class OrderItemInline(admin.TabularInline):
     can_delete = False
 
     def has_add_permission(self, request, obj=None):
-        # Order items are snapshots — created atomically with the
-        # order from the checkout payload. Editing them post-hoc would
-        # desync the totals from `Order.snapshot`.
         return False
 
 
 class OrderStatusEventInline(admin.TabularInline):
-    """
-    Read-only timeline, shown on the order detail page.
-
-    Events are appended exclusively by `change_order_status()`. No
-    admin path creates or edits one — if you need to annotate a
-    transition, put the note in the action that triggered it, and it
-    lands here automatically.
-    """
     model = OrderStatusEvent
     extra = 0
     can_delete = False
@@ -184,8 +124,8 @@ class OrderAdmin(admin.ModelAdmin):
         }),
         ("Notes", {
             "fields": (
-                "notes",           # customer's checkout note
-                "internal_notes",  # admin-only, never shown to customer
+                "notes",
+                "internal_notes",
             ),
         }),
         ("Pricing", {
@@ -211,15 +151,10 @@ class OrderAdmin(admin.ModelAdmin):
         }),
     )
 
-    # ── Display helpers ───────────────────────────────────────────────
     @admin.display(description="Customer", ordering="user__email")
     def customer_display(self, obj):
         if obj.user_id:
             return obj.user.email
-        # Unclaimed guest order. The claim happens on the customer's
-        # first login/register, matching on contact_email or
-        # contact_phone. Until then, `contact_email` is the only
-        # durable identifier.
         if obj.contact_email:
             return f"{obj.contact_email} (guest)"
         return "—"
@@ -252,16 +187,6 @@ class OrderAdmin(admin.ModelAdmin):
             payment.amount,
         )
 
-    # ── Bulk actions ──────────────────────────────────────────────────
-    #
-    # Every action below routes through `change_order_status()`. That
-    # means each one writes a timeline event, fires the matching
-    # customer notification, and (when inventory lands) triggers the
-    # right reservation release/commit. A bulk `.update()` would skip
-    # all three. The per-order loop is intentional.
-    #
-    # All actions take the acting admin as `actor` so the timeline
-    # attributes the change correctly.
     actions = [
         "mark_processing",
         "mark_shipped",
@@ -270,20 +195,13 @@ class OrderAdmin(admin.ModelAdmin):
     ]
 
     def _actor_label(self, request) -> str:
-        """
-        Display string for the timeline. `get_username()` is more
-        stable than `get_full_name()` for an audit log, since
-        full_name can be edited by the user later.
-        """
         return request.user.get_username() or "admin"
 
     @admin.action(description="Mark as PROCESSING")
     def mark_processing(self, request, queryset):
         actor_label = self._actor_label(request)
         count = 0
-        for order in queryset.filter(
-            status__in=(Order.Status.PENDING, Order.Status.CONFIRMED)
-        ):
+        for order in queryset.filter(status=Order.Status.CONFIRMED):
             change_order_status(
                 order,
                 Order.Status.PROCESSING,
@@ -338,13 +256,6 @@ class OrderAdmin(admin.ModelAdmin):
 
     @admin.action(description="Cancel selected orders")
     def mark_cancelled(self, request, queryset):
-        """
-        Cancels every non-terminal order in the selection.
-
-        Triggers the customer cancellation notification AND — once
-        inventory integration is wired — the reservation release for
-        any stock the order was holding.
-        """
         actor_label = self._actor_label(request)
         count = 0
         for order in queryset.exclude(
@@ -370,9 +281,6 @@ class OrderAdmin(admin.ModelAdmin):
         )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Payment
-# ═════════════════════════════════════════════════════════════════════════════
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = (
@@ -419,18 +327,6 @@ class PaymentAdmin(admin.ModelAdmin):
         permissions=["change"],
     )
     def force_success(self, request, queryset):
-        """
-        Manual override for a payment Safaricom completed but whose
-        callback never arrived. Routes through `transition_payment`
-        so the parent Order's status flips and the customer
-        notification fires.
-
-        Each payment is locked inside its own transaction so this
-        cannot race the callback view (which takes the same lock).
-        Without the lock, an admin clicking "Force SUCCESS" at the
-        same moment the callback lands could fire two notifications
-        and double-write the timeline.
-        """
         actor = request.user.get_username() or "unknown"
         count = 0
 
@@ -466,19 +362,8 @@ class PaymentAdmin(admin.ModelAdmin):
             )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Order status timeline (standalone — cross-order auditing)
-# ═════════════════════════════════════════════════════════════════════════════
 @admin.register(OrderStatusEvent)
 class OrderStatusEventAdmin(admin.ModelAdmin):
-    """
-    Cross-order view of the status timeline.
-
-    The same events show on the order detail page as an inline. This
-    standalone registration exists so you can answer questions like
-    "which orders moved to CANCELLED in the last 7 days?" without
-    opening each order individually.
-    """
     list_display = (
         "created_at",
         "order",
@@ -513,20 +398,15 @@ class OrderStatusEventAdmin(admin.ModelAdmin):
         return obj.note[:80] + ("…" if len(obj.note) > 80 else "")
 
     def has_add_permission(self, request):
-        # Events are written exclusively by `change_order_status`.
         return False
 
     def has_change_permission(self, request, obj=None):
         return False
 
     def has_delete_permission(self, request, obj=None):
-        # The timeline is an immutable audit log.
         return False
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Coupon
-# ═════════════════════════════════════════════════════════════════════════════
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
     list_display = (
@@ -575,18 +455,7 @@ class CouponAdmin(admin.ModelAdmin):
         )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Cart
-# ═════════════════════════════════════════════════════════════════════════════
 class CartItemInline(admin.TabularInline):
-    """
-    Cart items render as a read-only inline under Cart.
-
-    Read-only because the customer owns this data — staff should not
-    be able to silently change a price or bump a quantity. If a cart
-    needs correction, do it through the service layer so variant
-    uniqueness, snapshot refresh, and stock rules stay enforced.
-    """
     model = CartItem
     extra = 0
     can_delete = False
@@ -608,16 +477,6 @@ class CartItemInline(admin.TabularInline):
 
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
-    """
-    Read-only view of a customer's live cart.
-
-    Every field is in `readonly_fields`, so Django renders the detail
-    page without an editable input. Change permission stays True so
-    the changelist renders row links normally — the fields being
-    readonly is what makes this a viewer, not `has_change_permission
-    = False`, which would also hide the changelist link for anyone
-    without an explicit view permission.
-    """
     list_display = (
         "user",
         "item_count_display",
@@ -654,7 +513,6 @@ class CartAdmin(admin.ModelAdmin):
         }),
     )
 
-    # ── Display helpers ───────────────────────────────────────────────
     @admin.display(description="Items")
     def item_count_display(self, obj):
         return obj.items.count()
@@ -671,22 +529,13 @@ class CartAdmin(admin.ModelAdmin):
         )
         return f"KES {total:,.2f}" if total else "—"
 
-    # ── Permissions ───────────────────────────────────────────────────
     def has_add_permission(self, request):
-        # Carts are auto-created on first item add via
-        # `get_or_create_cart`. Fabricating one by hand would risk a
-        # Cart with no owner, which the OneToOne forbids anyway.
         return False
 
     def has_delete_permission(self, request, obj=None):
-        # Cleanup is legitimate — an abandoned cart can be removed.
-        # This is the only mutation admin is allowed on a Cart.
         return True
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# M-Pesa callback log
-# ═════════════════════════════════════════════════════════════════════════════
 @admin.register(MpesaCallbackLog)
 class MpesaCallbackLogAdmin(admin.ModelAdmin):
     list_display = (
@@ -705,17 +554,10 @@ class MpesaCallbackLogAdmin(admin.ModelAdmin):
     ordering = ("-created_at",)
 
     def has_add_permission(self, request):
-        # Callbacks are created by Safaricom, never by hand.
         return False
 
     def has_change_permission(self, request, obj=None):
-        # Read-only. `processed` is flipped by the callback view, not
-        # by staff — editing it here would desync the flag from the
-        # actual processing state.
         return False
 
     def has_delete_permission(self, request, obj=None):
-        # Deletion happens via the retention sweep task
-        # (`sweep_stale_callback_logs`). Blocking manual deletes keeps
-        # the retention policy in one place.
         return False

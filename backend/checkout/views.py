@@ -1,75 +1,7 @@
-"""
-checkout/views.py
-
-Endpoints:
-
-    POST /api/v1/checkout/orders/                     — create order (COD)
-    POST /api/v1/checkout/payments/stk-push/          — M-Pesa (creates + pays)
-    GET  /api/v1/checkout/payments/<pk>/              — poll
-    GET  /api/v1/checkout/payments/by-reference/<ref>/ — success-page fetch
-    POST /api/v1/checkout/payments/<pk>/cancel/       — best-effort cancel
-    POST /api/v1/checkout/mpesa/callback/             — Safaricom callback
-    POST /api/v1/checkout/mpesa/timeout/              — Safaricom timeout
-    GET  /api/v1/checkout/config/                     — counties, fees, tax
-    GET  /api/v1/checkout/payment-methods/            — enabled methods  ← NEW
-    POST /api/v1/checkout/validate-coupon/            — coupon probe
-
-    GET    /api/v1/checkout/cart/                     — read cart
-    POST   /api/v1/checkout/cart/items/               — add / increment item
-    PATCH  /api/v1/checkout/cart/items/<id>/          — set quantity
-    DELETE /api/v1/checkout/cart/items/<id>/          — remove item
-    DELETE /api/v1/checkout/cart/                     — clear cart
-    POST   /api/v1/checkout/cart/merge/               — fold anonymous cart
-
-    --- Admin transactions ledger (STAFF ONLY) ---
-    GET    /api/v1/dashboard/transactions/                — list, filter, search
-    GET    /api/v1/dashboard/transactions/summary/        — summary cards
-    GET    /api/v1/dashboard/transactions/<pk>/           — detail (drawer)
-    GET    /api/v1/dashboard/transactions/export/         — CSV (filtered)
-    POST   /api/v1/dashboard/transactions/export/         — CSV (bulk ids)
-    POST   /api/v1/dashboard/transactions/<pk>/retry/     — retry failed M-Pesa
-    POST   /api/v1/dashboard/transactions/<pk>/reconcile/ — manual reconcile
-
-SETTINGS AWARENESS
-==================
-    The `CheckoutConfigView` and the new `PaymentMethodsView` read from
-    the cached settings bundle so the frontend gets a single, coherent
-    snapshot of what the shop offers:
-
-      * Which payment methods are enabled    (payments.mpesa_enabled)
-      * Whether delivery / pickup is offered (shipping.*)
-      * Free-shipping threshold and default fee (shipping.*)
-      * VAT rate and mode                    (tax.*)
-      * Guest checkout / phone required      (checkout.*)
-      * WhatsApp fallback availability       (checkout.whatsapp_fallback)
-      * Shop currency                        (general.currency)
-
-    Every read routes through `_settings()` with a fallback to
-    `checkout.constants`, so management commands and tests that touch
-    these views before the settings tables exist still work.
-
-AUTH MODEL:
-    Checkout is open to signed-in customers AND guests — gated by
-    `checkout.allow_guest_checkout`. When that setting is off, the
-    service layer rejects anonymous submissions before the view
-    returns.
-
-    Payment lookup endpoints scope their queryset by caller identity:
-      * Signed-in → filter by `order__user=request.user`
-      * Guest     → filter by `order__user__isnull=True`
-
-    Safaricom callback and timeout endpoints remain public.
-
-RACE CONDITION NOTE (lazy timeout + cancel):
-    Both `PaymentDetailView` (lazy timeout) and `PaymentCancelView` can
-    race the M-Pesa callback. Every write path that changes
-    Payment.status loads the row with `select_for_update()` inside a
-    transaction — including the polling view's lazy-timeout path.
-"""
-
 import csv
 import logging
 from datetime import timedelta
+from decimal import Decimal
 from io import StringIO
 
 from django.conf import settings
@@ -78,11 +10,7 @@ from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import (
-    AllowAny,
-    IsAdminUser,
-    IsAuthenticated,
-)
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -118,15 +46,21 @@ from .serializers import (
     UpdateCartItemQtySerializer,
 )
 from .services import (
+    abandon_pending_order,
     add_cart_item,
+    change_order_status,
+    claim_guest_orders,
     clear_cart,
     create_order,
     get_cart,
+    mark_cash_collected,
     merge_cart,
     process_checkout,
     reconcile_payment,
     remove_cart_item,
+    restore_cart_from_snapshot,
     retry_payment,
+    snapshot_cart,
     transition_payment,
     update_cart_item_qty,
     validate_coupon,
@@ -135,14 +69,13 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Settings helpers — safe during migrations / cold boot
-#
-# Every settings read goes through `_settings()` which returns the
-# cached bundle or None. When None, the caller falls back to
-# `checkout.constants`. This keeps the API contract stable while
-# letting the live shop reflect Settings changes immediately.
-# ═════════════════════════════════════════════════════════════════════════════
+_DELIVERY_TO_METHOD_NAME = {
+    "standard": "Standard Delivery",
+    "express": "Express Boda",
+    "pickup": "Pickup Mtaani / Locker",
+}
+
+
 def _settings():
     try:
         from dashboard.settings.services import get_settings_bundle
@@ -151,13 +84,11 @@ def _settings():
         return None
 
 
-# ── General ──────────────────────────────────────────────────────────────────
 def _currency() -> str:
     s = _settings()
     return s['general'].currency if s else 'KES'
 
 
-# ── Checkout rules ───────────────────────────────────────────────────────────
 def _allow_guest_checkout() -> bool:
     s = _settings()
     return bool(s['checkout'].allow_guest_checkout) if s else True
@@ -173,7 +104,6 @@ def _whatsapp_fallback() -> bool:
     return bool(s['checkout'].whatsapp_fallback) if s else True
 
 
-# ── Payment rules ────────────────────────────────────────────────────────────
 def _mpesa_enabled() -> bool:
     s = _settings()
     return bool(s['payments'].mpesa_enabled) if s else True
@@ -194,7 +124,6 @@ def _transaction_fee_kes() -> str:
     return str(s['payments'].transaction_fee_kes) if s else "0"
 
 
-# ── Shipping rules ───────────────────────────────────────────────────────────
 def _shipping_enabled() -> bool:
     s = _settings()
     return bool(s['shipping'].shipping_enabled) if s else True
@@ -212,14 +141,31 @@ def _free_shipping_threshold() -> str:
     return str(constants.FREE_DELIVERY_THRESHOLD)
 
 
+def _shipping_method_fee(delivery_key: str) -> Decimal:
+    from dashboard.shipping.models import ShippingMethod
+
+    if delivery_key == "pickup":
+        return Decimal("0")
+
+    name = _DELIVERY_TO_METHOD_NAME.get(delivery_key)
+    if not name:
+        return Decimal("0")
+
+    method = (
+        ShippingMethod.objects
+        .filter(name=name, status=ShippingMethod.Status.ACTIVE)
+        .first()
+    )
+    if method is None:
+        return Decimal("0")
+
+    return Decimal(str(method.default_price))
+
+
 def _default_delivery_fee() -> str:
-    s = _settings()
-    if s:
-        return str(s['shipping'].default_delivery_fee_kes)
-    return str(constants.DELIVERY_FEES["standard"])
+    return str(_shipping_method_fee("standard"))
 
 
-# ── Tax rules ────────────────────────────────────────────────────────────────
 def _vat_enabled() -> bool:
     s = _settings()
     return bool(s['tax'].vat_enabled) if s else True
@@ -237,13 +183,7 @@ def _prices_include_tax() -> bool:
     return bool(s['tax'].prices_include_tax) if s else False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Response helpers
-# ─────────────────────────────────────────────────────────────────────────────
 def _error(message, code="error", http_status=400, extra=None):
-    """
-    Uniform error envelope.
-    """
     body = {"code": code, "detail": message}
     if extra:
         body.update(extra)
@@ -251,10 +191,6 @@ def _error(message, code="error", http_status=400, extra=None):
 
 
 def _idempotency_key_from(request) -> str:
-    """
-    Prefer the header. Fall back to a body field for API clients that
-    can't set headers.
-    """
     return (
         request.headers.get("Idempotency-Key")
         or request.data.get("idempotency_key")
@@ -263,32 +199,22 @@ def _idempotency_key_from(request) -> str:
 
 
 def _caller_user(request):
-    """
-    Return `request.user` if authenticated, else `None`.
-    """
     return request.user if request.user.is_authenticated else None
 
 
 def _scope_payment_to_caller(qs, request):
-    """
-    Filter a Payment queryset down to what the caller is allowed to see.
-    """
     if request.user.is_authenticated:
         return qs.filter(order__user=request.user)
     return qs.filter(order__user__isnull=True)
 
 
 def _scope_order_to_caller(qs, request):
-    """Same as _scope_payment_to_caller, but for Order querysets."""
     if request.user.is_authenticated:
         return qs.filter(user=request.user)
     return qs.filter(user__isnull=True)
 
 
 def _locked_payment_or_none(payment_id, request):
-    """
-    Load a Payment with a row lock, scoped to the caller.
-    """
     qs = (
         Payment.objects
         .select_for_update()
@@ -299,77 +225,31 @@ def _locked_payment_or_none(payment_id, request):
     return qs.first()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Config — every read-side fact the checkout page needs
-# ═════════════════════════════════════════════════════════════════════════════
 class CheckoutConfigView(APIView):
-    """
-    GET /api/v1/checkout/config/
-
-    The frontend fetches this once on mount. Everything the customer-
-    facing pages need to render the cart, checkout, and order-success
-    views lives here.
-
-    Every value is settings-aware, so the response changes on the next
-    request after the shop owner toggles anything in Settings — no
-    server restart.
-
-    Response shape (all values as strings unless noted):
-
-      {
-        "counties": ["Nairobi", ...],
-        "currency": "KES",
-        "delivery_fees": {
-          "express_guest":  "500",
-          "express_member": "0",
-          "standard":       "<settings.shipping.default_delivery_fee_kes>",
-          "pickup":         "0"
-        },
-        "your_express_fee": "<computed for this caller>",
-        "free_delivery_threshold": "<settings.shipping.free_shipping_threshold_kes>",
-        "shipping_enabled":        <bool>,
-        "local_pickup_enabled":    <bool>,
-        "tax": {
-          "enabled":           <bool>,
-          "rate":              "<settings.tax.vat_rate>",
-          "prices_include_tax": <bool>
-        },
-        "delivery_days": {...},
-        "checkout": {
-          "allow_guest_checkout": <bool>,
-          "require_phone":        <bool>,
-          "whatsapp_fallback":    <bool>,
-          "mpesa_enabled":        <bool>,
-          "min_amount_kes":       "<settings.payments.min_amount_kes>",
-          "max_amount_kes":       "<settings.payments.max_amount_kes>",
-          "transaction_fee_kes":  "<settings.payments.transaction_fee_kes>"
-        }
-      }
-
-    The `checkout` block was added so the frontend can pre-validate its
-    own form (mark the phone field required, hide the M-Pesa button,
-    disable guest checkout) before the customer hits Submit. Without
-    it, every settings change forces a round-trip on submit to learn
-    the rule.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request):
         is_member = request.user.is_authenticated
 
+        standard_fee = _shipping_method_fee("standard")
+        express_fee = _shipping_method_fee("express")
+        pickup_fee = Decimal("0")
+
+        if is_member:
+            your_express_fee = Decimal("0")
+        else:
+            your_express_fee = express_fee
+
         return Response({
             "counties": constants.KENYAN_COUNTIES,
             "currency": _currency(),
             "delivery_fees": {
-                # Guest and member express rates, side-by-side.
-                "express_guest": str(constants.DELIVERY_FEES["express"]),
-                "express_member": str(constants.EXPRESS_FEE_MEMBER),
-                "standard": _default_delivery_fee(),
-                "pickup": str(constants.DELIVERY_FEES["pickup"]),
+                "express_guest": str(express_fee),
+                "express_member": str(Decimal("0")),
+                "standard": str(standard_fee),
+                "pickup": str(pickup_fee),
             },
-            "your_express_fee": str(
-                constants.delivery_fee("express", is_member=is_member)
-            ),
+            "your_express_fee": str(your_express_fee),
             "free_delivery_threshold": _free_shipping_threshold(),
             "shipping_enabled": _shipping_enabled(),
             "local_pickup_enabled": _local_pickup_enabled(),
@@ -391,52 +271,7 @@ class CheckoutConfigView(APIView):
         })
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Payment methods — what the shop currently offers
-# ═════════════════════════════════════════════════════════════════════════════
 class PaymentMethodsView(APIView):
-    """
-    GET /api/v1/checkout/payment-methods/
-
-    Returns only the payment methods the shop owner has enabled in
-    Settings → Store → Payments. The frontend cart page calls this once
-    and renders exactly what the shop supports — no hardcoded method
-    list on the client.
-
-    Response:
-
-      {
-        "methods": [
-          {
-            "id": "mpesa",
-            "label": "M-Pesa",
-            "description": "STK Push to your phone",
-            "requires_phone": true,
-            "badge": null
-          },
-          {
-            "id": "cod",
-            "label": "Cash on Delivery",
-            "description": "Pay the rider when your order arrives",
-            "requires_phone": true,
-            "badge": null
-          }
-        ],
-        "currency": "KES",
-        "bounds": {
-          "min_amount_kes": "100",
-          "max_amount_kes": "500000",
-          "transaction_fee_kes": "0"
-        }
-      }
-
-    The `bounds` block lets the cart page disable checkout below the
-    minimum or warn above the maximum before the customer submits.
-
-    `requires_phone` mirrors `checkout.require_phone` — a shop that
-    collects phone for delivery needs it for both methods, but a
-    digital-goods shop might not.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -452,8 +287,6 @@ class PaymentMethodsView(APIView):
                 "badge": None,
             })
 
-        # COD is always available on this shop. If the shop owner ever
-        # adds a toggle for it, wrap this in an `if _cod_enabled()`.
         methods.append({
             "id": "cod",
             "label": "Cash on Delivery",
@@ -462,9 +295,6 @@ class PaymentMethodsView(APIView):
             "badge": None,
         })
 
-        # If the shop owner has disabled everything, still return an
-        # empty list rather than a 500 — the frontend renders a
-        # "contact support" state when no methods are available.
         return Response({
             "methods": methods,
             "currency": _currency(),
@@ -476,9 +306,6 @@ class PaymentMethodsView(APIView):
         })
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Coupon validate
-# ═════════════════════════════════════════════════════════════════════════════
 class CouponValidateView(APIView):
     permission_classes = [AllowAny]
 
@@ -505,22 +332,7 @@ class CouponValidateView(APIView):
         )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Order creation — COD path
-# ═════════════════════════════════════════════════════════════════════════════
 class OrderCreateView(APIView):
-    """
-    POST /api/v1/checkout/orders/
-
-    Pay-on-delivery entry point. Open to signed-in customers AND
-    guests — the service layer enforces `checkout.allow_guest_checkout`
-    and `checkout.require_phone`.
-
-    Errors:
-      400 code=pricing_mismatch    totals don't match server recompute
-      400 code=coupon_error        coupon invalid/expired
-      400 code=checkout_error      guest checkout disabled / phone missing
-    """
     permission_classes = [AllowAny]
     throttle_scope = "checkout"
 
@@ -558,19 +370,70 @@ class OrderCreateView(APIView):
         )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# STK push — M-Pesa path
-# ═════════════════════════════════════════════════════════════════════════════
-class StkPushView(APIView):
-    """
-    POST /api/v1/checkout/payments/stk-push/
+class AbandonOrderView(APIView):
+    permission_classes = [AllowAny]
 
-    Open to signed-in customers AND guests. The service layer enforces
-    `payments.mpesa_enabled`, `checkout.allow_guest_checkout`, and
-    `checkout.require_phone` before firing the STK push. When M-Pesa is
-    disabled, the service raises `CheckoutError` and this view returns
-    a 400 with a customer-readable message.
-    """
+    def post(self, request):
+        reference = (
+            request.data.get("reference")
+            or request.data.get("order_reference")
+            or ""
+        ).strip()
+        if not reference:
+            return _error(
+                "Order reference is required.",
+                code="missing_reference",
+            )
+
+        qs = Order.objects.filter(reference=reference)
+        qs = _scope_order_to_caller(qs, request)
+        order = qs.first()
+
+        if not order:
+            return _error(
+                "Order not found.",
+                http_status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            result = abandon_pending_order(
+                order=order, user=_caller_user(request),
+            )
+        except CheckoutError as exc:
+            return _error(str(exc), code="checkout_error")
+
+        if result is None:
+            return _error(
+                "This order can no longer be abandoned.",
+                code="not_abandonable",
+                http_status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response({
+            "reference": result.reference,
+            "status": result.status,
+        })
+
+
+class ClaimGuestOrdersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            claimed = claim_guest_orders(request.user)
+        except Exception:
+            logger.exception(
+                "Failed to claim guest orders for user %s", request.user.pk,
+            )
+            return _error(
+                "Could not link past orders right now.",
+                code="claim_failed",
+                http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response({"claimed": claimed})
+
+
+class StkPushView(APIView):
     permission_classes = [AllowAny]
     throttle_scope = "stk_push"
 
@@ -611,17 +474,7 @@ class StkPushView(APIView):
         return Response(PaymentSerializer(payment).data)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Payment detail (polling target)
-# ═════════════════════════════════════════════════════════════════════════════
 class PaymentDetailView(APIView):
-    """
-    GET /api/v1/checkout/payments/<pk>/
-
-    Polled by the checkout page while waiting for the customer to
-    enter their PIN. Lazy timeout with row lock — see the module
-    docstring for the race-condition rationale.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
@@ -652,15 +505,7 @@ class PaymentDetailView(APIView):
         return Response(PaymentSerializer(payment).data)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Payment by reference (success page)
-# ═════════════════════════════════════════════════════════════════════════════
 class PaymentByReferenceView(APIView):
-    """
-    GET /api/v1/checkout/payments/by-reference/<reference>/
-
-    Fetched by the order-success page on mount.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request, reference):
@@ -687,16 +532,7 @@ class PaymentByReferenceView(APIView):
         return Response(PaymentSerializer(payment).data)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Cancel (best-effort)
-# ═════════════════════════════════════════════════════════════════════════════
 class PaymentCancelView(APIView):
-    """
-    POST /api/v1/checkout/payments/<pk>/cancel/
-
-    Best-effort cancellation. Locks the row before transitioning to
-    avoid racing the callback.
-    """
     permission_classes = [AllowAny]
 
     def post(self, request, pk):
@@ -718,9 +554,6 @@ class PaymentCancelView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# M-Pesa callback — the source of truth
-# ═════════════════════════════════════════════════════════════════════════════
 class MpesaCallbackView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -791,9 +624,6 @@ class MpesaCallbackView(APIView):
         return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# M-Pesa timeout — Safaricom calls this when the request expires
-# ═════════════════════════════════════════════════════════════════════════════
 class MpesaTimeoutView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -832,14 +662,7 @@ class MpesaTimeoutView(APIView):
         return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# CART
-# ═════════════════════════════════════════════════════════════════════════════
-
 def _empty_cart_payload():
-    """
-    Shape returned when a user has no cart yet or just cleared it.
-    """
     return {
         "id": None,
         "items": [],
@@ -851,10 +674,6 @@ def _empty_cart_payload():
 
 
 class CartView(APIView):
-    """
-    GET    /api/v1/checkout/cart/     — read the current user's cart
-    DELETE /api/v1/checkout/cart/     — clear it
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -869,12 +688,6 @@ class CartView(APIView):
 
 
 class CartItemAddView(APIView):
-    """
-    POST /api/v1/checkout/cart/items/
-
-    Adds a variant to the cart. If the same (productId, variantId) is
-    already present, the service increments the existing line.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -894,10 +707,6 @@ class CartItemAddView(APIView):
 
 
 class CartItemDetailView(APIView):
-    """
-    PATCH  /api/v1/checkout/cart/items/<id>/   — set quantity
-    DELETE /api/v1/checkout/cart/items/<id>/   — remove line
-    """
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, item_id):
@@ -929,12 +738,6 @@ class CartItemDetailView(APIView):
 
 
 class CartMergeView(APIView):
-    """
-    POST /api/v1/checkout/cart/merge/
-
-    Called exactly once, immediately after login, with the anonymous
-    cart the browser has been holding in Zustand / localStorage.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -966,9 +769,31 @@ class CartMergeView(APIView):
         return Response(CartSerializer(cart).data)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TRANSACTIONS LEDGER (admin)
-# ═════════════════════════════════════════════════════════════════════════════
+class CartSnapshotView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(snapshot_cart(request.user))
+
+
+class CartRestoreView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        snapshot = request.data if isinstance(request.data, dict) else {}
+        if "items" not in snapshot:
+            return _error(
+                "Snapshot must contain an 'items' list.",
+                code="invalid_snapshot",
+            )
+
+        try:
+            cart = restore_cart_from_snapshot(request.user, snapshot)
+        except CheckoutError as exc:
+            return _error(str(exc), code="cart_error")
+
+        return Response(CartSerializer(cart).data)
+
 
 _STATUS_MAP = {
     "Success":  [Payment.Status.SUCCESS],
@@ -990,9 +815,6 @@ def _ledger_base_queryset():
 
 
 def _filtered_ledger_qs(request):
-    """
-    Apply the frontend's filter bar to the base queryset.
-    """
     qs = _ledger_base_queryset()
 
     q = (request.query_params.get("q") or "").strip()
@@ -1046,9 +868,6 @@ def _filtered_ledger_qs(request):
 
 
 class TransactionListView(APIView):
-    """
-    GET /api/v1/dashboard/transactions/
-    """
     permission_classes = [IsAdminUser]
 
     def get(self, request):
@@ -1058,9 +877,6 @@ class TransactionListView(APIView):
 
 
 class TransactionSummaryView(APIView):
-    """
-    GET /api/v1/dashboard/transactions/summary/
-    """
     permission_classes = [IsAdminUser]
 
     def get(self, request):
@@ -1119,9 +935,6 @@ class TransactionSummaryView(APIView):
 
 
 class TransactionDetailView(APIView):
-    """
-    GET /api/v1/dashboard/transactions/<pk>/
-    """
     permission_classes = [IsAdminUser]
 
     def get(self, request, pk):
@@ -1177,10 +990,6 @@ def _row_to_csv(payment: Payment) -> list:
 
 
 class TransactionExportView(APIView):
-    """
-    GET  /api/v1/dashboard/transactions/export/   — filtered export
-    POST /api/v1/dashboard/transactions/export/   — export selected ids
-    """
     permission_classes = [IsAdminUser]
 
     def get(self, request):
@@ -1212,13 +1021,6 @@ class TransactionExportView(APIView):
 
 
 class TransactionRetryView(APIView):
-    """
-    POST /api/v1/dashboard/transactions/<pk>/retry/
-
-    Re-fires the STK push for a failed M-Pesa payment. Refuses when
-    `payments.mpesa_enabled` is off — the service raises
-    `CheckoutError` and this view returns a 400.
-    """
     permission_classes = [IsAdminUser]
 
     def post(self, request, pk):
@@ -1258,14 +1060,12 @@ class TransactionRetryView(APIView):
 
 
 class TransactionReconcileView(APIView):
-    """
-    POST /api/v1/dashboard/transactions/<pk>/reconcile/
-    """
     permission_classes = [IsAdminUser]
 
     _ACTION_MAP = {
         "Matched":   ReconciliationLog.Action.MATCHED,
         "Unmatched": ReconciliationLog.Action.UNMATCHED,
+        "Cash Paid": ReconciliationLog.Action.CASH_PAID,
     }
 
     def post(self, request, pk):
@@ -1279,7 +1079,13 @@ class TransactionReconcileView(APIView):
                 http_status=status.HTTP_404_NOT_FOUND,
             )
 
-        action = self._ACTION_MAP[ser.validated_data["status"]]
+        raw_status = ser.validated_data["status"]
+        if raw_status not in self._ACTION_MAP:
+            return _error(
+                f"Unsupported reconciliation status: {raw_status}",
+                code="invalid_action",
+            )
+        action = self._ACTION_MAP[raw_status]
         order_ref = (ser.validated_data.get("orderNumber") or "").strip()
         note = (ser.validated_data.get("note") or "").strip()
 
@@ -1296,3 +1102,74 @@ class TransactionReconcileView(APIView):
 
         payment = _ledger_base_queryset().filter(pk=payment.pk).first()
         return Response(TransactionSerializer(payment).data)
+
+
+class MarkCashCollectedView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        payment = _ledger_base_queryset().filter(pk=pk).first()
+        if not payment:
+            return _error(
+                "Transaction not found.",
+                http_status=status.HTTP_404_NOT_FOUND,
+            )
+
+        note = (request.data.get("note") or "").strip()
+
+        try:
+            payment = mark_cash_collected(
+                payment=payment,
+                actor=request.user,
+                note=note,
+            )
+        except CheckoutError as exc:
+            return _error(str(exc), code="reconcile_error")
+
+        payment = _ledger_base_queryset().filter(pk=payment.pk).first()
+        return Response(TransactionSerializer(payment).data)
+
+
+class OrderStatusChangeView(APIView):
+    permission_classes = [IsAdminUser]
+
+    _ALLOWED = {c for c, _ in Order.Status.choices}
+
+    def post(self, request, reference):
+        new_status = (request.data.get("status") or "").strip().upper()
+        if new_status not in self._ALLOWED:
+            return _error(
+                "Unknown order status.",
+                code="invalid_status",
+            )
+
+        order = Order.objects.filter(reference=reference).first()
+        if not order:
+            return _error(
+                "Order not found.",
+                http_status=status.HTTP_404_NOT_FOUND,
+            )
+
+        note = (request.data.get("note") or "").strip()
+        actor_name = (
+            getattr(request.user, "get_full_name", lambda: "")()
+            or getattr(request.user, "email", "")
+            or "Admin"
+        )
+
+        try:
+            order = change_order_status(
+                order,
+                new_status,
+                actor=request.user,
+                actor_label=actor_name[:120],
+                note=note,
+                notify=True,
+            )
+        except CheckoutError as exc:
+            return _error(str(exc), code="status_error")
+
+        return Response({
+            "reference": order.reference,
+            "status": order.status,
+        })

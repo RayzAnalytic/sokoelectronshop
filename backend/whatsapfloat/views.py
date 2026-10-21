@@ -7,15 +7,7 @@ from .serializers import WhatsAppConfigSerializer
 
 
 class WhatsAppConfigView(APIView):
-    """
-    GET /api/whatsapp/config/
-
-    Public — no authentication required. The storefront widget calls this
-    on mount and renders itself if `enabled` is true.
-
-    If no config row exists yet, we return `{ "enabled": false }` so the
-    widget silently hides instead of erroring.
-    """
+    permission_classes = [AllowAny]
     permission_classes = [AllowAny]
     authentication_classes = []
 

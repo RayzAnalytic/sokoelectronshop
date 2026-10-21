@@ -1,20 +1,3 @@
-"""
-Suppliers app.
-
-Four tables:
-
-  * Supplier          — the vendor record (contact, address, business info)
-  * SupplierProduct   — through-row linking a Supplier to a catalogue
-                        product, with vendor-specific pricing and lead time
-  * Purchase          — a purchase order placed against a supplier
-  * SupplierActivity  — append-only audit log of changes
-
-The frontend reads a single nested payload per supplier (products,
-purchases, activity), so the read serializer assembles all four. The
-views `prefetch_related` every relation to keep the list endpoint
-from firing N+1 queries.
-"""
-
 from django.db import models
 
 
@@ -30,31 +13,30 @@ class Supplier(models.Model):
         ACTIVE = "Active", "Active"
         INACTIVE = "Inactive", "Inactive"
 
-    # Identity
     contact_name = models.CharField(max_length=150)
     company = models.CharField(max_length=200, db_index=True)
     type = models.CharField(
-        max_length=20, choices=Type.choices, default=Type.DISTRIBUTOR,
+        max_length=20,
+        choices=Type.choices,
+        default=Type.DISTRIBUTOR,
     )
 
-    # Contact
     phone = models.CharField(max_length=32, blank=True)
     email = models.EmailField(blank=True)
     website = models.URLField(blank=True)
 
-    # Address
     country = models.CharField(max_length=80, default="Kenya")
     county = models.CharField(max_length=80, blank=True)
     city = models.CharField(max_length=80, blank=True)
     address = models.CharField(max_length=255, blank=True)
 
-    # Business
     tax_pin = models.CharField(max_length=40, blank=True)
     reg_number = models.CharField(max_length=60, blank=True)
-    payment_terms = models.CharField(max_length=40, blank=True)
-    payment_method = models.CharField(max_length=40, blank=True)
+    payment_terms = models.CharField(max_length=40, blank=True, default="Net 30")
+    payment_method = models.CharField(
+        max_length=40, blank=True, default="Bank Transfer",
+    )
 
-    # Meta
     notes = models.TextField(blank=True)
     status = models.CharField(
         max_length=10,
@@ -70,6 +52,8 @@ class Supplier(models.Model):
         ordering = ["company"]
         indexes = [
             models.Index(fields=["status", "company"]),
+            models.Index(fields=["company"]),
+            models.Index(fields=["email"]),
         ]
 
     def __str__(self):
@@ -77,15 +61,6 @@ class Supplier(models.Model):
 
 
 class SupplierProduct(models.Model):
-    """
-    A product this supplier provides.
-
-    `product_id` is a CharField, not a ForeignKey, because the catalogue
-    identifies products by string IDs (matching `OrderItem.product_id`).
-    The other product fields are snapshots captured at link time — if the
-    catalogue is renamed, this row keeps the historical label.
-    """
-
     supplier = models.ForeignKey(
         Supplier,
         on_delete=models.CASCADE,
@@ -94,19 +69,16 @@ class SupplierProduct(models.Model):
 
     product_id = models.CharField(max_length=64, db_index=True)
 
-    # Catalogue snapshot
     product_name = models.CharField(max_length=255)
     product_sku = models.CharField(max_length=80, blank=True)
     product_image = models.CharField(max_length=500, blank=True)
     product_category = models.CharField(max_length=120, blank=True)
 
-    # Vendor-specific terms
     supplier_sku = models.CharField(max_length=80, blank=True)
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     min_order_qty = models.PositiveIntegerField(default=1)
     lead_time_days = models.PositiveIntegerField(default=14)
 
-    # Last purchase snapshot
     last_purchase_price = models.DecimalField(
         max_digits=12, decimal_places=2, default=0,
     )
@@ -125,6 +97,7 @@ class SupplierProduct(models.Model):
         ]
         indexes = [
             models.Index(fields=["supplier", "-created_at"]),
+            models.Index(fields=["product_id"]),
         ]
 
     def __str__(self):
@@ -175,6 +148,7 @@ class Purchase(models.Model):
         ordering = ["-date", "-created_at"]
         indexes = [
             models.Index(fields=["supplier", "-date"]),
+            models.Index(fields=["number"]),
         ]
 
     def __str__(self):
@@ -182,11 +156,6 @@ class Purchase(models.Model):
 
 
 class SupplierActivity(models.Model):
-    """
-    Append-only audit log. Written by the viewset on every mutation —
-    create, update, add-products, toggle-status.
-    """
-
     class Kind(models.TextChoices):
         CREATED = "created", "Created"
         PRODUCT_ADDED = "product_added", "Product added"
@@ -200,7 +169,7 @@ class SupplierActivity(models.Model):
     )
     kind = models.CharField(max_length=32, choices=Kind.choices)
     description = models.CharField(max_length=255)
-    user_label = models.CharField(max_length=120, blank=True)
+    user_label = models.CharField(max_length=120, blank=True, default="System")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

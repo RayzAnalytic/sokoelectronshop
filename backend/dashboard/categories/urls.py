@@ -13,11 +13,11 @@ urlpatterns = [
         name="admin-categories-list",
     ),
     path(
-        "<str:id>/",                                       # ← was <str:pk>
+        "<str:id>/",
         CategoryAdminViewSet.as_view({
             "get": "retrieve",
-            "patch": "partial_update",
             "put": "update",
+            "patch": "partial_update",
             "delete": "destroy",
         }),
         name="admin-categories-detail",

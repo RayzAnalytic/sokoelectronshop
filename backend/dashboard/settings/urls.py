@@ -20,12 +20,28 @@ Layout:
     delivery zones) plus the public settings snapshot. Mounted at a
     different prefix in config/urls.py.
 
-Route ordering matters:
-  1. Singletons first, because a viewset route like `integrations/`
-     would otherwise shadow a scalar endpoint like `integrations/refresh/`.
-  2. Explicit `refresh/` path BEFORE the router include for the same
-     reason — routers match `<pk>/` lazily.
-  3. Router include LAST.
+Route ordering — the ONLY ordering constraint that matters:
+
+  The literal path `integrations/refresh/` MUST appear before the
+  router include. The router registers `integrations/<lookup>/` where
+  `<lookup>` is the integration key (e.g. "mpesa", "whatsapp").
+  Without the explicit `refresh/` path coming first, Django would
+  match `/integrations/refresh/` as a detail lookup for key="refresh"
+  and hit the retrieve view.
+
+  Everything else can be in any order. The singletons are listed
+  first for human readability, not because Django requires it.
+
+Lookup fields — important for router URLs:
+
+  * `shipping/providers/<key>/`      → key is the provider slug ("g4s")
+  * `shipping/zones/<int:pk>/`       → numeric id
+  * `payments/transactions/<int:pk>/`→ numeric id
+  * `notifications/log/<int:pk>/`    → numeric id
+  * `security/login-history/`        → no detail route (list-only)
+  * `integrations/<key>/`            → key is the integration slug
+  * `audit-log/<int:pk>/`            → numeric id
+  * `tax/etims-submissions/<int:pk>/`→ numeric id
 """
 
 from django.urls import include, path
@@ -85,44 +101,66 @@ singleton_patterns = [
 
 # ══════════════════════════════════════════════════════════════
 # Multi-row resources — router (they're real viewsets with CRUD)
+#
+# `lookup_field` on each viewset determines what the router's
+# `<lookup>` slot matches. Viewsets without an explicit
+# `lookup_field` use the default `<int:pk>`.
 # ══════════════════════════════════════════════════════════════
 
 router = DefaultRouter()
+
+# Provider key is the slug — `shipping/providers/g4s/`, not `/1/`.
 router.register(
     "shipping/providers",
     views.ShippingProviderViewSet,
     basename="shipping-provider",
 )
+
+# Delivery zone id is numeric — `shipping/zones/5/`.
 router.register(
     "shipping/zones",
     views.DeliveryZoneViewSet,
     basename="shipping-zone",
 )
+
+# M-Pesa transaction id is numeric — `payments/transactions/42/`.
 router.register(
     "payments/transactions",
     views.MpesaTransactionViewSet,
     basename="mpesa-txn",
 )
+
+# Notification log id is numeric — `notifications/log/88/`.
 router.register(
     "notifications/log",
     views.NotificationLogViewSet,
     basename="notif-log",
 )
+
+# Login history is list-only (no retrieve route registered on the
+# viewset), so the router won't emit `<pk>/` at all.
 router.register(
     "security/login-history",
     views.LoginHistoryView,
     basename="login-history",
 )
+
+# Integration lookup is the KEY slug — `integrations/mpesa/`, not `/1/`.
+# This is why the explicit `refresh/` path below must come first.
 router.register(
     "integrations",
     views.IntegrationStatusViewSet,
     basename="integration",
 )
+
+# Audit log id is numeric — `audit-log/1024/`.
 router.register(
     "audit-log",
     views.AuditLogViewSet,
     basename="audit-log",
 )
+
+# eTIMS submission id is numeric — `tax/etims-submissions/9/`.
 router.register(
     "tax/etims-submissions",
     views.EtimsSubmissionViewSet,
@@ -135,10 +173,15 @@ router.register(
 # ══════════════════════════════════════════════════════════════
 
 urlpatterns = [
-    # ── 1. Singletons FIRST so scalar routes win over router globs ──
+    # ── 1. Singletons ───────────────────────────────────────────────
+    # No ordering constraint with the router — these all end in a
+    # trailing slash on a fully-literal path, so they can never be
+    # swallowed by a router's `<lookup>/` pattern. Grouped first for
+    # human readability.
     *singleton_patterns,
 
     # ── 2. Security actions ─────────────────────────────────────────
+    # Plain function-based views — not viewsets, so no router overlap.
     path(
         "security/password/",
         views.change_password,
@@ -165,10 +208,16 @@ urlpatterns = [
         name="revoke-session",
     ),
 
-    # ── 3. Integration refresh BEFORE the router include ────────────
-    # The router registers `integrations/<pk>/` as a catch-all. If we
-    # put this path after the router, `integrations/refresh/` would
-    # match `<pk=refresh>` and hit the detail view instead.
+    # ── 3. Integration refresh — MUST be before the router include ──
+    #
+    # Why: the router registers `integrations/<lookup>/` where
+    # `<lookup>` matches the integration key. If this path came
+    # AFTER the router include, Django would try
+    # `/integrations/refresh/` as a detail lookup with key="refresh"
+    # and route it to `IntegrationStatusViewSet.retrieve()` — which
+    # would 404 or, worse, hit a real integration named "refresh".
+    #
+    # This is the single ordering constraint in this file.
     path(
         "integrations/refresh/",
         views.refresh_integrations,
@@ -183,8 +232,13 @@ urlpatterns = [
 # ══════════════════════════════════════════════════════════════
 # Public sub-router (storefront reads)
 #
-# Mounted at a different prefix (e.g. /api/v1/settings/) in config/urls.py.
-# Contains the storefront-safe snapshot plus the enabled delivery zones.
+# Mounted at a different prefix (e.g. /api/v1/settings/) in
+# config/urls.py. Contains the storefront-safe snapshot plus the
+# enabled delivery zones.
+#
+# None of these routes require authentication. They expose only
+# the fields the customer app needs to render checkout — no
+# credentials, no admin emails, no session config.
 # ══════════════════════════════════════════════════════════════
 
 public_router = DefaultRouter()

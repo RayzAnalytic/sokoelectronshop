@@ -12,11 +12,6 @@ import {
     type AddressInput,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
-// Must match KENYAN_COUNTIES in the backend's config/settings.py.
-// When a config endpoint becomes available, fetch from checkoutApi.config().
 const KENYAN_COUNTIES = [
     'Baringo', 'Bomet', 'Bungoma', 'Busia', 'Elgeyo-Marakwet', 'Embu',
     'Garissa', 'Homa Bay', 'Isiolo', 'Kajiado', 'Kakamega', 'Kericho',
@@ -39,9 +34,6 @@ const EMPTY_FORM: AddressInput = {
     is_default: false,
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function AddressesPage() {
     const [addresses, setAddresses] = useState<Address[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +55,6 @@ export default function AddressesPage() {
         setTimeout(() => setToast(null), 2500);
     };
 
-    // ── Fetch addresses on mount ──
     useEffect(() => {
         let cancelled = false;
 
@@ -89,7 +80,6 @@ export default function AddressesPage() {
         };
     }, []);
 
-    // ── Body scroll lock while any modal is open ──
     const anyModalOpen = modalOpen || !!deleteTarget;
 
     useEffect(() => {
@@ -101,7 +91,6 @@ export default function AddressesPage() {
         };
     }, [anyModalOpen]);
 
-    // ── ESC key closes the topmost modal ──
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
@@ -117,7 +106,6 @@ export default function AddressesPage() {
         return () => window.removeEventListener('keydown', onKey);
     }, [modalOpen, deleteTarget, saving, deleting]);
 
-    // ── Open modals ──
     const openAdd = () => {
         setEditing(null);
         setForm(EMPTY_FORM);
@@ -147,9 +135,7 @@ export default function AddressesPage() {
         setFormError('');
     };
 
-    // ── Save (create or update) ──
     const handleSave = async () => {
-        // Client-side required check — matches the backend serializer rules.
         if (
             !form.full_name.trim() ||
             !form.phone.trim() ||
@@ -172,7 +158,6 @@ export default function AddressesPage() {
                 setAddresses((prev) =>
                     prev.map((a) => (a.id === editing.id ? updated : a)),
                 );
-                // If this one became the default, clear the flag on the rest.
                 if (updated.is_default) {
                     setAddresses((prev) =>
                         prev.map((a) =>
@@ -203,10 +188,8 @@ export default function AddressesPage() {
         }
     };
 
-    // ── Set default ──
     const handleSetDefault = async (id: number) => {
         const previous = addresses;
-        // Optimistic update.
         setAddresses((prev) =>
             prev.map((a) => ({ ...a, is_default: a.id === id })),
         );
@@ -224,7 +207,6 @@ export default function AddressesPage() {
         }
     };
 
-    // ── Delete ──
     const confirmDelete = async () => {
         if (!deleteTarget) return;
         setDeleting(true);
@@ -232,15 +214,12 @@ export default function AddressesPage() {
         const target = deleteTarget;
         const previous = addresses;
 
-        // Optimistic remove.
         setAddresses((prev) => prev.filter((a) => a.id !== target.id));
 
         try {
             await accountApi.addresses.remove(target.id);
             flash('Address removed.');
 
-            // If we removed the default, the backend promotes another one.
-            // Refetch to stay in sync.
             if (target.is_default) {
                 const list = await accountApi.addresses.list();
                 setAddresses(list);
@@ -259,17 +238,15 @@ export default function AddressesPage() {
     };
 
     return (
-        <div className="space-y-5">
-            {/* Toast */}
+        <div className="space-y-3">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-center gap-2">
+                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-400" />
                     {toast}
                 </div>
             )}
 
-            {/* Header */}
-            <div className="bg-white border border-slate-200 rounded-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <MapPin className="h-5 w-5 text-blue-950" />
@@ -281,22 +258,20 @@ export default function AddressesPage() {
                 </div>
                 <button
                     onClick={openAdd}
-                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-xs transition"
                 >
                     <Plus className="h-3.5 w-3.5" />
                     Add Address
                 </button>
             </div>
 
-            {/* Load error */}
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
             )}
 
-            {/* Loading */}
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {[0, 1].map((i) => (
@@ -312,7 +287,6 @@ export default function AddressesPage() {
                     ))}
                 </div>
             ) : addresses.length === 0 ? (
-                /* Empty state */
                 <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
                     <MapPin className="h-10 w-10 text-slate-300 mx-auto mb-3" />
                     <h2 className="text-sm font-semibold text-slate-900">
@@ -323,7 +297,6 @@ export default function AddressesPage() {
                     </p>
                 </div>
             ) : (
-                /* Address grid */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {addresses.map((addr) => (
                         <div
@@ -357,7 +330,7 @@ export default function AddressesPage() {
                                     <Phone className="h-3.5 w-3.5 text-slate-400" />
                                     {addr.phone}
                                 </p>
-                                <p className="pt-1 text-slate-600 leading-relaxed">
+                                <p className="pt-1 text-slate-600">
                                     {addr.street}
                                     <br />
                                     {addr.town}, {addr.county}
@@ -365,7 +338,7 @@ export default function AddressesPage() {
                                 </p>
                             </div>
 
-                            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
+                            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
                                 {!addr.is_default && (
                                     <button
                                         onClick={() => handleSetDefault(addr.id)}
@@ -396,7 +369,6 @@ export default function AddressesPage() {
                 </div>
             )}
 
-            {/* Add / Edit modal */}
             {modalOpen && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/70 backdrop-blur-sm"
@@ -408,7 +380,7 @@ export default function AddressesPage() {
                         className="bg-white w-full max-w-lg rounded-sm shadow-2xl border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 shrink-0">
+                        <div className="flex items-center justify-between p-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <h2 className="text-sm font-bold text-slate-900">
                                 {editing ? 'Edit Address' : 'Add New Address'}
                             </h2>
@@ -421,8 +393,7 @@ export default function AddressesPage() {
                             </button>
                         </div>
 
-                        <div className="p-5 overflow-y-auto space-y-4">
-                            {/* Label chips */}
+                        <div className="p-3 overflow-y-auto space-y-3">
                             <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
                                     Label
@@ -479,7 +450,7 @@ export default function AddressesPage() {
                                     }
                                 />
                                 <div>
-                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <label className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                                         County
                                     </label>
                                     <select
@@ -535,7 +506,7 @@ export default function AddressesPage() {
                             )}
                         </div>
 
-                        <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 shrink-0">
+                        <div className="p-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 shrink-0">
                             <button
                                 onClick={closeModal}
                                 disabled={saving}
@@ -547,7 +518,7 @@ export default function AddressesPage() {
                                 onClick={handleSave}
                                 disabled={saving}
                                 aria-busy={saving}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-950 hover:bg-blue-900 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {saving ? (
                                     <>
@@ -565,7 +536,6 @@ export default function AddressesPage() {
                 </div>
             )}
 
-            {/* Delete confirmation */}
             {deleteTarget && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/70 backdrop-blur-sm"
@@ -591,7 +561,7 @@ export default function AddressesPage() {
                                 </p>
                             </div>
                         </div>
-                        <div className="mt-5 flex justify-end gap-2">
+                        <div className="mt-3 flex justify-end gap-2">
                             <button
                                 onClick={() => setDeleteTarget(null)}
                                 disabled={deleting}
@@ -603,7 +573,7 @@ export default function AddressesPage() {
                                 onClick={confirmDelete}
                                 disabled={deleting}
                                 aria-busy={deleting}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {deleting ? (
                                     <>
@@ -622,9 +592,6 @@ export default function AddressesPage() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Field
-// ─────────────────────────────────────────────────────────────────────────────
 function Field({
     label,
     value,
@@ -638,7 +605,7 @@ function Field({
 }) {
     return (
         <label className="block">
-            <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+            <span className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                 {label}
             </span>
             <input

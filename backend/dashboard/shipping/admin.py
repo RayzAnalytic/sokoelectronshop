@@ -1,11 +1,3 @@
-# dashboard/shipping/admin.py
-
-"""
-Django admin registrations. Minimal — the shop admin UI is the React
-page, not Django admin. These are here so an engineer debugging a
-specific row can find it without shell access.
-"""
-
 from django.contrib import admin
 
 from .models import (
@@ -53,7 +45,7 @@ class CourierConfigAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "enabled")
     list_filter = ("enabled",)
     search_fields = ("name", "slug")
-    exclude = ("api_key",)  # set through the app's rotate flow, not here
+    exclude = ("api_key",)
 
 
 @admin.register(Shipment)

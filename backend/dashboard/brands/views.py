@@ -1,5 +1,11 @@
-from django.db.models import Count, Q
+from datetime import timedelta
+from decimal import Decimal
+
+from django.db.models import Count, F, Q, Sum
+from django.utils import timezone
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
@@ -11,20 +17,121 @@ from .serializers import (
 )
 
 
-class BrandAdminViewSet(viewsets.ModelViewSet):
-    """
-    CRUD for brands, used by the admin dashboard.
+def _counted_order_statuses():
+    try:
+        from checkout.models import Order
+        return [Order.Status.DELIVERED]
+    except Exception:
+        return ["delivered"]
 
-    GET    /api/v1/admin/brands/           → list
-    POST   /api/v1/admin/brands/           → create
-    GET    /api/v1/admin/brands/<id>/      → detail
-    PATCH  /api/v1/admin/brands/<id>/      → partial update
-    DELETE /api/v1/admin/brands/<id>/      → delete
-    POST   /api/v1/admin/brands/<id>/toggle-featured/
-    """
+
+def _attach_brand_stats(brands):
+    if not brands:
+        return
+
+    for b in brands:
+        b.sales_total = Decimal("0")
+        b._sales_last_30 = Decimal("0")
+        b._sales_prev_30 = Decimal("0")
+        b.customers_count = 0
+
+    try:
+        from checkout.models import Order, OrderItem
+    except Exception:
+        return
+
+    if hasattr(OrderItem, "unit_price") and hasattr(OrderItem, "quantity"):
+        line_total = F("unit_price") * F("quantity")
+    elif hasattr(OrderItem, "subtotal"):
+        line_total = F("subtotal")
+    elif hasattr(OrderItem, "total"):
+        line_total = F("total")
+    elif hasattr(OrderItem, "unit_price"):
+        line_total = F("unit_price")
+    else:
+        return
+
+    customer_field = None
+    for candidate in ("user", "customer"):
+        if hasattr(Order, candidate):
+            customer_field = candidate
+            break
+
+    brand_names = [b.name for b in brands]
+    now = timezone.now()
+    last_30 = now - timedelta(days=30)
+    prev_30 = now - timedelta(days=60)
+    counted = _counted_order_statuses()
+
+    try:
+        base_qs = OrderItem.objects.filter(
+            brand__in=brand_names,
+            order__status__in=counted,
+        )
+        totals_map = {
+            r["brand"]: (r["total"] or Decimal("0"))
+            for r in base_qs.values("brand").annotate(total=Sum(line_total))
+        }
+    except Exception:
+        return
+
+    try:
+        last_map = {
+            r["brand"]: (r["total"] or Decimal("0"))
+            for r in (
+                base_qs
+                .filter(order__created_at__gte=last_30)
+                .values("brand")
+                .annotate(total=Sum(line_total))
+            )
+        }
+    except Exception:
+        last_map = {}
+
+    try:
+        prev_map = {
+            r["brand"]: (r["total"] or Decimal("0"))
+            for r in (
+                base_qs
+                .filter(
+                    order__created_at__gte=prev_30,
+                    order__created_at__lt=last_30,
+                )
+                .values("brand")
+                .annotate(total=Sum(line_total))
+            )
+        }
+    except Exception:
+        prev_map = {}
+
+    customers_map = {}
+    if customer_field:
+        try:
+            customers_map = {
+                r["brand"]: r["count"]
+                for r in (
+                    base_qs
+                    .values("brand")
+                    .annotate(
+                        count=Count(f"order__{customer_field}", distinct=True)
+                    )
+                )
+            }
+        except Exception:
+            customers_map = {}
+
+    for b in brands:
+        b.sales_total = totals_map.get(b.name, Decimal("0"))
+        b._sales_last_30 = last_map.get(b.name, Decimal("0"))
+        b._sales_prev_30 = prev_map.get(b.name, Decimal("0"))
+        b.customers_count = customers_map.get(b.name, 0)
+
+
+class BrandAdminViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
-    pagination_class = None          # ← added: return a plain array, not {results: [...]}
+    pagination_class = None
     lookup_field = "id"
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         qs = Brand.objects.annotate(
@@ -57,6 +164,23 @@ class BrandAdminViewSet(viewsets.ModelViewSet):
             return BrandAdminReadSerializer
         return BrandAdminWriteSerializer
 
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        brands = list(qs)
+        _attach_brand_stats(brands)
+        data = BrandAdminReadSerializer(
+            brands, many=True, context={"request": request},
+        ).data
+        return Response(data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        _attach_brand_stats([instance])
+        data = BrandAdminReadSerializer(
+            instance, context={"request": request},
+        ).data
+        return Response(data)
+
     def create(self, request, *args, **kwargs):
         ser = self.get_serializer(data=request.data)
         if not ser.is_valid():
@@ -87,6 +211,12 @@ class BrandAdminViewSet(viewsets.ModelViewSet):
         )
         return Response(read.data)
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], url_path="toggle-featured")
     def toggle_featured(self, request, id=None):
         brand = self.get_object()
         brand.featured = not brand.featured

@@ -2,6 +2,7 @@ from django.db.models import F, Max, Q, Sum
 from django.utils import timezone
 from rest_framework import status as http
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -139,6 +140,8 @@ class HeroSlidesView(APIView):
       placement = HOME_HERO, status = ACTIVE, within schedule, sorted by order.
     """
 
+    permission_classes = [AllowAny]   # ← ADDED
+
     def get(self, request):
         now = timezone.now()
         qs = (
@@ -155,6 +158,8 @@ class BannerTrackView(APIView):
     POST /api/banners/<id>/track/<impression|click|conversion>/
     Atomic counter bump — safe for concurrent calls.
     """
+
+    permission_classes = [AllowAny]   # ← ADDED
 
     EVENT_FIELD = {
         'impression': 'impressions',

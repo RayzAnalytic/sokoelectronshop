@@ -1,23 +1,3 @@
-# dashboard/transactions/views.py
-
-"""
-Admin transactions ledger API.
-
-Six endpoints under `/api/v1/dashboard/transactions/`:
-
-    GET    /                              list + filter + search
-    GET    /summary/                      the five summary cards
-    GET    /<uuid:pk>/                    detail drawer payload
-    GET    /export/                       CSV (filtered)
-    POST   /export/                       CSV (bulk ids)
-    POST   /<uuid:pk>/retry/              re-fire a failed STK push
-    POST   /<uuid:pk>/reconcile/          manual finance action
-
-Every view is `IsFinanceStaff`. The route layer never sees the
-permission — it is applied per-view so a future swap (custom role
-field) is a view-level change, not a routing change.
-"""
-
 import csv
 import logging
 from datetime import timedelta
@@ -46,15 +26,10 @@ from .services import reconcile_payment, retry_payment
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 def _error(message, code="error", http_status=400):
     return Response({"code": code, "detail": message}, status=http_status)
 
 
-# The frontend's 4-state vocabulary. Kept as a module constant so the
-# list and the summary agree by construction.
 _STATUS_MAP = {
     "Success":  [Payment.Status.SUCCESS],
     "Pending":  [Payment.Status.PENDING, Payment.Status.PROCESSING],
@@ -71,29 +46,10 @@ _DATE_RANGE_DAYS = {
 
 
 def _ledger_base_queryset():
-    """
-    Every ledger endpoint starts here.
-
-    `select_related("order", "order__user")` is not optional: the
-    serializer reads `order.reference`, `order.contact_email`,
-    `order.snapshot.full_name`, and `order.user` on every row.
-    Without it, N rows become N+1 queries.
-    """
     return Payment.objects.select_related("order", "order__user")
 
 
 def _filtered_ledger_qs(request):
-    """
-    Apply the filter bar to the base queryset.
-
-    Query params (all optional):
-      q           free-text: M-Pesa ref, order #, phone, customer
-      status      Success | Pending | Failed | Reversed
-      method      MPESA | COD
-      dateRange   Today | Yesterday | Last 7 Days | Last 30 Days
-      minAmount   inclusive lower bound on amount
-      maxAmount   inclusive upper bound on amount
-    """
     qs = _ledger_base_queryset()
 
     q = (request.query_params.get("q") or "").strip()
@@ -146,20 +102,7 @@ def _filtered_ledger_qs(request):
     return qs
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# List
-# ─────────────────────────────────────────────────────────────────────────────
 class TransactionListView(APIView):
-    """
-    GET /api/v1/dashboard/transactions/
-
-    The ledger table. Returns the FULL filtered set — the frontend
-    paginates client-side today. If the ledger grows past what a
-    single response can hold, wrap this view in DRF pagination
-    (PageNumberPagination, page size 50) and update the component to
-    append pages. The filters stay identical either way.
-    """
-
     permission_classes = [IsFinanceStaff]
 
     def get(self, request):
@@ -167,26 +110,7 @@ class TransactionListView(APIView):
         return Response(TransactionSerializer(qs, many=True).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Summary cards
-# ─────────────────────────────────────────────────────────────────────────────
 class TransactionSummaryView(APIView):
-    """
-    GET /api/v1/dashboard/transactions/summary/
-
-    The five cards. Every aggregate is computed over the SAME filtered
-    queryset the list view uses — so the card totals always match what
-    the table shows.
-
-    "Net settled = Successful − Fees" is correct across all methods
-    without an explicit filter: COD payments carry `fee = 0`, so the
-    sum is already M-Pesa-aware.
-
-    `perMethod` is the guardrail that catches a method-filter bug the
-    moment the two totals disagree. Not rendered today; ready when the
-    UI splits.
-    """
-
     permission_classes = [IsFinanceStaff]
 
     def get(self, request):
@@ -216,8 +140,6 @@ class TransactionSummaryView(APIView):
         failed     = agg["failed"] or 0
         fees       = agg["fees"] or 0
 
-        # Per-method breakdown, iterated over the enum so a new method
-        # is automatically included.
         per_method = {}
         for method_value, method_label in Payment.Method.choices:
             m = qs.filter(method=method_value).aggregate(
@@ -260,22 +182,7 @@ class TransactionSummaryView(APIView):
         return Response(TransactionSummarySerializer(payload).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detail (drawer)
-# ─────────────────────────────────────────────────────────────────────────────
 class TransactionDetailView(APIView):
-    """
-    GET /api/v1/dashboard/transactions/<uuid:pk>/
-
-    One transaction, fully hydrated for the drawer: the fields the
-    row already shows, plus `payload` (raw Daraja body) and `timeline`
-    (payment lifecycle events).
-
-    Prefetches `events` and `reversals` so both relationships stay one
-    round-trip. `reconciliations` is prefetched too, so a future
-    history panel reads it without an extra query.
-    """
-
     permission_classes = [IsFinanceStaff]
 
     def get(self, request, pk):
@@ -290,9 +197,6 @@ class TransactionDetailView(APIView):
         return Response(TransactionSerializer(payment).data)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CSV export
-# ─────────────────────────────────────────────────────────────────────────────
 _CSV_COLUMNS = [
     "M-Pesa Ref",
     "Order #",
@@ -331,14 +235,6 @@ def _row_to_csv(payment: Payment) -> list:
 
 
 class TransactionExportView(APIView):
-    """
-    GET  /api/v1/dashboard/transactions/export/   filtered
-    POST /api/v1/dashboard/transactions/export/   bulk ids
-
-    Same filters as the list view for GET. POST accepts
-    `{ "ids": ["<uuid>", ...] }` and streams only those rows.
-    """
-
     permission_classes = [IsFinanceStaff]
 
     def get(self, request):
@@ -363,19 +259,7 @@ class TransactionExportView(APIView):
         return response
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Retry
-# ─────────────────────────────────────────────────────────────────────────────
 class TransactionRetryView(APIView):
-    """
-    POST /api/v1/dashboard/transactions/<uuid:pk>/retry/
-
-    Re-fires the STK push for a failed M-Pesa attempt. The service
-    creates a NEW Payment row (never mutates the failed one) and
-    returns it in the ledger row shape so the frontend can append it
-    without a refetch.
-    """
-
     permission_classes = [IsFinanceStaff]
 
     def post(self, request, pk):
@@ -407,28 +291,7 @@ class TransactionRetryView(APIView):
         )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Reconcile
-# ─────────────────────────────────────────────────────────────────────────────
 class TransactionReconcileView(APIView):
-    """
-    POST /api/v1/dashboard/transactions/<uuid:pk>/reconcile/
-
-    Manual finance action. Maps the modal's title-case status onto
-    `ReconciliationLog.Action`:
-
-        'Matched'   → MATCHED
-        'Unmatched' → UNMATCHED
-
-    `CASH_PAID` and `ON_ACCOUNT` are NOT exposed here — they have
-    distinct side effects (flipping a Payment to SUCCESS, spawning an
-    invoice) that belong to their own flows. This view stays a pure
-    audit-log writer.
-
-    Every call writes a `ReconciliationLog` row. A `MATCHED` action
-    with a changed `orderNumber` also re-links the payment.
-    """
-
     permission_classes = [IsFinanceStaff]
 
     _ACTION_MAP = {
@@ -455,6 +318,5 @@ class TransactionReconcileView(APIView):
         except CheckoutError as exc:
             return _error(str(exc), code="reconcile_error")
 
-        # Re-fetch so the response reflects any re-linked order fields.
         payment = _ledger_base_queryset().filter(pk=payment.pk).first()
         return Response(TransactionSerializer(payment).data)

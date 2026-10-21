@@ -1,15 +1,3 @@
-"""
-Serializers for the admin orders module.
-
-Two directions:
-
-  OUTBOUND — list rows, detail payloads, stats, tab counts. Field
-             names match what the React admin page reads.
-
-  INBOUND  — small action payloads. Every write endpoint has its own
-             serializer so validation lives next to the shape.
-"""
-
 from rest_framework import serializers
 
 from checkout.models import Order, OrderItem, OrderStatusEvent, Payment
@@ -20,31 +8,55 @@ from .constants import (
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Display helpers
-# ─────────────────────────────────────────────────────────────────────────────
-def _customer_display(order: Order) -> str:
-    """
-    Name of the customer, falling back to contact email, then to
-    "Guest" for legacy pre-rewrite rows.
+# ─────────────────────────────────────────────────────────────────────
+# Field helpers
+#
+# The Order model stores status / payment_status as UPPERCASE choice
+# keys. The storefront and admin SPA both expect the lowercase contract
+# (e.g. 'pending', 'paid'). Rather than change the model or the clients,
+# we normalise at the API boundary:
+#
+#   LowercaseValueField       — emits model values lowercased on read
+#   CaseInsensitiveChoiceField — accepts either case on write, returns
+#                                the matched uppercase model value
+# ─────────────────────────────────────────────────────────────────────
 
-    Always returns something printable — the list never shows an empty
-    cell.
-    """
-    if order.user_id:
-        name = (
-            f"{order.user.first_name or ''} "
-            f"{order.user.last_name or ''}"
-        ).strip()
-        return name or order.user.email
-    # Legacy guest row (user_id is None). Use contact_email.
-    return order.contact_email or "Guest"
+class LowercaseValueField(serializers.CharField):
+    def __init__(self, **kwargs):
+        kwargs.setdefault("read_only", True)
+        super().__init__(**kwargs)
+
+    def to_representation(self, value):
+        if value in (None, ""):
+            return ""
+        return str(value).lower()
+
+
+class CaseInsensitiveChoiceField(serializers.ChoiceField):
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            data = data.upper()
+        return super().to_internal_value(data)
+
+
+def _lookup_label(mapping, key):
+    """Case-tolerant label lookup against FULFILLMENT/PAYMENT label maps."""
+    if not key:
+        return ""
+    return (
+        mapping.get(key)
+        or mapping.get(key.lower())
+        or mapping.get(key.upper())
+        or key
+    )
+
+
+def _customer_display(order: Order) -> str:
+    return order.customer_name
 
 
 def _customer_phone(order: Order) -> str:
-    if order.user_id and order.user.phone:
-        return order.user.phone
-    return order.contact_phone or ""
+    return order.customer_phone
 
 
 def _payment_method_label(order: Order) -> str:
@@ -55,18 +67,7 @@ def _payment_method_label(order: Order) -> str:
     return order.payment_method or "—"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Outbound: list
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderListRowSerializer(serializers.ModelSerializer):
-    """
-    One row of the admin orders table.
-
-    Everything the table needs is denormalized onto this shape. The
-    view prefetches `items` so `preview_items` and `item_count` are
-    cheap.
-    """
-
     id = serializers.CharField(source="reference")
     reference = serializers.CharField()
     customer_name = serializers.SerializerMethodField()
@@ -75,7 +76,9 @@ class AdminOrderListRowSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
     preview_items = serializers.SerializerMethodField()
     payment_method = serializers.SerializerMethodField()
+    payment_status = LowercaseValueField()
     payment_status_label = serializers.SerializerMethodField()
+    status = LowercaseValueField()
     total = serializers.DecimalField(max_digits=12, decimal_places=2)
     date = serializers.DateTimeField(source="created_at")
 
@@ -126,12 +129,9 @@ class AdminOrderListRowSerializer(serializers.ModelSerializer):
         return _payment_method_label(obj)
 
     def get_payment_status_label(self, obj):
-        return PAYMENT_STATUS_LABELS.get(obj.payment_status, obj.payment_status)
+        return _lookup_label(PAYMENT_STATUS_LABELS, obj.payment_status)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Outbound: detail
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminOrderItemSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(
         source="unit_price", max_digits=12, decimal_places=2,
@@ -139,11 +139,24 @@ class AdminOrderItemSerializer(serializers.ModelSerializer):
     subtotal = serializers.SerializerMethodField()
     image = serializers.CharField(source="image_url", allow_blank=True)
 
+    serial_number = serializers.CharField(allow_blank=True)
+    imei = serializers.CharField(allow_blank=True)
+    warranty_months = serializers.IntegerField()
+
     class Meta:
         model = OrderItem
         fields = (
-            "id", "product_id", "name", "brand",
-            "price", "quantity", "subtotal", "image",
+            "id",
+            "product_id",
+            "name",
+            "brand",
+            "price",
+            "quantity",
+            "subtotal",
+            "image",
+            "serial_number",
+            "imei",
+            "warranty_months",
         )
 
     def get_subtotal(self, obj):
@@ -151,6 +164,8 @@ class AdminOrderItemSerializer(serializers.ModelSerializer):
 
 
 class AdminOrderStatusEventSerializer(serializers.ModelSerializer):
+    to_status = LowercaseValueField()
+    from_status = LowercaseValueField()
     status_label = serializers.SerializerMethodField()
     from_label = serializers.SerializerMethodField()
     actor_label = serializers.CharField(allow_blank=True)
@@ -170,19 +185,15 @@ class AdminOrderStatusEventSerializer(serializers.ModelSerializer):
         )
 
     def get_status_label(self, obj):
-        return FULFILLMENT_STATUS_LABELS.get(obj.to_status, obj.to_status)
+        return _lookup_label(FULFILLMENT_STATUS_LABELS, obj.to_status)
 
     def get_from_label(self, obj):
         if not obj.from_status:
             return ""
-        return FULFILLMENT_STATUS_LABELS.get(
-            obj.from_status, obj.from_status,
-        )
+        return _lookup_label(FULFILLMENT_STATUS_LABELS, obj.from_status)
 
 
 class AdminPaymentSerializer(serializers.ModelSerializer):
-    """Compact view of a Payment attempt for the detail page."""
-
     class Meta:
         model = Payment
         fields = (
@@ -194,15 +205,6 @@ class AdminPaymentSerializer(serializers.ModelSerializer):
 
 
 class AdminOrderDetailSerializer(serializers.ModelSerializer):
-    """
-    Full order shape for the admin detail page.
-
-    Includes fields the customer serializer deliberately hides:
-    `internal_notes`, `contact_email`, `contact_phone`, the full
-    payment attempt history, and the actor labels on every timeline
-    event.
-    """
-
     id = serializers.CharField(source="reference")
     reference = serializers.CharField()
 
@@ -210,9 +212,11 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
     customer_phone = serializers.SerializerMethodField()
     customer_email = serializers.CharField(source="contact_email")
 
-    payment_method = serializers.SerializerMethodField()
-    payment_status_label = serializers.SerializerMethodField()
+    status = LowercaseValueField()
     status_label = serializers.SerializerMethodField()
+    payment_status = LowercaseValueField()
+    payment_status_label = serializers.SerializerMethodField()
+    payment_method = serializers.SerializerMethodField()
 
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2)
     discount = serializers.DecimalField(max_digits=12, decimal_places=2)
@@ -225,6 +229,8 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
         source="status_events", many=True, read_only=True,
     )
     payments = AdminPaymentSerializer(many=True, read_only=True)
+
+    verify_token = serializers.CharField(read_only=True)
 
     class Meta:
         model = Order
@@ -243,6 +249,7 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
             "contact_email", "contact_phone",
             "items", "timeline", "payments",
             "snapshot",
+            "verify_token",
             "created_at", "updated_at",
         )
 
@@ -256,25 +263,89 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
         return _payment_method_label(obj)
 
     def get_payment_status_label(self, obj):
-        return PAYMENT_STATUS_LABELS.get(
-            obj.payment_status, obj.payment_status,
-        )
+        return _lookup_label(PAYMENT_STATUS_LABELS, obj.payment_status)
 
     def get_status_label(self, obj):
-        return FULFILLMENT_STATUS_LABELS.get(obj.status, obj.status)
+        return _lookup_label(FULFILLMENT_STATUS_LABELS, obj.status)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Outbound: stats and tab counts
-# ─────────────────────────────────────────────────────────────────────────────
+class AdminQRVerifyRequestSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=128, trim_whitespace=True)
+
+    def validate_token(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Token cannot be empty.")
+        return value
+
+
+class AdminQRVerifyResponseSerializer(serializers.ModelSerializer):
+    reference = serializers.CharField()
+    customer_name = serializers.SerializerMethodField()
+    customer_phone = serializers.SerializerMethodField()
+    customer_email = serializers.CharField(source="contact_email")
+
+    status = LowercaseValueField()
+    status_label = serializers.SerializerMethodField()
+    payment_status = LowercaseValueField()
+    payment_status_label = serializers.SerializerMethodField()
+    payment_method = serializers.SerializerMethodField()
+
+    mpesa_receipt_number = serializers.SerializerMethodField()
+    total = serializers.DecimalField(max_digits=12, decimal_places=2)
+    created_at = serializers.DateTimeField()
+
+    items = AdminOrderItemSerializer(many=True, read_only=True)
+
+    fulfilled = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order
+        fields = (
+            "reference",
+            "customer_name",
+            "customer_phone",
+            "customer_email",
+            "status",
+            "status_label",
+            "payment_status",
+            "payment_status_label",
+            "payment_method",
+            "mpesa_receipt_number",
+            "total",
+            "created_at",
+            "items",
+            "fulfilled",
+        )
+
+    def get_customer_name(self, obj):
+        return _customer_display(obj)
+
+    def get_customer_phone(self, obj):
+        return _customer_phone(obj)
+
+    def get_status_label(self, obj):
+        return _lookup_label(FULFILLMENT_STATUS_LABELS, obj.status)
+
+    def get_payment_status_label(self, obj):
+        return _lookup_label(PAYMENT_STATUS_LABELS, obj.payment_status)
+
+    def get_payment_method(self, obj):
+        return _payment_method_label(obj)
+
+    def get_mpesa_receipt_number(self, obj):
+        payments = list(obj.payments.all())
+        success = next(
+            (p for p in payments if p.status == Payment.Status.SUCCESS),
+            None,
+        )
+        chosen = success or (payments[0] if payments else None)
+        return chosen.mpesa_receipt_number if chosen else None
+
+    def get_fulfilled(self, obj):
+        return obj.status == Order.Status.DELIVERED
+
+
 class AdminOrderStatsSerializer(serializers.Serializer):
-    """
-    Stat tiles for the admin orders header. Every field is an integer
-    except the two revenue fields, which are decimal strings — the
-    frontend formats them with the same `formatKES` helper it uses
-    everywhere.
-    """
-
     total_orders = serializers.IntegerField()
     active_orders = serializers.IntegerField()
     pending_orders = serializers.IntegerField()
@@ -287,12 +358,6 @@ class AdminOrderStatsSerializer(serializers.Serializer):
 
 
 class AdminOrderTabCountsSerializer(serializers.Serializer):
-    """
-    One integer per tab. The frontend iterates `Object.entries(counts)`
-    and renders the badges. New tabs added to `ADMIN_ORDER_TABS`
-    appear automatically once the selector is updated.
-    """
-
     all = serializers.IntegerField()
     pending = serializers.IntegerField()
     payment_pending = serializers.IntegerField()
@@ -306,33 +371,14 @@ class AdminOrderTabCountsSerializer(serializers.Serializer):
     returned = serializers.IntegerField()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Inbound: action payloads
-# ─────────────────────────────────────────────────────────────────────────────
 class AdminStatusUpdateSerializer(serializers.Serializer):
-    """
-    Payload for PATCH /orders/<ref>/status/.
-
-    `status` must be one of the model's enum values. Whether the
-    *transition* is allowed (e.g. shipped → delivered, not the other
-    way) is validated in the service — the serializer only checks the
-    value is a real status.
-    """
-
-    status = serializers.ChoiceField(choices=Order.Status.choices)
+    status = CaseInsensitiveChoiceField(choices=Order.Status.choices)
     note = serializers.CharField(
         max_length=500, required=False, allow_blank=True, default="",
     )
 
 
 class AdminTrackingSerializer(serializers.Serializer):
-    """
-    Payload for PATCH /orders/<ref>/tracking/.
-
-    Both fields are optional but at least one must be provided — an
-    update that changes nothing is a client bug, not a no-op.
-    """
-
     courier = serializers.CharField(
         max_length=120, required=False, allow_blank=True, default="",
     )
@@ -349,14 +395,6 @@ class AdminTrackingSerializer(serializers.Serializer):
 
 
 class AdminRefundSerializer(serializers.Serializer):
-    """
-    Payload for POST /orders/<ref>/refund/.
-
-    `amount` is optional — when omitted, the service refunds the full
-    order total. When provided, the service validates it matches the
-    total. Partial refunds are not supported yet.
-    """
-
     amount = serializers.DecimalField(
         max_digits=12, decimal_places=2,
         required=False, allow_null=True,
@@ -371,9 +409,7 @@ class AdminNoteSerializer(serializers.Serializer):
 
     def validate_text(self, value):
         if not value.strip():
-            raise serializers.ValidationError(
-                "Note text cannot be empty."
-            )
+            raise serializers.ValidationError("Note text cannot be empty.")
         return value
 
 
@@ -382,20 +418,11 @@ class AdminWhatsAppSerializer(serializers.Serializer):
 
     def validate_message(self, value):
         if not value.strip():
-            raise serializers.ValidationError(
-                "Message cannot be empty."
-            )
+            raise serializers.ValidationError("Message cannot be empty.")
         return value
 
 
 class AdminOrderExportSerializer(serializers.Serializer):
-    """
-    Payload for POST /orders/export/.
-
-    Reuses the same filter keys the list endpoint accepts, so an admin
-    can export exactly what they are viewing.
-    """
-
     tab = serializers.CharField(required=False, allow_blank=True, default="all")
     search = serializers.CharField(required=False, allow_blank=True, default="")
     payment_status = serializers.CharField(
@@ -403,3 +430,6 @@ class AdminOrderExportSerializer(serializers.Serializer):
     )
     date_from = serializers.DateField(required=False, allow_null=True)
     date_to = serializers.DateField(required=False, allow_null=True)
+
+    def validate_payment_status(self, value):
+        return value.upper() if value else ""

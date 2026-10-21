@@ -1,10 +1,74 @@
-// lib/api.ts
-
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Auth types
-// ─────────────────────────────────────────────────────────────────────────────
+const ACCESS_KEY = 'myshop.access';
+const REFRESH_KEY = 'myshop.refresh';
+
+function isBrowser(): boolean {
+    return typeof window !== 'undefined';
+}
+
+type AuthListener = (authenticated: boolean) => void;
+const authListeners = new Set<AuthListener>();
+
+function notifyAuthChange(): void {
+    const authed = !!getAccessToken();
+    authListeners.forEach((cb) => {
+        try {
+            cb(authed);
+        } catch {
+        }
+    });
+}
+
+export function subscribeAuth(listener: AuthListener): () => void {
+    authListeners.add(listener);
+    try {
+        listener(!!getAccessToken());
+    } catch {
+    }
+    return () => {
+        authListeners.delete(listener);
+    };
+}
+
+export function getAccessToken(): string | null {
+    if (!isBrowser()) return null;
+    try {
+        return window.localStorage.getItem(ACCESS_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export function getRefreshToken(): string | null {
+    if (!isBrowser()) return null;
+    try {
+        return window.localStorage.getItem(REFRESH_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export function setTokens(access: string, refresh?: string): void {
+    if (!isBrowser()) return;
+    try {
+        window.localStorage.setItem(ACCESS_KEY, access);
+        if (refresh) window.localStorage.setItem(REFRESH_KEY, refresh);
+        notifyAuthChange();
+    } catch {
+    }
+}
+
+export function clearTokens(): void {
+    if (!isBrowser()) return;
+    try {
+        window.localStorage.removeItem(ACCESS_KEY);
+        window.localStorage.removeItem(REFRESH_KEY);
+        notifyAuthChange();
+    } catch {
+    }
+}
+
 export type Role = 'OWNER' | 'STAFF' | 'CUSTOMER';
 export type Status = 'ACTIVE' | 'SUSPENDED' | 'PENDING';
 
@@ -13,12 +77,14 @@ export interface Me {
     email: string;
     first_name: string;
     last_name: string;
+    name?: string;
     phone: string;
     role: Role;
     status: Status;
     is_email_verified: boolean;
     redirect_to: string;
     joined_at?: string;
+    username?: string; 
     default_address?: Address | null;
 }
 
@@ -32,6 +98,28 @@ export interface RegisterPayload {
 export interface AuthSuccessResponse {
     user: Me;
     redirect_to: string;
+}
+
+export interface JWTLoginResponse extends AuthSuccessResponse {
+    access: string;
+    refresh: string;
+}
+
+export interface RegisterSuccessResponse extends AuthSuccessResponse {
+    access: string;
+    refresh: string;
+    verify_required: boolean;
+}
+
+export interface VerifyEmailResult {
+    user: Me;
+    redirect_to: string;
+    already_verified: boolean;
+}
+
+export interface ResendVerificationResult {
+    detail: string;
+    resend_in: number;
 }
 
 export interface VerifyResetTokenResult {
@@ -54,10 +142,6 @@ export interface StaffInviteAcceptPayload {
     confirm_password?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared helper types
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type DecimalString = string;
 
 export interface Paginated<T> {
@@ -66,10 +150,6 @@ export interface Paginated<T> {
     previous: string | null;
     results: T[];
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Catalog types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface CatalogCategory {
     id: number;
@@ -136,6 +216,7 @@ export interface CatalogProductDetail extends CatalogProduct {
 
 export interface CatalogNewArrival {
     id: string;
+    slug: string;
     name: string;
     brand: string;
     category: string;
@@ -152,6 +233,8 @@ export interface CatalogNewArrival {
 
 export interface CatalogBestSeller {
     id: string;
+    slug: string;
+    stockQuantity: number;
     bestSeller: boolean;
     brand: string;
     name: string;
@@ -181,6 +264,7 @@ export interface CatalogBestSellerDetail {
 export interface CatalogDealCard {
     id: string;
     productId: string;
+    slug: string;
     discountCode: string;
     name: string;
     brand: string;
@@ -195,7 +279,7 @@ export interface CatalogDealCard {
     features: string[];
     specs: Record<string, string>;
     startDate: string;
-    endDate: string;
+    endDate: string | null;
     promotionType: string;
     rating: DecimalString;
     reviewCount: number;
@@ -223,10 +307,6 @@ export interface CatalogCategoryPage {
     products: CatalogProduct[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AI assistant types
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface AIChatProduct {
     id: string;
     name: string;
@@ -252,10 +332,6 @@ export interface AIChatResponse {
     requires_auth: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Banners & Hero — types
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type BannerPlacement = 'HOME_HERO' | 'CATEGORY_HERO' | 'PROMO_STRIP';
 export type BannerStatus = 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'EXPIRED';
 export type BannerAlignment = 'LEFT' | 'CENTER' | 'RIGHT';
@@ -266,35 +342,27 @@ export interface Banner {
     name: string;
     placement: BannerPlacement;
     order: number;
-
     badge: string;
     headline: string;
     description: string;
-
     desktop_image: string;
     tablet_image: string;
     mobile_image: string;
-
     primary_cta_text: string;
     primary_cta_href: string;
     secondary_cta_text: string;
     secondary_cta_href: string;
-
     text_alignment: BannerAlignment;
     overlay_style: BannerOverlay;
     overlay_opacity: number;
-
     status: BannerStatus;
     start_at: string | null;
     end_at: string | null;
-
     impressions: number;
     clicks: number;
     conversions: number;
-
     ctr: number;
     cvr: number;
-
     created_at: string;
     updated_at: string;
 }
@@ -330,21 +398,6 @@ export interface BannerStats {
 
 export type BannerTrackEvent = 'impression' | 'click' | 'conversion';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Store status — public storefront config
-//
-// Backed by `GET /api/v1/store-status/`. Public, unauthenticated.
-//
-// The storefront fetches this once per page mount. Provides:
-//   * `status`         — 'open' | 'closed' | 'paused'
-//   * `paused_message` — human-readable notice when not open
-//   * business identity (name, tagline, contact details)
-//   * `currency`       — ISO code for every price on the page
-//
-// This is a subset of what Settings → General holds. Only the fields
-// the storefront needs to render are exposed; nothing sensitive.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type StoreOpenStatus = 'open' | 'closed' | 'paused';
 
 export interface StoreStatus {
@@ -358,10 +411,6 @@ export interface StoreStatus {
     contact_phone: string;
     address: string;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WhatsApp Float Widget types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface WhatsapfloatQuickAction {
     id: number;
@@ -380,14 +429,8 @@ export interface WhatsapfloatConfig {
     quickActions: WhatsapfloatQuickAction[];
 }
 
-/** @deprecated Use `WhatsapfloatQuickAction`. */
 export type WhatsAppQuickAction = WhatsapfloatQuickAction;
-/** @deprecated Use `WhatsapfloatConfig`. */
 export type WhatsAppConfig = WhatsapfloatConfig;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WhatsApp share-link types (product / order)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface WhatsAppProductLink {
     productId: string;
@@ -402,8 +445,6 @@ export interface WhatsAppOrderLink {
     whatsappUrl: string;
     message: string;
 }
-
-// ── Cart handoff types ───────────────────────────────────────────────────────
 
 export type WhatsAppCartHandoffStatus =
     | 'sent'
@@ -429,8 +470,6 @@ export interface WhatsAppCartHandoffResponse {
     checkout_url?: string;
     message: string;
 }
-
-// ── Cart session (customer-facing) ───────────────────────────────────────────
 
 export type WhatsAppCartSessionStatus =
     | 'CREATED'
@@ -469,9 +508,6 @@ export interface WhatsAppCartSession {
     expires_at: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Newsletter types
-// ─────────────────────────────────────────────────────────────────────────────
 export type NewsletterSubscribeStatus =
     | 'subscribed'
     | 'already_subscribed'
@@ -497,10 +533,6 @@ export interface NewsletterSubscribeResponse {
 export interface NewsletterUnsubscribeResponse {
     detail: string;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Query param shapes
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ProductsQuery {
     search?: string;
@@ -569,9 +601,6 @@ export interface SpecialDealsQuery {
     sort_by?: DealSortBy;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Checkout payload
-// ─────────────────────────────────────────────────────────────────────────────
 export type DeliveryMethod = 'express' | 'standard' | 'pickup';
 
 export type CheckoutSource = 'web' | 'whatsapp' | 'admin' | 'phone';
@@ -612,12 +641,9 @@ export interface CheckoutPayload {
     items: CheckoutItemPayload[];
     totals: CheckoutTotalsPayload;
     source?: CheckoutSource;
-    whatsapp_session?: string;
+    channel_meta?: Record<string, unknown>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Address
-// ─────────────────────────────────────────────────────────────────────────────
 export interface Address {
     id: number;
     label: string;
@@ -643,9 +669,6 @@ export interface AddressInput {
     is_default?: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Orders
-// ─────────────────────────────────────────────────────────────────────────────
 export type OrderStatus =
     | 'pending'
     | 'confirmed'
@@ -672,6 +695,9 @@ export interface OrderItem {
     price: string;
     quantity: number;
     image: string;
+    serial_number: string;
+    imei: string;
+    warranty_months: number;
 }
 
 export interface OrderStatusEvent {
@@ -696,7 +722,6 @@ export interface OrderListRow {
     status: OrderStatus;
     payment_status: OrderPaymentStatus;
     total: string;
-    /** ISO currency code — from Settings → General via the serializer. */
     currency: string;
     item_count: number;
     preview_items: OrderPreviewItem[];
@@ -727,14 +752,12 @@ export interface OrderDetail {
     shipping: string;
     tax: string;
     total: string;
-    /** ISO currency code — current shop setting (not historical). */
     currency: string;
-    /** Whether the shop currently charges VAT. */
     tax_enabled: boolean;
-    /** Whether catalog prices already include VAT (extract vs add). */
     prices_include_tax: boolean;
     coupon: string;
     notes: string;
+    verify_token: string;
     items: OrderItem[];
     timeline: OrderStatusEvent[];
     created_at: string;
@@ -757,9 +780,6 @@ export interface OrderLifecycleResult {
     status: OrderStatus;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Notifications
-// ─────────────────────────────────────────────────────────────────────────────
 export type NotificationType =
     | 'order'
     | 'shipping'
@@ -780,9 +800,6 @@ export interface NotificationRow {
     created_at: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Profile / preferences
-// ─────────────────────────────────────────────────────────────────────────────
 export interface ProfileData {
     first_name: string;
     last_name: string;
@@ -809,9 +826,6 @@ export interface PreferencesInput {
     newsletter?: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reviews (account-scoped)
-// ─────────────────────────────────────────────────────────────────────────────
 export type ReviewStatus = 'published' | 'pending' | 'rejected';
 
 export interface ReviewProductSnapshot {
@@ -863,9 +877,6 @@ export interface PendingReviewItem {
     quantity: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Wishlist
-// ─────────────────────────────────────────────────────────────────────────────
 export type WishlistStock = 'In Stock' | 'Low Stock' | 'Out of Stock';
 
 export interface WishlistProductSnapshot {
@@ -874,31 +885,28 @@ export interface WishlistProductSnapshot {
     slug: string;
     brand: string;
     image: string;
-    rating: string;
+    rating: number;
     review_count: number;
 }
 
 export interface WishlistRow {
     id: number;
     added_at: string;
-
     variant_id: string;
     variant_name: string;
     variant_image: string;
-
     unit_price: string;
     compare_at_price: string | null;
-
     stock: WishlistStock;
     stock_count: number;
     discount_percent: number;
-
+    rating: number;
+    review_count: number;
     product_id: string;
     product_name: string;
     product_slug: string;
     product_brand: string;
     product_image: string;
-
     product: WishlistProductSnapshot;
 }
 
@@ -934,9 +942,6 @@ export interface WishlistBatchAddResult {
     skipped: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Cart
-// ─────────────────────────────────────────────────────────────────────────────
 export interface CartItem {
     id: number;
     productId: string;
@@ -1005,9 +1010,22 @@ export interface CartMergeInput {
     items: CartMergeItemInput[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Payment
-// ─────────────────────────────────────────────────────────────────────────────
+export interface CartSnapshotItem {
+    product_id: string;
+    variant_id: string;
+    name: string;
+    brand: string;
+    image: string;
+    variant_label: string;
+    unit_price: string;
+    compare_at_price: string | null;
+    quantity: number;
+}
+
+export interface CartSnapshot {
+    items: CartSnapshotItem[];
+}
+
 export type PaymentStatus =
     | 'PENDING'
     | 'PROCESSING'
@@ -1059,8 +1077,6 @@ export interface Payment {
     mpesa_receipt_number: string;
     created_at: string;
     updated_at: string;
-
-    /** ISO currency code — present since the currency propagation pass. */
     currency?: string;
     checkout_request_id?: string | null;
     merchant_request_id?: string | null;
@@ -1075,55 +1091,9 @@ export interface StkPushPayload {
     checkout: CheckoutPayload;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Checkout config / coupon / orders
-//
-// CheckoutConfig shape
-// --------------------
-// The backend returns:
-//
-//   {
-//     counties: string[],
-//     currency: string,
-//     delivery_fees: {
-//       express_guest: string,
-//       express_member: string,
-//       standard: string,
-//       pickup: string,
-//     },
-//     your_express_fee: string,
-//     free_delivery_threshold: string,
-//     shipping_enabled: boolean,
-//     local_pickup_enabled: boolean,
-//     tax: {
-//       enabled: boolean,
-//       rate: string,               // "16" — a string percentage
-//       prices_include_tax: boolean,
-//     },
-//     delivery_days: Record<DeliveryMethod, number>,
-//     checkout: {
-//       allow_guest_checkout: boolean,
-//       require_phone: boolean,
-//       whatsapp_fallback: boolean,
-//       mpesa_enabled: boolean,
-//       min_amount_kes: string,
-//       max_amount_kes: string,
-//       transaction_fee_kes: string,
-//     },
-//   }
-//
-// All money values are STRINGS. Parse before doing math.
-//
-// `tax_rate` at the top level is deprecated — some callers still read
-// it. New code should read `config.tax.rate` (a percentage string) or
-// `config.tax.prices_include_tax` (boolean).
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface CheckoutTaxConfig {
     enabled: boolean;
-    /** Percentage as a string — "16" means 16%. */
     rate: string;
-    /** When true, catalog prices already contain VAT (extract, don't add). */
     prices_include_tax: boolean;
 }
 
@@ -1153,11 +1123,6 @@ export interface CheckoutConfig {
     tax: CheckoutTaxConfig;
     delivery_days: Record<DeliveryMethod, number>;
     checkout: CheckoutRules;
-    /**
-     * @deprecated The backend now nests this under `tax.rate`.
-     * Kept for backward compatibility with older client code — will
-     * be `undefined` when talking to the current backend.
-     */
     tax_rate?: string;
 }
 
@@ -1166,6 +1131,24 @@ export interface CouponValidateResult {
     code?: string;
     percent_off?: string;
     message: string;
+}
+
+export interface ShippingRate {
+    id: number;
+    method: string;
+    methodId: number;
+    methodName: string;
+    price: DecimalString;
+    eta: string;
+    freeShippingThreshold: DecimalString | null;
+}
+
+export interface ShippingZone {
+    id: number;
+    name: string;
+    region: string;
+    counties: string[];
+    rates: ShippingRate[];
 }
 
 export interface OrderCreateInput {
@@ -1178,48 +1161,128 @@ export interface OrderCreateResult {
     status: OrderStatus;
     payment_status: OrderPaymentStatus;
     payment_method: OrderPaymentMethod;
-    /** Channel the order came through — 'web' | 'whatsapp' | 'admin' | 'phone'. */
     source: CheckoutSource;
     total: string;
     created_at: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Errors
-// ─────────────────────────────────────────────────────────────────────────────
+export interface AbandonOrderResult {
+    reference: string;
+    status: OrderStatus;
+}
+
+export interface ClaimGuestOrdersResult {
+    claimed: number;
+}
+
+export interface GoogleCallbackPayload {
+    access: string;
+    refresh: string;
+    redirect_to: string;
+    next: string;
+    user: Me;
+}
+
+export type ApiErrorCode =
+    | 'error'
+    | 'missing_idempotency_key'
+    | 'invalid_phone'
+    | 'pricing_mismatch'
+    | 'coupon_error'
+    | 'checkout_error'
+    | 'mpesa_error'
+    | 'reconcile_error'
+    | 'not_abandonable'
+    | 'missing_reference'
+    | 'invalid_snapshot'
+    | 'claim_failed'
+    | 'invalid_status'
+    | 'cart_error';
+
+const STOCK_ERROR_PATTERN =
+    /(?:only\s+\d+\s+of\s+.+\s+left\s+in\s+stock|no\s+longer\s+available)/i;
+
 export class ApiError extends Error {
     status: number;
     data: unknown;
+    code: ApiErrorCode | string | null;
 
     constructor(status: number, data: unknown) {
-        super(
-            typeof data === 'object' &&
-                data &&
-                'detail' in (data as Record<string, unknown>)
-                ? String((data as { detail: unknown }).detail)
-                : `Request failed with status ${status}`,
-        );
+        super(ApiError._extractMessage(status, data));
+
+        Object.setPrototypeOf(this, ApiError.prototype);
+
+        this.name = 'ApiError';
         this.status = status;
         this.data = data;
-        this.name = 'ApiError';
+        this.code = ApiError._extractCode(data);
     }
 
-    get code(): string | null {
+    static _extractMessage(status: number, data: unknown): string {
+        if (data && typeof data === 'object') {
+            const record = data as Record<string, unknown>;
+            for (const key of ['detail', 'message', 'error'] as const) {
+                const val = record[key];
+                if (typeof val === 'string' && val.trim()) return val;
+            }
+            const firstFieldError = Object.values(record).find(
+                (v) =>
+                    Array.isArray(v) &&
+                    v.length > 0 &&
+                    typeof v[0] === 'string',
+            ) as string[] | undefined;
+            if (firstFieldError) return firstFieldError[0];
+        }
+        if (typeof data === 'string' && data.trim()) return data;
+        return `Request failed with status ${status}`;
+    }
+
+    static _extractCode(data: unknown): string | null {
         if (
-            typeof this.data === 'object' &&
-            this.data !== null &&
-            'code' in this.data &&
-            typeof (this.data as { code: unknown }).code === 'string'
+            data &&
+            typeof data === 'object' &&
+            'code' in data &&
+            typeof (data as { code: unknown }).code === 'string'
         ) {
-            return (this.data as { code: string }).code;
+            return (data as { code: string }).code;
         }
         return null;
     }
+
+    isStockError(): boolean {
+        if (this.code === 'insufficient_stock') return true;
+        return STOCK_ERROR_PATTERN.test(this.message);
+    }
+
+    isPricingError(): boolean {
+        return this.code === 'pricing_mismatch';
+    }
+
+    isCouponError(): boolean {
+        return this.code === 'coupon_error';
+    }
+
+    isInvalidPhone(): boolean {
+        return this.code === 'invalid_phone';
+    }
+
+    isCheckoutError(): boolean {
+        return this.code === 'checkout_error';
+    }
+
+    isMpesaError(): boolean {
+        return this.code === 'mpesa_error';
+    }
+
+    isAbortError(): boolean {
+        return this.name === 'AbortError';
+    }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CSRF
-// ─────────────────────────────────────────────────────────────────────────────
+export function isInsufficientStockError(err: unknown): boolean {
+    return err instanceof ApiError && err.isStockError();
+}
+
 function readCookie(name: string): string | null {
     if (typeof document === 'undefined') return null;
     const match = document.cookie
@@ -1233,17 +1296,17 @@ let csrfReady: Promise<void> | null = null;
 export async function ensureCsrf(): Promise<void> {
     if (csrfReady) return csrfReady;
     csrfReady = (async () => {
-        await fetch(`${API_BASE}/api/v1/auth/csrf/`, {
-            method: 'GET',
-            credentials: 'include',
-        });
+        try {
+            await fetch(`${API_BASE}/api/v1/auth/csrf/`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+        } catch {
+        }
     })();
     return csrfReady;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Core request helper
-// ─────────────────────────────────────────────────────────────────────────────
 export type HttpMethod =
     | 'GET'
     | 'HEAD'
@@ -1262,6 +1325,32 @@ export type RequestOptions = {
 
 const SAFE_METHODS: ReadonlySet<HttpMethod> = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function doRefresh(): Promise<string | null> {
+    const refresh = getRefreshToken();
+    if (!refresh) return null;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/v1/auth/token/refresh/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh }),
+        });
+
+        if (!res.ok) {
+            clearTokens();
+            return null;
+        }
+
+        const data = (await res.json()) as { access: string; refresh?: string };
+        setTokens(data.access, data.refresh);
+        return data.access;
+    } catch {
+        return null;
+    }
+}
+
 export async function request<T>(
     path: string,
     opts: RequestOptions = {},
@@ -1275,19 +1364,21 @@ export async function request<T>(
     };
 
     let body: BodyInit | undefined;
-
     if (opts.body !== undefined) {
         headers['Content-Type'] = 'application/json';
         body = JSON.stringify(opts.body);
     }
 
-    if (isUnsafe) {
+    const access = getAccessToken();
+    if (access) headers['Authorization'] = `Bearer ${access}`;
+
+    if (isUnsafe && !access) {
         await ensureCsrf();
         const token = readCookie('csrftoken');
         if (token) headers['X-CSRFToken'] = token;
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    let res = await fetch(`${API_BASE}${path}`, {
         method,
         headers,
         body,
@@ -1295,10 +1386,29 @@ export async function request<T>(
         signal: opts.signal,
     });
 
+    if (res.status === 401 && getRefreshToken()) {
+        if (!refreshInFlight) {
+            refreshInFlight = doRefresh().finally(() => {
+                refreshInFlight = null;
+            });
+        }
+        const newAccess = await refreshInFlight;
+
+        if (newAccess) {
+            headers['Authorization'] = `Bearer ${newAccess}`;
+            res = await fetch(`${API_BASE}${path}`, {
+                method,
+                headers,
+                body,
+                credentials: 'include',
+                signal: opts.signal,
+            });
+        }
+    }
+
     if (res.status === 204) return undefined as T;
 
     const contentType = res.headers.get('content-type') ?? '';
-
     const data: unknown = contentType.includes('application/json')
         ? await res.json().catch(() => null)
         : await res.text();
@@ -1307,29 +1417,33 @@ export async function request<T>(
     return data as T;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// File-upload helper
-// ─────────────────────────────────────────────────────────────────────────────
 export async function uploadRequest<T>(
     path: string,
     file: File,
     fieldName = 'file',
     signal?: AbortSignal,
 ): Promise<T> {
-    await ensureCsrf();
-    const token = readCookie('csrftoken');
-
     const form = new FormData();
     form.append(fieldName, file);
+
+    const headers: Record<string, string> = {
+        Accept: 'application/json',
+    };
+
+    const access = getAccessToken();
+    if (access) {
+        headers['Authorization'] = `Bearer ${access}`;
+    } else {
+        await ensureCsrf();
+        const token = readCookie('csrftoken');
+        if (token) headers['X-CSRFToken'] = token;
+    }
 
     const res = await fetch(`${API_BASE}${path}`, {
         method: 'POST',
         body: form,
         credentials: 'include',
-        headers: {
-            Accept: 'application/json',
-            ...(token ? { 'X-CSRFToken': token } : {}),
-        },
+        headers,
         signal,
     });
 
@@ -1344,9 +1458,6 @@ export async function uploadRequest<T>(
     return data as T;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Query-string helper
-// ─────────────────────────────────────────────────────────────────────────────
 function toQuery(params: object = {}): string {
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
@@ -1357,35 +1468,74 @@ function toQuery(params: object = {}): string {
     return qs ? `?${qs}` : '';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Auth endpoints — /api/v1/auth/*
-// ─────────────────────────────────────────────────────────────────────────────
 export const api = {
+    getAccessToken,
+    getRefreshToken,
+    setTokens,
+    clearTokens,
+    subscribeAuth,
+
     me: async (): Promise<Me | null> => {
         try {
             return await request<Me>('/api/v1/auth/me/');
         } catch (err) {
             if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+                if (err.status === 401 && getRefreshToken()) {
+                    clearTokens();
+                }
                 return null;
             }
             throw err;
         }
     },
 
-    register: (payload: RegisterPayload) =>
-        request<AuthSuccessResponse>('/api/v1/auth/register/', {
+    register: async (
+        payload: RegisterPayload,
+    ): Promise<RegisterSuccessResponse> => {
+        const res = await request<RegisterSuccessResponse>(
+            '/api/v1/auth/register/',
+            { method: 'POST', body: payload },
+        );
+        if (res.access) setTokens(res.access, res.refresh);
+        return res;
+    },
+
+    verifyEmail: (code: string) =>
+        request<VerifyEmailResult>('/api/v1/auth/verify-email/', {
             method: 'POST',
-            body: payload,
+            body: { code },
         }),
 
-    login: (email: string, password: string, remember = false) =>
-        request<AuthSuccessResponse>('/api/v1/auth/login/', {
+    resendVerification: () =>
+        request<ResendVerificationResult>(
+            '/api/v1/auth/resend-verification/',
+            { method: 'POST', body: {} },
+        ),
+
+    login: async (
+        email: string,
+        password: string,
+        remember = false,
+    ): Promise<AuthSuccessResponse> => {
+        const res = await request<JWTLoginResponse>('/api/v1/auth/login/', {
             method: 'POST',
             body: { email, password, remember },
-        }),
+        });
+        setTokens(res.access, res.refresh);
+        return { user: res.user, redirect_to: res.redirect_to };
+    },
 
-    logout: () =>
-        request<void>('/api/v1/auth/logout/', { method: 'POST' }),
+    logout: async (): Promise<void> => {
+        const refresh = getRefreshToken();
+        try {
+            await request<void>('/api/v1/auth/logout/', {
+                method: 'POST',
+                body: refresh ? { refresh } : {},
+            });
+        } catch {
+        }
+        clearTokens();
+    },
 
     changePassword: (currentPassword: string, newPassword: string) =>
         request<{ detail: string }>('/api/v1/auth/change-password/', {
@@ -1424,7 +1574,54 @@ export const api = {
             },
         }),
 
-    googleLoginUrl: () => `${API_BASE}/api/v1/auth/google/`,
+    googleLoginUrl: (next?: string): string => {
+        const base = `${API_BASE}/api/v1/auth/google/`;
+        if (!next) return base;
+        return `${base}?next=${encodeURIComponent(next)}`;
+    },
+
+    handleGoogleCallback: (): GoogleCallbackPayload | null => {
+        if (!isBrowser()) return null;
+
+        const rawHash =
+            window.location.hash.startsWith('#')
+                ? window.location.hash.slice(1)
+                : window.location.hash;
+
+        if (!rawHash) return null;
+
+        const params = new URLSearchParams(rawHash);
+        const access = params.get('access');
+        const refresh = params.get('refresh');
+        const redirectTo = params.get('redirect_to') || '/pages/account';
+        const next = params.get('next') || redirectTo;
+        const userRaw = params.get('user');
+
+        if (!access) return null;
+
+        let user: Me;
+        try {
+            user = userRaw ? (JSON.parse(userRaw) as Me) : ({} as Me);
+        } catch {
+            user = {} as Me;
+        }
+
+        setTokens(access, refresh ?? undefined);
+
+        try {
+            const cleanUrl = window.location.pathname + window.location.search;
+            window.history.replaceState({}, document.title, cleanUrl);
+        } catch {
+        }
+
+        return {
+            access,
+            refresh: refresh ?? '',
+            redirect_to: redirectTo,
+            next,
+            user,
+        };
+    },
 
     verifyInvite: (token: string, signal?: AbortSignal) =>
         request<InviteVerifyResult>(
@@ -1432,31 +1629,28 @@ export const api = {
             { signal },
         ),
 
-    acceptInvite: (payload: StaffInviteAcceptPayload) =>
-        request<AuthSuccessResponse>('/api/v1/auth/invite/accept/', {
-            method: 'POST',
-            body: payload,
-        }),
+    acceptInvite: async (
+        payload: StaffInviteAcceptPayload,
+    ): Promise<AuthSuccessResponse> => {
+        const res = await request<JWTLoginResponse>(
+            '/api/v1/auth/invite/accept/',
+            { method: 'POST', body: payload },
+        );
+        setTokens(res.access, res.refresh);
+        return { user: res.user, redirect_to: res.redirect_to };
+    },
+
+    notificationsUnreadCount: (signal?: AbortSignal) =>
+        request<{ unread: number }>(
+            '/api/v1/account/notifications/unread-count/',
+            { signal },
+        ),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Store status — /api/v1/store-status/
-//
-// PUBLIC. The storefront fetches this once per page mount. Provides the
-// shop-open status, paused message, currency, and business identity.
-//
-// Fails safe on network error — the storefront can render with defaults
-// (open, KES, "SokoFlow") if this call fails. Never block the page.
-// ─────────────────────────────────────────────────────────────────────────────
 export const storeStatusApi = {
     get: (signal?: AbortSignal) =>
         request<StoreStatus>('/api/v1/store-status/', { signal }),
 
-    /**
-     * Fetch with a fallback — returns a default-open StoreStatus if the
-     * endpoint fails, so the storefront always has a usable value.
-     * Use this from layout components that can't afford a blank screen.
-     */
     getSafe: async (signal?: AbortSignal): Promise<StoreStatus> => {
         try {
             return await storeStatusApi.get(signal);
@@ -1479,9 +1673,6 @@ export const storeStatusApi = {
     },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Catalog endpoints — /api/catalog/*
-// ─────────────────────────────────────────────────────────────────────────────
 export const catalogApi = {
     categories: {
         list: (signal?: AbortSignal) =>
@@ -1612,15 +1803,6 @@ export const catalogApi = {
     },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AI assistant endpoints — /api/ai/*
-//
-// ⚠️  BACKEND GAP — the URLconf currently has NO route for `/api/ai/chat/`.
-//     All existing AI routes are staff-only under `/api/admin/ai/...`.
-//     Until a public storefront view is added (e.g. `ai.views.public_chat`
-//     wired at `path('ai/chat/', ...)` in the project URLconf), this call
-//     will return 404.
-// ─────────────────────────────────────────────────────────────────────────────
 export const aiApi = {
     chat: (payload: AIChatRequest, signal?: AbortSignal) =>
         request<AIChatResponse>('/api/ai/chat/', {
@@ -1629,10 +1811,6 @@ export const aiApi = {
             signal,
         }),
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Banners & Hero endpoints — /api/v1/banners/*
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const bannersApi = {
     hero: (signal?: AbortSignal) =>
@@ -1645,17 +1823,11 @@ export const bannersApi = {
         ),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WhatsApp Float Widget — /api/whatsapp/config/
-// ─────────────────────────────────────────────────────────────────────────────
 export const whatsapfloatApi = {
     config: (signal?: AbortSignal) =>
         request<WhatsapfloatConfig>('/api/whatsapp/config/', { signal }),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WhatsApp endpoints — /api/whatsapp/*  and  /api/v1/whatsapp/*
-// ─────────────────────────────────────────────────────────────────────────────
 export const whatsappApi = {
     productLink: (productId: string, signal?: AbortSignal) =>
         request<WhatsAppProductLink>(
@@ -1682,9 +1854,6 @@ export const whatsappApi = {
         ),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Newsletter endpoints — /api/v1/newsletter/*
-// ─────────────────────────────────────────────────────────────────────────────
 export const newsletterApi = {
     subscribe: (
         payload: string | NewsletterSubscribePayload,
@@ -1711,9 +1880,20 @@ export const newsletterApi = {
         ),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Checkout endpoints — /api/v1/checkout/*
-// ─────────────────────────────────────────────────────────────────────────────
+export const shippingApi = {
+    zones: (signal?: AbortSignal) =>
+        request<ShippingZone[]>(
+            '/api/v1/dashboard/shipping/public/zones/',
+            { signal },
+        ),
+
+    zone: (id: number, signal?: AbortSignal) =>
+        request<ShippingZone>(
+            `/api/v1/dashboard/shipping/public/zones/${id}/`,
+            { signal },
+        ),
+};
+
 export const checkoutApi = {
     config: (signal?: AbortSignal) =>
         request<CheckoutConfig>('/api/v1/checkout/config/', { signal }),
@@ -1737,15 +1917,12 @@ export const checkoutApi = {
         }),
 
     abandonOrder: (reference: string, signal?: AbortSignal) =>
-        request<void>(
-            `/api/v1/checkout/orders/${encodeURIComponent(reference)}/abandon/`,
-            { method: 'POST', signal },
+        request<AbandonOrderResult>(
+            '/api/v1/checkout/orders/abandon/',
+            { method: 'POST', body: { reference }, signal },
         ),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Cart endpoints — /api/v1/checkout/cart/*
-// ─────────────────────────────────────────────────────────────────────────────
 export const cartApi = {
     get: (signal?: AbortSignal) =>
         request<Cart>('/api/v1/checkout/cart/', { signal }),
@@ -1775,11 +1952,17 @@ export const cartApi = {
             method: 'POST',
             body: { items } satisfies CartMergeInput,
         }),
+
+    snapshot: (signal?: AbortSignal) =>
+        request<CartSnapshot>('/api/v1/checkout/cart/snapshot/', { signal }),
+
+    restore: (snapshot: CartSnapshot) =>
+        request<Cart>('/api/v1/checkout/cart/restore/', {
+            method: 'POST',
+            body: snapshot,
+        }),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Payments endpoints — /api/v1/checkout/payments/*
-// ─────────────────────────────────────────────────────────────────────────────
 export const paymentsApi = {
     stkPush: (payload: StkPushPayload, idempotencyKey: string) =>
         request<Payment>('/api/v1/checkout/payments/stk-push/', {
@@ -1803,9 +1986,6 @@ export const paymentsApi = {
         }),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Account endpoints — /api/v1/account/*
-// ─────────────────────────────────────────────────────────────────────────────
 export const accountApi = {
     overview: (signal?: AbortSignal) =>
         request<{
@@ -1832,12 +2012,16 @@ export const accountApi = {
                 status: string;
                 itemCount: number;
                 total: string;
-                /** ISO currency code — added in the currency propagation pass. */
                 currency: string;
             }[];
-            /** ISO currency code — top-level for the whole page. */
             currency: string;
         }>('/api/v1/account/overview/', { signal }),
+
+    claimGuestOrders: (signal?: AbortSignal) =>
+        request<ClaimGuestOrdersResult>(
+            '/api/v1/checkout/orders/claim-guest/',
+            { method: 'POST', signal },
+        ),
 
     orders: {
         list: (signal?: AbortSignal) =>
@@ -1866,6 +2050,30 @@ export const accountApi = {
                 `/api/v1/account/orders/${encodeURIComponent(reference)}/claim/`,
                 { method: 'POST' },
             ),
+
+        downloadPdf: async (
+            reference: string,
+            signal?: AbortSignal,
+        ): Promise<Blob> => {
+            const headers: Record<string, string> = {};
+            const access = getAccessToken();
+            if (access) headers['Authorization'] = `Bearer ${access}`;
+
+            const res = await fetch(
+                `${API_BASE}/api/v1/account/orders/${encodeURIComponent(reference)}/pdf/`,
+                {
+                    credentials: 'include',
+                    headers,
+                    signal,
+                },
+            );
+            if (!res.ok) {
+                throw new ApiError(res.status, {
+                    detail: `Could not download receipt: ${res.status}`,
+                });
+            }
+            return res.blob();
+        },
     },
 
     addresses: {
@@ -2048,9 +2256,6 @@ export const accountApi = {
     },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Polling helper
-// ─────────────────────────────────────────────────────────────────────────────
 const TERMINAL_PAYMENT_STATUSES: ReadonlySet<PaymentStatus> = new Set([
     'SUCCESS',
     'FAILED',

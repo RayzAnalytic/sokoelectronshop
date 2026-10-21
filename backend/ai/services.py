@@ -1,16 +1,3 @@
-"""
-Tool-calling orchestration over the existing catalog/checkout services.
-
-Everything the model learns about products, policies, or orders comes
-through one of the tool functions in this module. Nothing is duplicated
-from other apps.
-
-Provider support:
-  Set AI_PROVIDER in .env to one of: "groq", "gemini", "xai", "openrouter".
-  All four expose an OpenAI-compatible endpoint, so the same openai SDK
-  works against all of them. The only differences are the base URL, the
-  API key env var, and the model string.
-"""
 import json
 import logging
 import os
@@ -34,49 +21,45 @@ MAX_TOOL_ITERATIONS = getattr(settings, "AI_MAX_TOOL_ITERATIONS", 5)
 HISTORY_TURNS = getattr(settings, "AI_HISTORY_TURNS", 6)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Typed exceptions — the view maps these to HTTP status codes
-# ═════════════════════════════════════════════════════════════════════════════
 class AIConfigurationError(RuntimeError):
-    """The AI app is missing a required setting (e.g. API key)."""
+    pass
 
 
 class AIRateLimitError(RuntimeError):
-    """The provider rejected the request because of a quota or rate limit."""
+    pass
 
 
 class AIProviderUnavailableError(RuntimeError):
-    """The provider returned an error or the connection failed."""
+    pass
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Provider registry
-#
-# Each entry maps a provider name to the base URL, API-key env var, and
-# the default model string. Override any of them via .env without touching
-# this file.
-# ═════════════════════════════════════════════════════════════════════════════
 PROVIDERS = {
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
+        "base_url_env": "GROQ_BASE_URL",
         "key_env": "GROQ_API_KEY",
-        # llama-3.3-70b-versatile was retired by Groq in Aug 2026.
-        # openai/gpt-oss-120b is the current free-tier replacement.       # ← FIXED
+        "model_env": "GROQ_MODEL",
         "default_model": "openai/gpt-oss-120b",
     },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "base_url_env": "GEMINI_BASE_URL",
         "key_env": "GEMINI_API_KEY",
+        "model_env": "GEMINI_MODEL",
         "default_model": "gemini-2.5-flash",
     },
     "xai": {
         "base_url": "https://api.x.ai/v1",
+        "base_url_env": "XAI_BASE_URL",
         "key_env": "XAI_API_KEY",
+        "model_env": "XAI_MODEL",
         "default_model": "grok-2-latest",
     },
     "openrouter": {
         "base_url": "https://openrouter.ai/api/v1",
+        "base_url_env": "OPENROUTER_BASE_URL",
         "key_env": "OPENROUTER_API_KEY",
+        "model_env": "OPENROUTER_MODEL",
         "default_model": "meta-llama/llama-3.3-70b-instruct:free",
     },
 }
@@ -97,83 +80,104 @@ def _active_provider() -> str:
 
 def _provider_config(provider: str) -> dict:
     cfg = PROVIDERS[provider]
-    base_url = getattr(settings, "AI_BASE_URL", "") or cfg["base_url"]
-    model = getattr(settings, "AI_MODEL", "") or cfg["default_model"]
-    key = getattr(settings, cfg["key_env"], "") or os.getenv(cfg["key_env"], "")
-    return {"base_url": base_url, "model": model, "key": key, "key_env": cfg["key_env"]}
+
+    model = (
+        os.getenv(cfg["model_env"], "")
+        or getattr(settings, "AI_MODEL", "")
+        or cfg["default_model"]
+    )
+
+    base_url = (
+        os.getenv(cfg["base_url_env"], "")
+        or getattr(settings, "AI_BASE_URL", "")
+        or cfg["base_url"]
+    )
+
+    key = (
+        getattr(settings, cfg["key_env"], "")
+        or os.getenv(cfg["key_env"], "")
+    )
+
+    return {
+        "base_url": base_url,
+        "model": model,
+        "key": key,
+        "key_env": cfg["key_env"],
+        "provider": provider,
+    }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# LLM client
-# ═════════════════════════════════════════════════════════════════════════════
 def _get_client():
-    """Lazy import so the openai package isn't required at module load."""
     from openai import OpenAI
 
-    provider = _active_provider()
-    cfg = _provider_config(provider)
+    cfg = _provider_config(_active_provider())
 
     if not cfg["key"]:
         raise AIConfigurationError(
-            f"{cfg['key_env']} is not configured for provider {provider!r}. "
-            f"Add it to your .env file."
+            f"{cfg['key_env']} is not configured for provider "
+            f"{cfg['provider']!r}. Add it to your .env file."
         )
 
-    return OpenAI(api_key=cfg["key"], base_url=cfg["base_url"])
+    default_headers = None
+    if cfg["provider"] == "openrouter":
+        referer = getattr(settings, "OPENROUTER_HTTP_REFERER", "") or ""
+        title = getattr(settings, "OPENROUTER_X_TITLE", "") or "Myshop AI Assistant"
+        default_headers = {"X-Title": title}
+        if referer:
+            default_headers["HTTP-Referer"] = referer
+
+    return OpenAI(
+        api_key=cfg["key"],
+        base_url=cfg["base_url"],
+        default_headers=default_headers,
+    )
 
 
 def call_model(messages: list[dict], tools: list[dict]):
-    """
-    Single call into the configured LLM provider.
-
-    Translates the OpenAI SDK's exceptions into the app's typed errors
-    so the view can respond with the right HTTP status code.
-    """
     from openai import RateLimitError, APIError, APIConnectionError
 
+    cfg = _provider_config(_active_provider())
     client = _get_client()
-    provider = _active_provider()
-    cfg = _provider_config(provider)
+
+    logger.debug(
+        "call_model → provider=%s model=%s tools=%d",
+        cfg["provider"], cfg["model"], len(tools or []),
+    )
 
     kwargs = {
         "model": cfg["model"],
         "messages": messages,
-        "tools": tools or None,
-        "tool_choice": "auto" if tools else None,
         "temperature": 0.3,
         "max_tokens": 600,
     }
 
-    # OpenRouter requires a Referer header on some free-tier calls.
-    if provider == "openrouter":
-        kwargs["extra_headers"] = {
-            "HTTP-Referer": getattr(settings, "FRONTEND_URL", "http://localhost:3000"),
-            "X-Title": "Myshop AI Assistant",
-        }
+    if tools:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
 
     try:
         return client.chat.completions.create(**kwargs)
     except RateLimitError as exc:
-        logger.warning("AI provider rate limit (%s): %s", provider, exc)
+        logger.warning("AI provider rate limit (%s): %s", cfg["provider"], exc)
         raise AIRateLimitError(
             "The assistant is receiving too many requests right now. "
             "Please wait a moment and try again."
         ) from exc
     except APIConnectionError as exc:
-        logger.warning("AI provider connection error (%s): %s", provider, exc)
+        logger.warning("AI provider connection error (%s): %s", cfg["provider"], exc)
         raise AIProviderUnavailableError(
             "The assistant is temporarily unreachable. Please try again."
         ) from exc
     except APIError as exc:
-        logger.error("AI provider API error (%s): %s", provider, exc)
+        logger.error(
+            "AI provider API error (%s, model=%s): %s",
+            cfg["provider"], cfg["model"], exc,
+        )
         raise AIProviderUnavailableError(
             "The assistant is temporarily unavailable. Please try again shortly."
         ) from exc
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Tool schemas
-# ═════════════════════════════════════════════════════════════════════════════
 def build_tool_schemas(is_authenticated: bool) -> list[dict]:
     tools = [
         {
@@ -302,11 +306,7 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
     return tools
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Tool executors
-# ═════════════════════════════════════════════════════════════════════════════
 def _product_card(product: Product, request=None) -> dict:
-    """Minimal card the frontend can render directly."""
     image_url = ""
     first = product.images.first()
     if first and first.image:
@@ -466,14 +466,11 @@ def execute_tool(name: str, args: dict, request) -> dict:
         return {"error": "UNKNOWN_TOOL", "name": name}
     try:
         return executor(args, request)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("AI tool %s failed: %s", name, exc)
         return {"error": "TOOL_ERROR", "name": name}
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Session + history
-# ═════════════════════════════════════════════════════════════════════════════
 def get_or_create_session(session_id, user) -> ChatSession:
     if session_id:
         session = ChatSession.objects.filter(id=session_id).first()
@@ -496,9 +493,6 @@ def build_history(session: ChatSession) -> list[dict]:
     return [{"role": m.role, "content": m.content} for m in msgs]
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Main entry point
-# ═════════════════════════════════════════════════════════════════════════════
 class ChatTurnResult:
     def __init__(self, session, text, products, chips, requires_auth):
         self.session = session

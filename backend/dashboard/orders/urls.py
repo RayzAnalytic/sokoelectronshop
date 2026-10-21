@@ -5,7 +5,6 @@ from . import views
 app_name = "dashboard_orders"
 
 urlpatterns = [
-    # ── List + aggregates ─────────────────────────────────────────────
     path(
         "",
         views.AdminOrderListView.as_view(),
@@ -26,10 +25,12 @@ urlpatterns = [
         views.AdminOrderExportView.as_view(),
         name="export",
     ),
+    path(
+        "verify-qr/",
+        views.AdminOrderVerifyQRView.as_view(),
+        name="verify-qr",
+    ),
 
-    # ── Detail + actions ──────────────────────────────────────────────
-    # Suffix routes before the generic `<str:reference>/` so the
-    # specific verb is never swallowed into the reference string.
     path(
         "<str:reference>/status/",
         views.AdminOrderStatusView.as_view(),
@@ -59,6 +60,16 @@ urlpatterns = [
         "<str:reference>/whatsapp/",
         views.AdminOrderWhatsAppView.as_view(),
         name="whatsapp",
+    ),
+    path(
+        "<str:reference>/pdf/",
+        views.AdminOrderPdfView.as_view(),
+        name="pdf",
+    ),
+    path(
+        "<str:reference>/fulfill-qr/",
+        views.AdminOrderFulfillQRView.as_view(),
+        name="fulfill-qr",
     ),
     path(
         "<str:reference>/",

@@ -33,9 +33,6 @@ import {
 } from '@/lib/api';
 import { adminApi } from '@/lib/admin-api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Local helpers (mirror the old bannerStore's fmt/fmtDate)
-// ─────────────────────────────────────────────────────────────────────────────
 function fmt(n: number): string {
     return n.toLocaleString('en-KE');
 }
@@ -49,7 +46,6 @@ function fmtDate(iso: string | null): string {
     });
 }
 
-/** ISO → `YYYY-MM-DDTHH:mm` for <input type="datetime-local">. */
 function isoToLocalInput(iso: string | null): string {
     if (!iso) return '';
     const d = new Date(iso);
@@ -402,7 +398,7 @@ export default function BannersPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
                 <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-6 text-center">
                     <div className="w-12 h-12 mx-auto rounded-sm bg-rose-50 text-rose-600 flex items-center justify-center">
                         <X className="w-6 h-6" />
@@ -427,7 +423,7 @@ export default function BannersPage() {
 
             {/* ── Header ─────────────────────────────────────────────────── */}
             <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+                <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-3">
                     <div>
                         <h1 className="text-[15px] font-semibold text-slate-900">Banners</h1>
                         <p className="text-[13px] text-slate-500 mt-0.5">
@@ -469,7 +465,7 @@ export default function BannersPage() {
                 </div>
             </header>
 
-            <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
+            <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
 
                 {/* ── Summary cards ──────────────────────────────────────── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -492,7 +488,7 @@ export default function BannersPage() {
                 </div>
 
                 {/* ── Toolbar ────────────────────────────────────────────── */}
-                <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+                <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
                     <div className="relative flex-1 min-w-0">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                         <input
@@ -591,7 +587,7 @@ export default function BannersPage() {
                     onClick={() => setConfirmDelete(null)}
                 >
                     <div
-                        className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl"
+                        className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-2 shadow-xl"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-2">
@@ -603,7 +599,7 @@ export default function BannersPage() {
                         <p className="text-[13px] text-slate-500 mt-2">
                             &ldquo;{confirmDelete.name}&rdquo; will be permanently removed. This cannot be undone.
                         </p>
-                        <div className="flex justify-end gap-2 mt-3">
+                        <div className="flex justify-end gap-2 mt-2">
                             <button
                                 onClick={() => setConfirmDelete(null)}
                                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -623,7 +619,7 @@ export default function BannersPage() {
 
             {/* ── Toast ──────────────────────────────────────────────── */}
             {toast && (
-                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-4 py-2.5 rounded-sm shadow-lg">
+                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-2 py-2.5 rounded-sm shadow-lg">
                     {toast}
                 </div>
             )}
@@ -650,7 +646,7 @@ function BannerCard({
     onDelete: () => void;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 relative">
+        <div className="bg-white border border-slate-200 rounded-sm p-0.5 space-y-1 relative">
             <div className="relative aspect-[4/3] rounded-sm overflow-hidden bg-slate-950 border border-slate-200">
                 <SlideArt banner={banner} />
                 <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm">
@@ -673,11 +669,11 @@ function BannerCard({
                 <p className="text-[13px] text-slate-400 line-clamp-2">
                     {banner.headline || '—'}
                 </p>
-                <p className="text-[11px] text-slate-400">Updated {fmtDate(banner.updated_at)}</p>
+                <p className="text-[13px] text-slate-400">Updated {fmtDate(banner.updated_at)}</p>
             </div>
 
             {/* Mini stats */}
-            <div className="grid grid-cols-3 gap-1 pt-2 border-t border-slate-100">
+            <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-100">
                 <MiniStat label="Impr." value={fmt(banner.impressions)} />
                 <MiniStat label="CTR" value={`${banner.ctr.toFixed(1)}%`} />
                 <MiniStat label="Conv." value={fmt(banner.conversions)} />
@@ -713,10 +709,10 @@ function BannerCard({
 function MiniStat({ label, value }: { label: string; value: string }) {
     return (
         <div className="text-center">
-            <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">
+            <div className="text-[13px] uppercase tracking-wide text-slate-400 font-medium">
                 {label}
             </div>
-            <div className="text-[12px] font-semibold text-slate-800 mt-0.5">
+            <div className="text-[13px] font-semibold text-slate-800 mt-0.5">
                 {value}
             </div>
         </div>
@@ -773,22 +769,22 @@ function BannerTable({
                 <table className="w-full text-left border-collapse text-[13px]">
                     <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                            <th className="py-2 px-3 font-medium w-16">Order</th>
-                            <th className="py-2 px-3 font-medium">Banner</th>
-                            <th className="py-2 px-3 font-medium">Placement</th>
-                            <th className="py-2 px-3 font-medium">Status</th>
-                            <th className="py-2 px-3 font-medium">Schedule</th>
-                            <th className="py-2 px-3 font-medium text-right">Impr.</th>
-                            <th className="py-2 px-3 font-medium text-right">CTR</th>
-                            <th className="py-2 px-3 font-medium text-right">Conv.</th>
-                            <th className="py-2 px-3 font-medium text-right w-40">Actions</th>
+                            <th className="py-2 px-2 font-medium w-16">Order</th>
+                            <th className="py-2 px-2 font-medium">Banner</th>
+                            <th className="py-2 px-2 font-medium">Placement</th>
+                            <th className="py-2 px-2 font-medium">Status</th>
+                            <th className="py-2 px-2 font-medium">Schedule</th>
+                            <th className="py-2 px-2 font-medium text-right">Impr.</th>
+                            <th className="py-2 px-2 font-medium text-right">CTR</th>
+                            <th className="py-2 px-2 font-medium text-right">Conv.</th>
+                            <th className="py-2 px-2 font-medium text-right w-40">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {banners.map((b) => (
                             <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="py-2 px-3 text-slate-500">#{b.order}</td>
-                                <td className="py-2 px-3">
+                                <td className="py-2 px-2 text-slate-500">#{b.order}</td>
+                                <td className="py-2 px-2">
                                     <div className="flex items-center gap-2">
                                         <div className="relative w-14 h-9 rounded-sm overflow-hidden bg-slate-950 border border-slate-200 shrink-0">
                                             <SlideArt banner={b} />
@@ -803,30 +799,30 @@ function BannerTable({
                                         </div>
                                     </div>
                                 </td>
-                                <td className="py-2 px-3 text-slate-600">
+                                <td className="py-2 px-2 text-slate-600">
                                     {PLACEMENT_LABEL[b.placement]}
                                 </td>
-                                <td className="py-2 px-3">
+                                <td className="py-2 px-2">
                                     <span
                                         className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-sm border ${STATUS_STYLES[b.status]}`}
                                     >
                                         {b.status}
                                     </span>
                                 </td>
-                                <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                                <td className="py-2 px-2 text-slate-600 whitespace-nowrap">
                                     {b.start_at ? fmtDate(b.start_at) : '—'} →{' '}
                                     {b.end_at ? fmtDate(b.end_at) : '—'}
                                 </td>
-                                <td className="py-2 px-3 text-right text-slate-700 tabular-nums">
+                                <td className="py-2 px-2 text-right text-slate-700 tabular-nums">
                                     {fmt(b.impressions)}
                                 </td>
-                                <td className="py-2 px-3 text-right text-slate-700 tabular-nums">
+                                <td className="py-2 px-2 text-right text-slate-700 tabular-nums">
                                     {b.ctr.toFixed(1)}%
                                 </td>
-                                <td className="py-2 px-3 text-right text-slate-700 tabular-nums">
+                                <td className="py-2 px-2 text-right text-slate-700 tabular-nums">
                                     {fmt(b.conversions)}
                                 </td>
-                                <td className="py-2 px-3">
+                                <td className="py-2 px-2">
                                     <div className="flex items-center justify-end gap-0.5">
                                         <IconButton title="Edit" onClick={() => onEdit(b)}>
                                             <Pencil className="w-3.5 h-3.5" />
@@ -857,9 +853,6 @@ function BannerTable({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Empty state
-// ─────────────────────────────────────────────────────────────────────────────
 function EmptyState({ onCreate }: { onCreate: () => void }) {
     return (
         <div className="bg-white border border-slate-200 rounded-sm py-16 text-center">
@@ -885,7 +878,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
             </p>
             <button
                 onClick={onCreate}
-                className="mt-4 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                className="mt-2 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
             >
                 <Plus className="w-3.5 h-3.5" />
                 New banner
@@ -944,7 +937,7 @@ function SlideArtFull({ banner }: { banner: Banner }) {
         <div className="absolute inset-0">
             <SlideArt banner={banner} />
             <div
-                className={`absolute inset-0 flex flex-col justify-center ${align} p-6 sm:p-8`}
+                className={`absolute inset-0 flex flex-col justify-center ${align} p-4 sm:p-4`}
             >
                 {banner.badge && (
                     <span
@@ -955,15 +948,15 @@ function SlideArtFull({ banner }: { banner: Banner }) {
                     </span>
                 )}
                 <h3
-                    className={`mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight leading-[1.15] ${textColor}`}
+                    className={`mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight leading-[1.15] ${textColor}`}
                 >
                     {banner.headline || 'Your headline here'}
                 </h3>
-                <p className={`mt-2 text-sm max-w-xl ${subColor}`}>
+                <p className={`mt-1 text-sm max-w-xl ${subColor}`}>
                     {banner.description}
                 </p>
                 {(banner.primary_cta_text || banner.secondary_cta_text) && (
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
                         {banner.primary_cta_text && (
                             <span className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 font-semibold py-2 px-4 rounded-sm text-[13px]">
                                 {banner.primary_cta_text}
@@ -971,7 +964,7 @@ function SlideArtFull({ banner }: { banner: Banner }) {
                             </span>
                         )}
                         {banner.secondary_cta_text && (
-                            <span className="inline-flex items-center justify-center bg-transparent text-white font-medium py-2 px-4 rounded-sm text-[13px] border border-white/30">
+                            <span className="inline-flex items-center justify-center bg-transparent text-white font-medium py-2 px-2 rounded-sm text-[13px] border border-white/30">
                                 {banner.secondary_cta_text}
                             </span>
                         )}
@@ -1002,11 +995,11 @@ function PreviewModal({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2">
             <div
                 className={`w-full ${widths[device]} bg-white rounded-sm border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] transition-all duration-200`}
             >
-                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
+                <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 shrink-0">
                     <div className="min-w-0">
                         <h2 className="text-[15px] font-semibold text-slate-900 truncate">
                             {banner.name}
@@ -1039,14 +1032,14 @@ function PreviewModal({
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto bg-slate-100 p-3 flex justify-center">
+                <div className="flex-1 overflow-auto bg-slate-100 p-2 flex justify-center">
                     <div className="w-full">
                         <div className="relative bg-slate-950 overflow-hidden rounded-sm border border-slate-200">
                             <div className="relative aspect-[16/9] sm:aspect-[16/7]">
                                 <SlideArtFull banner={banner} />
                             </div>
                         </div>
-                        <div className="text-center text-[11px] text-slate-400 mt-2 capitalize">
+                        <div className="text-center text-[11px] text-slate-400 mt-1 capitalize">
                             {device} preview
                         </div>
                     </div>
@@ -1064,8 +1057,8 @@ function PreviewModal({
 
 function PreviewStat({ label, value }: { label: string; value: string }) {
     return (
-        <div className="p-2.5 text-center">
-            <div className="text-[10px] uppercase tracking-wide text-slate-400">
+        <div className="p-2 text-center">
+            <div className="text-[13px] uppercase tracking-wide text-slate-400">
                 {label}
             </div>
             <div className="text-[14px] font-semibold text-slate-900 mt-0.5">
@@ -1114,7 +1107,7 @@ function BannerEditor({
         <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-slate-900/60 backdrop-blur-sm">
             <div className="w-full max-w-3xl bg-white flex flex-col shadow-xl">
                 {/* Header */}
-                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
+                <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 shrink-0">
                     <div>
                         <h2 className="text-[15px] font-semibold text-slate-900">
                             {initial.id ? 'Edit banner' : 'New banner'}
@@ -1132,7 +1125,7 @@ function BannerEditor({
                 </div>
 
                 {/* Tabs */}
-                <div className="px-3 border-b border-slate-200 shrink-0">
+                <div className="px-2 border-b border-slate-200 shrink-0">
                     <div className="flex gap-1 -mb-px">
                         {(['content', 'media', 'design', 'schedule'] as const).map((t) => (
                             <button
@@ -1150,7 +1143,7 @@ function BannerEditor({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-auto p-3 space-y-3 text-[13px]">
+                <div className="flex-1 overflow-auto p-3 space-y-2 text-[13px]">
                     {tab === 'content' && (
                         <>
                             <Field label="Banner name (internal)">
@@ -1300,7 +1293,7 @@ function BannerEditor({
 
                     {tab === 'design' && (
                         <>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-2">
                                 <Field label="Text alignment">
                                     <select
                                         value={draft.text_alignment}
@@ -1369,7 +1362,7 @@ function BannerEditor({
                                 </select>
                             </Field>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-2">
                                 <Field label="Start date & time">
                                     <input
                                         type="datetime-local"
@@ -1401,7 +1394,7 @@ function BannerEditor({
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-200 bg-white shrink-0">
+                <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-slate-200 bg-white shrink-0">
                     <button
                         onClick={onClose}
                         className="text-[13px] text-slate-600 hover:text-slate-900 px-3 py-2"
@@ -1497,7 +1490,7 @@ function ImageDrop({
                     <button
                         type="button"
                         onClick={() => onChange('')}
-                        className="text-[11px] text-slate-500 hover:text-rose-600"
+                        className="text-[13px] text-slate-500 hover:text-rose-600"
                     >
                         Remove
                     </button>
@@ -1529,13 +1522,13 @@ function ImageDrop({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={value} alt="" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition flex items-center justify-center">
-                            <span className="text-white text-[12px] font-medium opacity-0 group-hover:opacity-100 transition">
+                            <span className="text-white text-[13px] font-medium opacity-0 group-hover:opacity-100 transition">
                                 Click to replace
                             </span>
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-6 px-4 text-center">
+                    <div className="flex flex-col items-center justify-center py-4 px-3 text-center">
                         {busy ? (
                             <svg
                                 className="animate-spin w-5 h-5 text-slate-400 mb-2"
@@ -1573,7 +1566,7 @@ function ImageDrop({
                             {busy ? 'Uploading…' : 'Click to upload or drag & drop'}
                         </p>
                         {hint && (
-                            <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>
+                            <p className="text-[13px] text-slate-400 mt-0.5">{hint}</p>
                         )}
                     </div>
                 )}
@@ -1587,7 +1580,7 @@ function ImageDrop({
                 onChange={(e) => void handleFiles(e.target.files)}
             />
 
-            {error && <p className="text-[11px] text-rose-600">{error}</p>}
+            {error && <p className="text-[13px] text-rose-600">{error}</p>}
         </div>
     );
 }

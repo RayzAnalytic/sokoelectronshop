@@ -14,13 +14,6 @@ import {
     type NotificationType,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Icon map
-// ─────────────────────────────────────────────────────────────────────────────
-// Every member of NotificationType has an entry — TS flags the Record as
-// incomplete if a new type is added to the union and this map is missed.
-// At runtime, `ICONS[n.type] ?? ICONS.system` guards against an older
-// backend that sends a `type` the frontend doesn't know yet.
 const ICONS: Record<NotificationType, { Icon: LucideIcon; tint: string }> = {
     order: { Icon: Package, tint: 'bg-blue-50 text-blue-950' },
     shipping: { Icon: Truck, tint: 'bg-indigo-50 text-indigo-900' },
@@ -30,9 +23,6 @@ const ICONS: Record<NotificationType, { Icon: LucideIcon; tint: string }> = {
     review: { Icon: Star, tint: 'bg-orange-50 text-orange-900' },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 function groupLabel(dateStr: string): string {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return 'Earlier';
@@ -41,7 +31,7 @@ function groupLabel(dateStr: string): string {
     const diffMs = today.getTime() - d.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return 'Today';        // future timestamps → treat as today
+    if (diffDays < 0) return 'Today';
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays <= 7) return 'This week';
@@ -53,9 +43,6 @@ function iconFor(type: NotificationType): { Icon: LucideIcon; tint: string } {
     return ICONS[type] ?? ICONS.system;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<NotificationRow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +58,6 @@ export default function NotificationsPage() {
         setTimeout(() => setToast(null), 2200);
     };
 
-    // ── Initial fetch ──
     useEffect(() => {
         let cancelled = false;
 
@@ -97,7 +83,6 @@ export default function NotificationsPage() {
         };
     }, []);
 
-    // ── Derived ──
     const unreadCount = notifications.filter((n) => !n.is_read).length;
 
     const visible = useMemo(
@@ -119,13 +104,6 @@ export default function NotificationsPage() {
         return out;
     }, [visible]);
 
-    // ── Actions ──
-
-    /**
-     * Optimistic mark-read with rollback. Used for notifications that
-     * don't navigate — a failed rollback is visible on the row and worth
-     * surfacing.
-     */
     const markRead = async (id: number) => {
         const target = notifications.find((n) => n.id === id);
         if (!target || target.is_read) return;
@@ -147,11 +125,6 @@ export default function NotificationsPage() {
         }
     };
 
-    /**
-     * Fire-and-forget mark-read. Used when the row navigates away — the
-     * component unmounts, so a rollback would run on nothing. If the
-     * call fails the notification just stays unread on the next visit.
-     */
     const markReadSilent = (id: number) => {
         const target = notifications.find((n) => n.id === id);
         if (!target || target.is_read) return;
@@ -183,14 +156,6 @@ export default function NotificationsPage() {
         }
     };
 
-    /**
-     * Delete one notification. Optimistic — the row disappears
-     * immediately; on failure it returns and a toast explains why.
-     *
-     * `stopPropagation` matters here: the row is often wrapped in a
-     * `<Link>` when `href` is set, and without it the click would
-     * navigate before the delete resolved.
-     */
     const removeOne = async (
         e: React.MouseEvent<HTMLButtonElement>,
         id: number,
@@ -234,16 +199,15 @@ export default function NotificationsPage() {
     };
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-3">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-4 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
                     <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                     <span className="leading-relaxed">{toast}</span>
                 </div>
             )}
 
-            {/* Header */}
-            <div className="bg-white border border-slate-200 rounded-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <Bell className="h-5 w-5 text-blue-950" />
@@ -284,15 +248,13 @@ export default function NotificationsPage() {
                 </div>
             </div>
 
-            {/* Load error */}
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
             )}
 
-            {/* Filter tabs */}
             <div className="bg-white border border-slate-200 rounded-sm p-3 flex items-center gap-1.5">
                 {(['All', 'Unread'] as const).map((tab) => (
                     <button
@@ -312,7 +274,6 @@ export default function NotificationsPage() {
                 ))}
             </div>
 
-            {/* Loading skeleton */}
             {isLoading ? (
                 <div className="space-y-5">
                     {[0, 1].map((g) => (
@@ -322,7 +283,7 @@ export default function NotificationsPage() {
                                 {[0, 1, 2].map((i) => (
                                     <li
                                         key={i}
-                                        className="flex items-start gap-3 p-4 animate-pulse"
+                                        className="flex items-start gap-3 p-3 animate-pulse"
                                     >
                                         <span className="w-9 h-9 rounded-full bg-slate-200 shrink-0" />
                                         <div className="flex-1 space-y-2">
@@ -337,7 +298,6 @@ export default function NotificationsPage() {
                     ))}
                 </div>
             ) : visible.length === 0 ? (
-                /* Empty state */
                 <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
                     <Bell className="h-10 w-10 text-slate-300 mx-auto mb-3" />
                     <h2 className="text-sm font-semibold text-slate-900">
@@ -351,8 +311,7 @@ export default function NotificationsPage() {
                     </p>
                 </div>
             ) : (
-                /* Grouped list */
-                <div className="space-y-5">
+                <div className="space-y-3">
                     {groups.map((group) => (
                         <section key={group.label}>
                             <h2 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 mb-2 px-1">
@@ -406,7 +365,7 @@ export default function NotificationsPage() {
                                         </>
                                     );
 
-                                    const rowClass = `flex items-start gap-3 p-4 transition-colors ${n.is_read
+                                    const rowClass = `flex items-start gap-3 p-3 transition-colors ${n.is_read
                                         ? 'hover:bg-slate-50'
                                         : 'bg-blue-50/40 hover:bg-blue-50'
                                         } ${isRemoving ? 'opacity-50' : ''}`;
@@ -446,10 +405,6 @@ export default function NotificationsPage() {
                                                 </div>
                                             )}
 
-                                            {/* Dismiss button — floats on the
-                                                right edge, visible on hover
-                                                (or always on touch devices
-                                                via the focus-within class). */}
                                             <button
                                                 type="button"
                                                 onClick={(e) =>
@@ -474,7 +429,6 @@ export default function NotificationsPage() {
                 </div>
             )}
 
-            {/* Clear-all confirm */}
             {clearConfirmOpen && (
                 <div
                     className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
@@ -485,7 +439,7 @@ export default function NotificationsPage() {
                     aria-modal="true"
                 >
                     <div
-                        className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-md p-5"
+                        className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-md p-3"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-start gap-3">
@@ -513,7 +467,7 @@ export default function NotificationsPage() {
                                 type="button"
                                 onClick={() => setClearConfirmOpen(false)}
                                 disabled={busy}
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60"
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60"
                             >
                                 Cancel
                             </button>
@@ -522,7 +476,7 @@ export default function NotificationsPage() {
                                 onClick={confirmClearAll}
                                 disabled={busy}
                                 aria-busy={busy}
-                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {busy ? (
                                     <>

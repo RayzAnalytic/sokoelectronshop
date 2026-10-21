@@ -1,21 +1,5 @@
-"""
-dashboard/analytics/views.py
-
-Read-only analytics aggregation. Reads from:
-  • checkout.models           → Order, OrderItem, Cart, CartItem
-  • catalog.models            → Product, Category, Brand
-  • authentication.models     → User
-  • dashboard.customers       → CustomerProfile
-  • dashboard.social          → SocialPost, SocialPostTarget
-  • account.models            → Address
-  • dashboard.analytics       → PageView (device + pageview tracking)
-
-Endpoints under /api/v1/admin/analytics/<tab>/?range=7days|30days|90days|year
-Each tab returns JSON shaped for the frontend Analytics page.
-"""
-
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from django.db.models import Avg, Count, DecimalField, F, Max, Min, Q, Sum, Value
 from django.db.models.functions import Coalesce, TruncDate
@@ -25,10 +9,6 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .models import AnalyticsCache
 
-
-# ============================================================
-# Constants
-# ============================================================
 
 RANGE_LABELS = {
     "7days": "Last 7 Days",
@@ -70,16 +50,11 @@ DEVICE_LABELS = {
 }
 
 
-# ============================================================
-# Helpers
-# ============================================================
-
 def _range_key(request) -> str:
     return request.GET.get("range", "7days")
 
 
 def _resolve_dates(request):
-    """Return (start_date, end_date, days_in_range)."""
     rng = request.GET.get("range", "7days")
     today = timezone.now().date()
 
@@ -92,7 +67,7 @@ def _resolve_dates(request):
     elif rng == "year":
         start = today.replace(month=1, day=1)
         days = (today - start).days + 1
-    else:  # 7days default
+    else:
         start = today - timedelta(days=6)
         days = 7
 
@@ -137,7 +112,6 @@ def _to_float(v) -> float:
 
 
 def _pct_delta(current: float, previous: float) -> tuple[float, bool]:
-    """Return (delta_percent, positive). If previous is 0, treat as positive."""
     if previous <= 0:
         return (100.0 if current > 0 else 0.0), True
     delta = (current - previous) / previous * 100
@@ -145,21 +119,31 @@ def _pct_delta(current: float, previous: float) -> tuple[float, bool]:
 
 
 def _sparkline_for_window(today, days: int, base: float) -> list[float]:
-    """Return a smooth 7-point sparkline ending in `base`."""
     if days <= 0 or base <= 0:
         return [0.0] * 7
     step = max(base / 7.0, 1.0)
     return [round(step * (i + 1), 2) for i in range(7)]
 
 
-# ============================================================
-# TRAFFIC
-# ============================================================
+def _image_url(obj) -> str:
+    """Best-effort image URL for a model instance (Product/Category/Brand/etc.)."""
+    if obj is None:
+        return ""
+    for attr in ("image", "logo", "thumbnail", "image_url", "featured_image", "cover"):
+        val = getattr(obj, attr, None)
+        if not val:
+            continue
+        try:
+            return val.url
+        except (ValueError, AttributeError):
+            if isinstance(val, str):
+                return val
+    return ""
+
 
 @require_GET
 def traffic(request):
     def build(_req):
-        from authentication.models import User
         from checkout.models import Cart, Order
         from dashboard.analytics.models import PageView
 
@@ -181,9 +165,6 @@ def traffic(request):
         order_count = orders_now.count()
         prev_order_count = orders_prev.count()
 
-        # ── Real PageView metrics ────────────────────────────────
-        # If the PageView table has data, we use real numbers.
-        # Otherwise we fall back to the older order-derived estimates.
         def pv_queryset(s, e):
             return (
                 PageView.objects
@@ -222,7 +203,6 @@ def traffic(request):
         conv_now = (order_count / sessions_now * 100) if sessions_now else 0.0
         conv_prev = (prev_order_count / sessions_prev * 100) if sessions_prev else 0.0
 
-        # ── Bounce + Duration — only real if PageView data exists ──
         if has_real_pv:
             session_rows = list(
                 pv_now.values("session_key").annotate(n=Count("id"))
@@ -284,7 +264,6 @@ def traffic(request):
                 "Percentage of sessions that completed a purchase."),
         ]
 
-        # ── Timeline — per-day sessions/visitors/pageviews ───────
         if has_real_pv:
             daily = (
                 pv_now
@@ -325,7 +304,6 @@ def traffic(request):
                     "pageviews": int(v * 1.3 * 3.2),
                 })
 
-        # ── Traffic sources (from Order.source) ──────────────────
         source_map = {
             "whatsapp": "WhatsApp",
             "web": "Website",
@@ -360,7 +338,6 @@ def traffic(request):
                 "visits": 0, "orders": 0, "revenue": "KES 0",
             }]
 
-        # ── Funnel ───────────────────────────────────────────────
         top = visitors_now
         stages = []
         if top:
@@ -377,7 +354,6 @@ def traffic(request):
                  "breakdown": [{"source": s["name"], "users": int(order_count * s["value"] / 100)} for s in sources]},
             ]
 
-        # ── Devices — real, from PageView ────────────────────────
         devices = []
         if has_real_pv:
             dv_qs = list(
@@ -403,7 +379,6 @@ def traffic(request):
                 key=lambda d: order_map.get(d["device"].split()[0].lower(), 9)
             )
 
-        # ── Counties — safe, wrapped so a missing field can't kill the tab ──
         counties = []
         try:
             from account.models import Address
@@ -434,7 +409,6 @@ def traffic(request):
             )
             counties = []
 
-        # ── Abandoned carts ──────────────────────────────────────
         abandoned = []
         try:
             carts = list(
@@ -499,10 +473,6 @@ def traffic(request):
          "devices": [], "counties": [], "abandoned_carts": [], "abandoned_trend": []},
     ))
 
-
-# ============================================================
-# SALES
-# ============================================================
 
 @require_GET
 def sales(request):
@@ -586,47 +556,78 @@ def sales(request):
             )
             .order_by("-revenue")[:10]
         )
-        by_product = [{
-            "name": r["name"] or "—",
-            "revenue": _to_int(r["revenue"]),
-            "orders": r["orders"] or 0,
-            "units": r["units"] or 0,
-            "growth": 0,
-            "image": r["image_url"] or "",
-        } for r in prod_qs]
 
         pids = [r["product_id"] for r in prod_qs if r["product_id"]]
-        pid_to_cat = dict(
-            Product.objects.filter(id__in=pids).values_list("id", "category__name")
-        )
+        product_meta = {
+            p.id: {
+                "image": _image_url(p),
+                "category_name": p.category.name if p.category_id else None,
+                "brand_name": p.brand.name if p.brand_id else None,
+            }
+            for p in Product.objects.filter(id__in=pids)
+            .select_related("category", "brand")
+        }
+
+        by_product = []
+        for r in prod_qs:
+            meta = product_meta.get(r["product_id"], {})
+            by_product.append({
+                "name": r["name"] or "—",
+                "revenue": _to_int(r["revenue"]),
+                "orders": r["orders"] or 0,
+                "units": r["units"] or 0,
+                "growth": 0,
+                "image": r["image_url"] or meta.get("image", ""),
+            })
+
         cat_totals: dict = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
         for r in prod_qs:
-            cat = pid_to_cat.get(r["product_id"]) or "Other"
+            meta = product_meta.get(r["product_id"], {})
+            cat = meta.get("category_name") or "Other"
             cat_totals[cat]["revenue"] += _to_int(r["revenue"])
             cat_totals[cat]["orders"] += r["orders"] or 0
             cat_totals[cat]["units"] += r["units"] or 0
+        cat_objs = {
+            c.name: c
+            for c in Category.objects.filter(name__in=cat_totals.keys())
+        }
         palette = ["#10b981", "#0284c7", "#6366f1", "#f59e0b", "#ec4899"]
         by_category = [
-            {"name": k, "revenue": v["revenue"], "orders": v["orders"],
-             "units": v["units"], "growth": 0, "color": palette[i % len(palette)]}
+            {
+                "name": k,
+                "revenue": v["revenue"],
+                "orders": v["orders"],
+                "units": v["units"],
+                "growth": 0,
+                "color": palette[i % len(palette)],
+                "image": _image_url(cat_objs.get(k)),
+            }
             for i, (k, v) in enumerate(sorted(
                 cat_totals.items(), key=lambda kv: -kv[1]["revenue"]
             )[:5])
         ]
 
-        pid_to_brand = dict(
-            Product.objects.filter(id__in=pids).values_list("id", "brand__name")
-        )
         brand_totals: dict = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
         for r in prod_qs:
-            br = pid_to_brand.get(r["product_id"]) or "Other"
+            meta = product_meta.get(r["product_id"], {})
+            br = meta.get("brand_name") or "Other"
             brand_totals[br]["revenue"] += _to_int(r["revenue"])
             brand_totals[br]["orders"] += r["orders"] or 0
             brand_totals[br]["units"] += r["units"] or 0
+        brand_objs = {
+            b.name: b
+            for b in Brand.objects.filter(name__in=brand_totals.keys())
+        }
         by_brand = [
-            {"name": k, "revenue": v["revenue"], "orders": v["orders"],
-             "units": v["units"], "growth": 0,
-             "color": ["#172554", "#10b981", "#0284c7", "#f59e0b", "#ec4899"][i % 5]}
+            {
+                "name": k,
+                "revenue": v["revenue"],
+                "orders": v["orders"],
+                "units": v["units"],
+                "growth": 0,
+                "color": ["#172554", "#10b981", "#0284c7", "#f59e0b", "#ec4899"][i % 5],
+                "image": _image_url(brand_objs.get(k)),
+            }
             for i, (k, v) in enumerate(sorted(
                 brand_totals.items(), key=lambda kv: -kv[1]["revenue"]
             )[:5])
@@ -648,14 +649,9 @@ def sales(request):
     ))
 
 
-# ============================================================
-# CUSTOMERS
-# ============================================================
-
 @require_GET
 def customers(request):
     def build(_req):
-        from authentication.models import User
         from checkout.models import Order
         from dashboard.customers.models import CustomerProfile
 
@@ -761,10 +757,6 @@ def customers(request):
     ))
 
 
-# ============================================================
-# PRODUCTS
-# ============================================================
-
 @require_GET
 def products(request):
     def build(_req):
@@ -795,7 +787,7 @@ def products(request):
         product_meta = {
             p.id: {
                 "sku": p.slug or "—",
-                "image": "",
+                "image": _image_url(p),
                 "stock": p.stock_quantity or 0,
                 "category": p.category.name if p.category_id else "—",
             }
@@ -860,10 +852,6 @@ def products(request):
          "rows": []},
     ))
 
-
-# ============================================================
-# CHANNELS
-# ============================================================
 
 @require_GET
 def channels(request):
@@ -994,10 +982,6 @@ def channels(request):
         {"channels": [], "trend": [], "social_activity": [], "attribution": []},
     ))
 
-
-# ============================================================
-# Cache refresh
-# ============================================================
 
 @require_POST
 def refresh_cache(request):

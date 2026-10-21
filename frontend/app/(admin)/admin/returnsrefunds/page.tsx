@@ -1,368 +1,58 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     RotateCcw,
     Search,
     Check,
     X,
-    AlertTriangle,
     Clock,
     CreditCard,
     Package,
     Truck,
     Eye,
     MoreVertical,
-    ChevronDown,
-    ChevronRight,
-    Filter,
     Download,
     Bell,
     MessageSquare,
     Mail,
     Smartphone,
-    Ban,
     ThumbsUp,
     ThumbsDown,
     Banknote,
     History,
     Settings as SettingsIcon,
-    TrendingUp,
-    TrendingDown,
-    ArrowUpRight,
-    ArrowDownRight,
     Save,
     Plus,
     Trash2,
-    Copy,
     FileText,
     User,
-    Calendar,
     MapPin,
-    ShoppingBag,
     Info,
     CheckCircle2,
-    XCircle,
     Hourglass,
-    RefreshCw,
+    Loader2,
+    ChevronDown,
 } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+import { adminApi } from '@/lib/admin-api';
+import type {
+    AdminReturnRequest,
+    AdminReturnStatus,
+    AdminReturnReason,
+    AdminRefundMethod,
+    AdminRefundRecord,
+    AdminRefundStatus,
+    AdminReturnStats,
+    AdminReturnHistoryPoint,
+    AdminReturnSettings,
+} from '@/lib/admin-types';
+
 type TabKey = 'requests' | 'refunds' | 'history' | 'settings';
 
-type ReturnStatus =
-    | 'REQUESTED'
-    | 'UNDER_REVIEW'
-    | 'APPROVED'
-    | 'REJECTED'
-    | 'AWAITING_ITEM'
-    | 'ITEM_RECEIVED'
-    | 'CLOSED';
+type SortKey = 'recent' | 'oldest' | 'amount_high' | 'amount_low';
 
-type RefundStatus =
-    | 'NONE'
-    | 'PENDING'
-    | 'PROCESSING'
-    | 'COMPLETED'
-    | 'FAILED';
-
-type RefundMethod = 'original' | 'store_credit' | 'bank_transfer' | 'manual';
-
-type NotificationChannel = 'email' | 'sms' | 'push';
-
-interface ReturnItem {
-    id: string;
-    productName: string;
-    sku: string;
-    qty: number;
-    price: number;
-    image: string;
-    condition: 'unopened' | 'opened' | 'damaged' | 'defective';
-}
-
-interface ReturnRequest {
-    id: string;
-    code: string;
-    orderId: string;
-    customer: {
-        name: string;
-        email: string;
-        phone: string;
-    };
-    items: ReturnItem[];
-    reason: string;
-    reasonId: string;
-    notes: string;
-    status: ReturnStatus;
-    refundStatus: RefundStatus;
-    refundMethod: RefundMethod;
-    requestedAt: string;
-    resolvedAt?: string;
-    refundAmount: number;
-    originalAmount: number;
-    address?: string;
-    tracking?: string;
-    internalNotes?: string;
-}
-
-interface ReturnReason {
-    id: string;
-    label: string;
-    description: string;
-    requiresPhoto: boolean;
-    active: boolean;
-}
-
-interface RefundRecord {
-    id: string;
-    returnCode: string;
-    orderId: string;
-    customer: string;
-    amount: number;
-    method: RefundMethod;
-    status: RefundStatus;
-    createdAt: string;
-    completedAt?: string;
-    reference?: string;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Seed data
-// ─────────────────────────────────────────────────────────────────────────────
-const INITIAL_RETURN_REASONS: ReturnReason[] = [
-    { id: 'r1', label: 'Defective product', description: 'Item arrived broken or does not work', requiresPhoto: true, active: true },
-    { id: 'r2', label: 'Wrong item received', description: 'Different product than ordered', requiresPhoto: true, active: true },
-    { id: 'r3', label: 'Not as described', description: 'Product differs from the listing', requiresPhoto: true, active: true },
-    { id: 'r4', label: 'Damaged in transit', description: 'Shipping damage', requiresPhoto: true, active: true },
-    { id: 'r5', label: 'Changed my mind', description: 'Customer no longer wants the item', requiresPhoto: false, active: true },
-    { id: 'r6', label: 'Found a better price', description: 'Better offer elsewhere', requiresPhoto: false, active: true },
-    { id: 'r7', label: 'Late delivery', description: 'Arrived after the promised date', requiresPhoto: false, active: true },
-    { id: 'r8', label: 'Missing accessories', description: 'Incomplete package', requiresPhoto: true, active: false },
-];
-
-const INITIAL_RETURNS: ReturnRequest[] = [
-    {
-        id: 'ret-1',
-        code: 'RET-2026-0142',
-        orderId: 'ORD-9921',
-        customer: {
-            name: 'Mary Wanjiku',
-            email: 'mary.w@gmail.com',
-            phone: '+254 712 345 678',
-        },
-        items: [
-            {
-                id: 'i1',
-                productName: 'Sony WH-1000XM5 Noise Cancelling',
-                sku: 'SNY-WH5-BLK',
-                qty: 1,
-                price: 42000,
-                image: '/phone.jpeg',
-                condition: 'defective',
-            },
-        ],
-        reason: 'Defective product',
-        reasonId: 'r1',
-        notes: 'Left earcup produces crackling sound at any volume level.',
-        status: 'REQUESTED',
-        refundStatus: 'NONE',
-        refundMethod: 'original',
-        requestedAt: '2026-09-28T09:15:00Z',
-        refundAmount: 0,
-        originalAmount: 42000,
-    },
-    {
-        id: 'ret-2',
-        code: 'RET-2026-0141',
-        orderId: 'ORD-9908',
-        customer: {
-            name: 'David Otieno',
-            email: 'd.otieno@gmail.com',
-            phone: '+254 722 456 789',
-        },
-        items: [
-            {
-                id: 'i1',
-                productName: 'Logitech MX Master 3S Wireless Mouse',
-                sku: 'LOG-MX3S-M',
-                qty: 2,
-                price: 14500,
-                image: '/phone.jpeg',
-                condition: 'unopened',
-            },
-        ],
-        reason: 'Changed my mind',
-        reasonId: 'r5',
-        notes: 'Ordered two by mistake. Seals intact.',
-        status: 'APPROVED',
-        refundStatus: 'PENDING',
-        refundMethod: 'original',
-        requestedAt: '2026-09-27T14:22:00Z',
-        refundAmount: 29000,
-        originalAmount: 29000,
-        address: 'Nairobi, Westlands',
-    },
-    {
-        id: 'ret-3',
-        code: 'RET-2026-0140',
-        orderId: 'ORD-9887',
-        customer: {
-            name: 'Grace Muthoni',
-            email: 'grace.m@gmail.com',
-            phone: '+254 733 567 890',
-        },
-        items: [
-            {
-                id: 'i1',
-                productName: 'Apex Ultra X1 Pro Smartphone 5G',
-                sku: 'APX-X1-5G-BLK-256',
-                qty: 1,
-                price: 99999,
-                image: '/phone.jpeg',
-                condition: 'not_as_described' as never,
-            },
-        ],
-        reason: 'Not as described',
-        reasonId: 'r3',
-        notes: 'Listing showed 512GB, delivered 256GB.',
-        status: 'ITEM_RECEIVED',
-        refundStatus: 'PROCESSING',
-        refundMethod: 'original',
-        requestedAt: '2026-09-22T11:05:00Z',
-        refundAmount: 99999,
-        originalAmount: 99999,
-        tracking: 'G4S-8847293-KE',
-    },
-    {
-        id: 'ret-4',
-        code: 'RET-2026-0139',
-        orderId: 'ORD-9863',
-        customer: {
-            name: 'Peter Kariuki',
-            email: 'p.kariuki@gmail.com',
-            phone: '+254 701 234 567',
-        },
-        items: [
-            {
-                id: 'i1',
-                productName: 'Dell UltraSharp 27" 4K Monitor',
-                sku: 'DLL-U27-4K',
-                qty: 1,
-                price: 42000,
-                image: '/dellmonitor.jpeg',
-                condition: 'damaged',
-            },
-        ],
-        reason: 'Damaged in transit',
-        reasonId: 'r4',
-        notes: 'Screen cracked on the upper-right corner.',
-        status: 'CLOSED',
-        refundStatus: 'COMPLETED',
-        refundMethod: 'original',
-        requestedAt: '2026-09-15T08:40:00Z',
-        resolvedAt: '2026-09-19T15:00:00Z',
-        refundAmount: 42000,
-        originalAmount: 42000,
-        tracking: 'G4S-8819276-KE',
-    },
-    {
-        id: 'ret-5',
-        code: 'RET-2026-0138',
-        orderId: 'ORD-9840',
-        customer: {
-            name: 'Amina Hassan',
-            email: 'amina.h@gmail.com',
-            phone: '+254 745 678 901',
-        },
-        items: [
-            {
-                id: 'i1',
-                productName: 'Wireless Mechanical Keyboard K2',
-                sku: 'MCH-K2-WL',
-                qty: 1,
-                price: 12999,
-                image: '/phone.jpeg',
-                condition: 'opened',
-            },
-        ],
-        reason: 'Changed my mind',
-        reasonId: 'r5',
-        notes: 'Used for one day, not the switch type I wanted.',
-        status: 'REJECTED',
-        refundStatus: 'NONE',
-        refundMethod: 'original',
-        requestedAt: '2026-09-12T17:30:00Z',
-        resolvedAt: '2026-09-13T10:00:00Z',
-        refundAmount: 0,
-        originalAmount: 12999,
-        internalNotes: 'Opened and used; falls outside return policy for change-of-mind.',
-    },
-];
-
-const INITIAL_REFUNDS: RefundRecord[] = [
-    {
-        id: 'rf-1',
-        returnCode: 'RET-2026-0139',
-        orderId: 'ORD-9863',
-        customer: 'Peter Kariuki',
-        amount: 42000,
-        method: 'original',
-        status: 'COMPLETED',
-        createdAt: '2026-09-19T15:00:00Z',
-        completedAt: '2026-09-20T09:30:00Z',
-        reference: 'MPESA-8827461',
-    },
-    {
-        id: 'rf-2',
-        returnCode: 'RET-2026-0140',
-        orderId: 'ORD-9887',
-        customer: 'Grace Muthoni',
-        amount: 99999,
-        method: 'original',
-        status: 'PROCESSING',
-        createdAt: '2026-09-27T09:15:00Z',
-    },
-    {
-        id: 'rf-3',
-        returnCode: 'RET-2026-0141',
-        orderId: 'ORD-9908',
-        customer: 'David Otieno',
-        amount: 29000,
-        method: 'original',
-        status: 'PENDING',
-        createdAt: '2026-09-28T10:00:00Z',
-    },
-    {
-        id: 'rf-4',
-        returnCode: 'RET-2026-0135',
-        orderId: 'ORD-9812',
-        customer: 'Esther Njeri',
-        amount: 18500,
-        method: 'store_credit',
-        status: 'COMPLETED',
-        createdAt: '2026-09-10T14:20:00Z',
-        completedAt: '2026-09-10T14:25:00Z',
-        reference: 'CREDIT-ENS-0910',
-    },
-    {
-        id: 'rf-5',
-        returnCode: 'RET-2026-0130',
-        orderId: 'ORD-9788',
-        customer: 'John Kamau',
-        amount: 14500,
-        method: 'original',
-        status: 'FAILED',
-        createdAt: '2026-09-05T11:00:00Z',
-        reference: 'MPESA-8815230',
-    },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
-const RETURN_STATUS_STYLES: Record<ReturnStatus, string> = {
+const RETURN_STATUS_STYLES: Record<AdminReturnStatus, string> = {
     REQUESTED: 'bg-amber-50 text-amber-700 border-amber-100',
     UNDER_REVIEW: 'bg-blue-50 text-blue-800 border-blue-100',
     APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
@@ -372,7 +62,7 @@ const RETURN_STATUS_STYLES: Record<ReturnStatus, string> = {
     CLOSED: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 
-const REFUND_STATUS_STYLES: Record<RefundStatus, string> = {
+const REFUND_STATUS_STYLES: Record<AdminRefundStatus, string> = {
     NONE: 'bg-slate-100 text-slate-500 border-slate-200',
     PENDING: 'bg-amber-50 text-amber-700 border-amber-100',
     PROCESSING: 'bg-blue-50 text-blue-800 border-blue-100',
@@ -380,7 +70,7 @@ const REFUND_STATUS_STYLES: Record<RefundStatus, string> = {
     FAILED: 'bg-rose-50 text-rose-700 border-rose-100',
 };
 
-const RETURN_STATUS_LABEL: Record<ReturnStatus, string> = {
+const RETURN_STATUS_LABEL: Record<AdminReturnStatus, string> = {
     REQUESTED: 'Requested',
     UNDER_REVIEW: 'Under review',
     APPROVED: 'Approved',
@@ -390,7 +80,7 @@ const RETURN_STATUS_LABEL: Record<ReturnStatus, string> = {
     CLOSED: 'Closed',
 };
 
-const REFUND_STATUS_LABEL: Record<RefundStatus, string> = {
+const REFUND_STATUS_LABEL: Record<AdminRefundStatus, string> = {
     NONE: '—',
     PENDING: 'Pending',
     PROCESSING: 'Processing',
@@ -398,7 +88,7 @@ const REFUND_STATUS_LABEL: Record<RefundStatus, string> = {
     FAILED: 'Failed',
 };
 
-const REFUND_METHOD_LABEL: Record<RefundMethod, string> = {
+const REFUND_METHOD_LABEL: Record<AdminRefundMethod, string> = {
     original: 'Original payment',
     store_credit: 'Store credit',
     bank_transfer: 'Bank transfer',
@@ -418,14 +108,13 @@ const inputCls =
 const selectCls =
     'bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-function fmtKES(n: number) {
-    return `KES ${n.toLocaleString('en-KE')}`;
+function fmtKES(n: number | string | null | undefined): string {
+    const v = typeof n === 'number' ? n : Number(n ?? 0);
+    if (!Number.isFinite(v)) return 'KES 0';
+    return `KES ${v.toLocaleString('en-KE')}`;
 }
 
-function fmtDate(iso: string) {
+function fmtDate(iso: string | null | undefined): string {
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString('en-KE', {
         day: '2-digit',
@@ -434,7 +123,7 @@ function fmtDate(iso: string) {
     });
 }
 
-function fmtDateTime(iso: string) {
+function fmtDateTime(iso: string | null | undefined): string {
     if (!iso) return '—';
     return new Date(iso).toLocaleString('en-KE', {
         day: '2-digit',
@@ -444,169 +133,219 @@ function fmtDateTime(iso: string) {
     });
 }
 
-function daysSince(iso: string): number {
+function daysSince(iso: string | null | undefined): number {
     if (!iso) return 0;
     return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
+interface ConfirmActionState {
+    kind: 'approve' | 'reject' | 'refund';
+    ret: AdminReturnRequest;
+}
+
 export default function ReturnsPage() {
     const [tab, setTab] = useState<TabKey>('requests');
 
-    const [returns, setReturns] = useState<ReturnRequest[]>(INITIAL_RETURNS);
-    const [refunds, setRefunds] = useState<RefundRecord[]>(INITIAL_REFUNDS);
-    const [reasons, setReasons] = useState<ReturnReason[]>(INITIAL_RETURN_REASONS);
+    const [returns, setReturns] = useState<AdminReturnRequest[]>([]);
+    const [refunds, setRefunds] = useState<AdminRefundRecord[]>([]);
+    const [reasons, setReasons] = useState<AdminReturnReason[]>([]);
+    const [stats, setStats] = useState<AdminReturnStats | null>(null);
+    const [history, setHistory] = useState<AdminReturnHistoryPoint[]>([]);
+    const [settings, setSettings] = useState<AdminReturnSettings | null>(null);
+
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [busyId, setBusyId] = useState<number | null>(null);
 
     const [query, setQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'ALL' | ReturnStatus>('ALL');
-    const [refundFilter, setRefundFilter] = useState<'ALL' | RefundStatus>('ALL');
-    const [sort, setSort] = useState<'recent' | 'oldest' | 'amount_high' | 'amount_low'>('recent');
+    const [statusFilter, setStatusFilter] = useState<'ALL' | AdminReturnStatus>('ALL');
+    const [refundFilter, setRefundFilter] = useState<'ALL' | AdminRefundStatus>('ALL');
+    const [sort, setSort] = useState<SortKey>('recent');
 
-    const [openDetail, setOpenDetail] = useState<ReturnRequest | null>(null);
-    const [openKebab, setOpenKebab] = useState<string | null>(null);
-    const [confirmAction, setConfirmAction] = useState<
-        | { kind: 'approve'; ret: ReturnRequest }
-        | { kind: 'reject'; ret: ReturnRequest }
-        | { kind: 'refund'; ret: ReturnRequest }
-        | null
-    >(null);
+    const [openDetailId, setOpenDetailId] = useState<number | null>(null);
+    const [confirmAction, setConfirmAction] = useState<ConfirmActionState | null>(null);
     const [toast, setToast] = useState('');
 
-    // Close kebab on outside click
-    useEffect(() => {
-        const onDoc = () => setOpenKebab(null);
-        if (openKebab) document.addEventListener('click', onDoc);
-        return () => document.removeEventListener('click', onDoc);
-    }, [openKebab]);
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    function flash(msg: string) {
+    const flash = useCallback((msg: string) => {
         setToast(msg);
         setTimeout(() => setToast(''), 2500);
-    }
+    }, []);
 
-    // ── Filter + sort ─────────────────────────────────────────────────────────
-    const filteredReturns = useMemo(() => {
-        let list = [...returns];
-        if (query.trim()) {
-            const q = query.toLowerCase();
-            list = list.filter(
-                (r) =>
-                    r.code.toLowerCase().includes(q) ||
-                    r.orderId.toLowerCase().includes(q) ||
-                    r.customer.name.toLowerCase().includes(q) ||
-                    r.customer.email.toLowerCase().includes(q),
-            );
+    const loadReturns = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await adminApi.returns.list({
+                q: query.trim() || undefined,
+                status: statusFilter,
+                refund_status: refundFilter,
+                sort,
+            });
+            setReturns(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Could not load returns.');
+        } finally {
+            setLoading(false);
         }
-        if (statusFilter !== 'ALL') list = list.filter((r) => r.status === statusFilter);
-        if (refundFilter !== 'ALL') list = list.filter((r) => r.refundStatus === refundFilter);
+    }, [query, statusFilter, refundFilter, sort]);
 
-        switch (sort) {
-            case 'recent':
-                list.sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
-                break;
-            case 'oldest':
-                list.sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
-                break;
-            case 'amount_high':
-                list.sort((a, b) => b.originalAmount - a.originalAmount);
-                break;
-            case 'amount_low':
-                list.sort((a, b) => a.originalAmount - b.originalAmount);
-                break;
+    const loadRefunds = useCallback(async () => {
+        try {
+            const data = await adminApi.returns.refunds(query.trim());
+            setRefunds(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Could not load refunds.');
         }
-        return list;
-    }, [returns, query, statusFilter, refundFilter, sort]);
+    }, [query]);
 
-    const filteredRefunds = useMemo(() => {
-        let list = [...refunds];
-        if (query.trim()) {
-            const q = query.toLowerCase();
-            list = list.filter(
-                (r) =>
-                    r.returnCode.toLowerCase().includes(q) ||
-                    r.orderId.toLowerCase().includes(q) ||
-                    r.customer.toLowerCase().includes(q),
-            );
+    const loadReasons = useCallback(async () => {
+        try {
+            const data = await adminApi.returns.reasons.list();
+            setReasons(data);
+        } catch {
         }
-        return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    }, [refunds, query]);
+    }, []);
 
-    // ── KPI summary ───────────────────────────────────────────────────────────
+    const loadStats = useCallback(async () => {
+        try {
+            const data = await adminApi.returns.stats();
+            setStats(data);
+        } catch {
+        }
+    }, []);
+
+    const loadHistory = useCallback(async () => {
+        try {
+            const data = await adminApi.returns.history();
+            setHistory(data);
+        } catch {
+        }
+    }, []);
+
+    const loadSettings = useCallback(async () => {
+        try {
+            const data = await adminApi.returns.settings.get();
+            setSettings(data);
+        } catch {
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadReasons();
+        void loadStats();
+        void loadSettings();
+        void loadRefunds();
+    }, [loadReasons, loadStats, loadSettings, loadRefunds]);
+
+    useEffect(() => {
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => {
+            void loadReturns();
+        }, 250);
+        return () => {
+            if (searchTimer.current) clearTimeout(searchTimer.current);
+        };
+    }, [loadReturns]);
+
+    useEffect(() => {
+        if (tab === 'history') void loadHistory();
+        if (tab === 'refunds') void loadRefunds();
+    }, [tab, loadHistory, loadRefunds]);
+
+    const openDetail = useMemo(
+        () => (openDetailId === null ? null : returns.find((r) => r.id === openDetailId) ?? null),
+        [openDetailId, returns],
+    );
+
     const kpis = useMemo(() => {
-        const pending = returns.filter(
-            (r) => r.status === 'REQUESTED' || r.status === 'UNDER_REVIEW',
-        ).length;
-        const approved = returns.filter((r) => r.status === 'APPROVED').length;
-        const refunded30d = refunds
-            .filter((r) => r.status === 'COMPLETED')
-            .reduce((s, r) => s + r.amount, 0);
-        const avgDays =
-            returns
-                .filter((r) => r.resolvedAt)
-                .map((r) => daysSince(r.requestedAt) - daysSince(r.resolvedAt!))
-                .reduce((s, d, _, arr) => s + d / arr.length, 0) || 2.4;
-        return { pending, approved, refunded30d, avgDays };
-    }, [returns, refunds]);
+        const pending = stats?.pending ?? 0;
+        const approved = stats?.approved ?? 0;
+        const refunded30d = stats?.refunded30d ?? 0;
+        const avgDays = stats?.avgDays ?? 0;
+        const completed = stats?.completed30d ?? 0;
+        return { pending, approved, refunded30d, avgDays, completed };
+    }, [stats]);
 
-    // ── Actions ───────────────────────────────────────────────────────────────
-    function updateReturn(id: string, patch: Partial<ReturnRequest>) {
-        setReturns((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-        setOpenDetail((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+    async function refreshAfterMutation() {
+        await Promise.all([loadReturns(), loadStats(), loadRefunds()]);
     }
 
-    function approveReturn(ret: ReturnRequest) {
-        updateReturn(ret.id, { status: 'APPROVED' });
-        setRefunds((prev) => [
-            {
-                id: `rf-${Date.now()}`,
-                returnCode: ret.code,
-                orderId: ret.orderId,
-                customer: ret.customer.name,
-                amount: ret.originalAmount,
-                method: ret.refundMethod,
-                status: 'PENDING',
-                createdAt: new Date().toISOString(),
-            },
-            ...prev,
-        ]);
-        updateReturn(ret.id, {
-            status: 'APPROVED',
-            refundStatus: 'PENDING',
-            refundAmount: ret.originalAmount,
-        });
-        setConfirmAction(null);
-        flash(`Return ${ret.code} approved`);
+    async function handleApprove(ret: AdminReturnRequest) {
+        setBusyId(ret.id);
+        try {
+            await adminApi.returns.approve(ret.id);
+            await refreshAfterMutation();
+            flash(`Return ${ret.code} approved`);
+        } catch (err) {
+            flash(err instanceof Error ? err.message : 'Could not approve return');
+        } finally {
+            setBusyId(null);
+            setConfirmAction(null);
+        }
     }
 
-    function rejectReturn(ret: ReturnRequest) {
-        updateReturn(ret.id, {
-            status: 'REJECTED',
-            resolvedAt: new Date().toISOString(),
-        });
-        setConfirmAction(null);
-        flash(`Return ${ret.code} rejected`);
+    async function handleReject(ret: AdminReturnRequest, note = '') {
+        setBusyId(ret.id);
+        try {
+            await adminApi.returns.reject(ret.id, note);
+            await refreshAfterMutation();
+            flash(`Return ${ret.code} rejected`);
+        } catch (err) {
+            flash(err instanceof Error ? err.message : 'Could not reject return');
+        } finally {
+            setBusyId(null);
+            setConfirmAction(null);
+        }
     }
 
-    function startRefund(ret: ReturnRequest) {
-        updateReturn(ret.id, {
-            status: 'CLOSED',
-            refundStatus: 'COMPLETED',
-            resolvedAt: new Date().toISOString(),
-        });
-        setRefunds((prev) =>
-            prev.map((r) =>
-                r.returnCode === ret.code
-                    ? { ...r, status: 'COMPLETED', completedAt: new Date().toISOString() }
-                    : r,
-            ),
-        );
-        setConfirmAction(null);
-        flash(`Refund of ${fmtKES(ret.originalAmount)} processed`);
+    async function handleRefund(ret: AdminReturnRequest) {
+        setBusyId(ret.id);
+        try {
+            await adminApi.returns.refund(ret.id, { method: ret.refundMethod });
+            await refreshAfterMutation();
+            flash(`Refund of ${fmtKES(ret.originalAmount)} processed`);
+        } catch (err) {
+            flash(err instanceof Error ? err.message : 'Could not process refund');
+        } finally {
+            setBusyId(null);
+            setConfirmAction(null);
+        }
     }
 
-    // ── Tabs config ───────────────────────────────────────────────────────────
+    async function handlePatchReturn(id: number, patch: Parameters<typeof adminApi.returns.patch>[1]) {
+        setBusyId(id);
+        try {
+            await adminApi.returns.patch(id, patch);
+            const data = await adminApi.returns.list({
+                q: query.trim() || undefined,
+                status: statusFilter,
+                refund_status: refundFilter,
+                sort,
+            });
+            setReturns(data);
+        } catch (err) {
+            flash(err instanceof Error ? err.message : 'Could not update return');
+        } finally {
+            setBusyId(null);
+        }
+    }
+
+    async function handleSetRefundMethod(ret: AdminReturnRequest, method: AdminRefundMethod) {
+        setBusyId(ret.id);
+        try {
+            await adminApi.returns.setRefundMethod(ret.id, method);
+            setReturns((prev) =>
+                prev.map((r) => (r.id === ret.id ? { ...r, refundMethod: method } : r)),
+            );
+        } catch (err) {
+            flash(err instanceof Error ? err.message : 'Could not update refund method');
+        } finally {
+            setBusyId(null);
+        }
+    }
+
     const TABS: { key: TabKey; label: string; icon: typeof RotateCcw; count?: number }[] = [
         { key: 'requests', label: 'Return requests', icon: Package, count: returns.length },
         { key: 'refunds', label: 'Refunds', icon: CreditCard, count: refunds.length },
@@ -616,10 +355,8 @@ export default function ReturnsPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-
-            {/* HEADER */}
             <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+                <div className="max-w-[1700px] mx-auto px-2 py-3 flex items-center justify-between gap-3">
                     <div>
                         <h1 className="text-[15px] font-semibold text-slate-900 flex items-center gap-1.5">
                             <RotateCcw className="w-4 h-4 text-blue-950" />
@@ -639,9 +376,7 @@ export default function ReturnsPage() {
                 </div>
             </header>
 
-            <main className="max-w-[1600px] mx-auto px-3 py-3 space-y-3">
-
-                {/* KPI CARDS */}
+            <main className="max-w-[1700px] mx-auto px-0.5 py-3 space-y-2">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <KpiCard
                         icon={Hourglass}
@@ -661,7 +396,7 @@ export default function ReturnsPage() {
                         icon={Banknote}
                         label="Refunded (30d)"
                         value={fmtKES(kpis.refunded30d)}
-                        sub={`${refunds.filter((r) => r.status === 'COMPLETED').length} refunds completed`}
+                        sub={`${kpis.completed} refunds completed`}
                         accent="text-blue-950 bg-blue-50"
                     />
                     <KpiCard
@@ -673,23 +408,24 @@ export default function ReturnsPage() {
                     />
                 </div>
 
-                {/* TABS */}
                 <div className="bg-white border border-slate-200 rounded-sm p-1 flex items-center gap-1 overflow-x-auto">
                     {TABS.map((t) => (
                         <button
                             key={t.key}
                             onClick={() => setTab(t.key)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium whitespace-nowrap transition ${tab === t.key
+                            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium whitespace-nowrap transition ${
+                                tab === t.key
                                     ? 'bg-blue-50 text-blue-950 border border-blue-950'
                                     : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-                                }`}
+                            }`}
                         >
                             <t.icon className="w-3.5 h-3.5" />
                             {t.label}
                             {t.count !== undefined && (
                                 <span
-                                    className={`text-[11px] font-mono px-1.5 py-0.5 rounded-sm ${tab === t.key ? 'bg-white text-blue-950' : 'bg-slate-100 text-slate-500'
-                                        }`}
+                                    className={`text-[11px] font-mono px-1.5 py-0.5 rounded-sm ${
+                                        tab === t.key ? 'bg-white text-blue-950' : 'bg-slate-100 text-slate-500'
+                                    }`}
                                 >
                                     {t.count}
                                 </span>
@@ -698,7 +434,19 @@ export default function ReturnsPage() {
                     ))}
                 </div>
 
-                {/* ── REQUESTS TAB ──────────────────────────────────────────── */}
+                {error && (
+                    <div className="bg-red-50 border border-red-100 rounded-sm px-2 py-2 flex items-center justify-between gap-2">
+                        <span className="text-[13px] text-red-700">{error}</span>
+                        <button
+                            onClick={() => setError(null)}
+                            className="text-red-500 hover:text-red-700"
+                            aria-label="Dismiss"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                )}
+
                 {tab === 'requests' && (
                     <>
                         <Toolbar
@@ -708,7 +456,9 @@ export default function ReturnsPage() {
                         >
                             <select
                                 value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                                onChange={(e) =>
+                                    setStatusFilter(e.target.value as typeof statusFilter)
+                                }
                                 className={selectCls}
                             >
                                 <option value="ALL">All statuses</option>
@@ -720,7 +470,9 @@ export default function ReturnsPage() {
                             </select>
                             <select
                                 value={refundFilter}
-                                onChange={(e) => setRefundFilter(e.target.value as typeof refundFilter)}
+                                onChange={(e) =>
+                                    setRefundFilter(e.target.value as typeof refundFilter)
+                                }
                                 className={selectCls}
                             >
                                 <option value="ALL">All refund states</option>
@@ -734,7 +486,7 @@ export default function ReturnsPage() {
                             </select>
                             <select
                                 value={sort}
-                                onChange={(e) => setSort(e.target.value as typeof sort)}
+                                onChange={(e) => setSort(e.target.value as SortKey)}
                                 className={selectCls}
                             >
                                 <option value="recent">Most recent</option>
@@ -749,21 +501,30 @@ export default function ReturnsPage() {
                                 <table className="w-full text-left border-collapse text-[13px]">
                                     <thead>
                                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                                            <th className="py-2 px-3 font-medium w-40">Return</th>
-                                            <th className="py-2 px-3 font-medium">Customer</th>
-                                            <th className="py-2 px-3 font-medium">Product</th>
-                                            <th className="py-2 px-3 font-medium">Reason</th>
-                                            <th className="py-2 px-3 font-medium text-right">Amount</th>
-                                            <th className="py-2 px-3 font-medium">Status</th>
-                                            <th className="py-2 px-3 font-medium">Refund</th>
-                                            <th className="py-2 px-3 font-medium">Requested</th>
-                                            <th className="py-2 px-3 w-12"></th>
+                                            <th className="py-2 px-2 font-medium w-40">Return</th>
+                                            <th className="py-2 px-2 font-medium">Customer</th>
+                                            <th className="py-2 px-2 font-medium w-[200px]">Product</th>
+                                            <th className="py-2 px-2 font-medium">Reason</th>
+                                            <th className="py-2 px-2 font-medium text-right">Amount</th>
+                                            <th className="py-2 px-2 font-medium w-[170px]">Status</th>
+                                            <th className="py-2 px-2 w-12"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {filteredReturns.length === 0 ? (
+                                        {loading ? (
                                             <tr>
-                                                <td colSpan={9} className="py-16 text-center">
+                                                <td colSpan={7} className="py-16">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+                                                        <p className="text-[13px] text-slate-500">
+                                                            Loading returns…
+                                                        </p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : returns.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="py-16 text-center">
                                                     <div className="flex flex-col items-center gap-2">
                                                         <span className="w-12 h-12 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
                                                             <RotateCcw className="w-6 h-6" />
@@ -772,7 +533,9 @@ export default function ReturnsPage() {
                                                             No return requests
                                                         </h3>
                                                         <p className="text-[13px] text-slate-500 max-w-xs">
-                                                            {query || statusFilter !== 'ALL' || refundFilter !== 'ALL'
+                                                            {query ||
+                                                            statusFilter !== 'ALL' ||
+                                                            refundFilter !== 'ALL'
                                                                 ? 'Try changing your filters.'
                                                                 : 'Customer returns will appear here.'}
                                                         </p>
@@ -780,20 +543,29 @@ export default function ReturnsPage() {
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredReturns.map((r) => {
+                                            returns.map((r) => {
                                                 const days = daysSince(r.requestedAt);
                                                 const urgent =
-                                                    (r.status === 'REQUESTED' || r.status === 'UNDER_REVIEW') &&
+                                                    (r.status === 'REQUESTED' ||
+                                                        r.status === 'UNDER_REVIEW') &&
                                                     days >= 2;
-                                                const isKebab = openKebab === r.id;
+                                                const isBusy = busyId === r.id;
+                                                const canDecide =
+                                                    r.status === 'REQUESTED' ||
+                                                    r.status === 'UNDER_REVIEW';
+                                                const canRefund =
+                                                    r.status === 'APPROVED' ||
+                                                    r.status === 'ITEM_RECEIVED';
 
                                                 return (
                                                     <tr
                                                         key={r.id}
-                                                        className="hover:bg-slate-50 transition-colors cursor-pointer"
-                                                        onClick={() => setOpenDetail(r)}
+                                                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
+                                                            isBusy ? 'opacity-50' : ''
+                                                        }`}
+                                                        onClick={() => setOpenDetailId(r.id)}
                                                     >
-                                                        <td className="py-2 px-3">
+                                                        <td className="py-2 px-2">
                                                             <div className="font-mono font-medium text-slate-900">
                                                                 {r.code}
                                                             </div>
@@ -801,113 +573,70 @@ export default function ReturnsPage() {
                                                                 {r.orderId}
                                                             </div>
                                                         </td>
-                                                        <td className="py-2 px-3">
+                                                        <td className="py-2 px-2">
                                                             <div className="font-medium text-slate-800 truncate max-w-[180px]">
                                                                 {r.customer.name}
                                                             </div>
-                                                            <div className="text-[11px] text-slate-400 truncate max-w-[180px]">
+                                                            <div className="text-[13px] text-slate-400 truncate max-w-[180px]">
                                                                 {r.customer.email}
                                                             </div>
                                                         </td>
-                                                        <td className="py-2 px-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-8 h-8 rounded-sm overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                                    <img
-                                                                        src={r.items[0]?.image}
-                                                                        alt=""
-                                                                        className="w-full h-full object-cover"
-                                                                    />
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <div className="text-slate-800 truncate max-w-[220px]">
-                                                                        {r.items[0]?.productName}
-                                                                    </div>
-                                                                    {r.items.length > 1 && (
-                                                                        <div className="text-[11px] text-slate-400">
-                                                                            +{r.items.length - 1} more
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="py-2 px-3 text-slate-600 max-w-[180px] truncate">
-                                                            {r.reason}
-                                                        </td>
-                                                        <td className="py-2 px-3 text-right font-medium text-slate-900 tabular-nums whitespace-nowrap">
-                                                            {fmtKES(r.originalAmount)}
-                                                        </td>
-                                                        <td className="py-2 px-3">
-                                                            <span
-                                                                className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-sm border whitespace-nowrap ${RETURN_STATUS_STYLES[r.status]
-                                                                    }`}
-                                                            >
-                                                                {RETURN_STATUS_LABEL[r.status]}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-2 px-3">
-                                                            <span
-                                                                className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-sm border whitespace-nowrap ${REFUND_STATUS_STYLES[r.refundStatus]
-                                                                    }`}
-                                                            >
-                                                                {REFUND_STATUS_LABEL[r.refundStatus]}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-2 px-3 whitespace-nowrap">
-                                                            <div className="flex items-center gap-1 text-[12px]">
-                                                                <span className="text-slate-600">
-                                                                    {fmtDate(r.requestedAt)}
-                                                                </span>
-                                                                {urgent && (
-                                                                    <span className="text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-100 px-1.5 py-0.5 rounded-sm">
-                                                                        {days}d
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </td>
                                                         <td
-                                                            className="py-2 px-3 relative"
+                                                            className="py-2 px-2"
                                                             onClick={(e) => e.stopPropagation()}
                                                         >
-                                                            <button
-                                                                onClick={() => setOpenKebab(isKebab ? null : r.id)}
-                                                                className="p-1.5 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition"
-                                                            >
-                                                                <MoreVertical className="w-4 h-4" />
-                                                            </button>
-                                                            {isKebab && (
-                                                                <Kebab
-                                                                    onView={() => {
-                                                                        setOpenKebab(null);
-                                                                        setOpenDetail(r);
-                                                                    }}
-                                                                    onApprove={
-                                                                        r.status === 'REQUESTED' || r.status === 'UNDER_REVIEW'
-                                                                            ? () => {
-                                                                                setOpenKebab(null);
-                                                                                setConfirmAction({ kind: 'approve', ret: r });
-                                                                            }
-                                                                            : undefined
-                                                                    }
-                                                                    onReject={
-                                                                        r.status === 'REQUESTED' || r.status === 'UNDER_REVIEW'
-                                                                            ? () => {
-                                                                                setOpenKebab(null);
-                                                                                setConfirmAction({ kind: 'reject', ret: r });
-                                                                            }
-                                                                            : undefined
-                                                                    }
-                                                                    onRefund={
-                                                                        r.status === 'APPROVED' ||
-                                                                            r.status === 'ITEM_RECEIVED'
-                                                                            ? () => {
-                                                                                setOpenKebab(null);
-                                                                                setConfirmAction({ kind: 'refund', ret: r });
-                                                                            }
-                                                                            : undefined
-                                                                    }
-                                                                />
-                                                            )}
+                                                            <ProductCell ret={r} />
+                                                        </td>
+                                                        <td className="py-2 px-2 text-slate-600 max-w-[180px] truncate">
+                                                            {r.reason}
+                                                        </td>
+                                                        <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums whitespace-nowrap">
+                                                            {fmtKES(r.originalAmount)}
+                                                        </td>
+                                                        <td
+                                                            className="py-2 px-2"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <StatusCell
+                                                                ret={r}
+                                                                urgent={urgent}
+                                                                days={days}
+                                                            />
+                                                        </td>
+                                                        <td
+                                                            className="py-2 px-2"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <Kebab
+                                                                onView={() => setOpenDetailId(r.id)}
+                                                                onApprove={
+                                                                    canDecide
+                                                                        ? () =>
+                                                                              setConfirmAction({
+                                                                                  kind: 'approve',
+                                                                                  ret: r,
+                                                                              })
+                                                                        : undefined
+                                                                }
+                                                                onReject={
+                                                                    canDecide
+                                                                        ? () =>
+                                                                              setConfirmAction({
+                                                                                  kind: 'reject',
+                                                                                  ret: r,
+                                                                              })
+                                                                        : undefined
+                                                                }
+                                                                onRefund={
+                                                                    canRefund
+                                                                        ? () =>
+                                                                              setConfirmAction({
+                                                                                  kind: 'refund',
+                                                                                  ret: r,
+                                                                              })
+                                                                        : undefined
+                                                                }
+                                                            />
                                                         </td>
                                                     </tr>
                                                 );
@@ -920,7 +649,6 @@ export default function ReturnsPage() {
                     </>
                 )}
 
-                {/* ── REFUNDS TAB ───────────────────────────────────────────── */}
                 {tab === 'refunds' && (
                     <>
                         <Toolbar
@@ -934,50 +662,63 @@ export default function ReturnsPage() {
                                 <table className="w-full text-left border-collapse text-[13px]">
                                     <thead>
                                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                                            <th className="py-2 px-3 font-medium">Return</th>
-                                            <th className="py-2 px-3 font-medium">Customer</th>
-                                            <th className="py-2 px-3 font-medium text-right">Amount</th>
-                                            <th className="py-2 px-3 font-medium">Method</th>
-                                            <th className="py-2 px-3 font-medium">Status</th>
-                                            <th className="py-2 px-3 font-medium">Created</th>
-                                            <th className="py-2 px-3 font-medium">Reference</th>
+                                            <th className="py-2 px-2 font-medium">Return</th>
+                                            <th className="py-2 px-2 font-medium">Customer</th>
+                                            <th className="py-2 px-2 font-medium text-right">
+                                                Amount
+                                            </th>
+                                            <th className="py-2 px-2 font-medium">Method</th>
+                                            <th className="py-2 px-2 font-medium">Status</th>
+                                            <th className="py-2 px-2 font-medium">Created</th>
+                                            <th className="py-2 px-2 font-medium">Reference</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {filteredRefunds.length === 0 ? (
+                                        {refunds.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="py-16 text-center text-slate-400">
+                                                <td
+                                                    colSpan={7}
+                                                    className="py-16 text-center text-slate-400"
+                                                >
                                                     No refund records.
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredRefunds.map((r) => (
-                                                <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="py-2 px-3">
+                                            refunds.map((r) => (
+                                                <tr
+                                                    key={r.id}
+                                                    className="hover:bg-slate-50 transition-colors"
+                                                >
+                                                    <td className="py-2 px-2">
                                                         <div className="font-mono font-medium text-slate-900">
                                                             {r.returnCode}
                                                         </div>
-                                                        <div className="text-[11px] text-slate-400">{r.orderId}</div>
+                                                        <div className="text-[13px] text-slate-400">
+                                                            {r.orderId}
+                                                        </div>
                                                     </td>
-                                                    <td className="py-2 px-3 text-slate-700">{r.customer}</td>
-                                                    <td className="py-2 px-3 text-right font-medium text-slate-900 tabular-nums">
+                                                    <td className="py-2 px-2 text-slate-700">
+                                                        {r.customer}
+                                                    </td>
+                                                    <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums">
                                                         {fmtKES(r.amount)}
                                                     </td>
-                                                    <td className="py-2 px-3 text-slate-600">
+                                                    <td className="py-2 px-2 text-slate-600">
                                                         {REFUND_METHOD_LABEL[r.method]}
                                                     </td>
-                                                    <td className="py-2 px-3">
+                                                    <td className="py-2 px-2">
                                                         <span
-                                                            className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-sm border ${REFUND_STATUS_STYLES[r.status]
-                                                                }`}
+                                                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
+                                                                REFUND_STATUS_STYLES[r.status]
+                                                            }`}
                                                         >
                                                             {REFUND_STATUS_LABEL[r.status]}
                                                         </span>
                                                     </td>
-                                                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                                                    <td className="py-2 px-2 text-slate-600 whitespace-nowrap">
                                                         {fmtDateTime(r.createdAt)}
                                                     </td>
-                                                    <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">
+                                                    <td className="py-2 px-2 text-slate-500 font-mono text-[13px]">
                                                         {r.reference || '—'}
                                                     </td>
                                                 </tr>
@@ -990,46 +731,73 @@ export default function ReturnsPage() {
                     </>
                 )}
 
-                {/* ── HISTORY TAB ───────────────────────────────────────────── */}
-                {tab === 'history' && (
-                    <HistoryTab returns={returns} />
+                {tab === 'history' && <HistoryTab history={history} />}
+
+                {tab === 'settings' && settings && (
+                    <SettingsTab
+                        reasons={reasons}
+                        settings={settings}
+                        onReloadReasons={loadReasons}
+                        onSaveSettings={async (patch) => {
+                            try {
+                                const updated = await adminApi.returns.settings.update(patch);
+                                setSettings(updated);
+                                flash('Return settings saved');
+                            } catch (err) {
+                                flash(
+                                    err instanceof Error
+                                        ? err.message
+                                        : 'Could not save settings',
+                                );
+                            }
+                        }}
+                        onFlash={flash}
+                    />
                 )}
 
-                {/* ── SETTINGS TAB ──────────────────────────────────────────── */}
-                {tab === 'settings' && (
-                    <SettingsTab reasons={reasons} onUpdate={setReasons} onFlash={flash} />
+                {tab === 'settings' && !settings && (
+                    <div className="bg-white border border-slate-200 rounded-sm py-16 flex flex-col items-center gap-2">
+                        <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+                        <p className="text-[13px] text-slate-500">Loading settings…</p>
+                    </div>
                 )}
             </main>
 
-            {/* RETURN DETAIL DRAWER */}
             {openDetail && (
                 <ReturnDrawer
                     ret={openDetail}
-                    onClose={() => setOpenDetail(null)}
-                    onUpdate={(patch) => updateReturn(openDetail.id, patch)}
-                    onApprove={() => setConfirmAction({ kind: 'approve', ret: openDetail })}
+                    busy={busyId === openDetail.id}
+                    onClose={() => setOpenDetailId(null)}
+                    onSaveInternalNotes={(notes) =>
+                        handlePatchReturn(openDetail.id, { internalNotes: notes })
+                    }
+                    onSetRefundMethod={(m) => handleSetRefundMethod(openDetail, m)}
+                    onSetStatus={(s) => handlePatchReturn(openDetail.id, { status: s })}
+                    onApprove={() =>
+                        setConfirmAction({ kind: 'approve', ret: openDetail })
+                    }
                     onReject={() => setConfirmAction({ kind: 'reject', ret: openDetail })}
                     onRefund={() => setConfirmAction({ kind: 'refund', ret: openDetail })}
                     onFlash={flash}
                 />
             )}
 
-            {/* CONFIRM ACTION */}
             {confirmAction && (
                 <ConfirmAction
                     action={confirmAction}
                     onCancel={() => setConfirmAction(null)}
                     onConfirm={() => {
-                        if (confirmAction.kind === 'approve') approveReturn(confirmAction.ret);
-                        else if (confirmAction.kind === 'reject') rejectReturn(confirmAction.ret);
-                        else startRefund(confirmAction.ret);
+                        if (confirmAction.kind === 'approve')
+                            void handleApprove(confirmAction.ret);
+                        else if (confirmAction.kind === 'reject')
+                            void handleReject(confirmAction.ret);
+                        else void handleRefund(confirmAction.ret);
                     }}
                 />
             )}
 
-            {/* Toast */}
             {toast && (
-                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-4 py-2.5 rounded-sm shadow-lg">
+                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-3 py-2.5 rounded-sm shadow-lg">
                     {toast}
                 </div>
             )}
@@ -1037,9 +805,291 @@ export default function ReturnsPage() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// KPI card
-// ─────────────────────────────────────────────────────────────────────────────
+function StatusCell({
+    ret,
+    urgent,
+    days,
+}: {
+    ret: AdminReturnRequest;
+    urgent: boolean;
+    days: number;
+}) {
+    return (
+        <FloatingPanel
+            align="left"
+            width={260}
+            trigger={({ open, toggle, ref }) => (
+                <button
+                    ref={ref}
+                    onClick={toggle}
+                    className={`inline-flex items-center gap-1.5 max-w-full px-2 py-1 rounded-sm border text-[13px] font-medium transition ${
+                        RETURN_STATUS_STYLES[ret.status]
+                    } ${open ? 'ring-1 ring-blue-950' : 'hover:brightness-95'}`}
+                >
+                    <span className="whitespace-nowrap truncate">
+                        {RETURN_STATUS_LABEL[ret.status]}
+                    </span>
+                    {urgent && (
+                        <span className="text-[13px] font-medium bg-rose-50 text-rose-700 border border-rose-100 px-1 py-0.5 rounded-sm shrink-0">
+                            {days}d
+                        </span>
+                    )}
+                    <ChevronDown
+                        className={`w-3 h-3 shrink-0 transition ${
+                            open ? 'rotate-180' : ''
+                        }`}
+                    />
+                </button>
+            )}
+        >
+            {({ close }) => (
+                <div className="p-2 space-y-2 text-[13px]">
+                    <div className="px-1 py-0.5 flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span className="text-[13px] uppercase tracking-wide font-medium text-slate-400">
+                            Return status
+                        </span>
+                        <button
+                            onClick={close}
+                            className="text-slate-400 hover:text-slate-700"
+                            aria-label="Close"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    <div>
+                        <div className="text-[13px] uppercase tracking-wide font-medium text-slate-400 mb-1">
+                            Status
+                        </div>
+                        <span
+                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
+                                RETURN_STATUS_STYLES[ret.status]
+                            }`}
+                        >
+                            {RETURN_STATUS_LABEL[ret.status]}
+                        </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                        <div className="text-[13px] uppercase tracking-wide font-medium text-slate-400 mb-1">
+                            Refund
+                        </div>
+                        <span
+                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
+                                REFUND_STATUS_STYLES[ret.refundStatus]
+                            }`}
+                        >
+                            {REFUND_STATUS_LABEL[ret.refundStatus]}
+                        </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                        <div className="text-[13px] uppercase tracking-wide font-medium text-slate-400 mb-1">
+                            Requested
+                        </div>
+                        <div className="text-[13px] text-slate-800">
+                            {fmtDate(ret.requestedAt)}
+                        </div>
+                        <div className="text-[13px] text-slate-400 mt-0.5">
+                            {days === 0 ? 'Today' : `${days} days ago`}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </FloatingPanel>
+    );
+}
+
+function ProductCell({ ret }: { ret: AdminReturnRequest }) {
+    const first = ret.items[0];
+    const extra = ret.items.length - 1;
+
+    return (
+        <FloatingPanel
+            align="left"
+            width={340}
+            trigger={({ open, toggle, ref }) => (
+                <button
+                    ref={ref}
+                    onClick={toggle}
+                    className={`w-full flex items-center gap-2 text-left px-1.5 py-1 -mx-1.5 rounded-sm transition ${
+                        open ? 'bg-blue-50' : 'hover:bg-slate-100'
+                    }`}
+                >
+                    <div className="w-8 h-8 rounded-sm overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                        {first?.image ? (
+                            <img
+                                src={first.image}
+                                alt=""
+                                className="w-full h-full object-cover"
+                            />
+                        ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <div className="text-slate-800 truncate">
+                            {first?.productName ?? '—'}
+                        </div>
+                        {extra > 0 && (
+                            <div className="text-[13px] text-slate-400">
+                                +{extra} more
+                            </div>
+                        )}
+                    </div>
+                    <ChevronDown
+                        className={`w-3 h-3 text-slate-400 shrink-0 transition ${
+                            open ? 'rotate-180' : ''
+                        }`}
+                    />
+                </button>
+            )}
+        >
+            {({ close }) => (
+                <div className="p-1">
+                    <div className="px-2 py-1.5 flex items-center justify-between border-b border-slate-100">
+                        <span className="text-[13px] uppercase tracking-wide font-medium text-slate-400">
+                            {ret.items.length} item{ret.items.length === 1 ? '' : 's'}
+                        </span>
+                        <button
+                            onClick={close}
+                            className="text-slate-400 hover:text-slate-700"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {ret.items.map((it) => (
+                            <div key={it.id} className="flex items-center gap-2 p-2">
+                                <div className="w-10 h-10 rounded-sm overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                                    {it.image ? (
+                                        <img
+                                            src={it.image}
+                                            alt=""
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : null}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-[13px] font-medium text-slate-900 truncate">
+                                        {it.productName}
+                                    </div>
+                                    <div className="text-[13px] text-slate-400 font-mono truncate">
+                                        {it.sku}
+                                    </div>
+                                    <div className="text-[13px] text-slate-500">
+                                        Qty {it.qty} ·{' '}
+                                        {CONDITION_LABEL[it.condition] ?? it.condition}
+                                    </div>
+                                </div>
+                                <div className="text-[13px] font-semibold text-slate-900 tabular-nums shrink-0">
+                                    {fmtKES(Number(it.price) * it.qty)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </FloatingPanel>
+    );
+}
+
+function FloatingPanel({
+    trigger,
+    children,
+    width = 320,
+    align = 'left',
+}: {
+    trigger: (props: {
+        open: boolean;
+        toggle: () => void;
+        ref: React.MutableRefObject<HTMLButtonElement | null>;
+    }) => React.ReactNode;
+    children: (props: { close: () => void }) => React.ReactNode;
+    width?: number;
+    align?: 'left' | 'right';
+}) {
+    const [open, setOpen] = useState(false);
+    const [pos, setPos] = useState<{
+        top: number;
+        left: number;
+        maxHeight: number;
+    } | null>(null);
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
+
+    const openMenu = () => {
+        const el = triggerRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+
+        let left = align === 'right' ? rect.right - width : rect.left;
+        if (left + width > window.innerWidth - 8) {
+            left = window.innerWidth - width - 8;
+        }
+        if (left < 8) left = 8;
+
+        const top = rect.bottom + 4;
+        const maxHeight = Math.max(140, window.innerHeight - top - 8);
+
+        setPos({ top, left, maxHeight });
+        setOpen(true);
+    };
+
+    const close = useCallback(() => setOpen(false), []);
+
+    useEffect(() => {
+        if (!open) return;
+
+        const onPointerDown = (e: PointerEvent) => {
+            const target = e.target as Node;
+            if (panelRef.current?.contains(target)) return;
+            if (triggerRef.current?.contains(target)) return;
+            setOpen(false);
+        };
+        const onScroll = () => setOpen(false);
+        const onResize = () => setOpen(false);
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setOpen(false);
+        };
+
+        window.addEventListener('pointerdown', onPointerDown, true);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+        window.addEventListener('keydown', onKey);
+
+        return () => {
+            window.removeEventListener('pointerdown', onPointerDown, true);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+            window.removeEventListener('keydown', onKey);
+        };
+    }, [open]);
+
+    return (
+        <>
+            {trigger({
+                open,
+                toggle: () => (open ? close() : openMenu()),
+                ref: triggerRef,
+            })}
+            {open && pos && (
+                <div
+                    ref={panelRef}
+                    style={{
+                        position: 'fixed',
+                        top: pos.top,
+                        left: pos.left,
+                        width,
+                        maxHeight: pos.maxHeight,
+                    }}
+                    className="z-[120] bg-white border border-slate-200 rounded-sm shadow-lg overflow-y-auto"
+                >
+                    {children({ close })}
+                </div>
+            )}
+        </>
+    );
+}
+
 function KpiCard({
     icon: Icon,
     label,
@@ -1056,20 +1106,21 @@ function KpiCard({
     return (
         <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
             <div className="flex items-center gap-1.5">
-                <span className={`w-6 h-6 rounded-sm flex items-center justify-center ${accent}`}>
+                <span
+                    className={`w-6 h-6 rounded-sm flex items-center justify-center ${accent}`}
+                >
                     <Icon className="w-3.5 h-3.5" />
                 </span>
-                <span className="text-[13px] font-medium text-slate-500 truncate">{label}</span>
+                <span className="text-[13px] font-medium text-slate-500 truncate">
+                    {label}
+                </span>
             </div>
             <div className="text-[15px] font-bold text-slate-900 truncate">{value}</div>
-            <div className="text-[11px] text-slate-400 truncate">{sub}</div>
+            <div className="text-[13px] text-slate-400 truncate">{sub}</div>
         </div>
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Toolbar
-// ─────────────────────────────────────────────────────────────────────────────
 function Toolbar({
     query,
     onQuery,
@@ -1082,7 +1133,7 @@ function Toolbar({
     children?: React.ReactNode;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
             <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <input
@@ -1092,14 +1143,13 @@ function Toolbar({
                     className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
             </div>
-            {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+            {children && (
+                <div className="flex flex-wrap items-center gap-2">{children}</div>
+            )}
         </div>
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Kebab menu
-// ─────────────────────────────────────────────────────────────────────────────
 function Kebab({
     onView,
     onApprove,
@@ -1112,34 +1162,67 @@ function Kebab({
     onRefund?: () => void;
 }) {
     return (
-        <div
-            onClick={(e) => e.stopPropagation()}
-            className="absolute top-full mt-1 right-0 w-52 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1"
+        <FloatingPanel
+            align="right"
+            width={200}
+            trigger={({ open, toggle, ref }) => (
+                <button
+                    ref={ref}
+                    onClick={toggle}
+                    className={`p-1.5 rounded-sm transition ${
+                        open
+                            ? 'bg-slate-100 text-slate-900'
+                            : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                >
+                    <MoreVertical className="w-4 h-4" />
+                </button>
+            )}
         >
-            <MenuItem icon={<Eye className="w-3.5 h-3.5" />} label="View details" onClick={onView} />
-            {onApprove && (
-                <MenuItem
-                    icon={<ThumbsUp className="w-3.5 h-3.5" />}
-                    label="Approve return"
-                    onClick={onApprove}
-                />
+            {({ close }) => (
+                <>
+                    <MenuItem
+                        icon={<Eye className="w-3.5 h-3.5" />}
+                        label="View details"
+                        onClick={() => {
+                            close();
+                            onView();
+                        }}
+                    />
+                    {onApprove && (
+                        <MenuItem
+                            icon={<ThumbsUp className="w-3.5 h-3.5" />}
+                            label="Approve return"
+                            onClick={() => {
+                                close();
+                                onApprove();
+                            }}
+                        />
+                    )}
+                    {onReject && (
+                        <MenuItem
+                            icon={<ThumbsDown className="w-3.5 h-3.5" />}
+                            label="Reject return"
+                            onClick={() => {
+                                close();
+                                onReject();
+                            }}
+                            danger
+                        />
+                    )}
+                    {onRefund && (
+                        <MenuItem
+                            icon={<CreditCard className="w-3.5 h-3.5" />}
+                            label="Process refund"
+                            onClick={() => {
+                                close();
+                                onRefund();
+                            }}
+                        />
+                    )}
+                </>
             )}
-            {onReject && (
-                <MenuItem
-                    icon={<ThumbsDown className="w-3.5 h-3.5" />}
-                    label="Reject return"
-                    onClick={onReject}
-                    danger
-                />
-            )}
-            {onRefund && (
-                <MenuItem
-                    icon={<CreditCard className="w-3.5 h-3.5" />}
-                    label="Process refund"
-                    onClick={onRefund}
-                />
-            )}
-        </div>
+        </FloatingPanel>
     );
 }
 
@@ -1157,8 +1240,11 @@ function MenuItem({
     return (
         <button
             onClick={onClick}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${danger ? 'text-rose-600 hover:bg-rose-50' : 'text-slate-700 hover:bg-slate-50'
-                }`}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${
+                danger
+                    ? 'text-rose-600 hover:bg-rose-50'
+                    : 'text-slate-700 hover:bg-slate-50'
+            }`}
         >
             <span className={danger ? 'text-rose-500' : 'text-slate-400'}>{icon}</span>
             {label}
@@ -1166,27 +1252,34 @@ function MenuItem({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Return detail drawer
-// ─────────────────────────────────────────────────────────────────────────────
 function ReturnDrawer({
     ret,
+    busy,
     onClose,
-    onUpdate,
+    onSaveInternalNotes,
+    onSetRefundMethod,
+    onSetStatus,
     onApprove,
     onReject,
     onRefund,
     onFlash,
 }: {
-    ret: ReturnRequest;
+    ret: AdminReturnRequest;
+    busy: boolean;
     onClose: () => void;
-    onUpdate: (patch: Partial<ReturnRequest>) => void;
+    onSaveInternalNotes: (notes: string) => void;
+    onSetRefundMethod: (m: AdminRefundMethod) => void;
+    onSetStatus: (s: AdminReturnStatus) => void;
     onApprove: () => void;
     onReject: () => void;
     onRefund: () => void;
     onFlash: (msg: string) => void;
 }) {
     const [internal, setInternal] = useState(ret.internalNotes ?? '');
+
+    useEffect(() => {
+        setInternal(ret.internalNotes ?? '');
+    }, [ret.id, ret.internalNotes]);
 
     const canDecide = ret.status === 'REQUESTED' || ret.status === 'UNDER_REVIEW';
     const canRefund = ret.status === 'APPROVED' || ret.status === 'ITEM_RECEIVED';
@@ -1198,10 +1291,11 @@ function ReturnDrawer({
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow-xl flex flex-col"
+                className={`bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow-xl flex flex-col ${
+                    busy ? 'opacity-70 pointer-events-none' : ''
+                }`}
             >
-                {/* Header */}
-                <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2 shrink-0">
+                <div className="px-2 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2 shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                             <RotateCcw className="w-4 h-4" />
@@ -1223,27 +1317,27 @@ function ReturnDrawer({
                     </button>
                 </div>
 
-                <div className="p-3 space-y-3">
-                    {/* Status row */}
+                <div className="p-2 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span
-                            className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-sm border ${RETURN_STATUS_STYLES[ret.status]
-                                }`}
+                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
+                                RETURN_STATUS_STYLES[ret.status]
+                            }`}
                         >
                             {RETURN_STATUS_LABEL[ret.status]}
                         </span>
                         <span
-                            className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-sm border ${REFUND_STATUS_STYLES[ret.refundStatus]
-                                }`}
+                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
+                                REFUND_STATUS_STYLES[ret.refundStatus]
+                            }`}
                         >
                             Refund: {REFUND_STATUS_LABEL[ret.refundStatus]}
                         </span>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[13px] text-slate-400">
                             {daysSince(ret.requestedAt)} days ago
                         </span>
                     </div>
 
-                    {/* Customer */}
                     <Section title="Customer" icon={User}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px]">
                             <Field label="Name" value={ret.customer.name} />
@@ -1253,44 +1347,47 @@ function ReturnDrawer({
                         </div>
                     </Section>
 
-                    {/* Items */}
                     <Section title="Returned items" icon={Package}>
                         <ul className="divide-y divide-slate-100 rounded-sm border border-slate-200 overflow-hidden">
                             {ret.items.map((it) => (
                                 <li key={it.id} className="flex items-center gap-3 p-2">
                                     <div className="w-12 h-12 rounded-sm overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={it.image} alt="" className="w-full h-full object-cover" />
+                                        <img
+                                            src={it.image}
+                                            alt=""
+                                            className="w-full h-full object-cover"
+                                        />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="text-[13px] font-medium text-slate-900 truncate">
                                             {it.productName}
                                         </div>
-                                        <div className="text-[11px] text-slate-400 font-mono">
+                                        <div className="text-[13px] text-slate-400 font-mono">
                                             {it.sku}
                                         </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
+                                        <div className="text-[13px] text-slate-500 mt-0.5">
                                             Qty {it.qty} · Condition:{' '}
                                             <span className="font-medium">
-                                                {CONDITION_LABEL[it.condition] ?? it.condition}
+                                                {CONDITION_LABEL[it.condition] ??
+                                                    it.condition}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="text-right shrink-0">
                                         <div className="text-[13px] font-semibold text-slate-900 tabular-nums">
-                                            {fmtKES(it.price * it.qty)}
+                                            {fmtKES(Number(it.price) * it.qty)}
                                         </div>
                                     </div>
                                 </li>
                             ))}
                         </ul>
-                        <div className="flex justify-between pt-2 mt-2 border-t border-slate-100 text-[13px]">
+                        <div className="flex justify-between pt-2 mt-1 border-t border-slate-100 text-[13px]">
                             <span className="text-slate-500">Order total</span>
                             <span className="font-semibold text-slate-900 tabular-nums">
                                 {fmtKES(ret.originalAmount)}
                             </span>
                         </div>
-                        {ret.refundAmount > 0 && (
+                        {Number(ret.refundAmount) > 0 && (
                             <div className="flex justify-between text-[13px]">
                                 <span className="text-slate-500">Refund amount</span>
                                 <span className="font-semibold text-emerald-700 tabular-nums">
@@ -1300,10 +1397,11 @@ function ReturnDrawer({
                         )}
                     </Section>
 
-                    {/* Reason */}
                     <Section title="Return reason" icon={Info}>
                         <div className="rounded-sm border border-slate-200 p-2 space-y-1">
-                            <div className="text-[13px] font-medium text-slate-900">{ret.reason}</div>
+                            <div className="text-[13px] font-medium text-slate-900">
+                                {ret.reason}
+                            </div>
                             {ret.notes && (
                                 <p className="text-[13px] text-slate-600 whitespace-pre-line">
                                     {ret.notes}
@@ -1312,7 +1410,6 @@ function ReturnDrawer({
                         </div>
                     </Section>
 
-                    {/* Tracking */}
                     {ret.tracking && (
                         <Section title="Return tracking" icon={Truck}>
                             <div className="rounded-sm border border-slate-200 p-2 flex items-center gap-2">
@@ -1324,44 +1421,53 @@ function ReturnDrawer({
                         </Section>
                     )}
 
-                    {/* Refund method */}
                     <Section title="Refund method" icon={CreditCard}>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                            {(['original', 'store_credit', 'bank_transfer', 'manual'] as RefundMethod[]).map(
-                                (m) => (
-                                    <button
-                                        key={m}
-                                        type="button"
-                                        onClick={() => onUpdate({ refundMethod: m })}
-                                        className={`text-[12px] font-medium py-2 px-2 rounded-sm border transition ${ret.refundMethod === m
-                                                ? 'bg-blue-50 border-blue-950 text-blue-950'
-                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        {REFUND_METHOD_LABEL[m]}
-                                    </button>
-                                ),
-                            )}
+                            {(
+                                [
+                                    'original',
+                                    'store_credit',
+                                    'bank_transfer',
+                                    'manual',
+                                ] as AdminRefundMethod[]
+                            ).map((m) => (
+                                <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => onSetRefundMethod(m)}
+                                    className={`text-[13px] font-medium py-2 px-2 rounded-sm border transition ${
+                                        ret.refundMethod === m
+                                            ? 'bg-blue-50 border-blue-950 text-blue-950'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    {REFUND_METHOD_LABEL[m]}
+                                </button>
+                            ))}
                         </div>
                     </Section>
 
-                    {/* Internal notes */}
                     <Section title="Internal notes" icon={FileText}>
                         <textarea
                             value={internal}
                             onChange={(e) => setInternal(e.target.value)}
-                            onBlur={() => onUpdate({ internalNotes: internal })}
+                            onBlur={() => {
+                                if (internal !== (ret.internalNotes ?? '')) {
+                                    onSaveInternalNotes(internal);
+                                }
+                            }}
                             rows={3}
                             placeholder="Notes visible only to your team…"
                             className={inputCls + ' resize-none'}
                         />
                     </Section>
 
-                    {/* Status setter (manual override) */}
                     <Section title="Set status" icon={SettingsIcon}>
                         <select
                             value={ret.status}
-                            onChange={(e) => onUpdate({ status: e.target.value as ReturnStatus })}
+                            onChange={(e) =>
+                                onSetStatus(e.target.value as AdminReturnStatus)
+                            }
                             className={inputCls}
                         >
                             {Object.entries(RETURN_STATUS_LABEL).map(([k, v]) => (
@@ -1373,10 +1479,11 @@ function ReturnDrawer({
                     </Section>
                 </div>
 
-                {/* Footer actions */}
-                <div className="border-t border-slate-200 px-3 py-2 flex items-center justify-between gap-2 sticky bottom-0 bg-white shrink-0">
+                <div className="border-t border-slate-200 px-2 py-2 flex items-center justify-between gap-2 sticky bottom-0 bg-white shrink-0">
                     <button
-                        onClick={() => onFlash(`Notification sent to ${ret.customer.email}`)}
+                        onClick={() =>
+                            onFlash(`Notification queued for ${ret.customer.email}`)
+                        }
                         className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 hover:text-slate-900 px-2 py-2"
                     >
                         <Bell className="w-3.5 h-3.5" />
@@ -1417,15 +1524,12 @@ function ReturnDrawer({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Confirm action
-// ─────────────────────────────────────────────────────────────────────────────
 function ConfirmAction({
     action,
     onCancel,
     onConfirm,
 }: {
-    action: { kind: 'approve' | 'reject' | 'refund'; ret: ReturnRequest };
+    action: ConfirmActionState;
     onCancel: () => void;
     onConfirm: () => void;
 }) {
@@ -1470,12 +1574,18 @@ function ConfirmAction({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center gap-2">
-                    <span className={`w-9 h-9 rounded-sm flex items-center justify-center ${config.accent}`}>
+                    <span
+                        className={`w-9 h-9 rounded-sm flex items-center justify-center ${config.accent}`}
+                    >
                         <Icon className="w-4 h-4" />
                     </span>
-                    <h3 className="text-[15px] font-semibold text-slate-900">{config.title}</h3>
+                    <h3 className="text-[15px] font-semibold text-slate-900">
+                        {config.title}
+                    </h3>
                 </div>
-                <p className="text-[13px] text-slate-500 mt-2 leading-relaxed">{config.body}</p>
+                <p className="text-[13px] text-slate-500 mt-2 leading-relaxed">
+                    {config.body}
+                </p>
                 <div className="flex justify-end gap-2 mt-3">
                     <button
                         onClick={onCancel}
@@ -1495,21 +1605,7 @@ function ConfirmAction({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// History tab
-// ─────────────────────────────────────────────────────────────────────────────
-function HistoryTab({ returns }: { returns: ReturnRequest[] }) {
-    const closed = returns
-        .filter((r) => r.status === 'CLOSED' || r.status === 'REJECTED')
-        .sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? ''));
-
-    const monthlyTotals = [
-        { month: 'Sep 2026', refunded: 241799, returns: 18, rate: '2.1%' },
-        { month: 'Aug 2026', refunded: 189420, returns: 14, rate: '1.8%' },
-        { month: 'Jul 2026', refunded: 302115, returns: 22, rate: '2.6%' },
-        { month: 'Jun 2026', refunded: 148900, returns: 12, rate: '1.5%' },
-    ];
-
+function HistoryTab({ history }: { history: AdminReturnHistoryPoint[] }) {
     return (
         <div className="space-y-3">
             <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
@@ -1521,141 +1617,150 @@ function HistoryTab({ returns }: { returns: ReturnRequest[] }) {
                         Refund volume vs. total orders, last four months.
                     </p>
                 </header>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
-                        <thead>
-                            <tr className="border-b border-slate-200 text-slate-500">
-                                <th className="py-1.5 px-2 font-medium">Month</th>
-                                <th className="py-1.5 px-2 font-medium text-right">Returns</th>
-                                <th className="py-1.5 px-2 font-medium text-right">Refunded</th>
-                                <th className="py-1.5 px-2 font-medium text-right">Return rate</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {monthlyTotals.map((m) => (
-                                <tr key={m.month} className="hover:bg-slate-50">
-                                    <td className="py-1.5 px-2 text-slate-800">{m.month}</td>
-                                    <td className="py-1.5 px-2 text-right text-slate-600 tabular-nums">
-                                        {m.returns}
-                                    </td>
-                                    <td className="py-1.5 px-2 text-right font-medium text-slate-900 tabular-nums">
-                                        {fmtKES(m.refunded)}
-                                    </td>
-                                    <td className="py-1.5 px-2 text-right text-slate-600 tabular-nums">
-                                        {m.rate}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
-                <header>
-                    <h2 className="text-[15px] font-semibold text-slate-900">
-                        Recently closed &amp; rejected
-                    </h2>
-                    <p className="text-[13px] text-slate-500 mt-0.5">
-                        Completed return cases.
-                    </p>
-                </header>
-                {closed.length === 0 ? (
+                {history.length === 0 ? (
                     <p className="text-[13px] text-slate-400 py-4 text-center">
-                        No closed returns yet.
+                        No history yet.
                     </p>
                 ) : (
-                    <ul className="divide-y divide-slate-100">
-                        {closed.map((r) => (
-                            <li key={r.id} className="py-2 flex items-center gap-3">
-                                <span
-                                    className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${r.status === 'REJECTED'
-                                            ? 'bg-rose-50 text-rose-600'
-                                            : 'bg-emerald-50 text-emerald-700'
-                                        }`}
-                                >
-                                    {r.status === 'REJECTED' ? (
-                                        <XCircle className="w-4 h-4" />
-                                    ) : (
-                                        <CheckCircle2 className="w-4 h-4" />
-                                    )}
-                                </span>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-[13px] font-medium text-slate-900 truncate">
-                                        {r.code} · {r.customer.name}
-                                    </div>
-                                    <div className="text-[11px] text-slate-500 truncate">
-                                        {r.reason} · resolved {fmtDate(r.resolvedAt ?? r.requestedAt)}
-                                    </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                    <div className="text-[13px] font-semibold text-slate-900 tabular-nums">
-                                        {r.status === 'REJECTED' ? '—' : fmtKES(r.refundAmount || r.originalAmount)}
-                                    </div>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-[13px]">
+                            <thead>
+                                <tr className="border-b border-slate-200 text-slate-500">
+                                    <th className="py-1.5 px-2 font-medium">Month</th>
+                                    <th className="py-1.5 px-2 font-medium text-right">
+                                        Returns
+                                    </th>
+                                    <th className="py-1.5 px-2 font-medium text-right">
+                                        Refunded
+                                    </th>
+                                    <th className="py-1.5 px-2 font-medium text-right">
+                                        Return rate
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {history.map((m) => (
+                                    <tr key={m.month} className="hover:bg-slate-50">
+                                        <td className="py-1.5 px-2 text-slate-800">
+                                            {m.month}
+                                        </td>
+                                        <td className="py-1.5 px-2 text-right text-slate-600 tabular-nums">
+                                            {m.returns}
+                                        </td>
+                                        <td className="py-1.5 px-2 text-right font-medium text-slate-900 tabular-nums">
+                                            {fmtKES(m.refunded)}
+                                        </td>
+                                        <td className="py-1.5 px-2 text-right text-slate-600 tabular-nums">
+                                            {m.rate}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </section>
         </div>
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Settings tab
-// ─────────────────────────────────────────────────────────────────────────────
 function SettingsTab({
     reasons,
-    onUpdate,
+    settings,
+    onReloadReasons,
+    onSaveSettings,
     onFlash,
 }: {
-    reasons: ReturnReason[];
-    onUpdate: (r: ReturnReason[]) => void;
+    reasons: AdminReturnReason[];
+    settings: AdminReturnSettings;
+    onReloadReasons: () => Promise<void>;
+    onSaveSettings: (patch: Partial<AdminReturnSettings>) => Promise<void>;
     onFlash: (msg: string) => void;
 }) {
-    const [draft, setDraft] = useState(reasons);
+    const [draftSettings, setDraftSettings] = useState(settings);
     const [newReason, setNewReason] = useState('');
     const [newDescription, setNewDescription] = useState('');
+    const [saving, setSaving] = useState(false);
 
-    function toggle(id: string) {
-        setDraft((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, active: !r.active } : r)),
-        );
+    useEffect(() => {
+        setDraftSettings(settings);
+    }, [settings]);
+
+    async function toggleActive(reason: AdminReturnReason) {
+        try {
+            await adminApi.returns.reasons.update(reason.id, {
+                active: !reason.active,
+            });
+            await onReloadReasons();
+        } catch (err) {
+            onFlash(err instanceof Error ? err.message : 'Could not update reason');
+        }
     }
 
-    function togglePhoto(id: string) {
-        setDraft((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, requiresPhoto: !r.requiresPhoto } : r)),
-        );
+    async function togglePhoto(reason: AdminReturnReason) {
+        try {
+            await adminApi.returns.reasons.update(reason.id, {
+                requiresPhoto: !reason.requiresPhoto,
+            });
+            await onReloadReasons();
+        } catch (err) {
+            onFlash(err instanceof Error ? err.message : 'Could not update reason');
+        }
     }
 
-    function remove(id: string) {
-        setDraft((prev) => prev.filter((r) => r.id !== id));
+    async function removeReason(reason: AdminReturnReason) {
+        if (!confirm(`Remove reason "${reason.label}"?`)) return;
+        try {
+            await adminApi.returns.reasons.remove(reason.id);
+            await onReloadReasons();
+            onFlash('Reason removed');
+        } catch (err) {
+            onFlash(err instanceof Error ? err.message : 'Could not remove reason');
+        }
     }
 
-    function add() {
+    async function addReason() {
         if (!newReason.trim()) return;
-        const reason: ReturnReason = {
-            id: `r${Date.now()}`,
-            label: newReason.trim(),
-            description: newDescription.trim() || '—',
-            requiresPhoto: false,
-            active: true,
-        };
-        setDraft((prev) => [...prev, reason]);
-        setNewReason('');
-        setNewDescription('');
+        try {
+            await adminApi.returns.reasons.create({
+                label: newReason.trim(),
+                description: newDescription.trim() || undefined,
+            });
+            setNewReason('');
+            setNewDescription('');
+            await onReloadReasons();
+            onFlash('Reason added');
+        } catch (err) {
+            onFlash(err instanceof Error ? err.message : 'Could not add reason');
+        }
     }
 
-    function save() {
-        onUpdate(draft);
-        onFlash('Return settings saved');
+    async function saveSettings() {
+        setSaving(true);
+        try {
+            await onSaveSettings({
+                returnWindowDays: draftSettings.returnWindowDays,
+                autoApproveUnder: draftSettings.autoApproveUnder,
+                restockingFeePct: draftSettings.restockingFeePct,
+                notifyEmail: draftSettings.notifyEmail,
+                notifySms: draftSettings.notifySms,
+                notifyPush: draftSettings.notifyPush,
+            });
+        } finally {
+            setSaving(false);
+        }
     }
+
+    const notifyRows = [
+        { label: 'Return received', channels: ['email'] },
+        { label: 'Return approved', channels: ['email', 'sms'] },
+        { label: 'Return rejected', channels: ['email'] },
+        { label: 'Refund processed', channels: ['email', 'sms'] },
+        { label: 'Refund failed', channels: ['email'] },
+    ];
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            {/* Reasons list */}
             <section className="lg:col-span-2 bg-white border border-slate-200 rounded-sm">
                 <header className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
                     <div>
@@ -1669,11 +1774,14 @@ function SettingsTab({
                 </header>
 
                 <ul className="divide-y divide-slate-100">
-                    {draft.map((r) => (
+                    {reasons.map((r) => (
                         <li key={r.id} className="p-3 flex items-start gap-3">
                             <span
-                                className={`w-9 h-9 rounded-sm flex items-center justify-center shrink-0 ${r.active ? 'bg-blue-50 text-blue-950' : 'bg-slate-100 text-slate-400'
-                                    }`}
+                                className={`w-9 h-9 rounded-sm flex items-center justify-center shrink-0 ${
+                                    r.active
+                                        ? 'bg-blue-50 text-blue-950'
+                                        : 'bg-slate-100 text-slate-400'
+                                }`}
                             >
                                 <Info className="w-4 h-4" />
                             </span>
@@ -1683,42 +1791,47 @@ function SettingsTab({
                                         {r.label}
                                     </span>
                                     <span
-                                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded-sm border ${r.active
+                                        className={`text-[13px] font-medium px-1.5 py-0.5 rounded-sm border ${
+                                            r.active
                                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                                 : 'bg-slate-100 text-slate-500 border-slate-200'
-                                            }`}
+                                        }`}
                                     >
                                         {r.active ? 'Active' : 'Hidden'}
                                     </span>
                                     {r.requiresPhoto && (
-                                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm border bg-amber-50 text-amber-700 border-amber-100">
+                                        <span className="text-[13px] font-medium px-1.5 py-0.5 rounded-sm border bg-amber-50 text-amber-700 border-amber-100">
                                             Requires photo
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-[13px] text-slate-500 mt-0.5">{r.description}</p>
+                                <p className="text-[13px] text-slate-500 mt-0.5">
+                                    {r.description}
+                                </p>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                                 <button
-                                    onClick={() => togglePhoto(r.id)}
+                                    onClick={() => void togglePhoto(r)}
                                     title="Toggle photo requirement"
                                     className="p-1.5 rounded-sm text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition"
                                 >
                                     <Eye className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                    onClick={() => toggle(r.id)}
-                                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${r.active ? 'bg-blue-950' : 'bg-slate-300'
-                                        }`}
+                                    onClick={() => void toggleActive(r)}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
+                                        r.active ? 'bg-blue-950' : 'bg-slate-300'
+                                    }`}
                                     aria-label={r.active ? 'Deactivate' : 'Activate'}
                                 >
                                     <span
-                                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${r.active ? 'translate-x-4' : 'translate-x-0'
-                                            }`}
+                                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                            r.active ? 'translate-x-4' : 'translate-x-0'
+                                        }`}
                                     />
                                 </button>
                                 <button
-                                    onClick={() => remove(r.id)}
+                                    onClick={() => void removeReason(r)}
                                     className="p-1.5 rounded-sm text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                                     aria-label="Remove"
                                 >
@@ -1727,10 +1840,17 @@ function SettingsTab({
                             </div>
                         </li>
                     ))}
+                    {reasons.length === 0 && (
+                        <li className="p-6 text-center text-[13px] text-slate-400">
+                            No reasons yet. Add one below.
+                        </li>
+                    )}
                 </ul>
 
                 <div className="p-3 border-t border-slate-100 space-y-2">
-                    <div className="text-[13px] font-medium text-slate-700">Add a reason</div>
+                    <div className="text-[13px] font-medium text-slate-700">
+                        Add a reason
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input
                             value={newReason}
@@ -1746,7 +1866,7 @@ function SettingsTab({
                         />
                     </div>
                     <button
-                        onClick={add}
+                        onClick={() => void addReason()}
                         disabled={!newReason.trim()}
                         className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
                     >
@@ -1756,7 +1876,6 @@ function SettingsTab({
                 </div>
             </section>
 
-            {/* Policy + notification settings */}
             <section className="space-y-3">
                 <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
                     <header>
@@ -1768,13 +1887,43 @@ function SettingsTab({
                         </p>
                     </header>
                     <Field label="Return window (days)">
-                        <input type="number" defaultValue={14} className={inputCls} />
+                        <input
+                            type="number"
+                            value={draftSettings.returnWindowDays}
+                            onChange={(e) =>
+                                setDraftSettings((s) => ({
+                                    ...s,
+                                    returnWindowDays: Number(e.target.value),
+                                }))
+                            }
+                            className={inputCls}
+                        />
                     </Field>
                     <Field label="Auto-approve under amount (KES)">
-                        <input type="number" defaultValue={5000} className={inputCls} />
+                        <input
+                            type="number"
+                            value={Number(draftSettings.autoApproveUnder)}
+                            onChange={(e) =>
+                                setDraftSettings((s) => ({
+                                    ...s,
+                                    autoApproveUnder: e.target.value,
+                                }))
+                            }
+                            className={inputCls}
+                        />
                     </Field>
                     <Field label="Restocking fee (%)">
-                        <input type="number" defaultValue={0} className={inputCls} />
+                        <input
+                            type="number"
+                            value={Number(draftSettings.restockingFeePct)}
+                            onChange={(e) =>
+                                setDraftSettings((s) => ({
+                                    ...s,
+                                    restockingFeePct: e.target.value,
+                                }))
+                            }
+                            className={inputCls}
+                        />
                     </Field>
                 </div>
 
@@ -1788,27 +1937,30 @@ function SettingsTab({
                         </p>
                     </header>
                     <ul className="divide-y divide-slate-100 text-[13px]">
-                        {[
-                            { label: 'Return received', channels: ['email'] },
-                            { label: 'Return approved', channels: ['email', 'sms'] },
-                            { label: 'Return rejected', channels: ['email'] },
-                            { label: 'Refund processed', channels: ['email', 'sms'] },
-                            { label: 'Refund failed', channels: ['email'] },
-                        ].map((row) => (
-                            <li key={row.label} className="py-2 flex items-center justify-between gap-2">
+                        {notifyRows.map((row) => (
+                            <li
+                                key={row.label}
+                                className="py-2 flex items-center justify-between gap-2"
+                            >
                                 <span className="text-slate-700">{row.label}</span>
                                 <div className="flex items-center gap-1">
                                     {(['email', 'sms', 'push'] as const).map((c) => {
-                                        const Icon = c === 'email' ? Mail : c === 'sms' ? Smartphone : MessageSquare;
+                                        const Icon =
+                                            c === 'email'
+                                                ? Mail
+                                                : c === 'sms'
+                                                ? Smartphone
+                                                : MessageSquare;
                                         const on = row.channels.includes(c);
                                         return (
                                             <span
                                                 key={c}
                                                 title={c}
-                                                className={`w-6 h-6 rounded-sm flex items-center justify-center border transition ${on
+                                                className={`w-6 h-6 rounded-sm flex items-center justify-center border transition ${
+                                                    on
                                                         ? 'bg-blue-50 border-blue-950 text-blue-950'
                                                         : 'bg-white border-slate-200 text-slate-300'
-                                                    }`}
+                                                }`}
                                             >
                                                 <Icon className="w-3 h-3" />
                                             </span>
@@ -1821,20 +1973,27 @@ function SettingsTab({
                 </div>
 
                 <button
-                    onClick={save}
-                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                    onClick={() => void saveSettings()}
+                    disabled={saving}
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
                 >
-                    <Save className="w-3.5 h-3.5" />
-                    Save settings
+                    {saving ? (
+                        <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Saving…
+                        </>
+                    ) : (
+                        <>
+                            <Save className="w-3.5 h-3.5" />
+                            Save settings
+                        </>
+                    )}
                 </button>
             </section>
         </div>
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Small helpers
-// ─────────────────────────────────────────────────────────────────────────────
 function Section({
     title,
     icon: Icon,
@@ -1846,7 +2005,7 @@ function Section({
 }) {
     return (
         <section className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate-700">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
                 <Icon className="w-3.5 h-3.5 text-slate-400" />
                 {title}
             </div>
@@ -1855,15 +2014,31 @@ function Section({
     );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Field({
+    label,
+    value,
+    mono,
+    children,
+}: {
+    label: string;
+    value?: string;
+    mono?: boolean;
+    children?: React.ReactNode;
+}) {
     return (
         <div>
-            <div className="text-[11px] uppercase tracking-wide text-slate-400 font-medium">
+            <div className="text-[13px] uppercase tracking-wide text-slate-400 font-medium">
                 {label}
             </div>
-            <div className={`text-[13px] text-slate-800 mt-0.5 ${mono ? 'font-mono' : ''}`}>
-                {value}
-            </div>
+            {children ?? (
+                <div
+                    className={`text-[13px] text-slate-800 mt-0.5 ${
+                        mono ? 'font-mono' : ''
+                    }`}
+                >
+                    {value}
+                </div>
+            )}
         </div>
     );
 }

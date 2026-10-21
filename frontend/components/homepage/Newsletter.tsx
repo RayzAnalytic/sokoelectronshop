@@ -85,9 +85,9 @@ export default function NewsletterSection({
     const fieldErrorId = 'newsletter-email-error';
 
     return (
-        <section className="bg-slate-50 py-6 lg:py-8 border-b border-slate-200">
+        <section className="bg-slate-50 py-6 lg:py-6 border-b border-slate-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
-                <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-5 shadow-sm max-w-3xl mx-auto text-center">
+                <div className="bg-white border border-slate-200 rounded-sm p-4 sm:p-5 shadow-sm max-w-3xl mx-auto text-center">
 
                     <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-50 text-blue-950 rounded-lg mb-2">
                         <Mail className="w-5 h-5" />
@@ -96,7 +96,7 @@ export default function NewsletterSection({
                     <h2 className="text-xl font-bold text-slate-900 tracking-tight">
                         {heading}
                     </h2>
-                    <p className="text-[13px] text-slate-600 mt-1 max-w-md mx-auto mb-6">
+                    <p className="text-[13px] text-slate-600 mt-1 max-w-md mx-auto mb-4">
                         {subheading}
                     </p>
 
@@ -105,7 +105,7 @@ export default function NewsletterSection({
                         <div
                             role="status"
                             aria-live="polite"
-                            className="mb-6 p-3 bg-emerald-50 border border-emerald-200 rounded text-[13px] text-emerald-700 flex items-center justify-center space-x-2"
+                            className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded text-[13px] text-emerald-700 flex items-center justify-center space-x-2"
                         >
                             <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                             <span>{success}</span>

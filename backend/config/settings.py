@@ -1,26 +1,38 @@
-"""
-Django settings for config project.
-"""
-
 import warnings
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
 import environ
 from corsheaders.defaults import default_headers
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
+    DJANGO_SECRET_KEY=(str, ""),
     DJANGO_DEBUG=(bool, False),
     DJANGO_ALLOWED_HOSTS=(list, []),
     CORS_ALLOWED_ORIGINS=(list, []),
     CSRF_TRUSTED_ORIGINS=(list, []),
+
+    SESSION_COOKIE_SAMESITE=(str, "Lax"),
+    SESSION_COOKIE_SECURE=(bool, None),
+    SESSION_COOKIE_DOMAIN=(str, ""),
+    CSRF_COOKIE_SAMESITE=(str, "Lax"),
+    CSRF_COOKIE_SECURE=(bool, None),
+    CSRF_COOKIE_DOMAIN=(str, ""),
+
     EMAIL_BACKEND=(str, "django.core.mail.backends.console.EmailBackend"),
     DEFAULT_FROM_EMAIL=(str, "noreply@localhost"),
+
     FRONTEND_URL=(str, "http://localhost:3000"),
+    BACKEND_PUBLIC_URL=(str, "http://localhost:8000"),
+    STORE_URL=(str, "http://localhost:3000"),
+    SITE_URL=(str, ""),
+
     USE_S3=(bool, False),
-    # M-Pesa / checkout
+
     MPESA_ENV=(str, "sandbox"),
     MPESA_CONSUMER_KEY=(str, ""),
     MPESA_CONSUMER_SECRET=(str, ""),
@@ -30,7 +42,7 @@ env = environ.Env(
     MPESA_TIMEOUT_URL=(str, ""),
     MPESA_TRANSACTION_TYPE=(str, "CustomerPayBillOnline"),
     CHECKOUT_TIMEOUT_SECONDS=(int, 120),
-    # AI assistant — provider-agnostic.
+
     AI_PROVIDER=(str, "groq"),
     AI_MODEL=(str, ""),
     AI_BASE_URL=(str, ""),
@@ -39,16 +51,21 @@ env = environ.Env(
     XAI_API_KEY=(str, ""),
     GEMINI_API_KEY=(str, ""),
     GROQ_API_KEY=(str, ""),
+    OPENAI_API_KEY=(str, ""),
+    ANTHROPIC_API_KEY=(str, ""),
     OPENROUTER_API_KEY=(str, ""),
+    OPENROUTER_BASE_URL=(str, "https://openrouter.ai/api/v1"),
+    OPENROUTER_MODEL=(str, "openai/gpt-4o-mini"),
+    OPENROUTER_HTTP_REFERER=(str, ""),
+    OPENROUTER_X_TITLE=(str, "Myshop Admin"),
+    OPENROUTER_MONTHLY_BUDGET_KES=(int, 2000),
     AI_KEY_ENC_KEY=(str, ""),
-    # Newsletter / marketing email — SendGrid
+
     SENDGRID_API_KEY=(str, ""),
     SENDGRID_SANDBOX_MODE=(bool, False),
-    SHOP_NAME=(str, "Myshop"),
-    STORE_URL=(str, "http://localhost:3000"),
-    BACKEND_PUBLIC_URL=(str, "http://localhost:8000"),
 
-    # ── ADDED: Meta / WhatsApp Cloud API ──
+    SHOP_NAME=(str, "Myshop"),
+
     WHATSAPP_ENABLED=(bool, False),
     WHATSAPP_DRY_RUN=(bool, True),
     META_APP_ID=(str, ""),
@@ -86,10 +103,14 @@ env = environ.Env(
     WHATSAPP_FREE_SERVICE_CONVERSATIONS=(int, 1000),
     WHATSAPP_MONTHLY_SPEND_ALERT_KES=(int, 5000),
     WHATSAPP_QUALITY_SCORE_ALERT=(str, "YELLOW"),
-
+    WHATSAPP_FALLBACK_IMAGE_URL=(str, ""),
     FIELD_ENCRYPTION_KEY=(str, ""),
+    WHATSAPP_BOT_ENABLED=(bool, False),
+    WHATSAPP_BOT_MODEL=(str, "llama-3.1-8b-instant"),
+    WHATSAPP_BOT_HISTORY_TURNS=(int, 6),
+    WHATSAPP_BOT_HUMAN_COOLDOWN_MINUTES=(int, 10),
+    WHATSAPP_BOT_RATE_LIMIT_SECONDS=(int, 30),
 
-    # ── ADDED: Social media hub ──
     SOCIAL_ENABLED=(bool, False),
     SOCIAL_DRY_RUN=(bool, True),
     SOCIAL_OAUTH_REDIRECT_BASE=(str, "http://localhost:8000"),
@@ -97,47 +118,44 @@ env = environ.Env(
     SOCIAL_METRICS_SYNC_INTERVAL_MINUTES=(int, 60),
     SOCIAL_MAX_MEDIA_PER_POST=(int, 5),
     SOCIAL_MAX_MEDIA_SIZE_MB=(int, 25),
-
     FACEBOOK_PAGE_ID=(str, ""),
     FACEBOOK_PAGE_ACCESS_TOKEN=(str, ""),
     INSTAGRAM_BUSINESS_ACCOUNT_ID=(str, ""),
     META_SOCIAL_SCOPES=(str, "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management"),
-
     TIKTOK_CLIENT_KEY=(str, ""),
     TIKTOK_CLIENT_SECRET=(str, ""),
     TIKTOK_SCOPES=(str, "user.info.basic,video.publish,video.upload"),
 
+    GOOGLE_OAUTH_CLIENT_ID=(str, ""),
+    GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
+    GOOGLE_OAUTH_REDIRECT_URI=(str, "http://localhost:8000/api/v1/auth/google/callback/"),
+
     GOOGLE_CLIENT_ID=(str, ""),
     GOOGLE_CLIENT_SECRET=(str, ""),
-    YOUTUBE_REDIRECT_URI=(str, "http://localhost:8000/api/v1/social/oauth/youtube/callback/"),
-    YOUTUBE_SCOPES=(str, "https://www.googleapis.com/auth/youtube.upload,https://www.googleapis.com/auth/youtube.readonly"),
+    YOUTUBE_REDIRECT_URI=(str, ""),
+    YOUTUBE_SCOPES=(str, ""),
 
-    X_API_KEY=(str, ""),
-    X_API_SECRET=(str, ""),
-    X_BEARER_TOKEN=(str, ""),
-    X_REDIRECT_URI=(str, "http://localhost:8000/api/v1/social/oauth/x/callback/"),
+    AUTH_STRATEGY=(str, "both"),
 
-    # ── USERS (dashboard.users) ──
     STAFF_INVITE_TTL_DAYS=(int, 7),
     STAFF_INVITE_ACCEPT_PATH=(str, "/accept-invite"),
 
-    # ── ANALYTICS (dashboard.analytics) ──
-    # Middleware that logs one PageView row per storefront request.
-    # When True, every hit (except admin/static/api/_next) is recorded.
     ANALYTICS_PAGEVIEW_ENABLED=(bool, True),
+    ANALYTICS_PAGEVIEW_RETENTION_DAYS=(int, 90),
 )
 
-# ── MUST come before any env() call that reads .env values ──
 environ.Env.read_env(BASE_DIR / ".env")
 
+WHATSAPP_DEV_NO_AUTH = env.bool("WHATSAPP_DEV_NO_AUTH", default=True)
+
 SECRET_KEY = env("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in .env")
+
 DEBUG = env("DJANGO_DEBUG")
-ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Applications
-# ─────────────────────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -146,8 +164,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    # Third-party
     "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "django_filters",
     "drf_spectacular",
@@ -159,13 +178,14 @@ INSTALLED_APPS = [
     "django_ratelimit",
     "django_otp",
     "django_otp.plugins.otp_totp",
-
-    # Local
+    "django_openrouter",
+    'django_extensions',
     "authentication",
     "catalog",
     "checkout",
     "account",
     "ai",
+    "dashboard.aiautomations",
     "dashboard.whatsapp",
     "newsletter",
     "whatsapfloat",
@@ -184,13 +204,16 @@ INSTALLED_APPS = [
     "dashboard.social",
     "dashboard.direct_orders",
     "dashboard.banners",
-    "dashboard.aiandautomations",
     "dashboard.settings",
     "dashboard.users",
     "dashboard.reports",
     "dashboard.analytics",
-     "dashboard.overview",
+    "dashboard.overview",
+    'dashboard.returns',
+    'dashboard.payments',
+    'dashboard.campaigns',
 ]
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -203,17 +226,14 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_otp.middleware.OTPMiddleware",
-
-    # ── ANALYTICS (dashboard.analytics) ──
-    # Must run AFTER SessionMiddleware and AuthenticationMiddleware so that
-    # `request.session.session_key` and `request.user` are available.
-    # Must run BEFORE any view returns so page loads are logged.
     "dashboard.analytics.middleware.PageViewMiddleware",
 ]
+
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
+
 
 TEMPLATES = [
     {
@@ -231,9 +251,6 @@ TEMPLATES = [
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Auth
-# ─────────────────────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = "authentication.User"
 AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
 
@@ -250,24 +267,44 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGIN_URL = "/api/v1/auth/login/"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Sessions & cookies
-# ─────────────────────────────────────────────────────────────────────────────
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = not DEBUG
+_session_samesite = env("SESSION_COOKIE_SAMESITE")
+if _session_samesite not in ("Lax", "Strict", "None"):
+    _session_samesite = "Lax"
+SESSION_COOKIE_SAMESITE = _session_samesite
+
+_session_secure = env("SESSION_COOKIE_SECURE", default=None)
+SESSION_COOKIE_SECURE = _session_secure if _session_secure is not None else not DEBUG
+
+if SESSION_COOKIE_SAMESITE == "None" and not SESSION_COOKIE_SECURE:
+    raise ImproperlyConfigured(
+        "SESSION_COOKIE_SAMESITE=None requires SESSION_COOKIE_SECURE=True. "
+        "Either run over HTTPS or set SESSION_COOKIE_SAMESITE=Lax."
+    )
+
+SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN") or None
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 7
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = not DEBUG
-CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
+_csrf_samesite = env("CSRF_COOKIE_SAMESITE")
+if _csrf_samesite not in ("Lax", "Strict", "None"):
+    _csrf_samesite = "Lax"
+CSRF_COOKIE_SAMESITE = _csrf_samesite
+
+_csrf_secure = env("CSRF_COOKIE_SECURE", default=None)
+CSRF_COOKIE_SECURE = _csrf_secure if _csrf_secure is not None else not DEBUG
+
+if CSRF_COOKIE_SAMESITE == "None" and not CSRF_COOKIE_SECURE:
+    raise ImproperlyConfigured(
+        "CSRF_COOKIE_SAMESITE=None requires CSRF_COOKIE_SECURE=True."
+    )
+
+CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN") or None
+
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Cache
-# ─────────────────────────────────────────────────────────────────────────────
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
 CACHES = {
@@ -285,9 +322,6 @@ CACHES = {
 RATELIMIT_USE_CACHE = "default"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Database
-# ─────────────────────────────────────────────────────────────────────────────
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -300,15 +334,13 @@ DATABASES = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DRF
-# ─────────────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_FILTER_BACKENDS": (
         "django_filters.rest_framework.DjangoFilterBackend",
@@ -330,6 +362,8 @@ REST_FRAMEWORK = {
         "whatsapp_order": "20/min",
         "whatsapp_cart_handoff": "3/min",
         "whatsapp_otp": "3/hour",
+        "whatsapp_send": "60/min",
+        "whatsapp_catalog_sync": "10/min",
         "subscribe": "30/hour",
         "social_publish": "10/min",
         "social_upload": "20/min",
@@ -338,12 +372,45 @@ REST_FRAMEWORK = {
         "ai_assistant_stream": "30/min",
         "ai_content_generate": "10/min",
         "ai_content_bulk": "2/hour",
-
         "staff_invite_create": "10/hour",
         "staff_invite_accept": "10/hour",
         "staff_password_reset": "10/hour",
     },
 }
+
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "VERIFYING_KEY": "",
+    "AUDIENCE": None,
+    "ISSUER": None,
+    "JSON_ENCODER": None,
+    "JWK_URL": None,
+    "LEEWAY": 0,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+    "JTI_CLAIM": "jti",
+    "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
+    "SLIDING_TOKEN_LIFETIME": timedelta(minutes=5),
+    "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
+    "TOKEN_OBTAIN_SERIALIZER": "authentication.serializers.CustomTokenObtainPairSerializer",
+    "TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSerializer",
+    "TOKEN_VERIFY_SERIALIZER": "rest_framework_simplejwt.serializers.TokenVerifySerializer",
+    "TOKEN_BLACKLIST_SERIALIZER": "rest_framework_simplejwt.serializers.TokenBlacklistSerializer",
+}
+
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Myshop API",
@@ -354,45 +421,41 @@ SPECTACULAR_SETTINGS = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CORS
-# ─────────────────────────────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+
+_FRONTEND_ORIGIN = env("FRONTEND_URL").rstrip("/")
+if _FRONTEND_ORIGIN and _FRONTEND_ORIGIN not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS = list(CORS_ALLOWED_ORIGINS) + [_FRONTEND_ORIGIN]
+
+if _FRONTEND_ORIGIN and _FRONTEND_ORIGIN not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = list(CSRF_TRUSTED_ORIGINS) + [_FRONTEND_ORIGIN]
+
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = (
     *default_headers,
     "idempotency-key",
+    "authorization",
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Google OAuth (customer login)
-# ─────────────────────────────────────────────────────────────────────────────
-GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
-GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
-GOOGLE_OAUTH_REDIRECT_URI = env(
-    "GOOGLE_OAUTH_REDIRECT_URI",
-    default="http://localhost:8000/api/v1/auth/google/callback/",
-)
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET")
+GOOGLE_OAUTH_REDIRECT_URI = env("GOOGLE_OAUTH_REDIRECT_URI")
+
+GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Email — SendGrid via Anymail
-# ─────────────────────────────────────────────────────────────────────────────
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
     default="anymail.backends.sendgrid.EmailBackend",
 )
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 
-SENDGRID_API_KEY = env("SENDGRID_API_KEY")
-
 ANYMAIL = {
-    "SENDGRID_API_KEY": SENDGRID_API_KEY,
-    "SENDGRID_API_URL": "https://api.sendgrid.com/v3/mail/send",
+    "SENDGRID_API_KEY": env("SENDGRID_API_KEY"),
 }
-SENDGRID_SANDBOX_MODE = env("SENDGRID_SANDBOX_MODE")
 
 SILENCED_SYSTEM_CHECKS = ["anymail.W003"]
 warnings.filterwarnings(
@@ -401,27 +464,16 @@ warnings.filterwarnings(
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Newsletter / marketing email
-# ─────────────────────────────────────────────────────────────────────────────
 SHOP_NAME = env("SHOP_NAME")
 STORE_URL = env("STORE_URL")
-
 BACKEND_PUBLIC_URL = env("BACKEND_PUBLIC_URL")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Frontend
-# ─────────────────────────────────────────────────────────────────────────────
+SITE_URL = env("SITE_URL") or BACKEND_PUBLIC_URL
 FRONTEND_URL = env("FRONTEND_URL")
 
-STAFF_INVITE_TTL_DAYS     = env("STAFF_INVITE_TTL_DAYS")
-STAFF_INVITE_ACCEPT_PATH  = env("STAFF_INVITE_ACCEPT_PATH")
+STAFF_INVITE_TTL_DAYS = env("STAFF_INVITE_TTL_DAYS")
+STAFF_INVITE_ACCEPT_PATH = env("STAFF_INVITE_ACCEPT_PATH")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Celery
-# ─────────────────────────────────────────────────────────────────────────────
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/1")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://localhost:6379/2")
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -484,28 +536,29 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 300.0,
     },
     "generate-ai-insights": {
-        "task": "dashboard.aiandautomations.tasks.generate_insights",
+        "task": "dashboard.aiautomations.tasks.generate_insights",
         "schedule": 86400.0,
     },
     "check-ai-budget": {
-        "task": "dashboard.aiandautomations.tasks.check_budget",
+        "task": "dashboard.aiautomations.tasks.check_budget",
         "schedule": 1800.0,
     },
     "prune-ai-audit-log": {
-        "task": "dashboard.aiandautomations.tasks.prune_audit_log",
+        "task": "dashboard.aiautomations.tasks.prune_audit_log",
         "schedule": 86400.0,
     },
     "prune-ai-usage": {
-        "task": "dashboard.aiandautomations.tasks.prune_usage",
+        "task": "dashboard.aiautomations.tasks.prune_usage",
         "schedule": 86400.0,
+    },
+    "sweep-due-ai-automations": {
+        "task": "dashboard.aiautomations.tasks.sweep_due_automations",
+        "schedule": 30.0,
     },
     "sweep-expired-staff-invites": {
         "task": "dashboard.users.tasks.sweep_expired_invites",
         "schedule": 3600.0,
     },
-    # ── ANALYTICS — trim old page views so the table doesn't grow forever.
-    # Keeps 90 days by default. If you don't have this task yet, the entry
-    # is harmless: Celery will log "task not registered" and skip it.
     "analytics-prune-old-pageviews": {
         "task": "dashboard.analytics.tasks.prune_old_pageviews",
         "schedule": 86400.0,
@@ -514,29 +567,29 @@ CELERY_BEAT_SCHEDULE = {
 
 CELERY_TASK_ROUTES = {
     "whatsapp.tasks.process_whatsapp_event": {"queue": "whatsapp.inbound"},
-    "whatsapp.tasks.send_whatsapp_message":  {"queue": "whatsapp.outbound"},
-    "whatsapp.tasks.send_broadcast_batch":   {"queue": "whatsapp.broadcast"},
-    "social.tasks.publish_post":             {"queue": "social.publish"},
+    "whatsapp.tasks.send_whatsapp_message": {"queue": "whatsapp.outbound"},
+    "whatsapp.tasks.send_broadcast_batch": {"queue": "whatsapp.broadcast"},
+    "social.tasks.publish_post": {"queue": "social.publish"},
     "social.tasks.dispatch_scheduled_posts": {"queue": "social.publish"},
-    "social.tasks.sync_all_metrics":         {"queue": "social.metrics"},
-    "social.tasks.snapshot_followers":       {"queue": "social.metrics"},
-    "social.tasks.refresh_expiring_tokens":  {"queue": "social.metrics"},
-    "dashboard.aiandautomations.tasks.run_bulk_content": {"queue": "ai.content"},
+    "social.tasks.sync_all_metrics": {"queue": "social.metrics"},
+    "social.tasks.snapshot_followers": {"queue": "social.metrics"},
+    "social.tasks.refresh_expiring_tokens": {"queue": "social.metrics"},
+    "dashboard.aiautomations.tasks.run_bulk_content": {"queue": "ai.content"},
+    "dashboard.aiautomations.tasks.sweep_due_automations": {"queue": "ai.automations"},
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Static / media
-# ─────────────────────────────────────────────────────────────────────────────
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-MEDIA_URL_ABSOLUTE = (
-    f"{BACKEND_PUBLIC_URL.rstrip('/')}{MEDIA_URL}" if not DEBUG else MEDIA_URL
+PUBLIC_BASE_URL = env(
+    "PUBLIC_BASE_URL",
+    default=BACKEND_PUBLIC_URL,
 )
+MEDIA_URL_ABSOLUTE = f"{PUBLIC_BASE_URL.rstrip('/')}{MEDIA_URL}"
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -544,6 +597,12 @@ STORAGES = {
 }
 
 if env.bool("USE_S3"):
+    _required_s3 = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_STORAGE_BUCKET_NAME")
+    _missing = [k for k in _required_s3 if not env(k, default="")]
+    if _missing:
+        raise ImproperlyConfigured(
+            f"USE_S3=True but missing: {', '.join(_missing)}"
+        )
     STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}
     AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
@@ -553,9 +612,6 @@ if env.bool("USE_S3"):
     AWS_DEFAULT_ACL = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# i18n
-# ─────────────────────────────────────────────────────────────────────────────
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
@@ -564,9 +620,6 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Checkout / M-Pesa
-# ─────────────────────────────────────────────────────────────────────────────
 MPESA_ENV = env("MPESA_ENV")
 MPESA_CONSUMER_KEY = env("MPESA_CONSUMER_KEY")
 MPESA_CONSUMER_SECRET = env("MPESA_CONSUMER_SECRET")
@@ -582,6 +635,7 @@ else:
     MPESA_BASE_URL = "https://sandbox.safaricom.co.ke"
 
 CHECKOUT_TIMEOUT_SECONDS = env("CHECKOUT_TIMEOUT_SECONDS")
+
 
 TAX_RATE = Decimal("0.16")
 FREE_DELIVERY_THRESHOLD = Decimal("5000")
@@ -604,116 +658,96 @@ KENYAN_COUNTIES = [
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# WhatsApp Cloud API
-# ─────────────────────────────────────────────────────────────────────────────
-WHATSAPP_ENABLED          = env("WHATSAPP_ENABLED")
-WHATSAPP_DRY_RUN          = env("WHATSAPP_DRY_RUN")
+WHATSAPP_ENABLED = env("WHATSAPP_ENABLED")
+WHATSAPP_DRY_RUN = env("WHATSAPP_DRY_RUN")
 
-META_APP_ID               = env("META_APP_ID")
-META_APP_SECRET           = env("META_APP_SECRET")
-META_GRAPH_API_VERSION    = env("META_GRAPH_API_VERSION")
-META_GRAPH_BASE_URL       = f"https://graph.facebook.com/{META_GRAPH_API_VERSION}"
+META_APP_ID = env("META_APP_ID")
+META_APP_SECRET = env("META_APP_SECRET")
+META_GRAPH_API_VERSION = env("META_GRAPH_API_VERSION")
+META_GRAPH_BASE_URL = f"https://graph.facebook.com/{META_GRAPH_API_VERSION}"
 
-WHATSAPP_WABA_ID          = env("WHATSAPP_WABA_ID")
-WHATSAPP_PHONE_NUMBER_ID  = env("WHATSAPP_PHONE_NUMBER_ID")
-WHATSAPP_DISPLAY_PHONE    = env("WHATSAPP_DISPLAY_PHONE")
-WHATSAPP_BUSINESS_NAME    = env("WHATSAPP_BUSINESS_NAME")
-WHATSAPP_ACCESS_TOKEN     = env("WHATSAPP_ACCESS_TOKEN")
+WHATSAPP_WABA_ID = env("WHATSAPP_WABA_ID")
+WHATSAPP_PHONE_NUMBER_ID = env("WHATSAPP_PHONE_NUMBER_ID")
+WHATSAPP_DISPLAY_PHONE = env("WHATSAPP_DISPLAY_PHONE")
+WHATSAPP_BUSINESS_NAME = env("WHATSAPP_BUSINESS_NAME")
+WHATSAPP_ACCESS_TOKEN = env("WHATSAPP_ACCESS_TOKEN")
 WHATSAPP_TOKEN_EXPIRES_AT = env("WHATSAPP_TOKEN_EXPIRES_AT")
-WHATSAPP_VERIFY_TOKEN     = env("WHATSAPP_VERIFY_TOKEN")
-WHATSAPP_WEBHOOK_PATH     = env("WHATSAPP_WEBHOOK_PATH")
+WHATSAPP_VERIFY_TOKEN = env("WHATSAPP_VERIFY_TOKEN")
+WHATSAPP_WEBHOOK_PATH = env("WHATSAPP_WEBHOOK_PATH")
 
-WHATSAPP_CART_CHECKOUT_URL        = env("WHATSAPP_CART_CHECKOUT_URL")
-WHATSAPP_CART_TOKEN_TTL_HOURS     = env("WHATSAPP_CART_TOKEN_TTL_HOURS")
-WHATSAPP_HANDOFF_RATE_LIMIT       = env("WHATSAPP_HANDOFF_RATE_LIMIT")
-WHATSAPP_HANDOFF_RATE_WINDOW      = env("WHATSAPP_HANDOFF_RATE_WINDOW")
+WHATSAPP_CART_CHECKOUT_URL = env("WHATSAPP_CART_CHECKOUT_URL")
+WHATSAPP_CART_TOKEN_TTL_HOURS = env("WHATSAPP_CART_TOKEN_TTL_HOURS")
+WHATSAPP_HANDOFF_RATE_LIMIT = env("WHATSAPP_HANDOFF_RATE_LIMIT")
+WHATSAPP_HANDOFF_RATE_WINDOW = env("WHATSAPP_HANDOFF_RATE_WINDOW")
 WHATSAPP_BUSINESS_NUMBER_FALLBACK = env("WHATSAPP_BUSINESS_NUMBER_FALLBACK")
+WHATSAPP_FALLBACK_IMAGE_URL = env("WHATSAPP_FALLBACK_IMAGE_URL")
 
 WHATSAPP_TEMPLATES = {
-    "CART_RECOVERY":      env("WHATSAPP_TPL_CART_RECOVERY"),
+    "CART_RECOVERY": env("WHATSAPP_TPL_CART_RECOVERY"),
     "ORDER_CONFIRMATION": env("WHATSAPP_TPL_ORDER_CONFIRMATION"),
-    "SHIPPING_UPDATE":    env("WHATSAPP_TPL_SHIPPING_UPDATE"),
-    "ORDER_DELIVERED":    env("WHATSAPP_TPL_ORDER_DELIVERED"),
-    "PAYMENT_REMINDER":   env("WHATSAPP_TPL_PAYMENT_REMINDER"),
-    "VERIFY_NUMBER":      env("WHATSAPP_TPL_VERIFY_NUMBER"),
+    "SHIPPING_UPDATE": env("WHATSAPP_TPL_SHIPPING_UPDATE"),
+    "ORDER_DELIVERED": env("WHATSAPP_TPL_ORDER_DELIVERED"),
+    "PAYMENT_REMINDER": env("WHATSAPP_TPL_PAYMENT_REMINDER"),
+    "VERIFY_NUMBER": env("WHATSAPP_TPL_VERIFY_NUMBER"),
 }
-WHATSAPP_DEFAULT_TEMPLATE_LANG    = env("WHATSAPP_TPL_DEFAULT_LANG")
+WHATSAPP_DEFAULT_TEMPLATE_LANG = env("WHATSAPP_TPL_DEFAULT_LANG")
 WHATSAPP_DEFAULT_TEMPLATE_COUNTRY = env("WHATSAPP_TPL_DEFAULT_COUNTRY")
 
 WHATSAPP_SERVICE_WINDOW_HOURS = env("WHATSAPP_SERVICE_WINDOW_HOURS")
-WHATSAPP_OTP_TTL_MINUTES      = env("WHATSAPP_OTP_TTL_MINUTES")
-WHATSAPP_OTP_MAX_ATTEMPTS     = env("WHATSAPP_OTP_MAX_ATTEMPTS")
-WHATSAPP_OTP_RATE_LIMIT       = env("WHATSAPP_OTP_RATE_LIMIT")
+WHATSAPP_OTP_TTL_MINUTES = env("WHATSAPP_OTP_TTL_MINUTES")
+WHATSAPP_OTP_MAX_ATTEMPTS = env("WHATSAPP_OTP_MAX_ATTEMPTS")
+WHATSAPP_OTP_RATE_LIMIT = env("WHATSAPP_OTP_RATE_LIMIT")
 
 WHATSAPP_RATES_USD = {
-    "UTILITY":        env("WHATSAPP_RATE_UTILITY_USD"),
-    "MARKETING":      env("WHATSAPP_RATE_MARKETING_USD"),
+    "UTILITY": env("WHATSAPP_RATE_UTILITY_USD"),
+    "MARKETING": env("WHATSAPP_RATE_MARKETING_USD"),
     "AUTHENTICATION": env("WHATSAPP_RATE_AUTH_USD"),
-    "SERVICE":        0.0,
+    "SERVICE": 0.0,
 }
-WHATSAPP_USD_TO_KES                 = env("WHATSAPP_USD_TO_KES")
+WHATSAPP_USD_TO_KES = env("WHATSAPP_USD_TO_KES")
 WHATSAPP_FREE_SERVICE_CONVERSATIONS = env("WHATSAPP_FREE_SERVICE_CONVERSATIONS")
-WHATSAPP_MONTHLY_SPEND_ALERT_KES    = env("WHATSAPP_MONTHLY_SPEND_ALERT_KES")
-WHATSAPP_QUALITY_SCORE_ALERT        = env("WHATSAPP_QUALITY_SCORE_ALERT")
+WHATSAPP_MONTHLY_SPEND_ALERT_KES = env("WHATSAPP_MONTHLY_SPEND_ALERT_KES")
+WHATSAPP_QUALITY_SCORE_ALERT = env("WHATSAPP_QUALITY_SCORE_ALERT")
 
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Social media hub
-# ─────────────────────────────────────────────────────────────────────────────
-SOCIAL_ENABLED         = env("SOCIAL_ENABLED")
-SOCIAL_DRY_RUN         = env("SOCIAL_DRY_RUN")
+SOCIAL_ENABLED = env("SOCIAL_ENABLED")
+SOCIAL_DRY_RUN = env("SOCIAL_DRY_RUN")
 
 SOCIAL_OAUTH_REDIRECT_BASE = env("SOCIAL_OAUTH_REDIRECT_BASE")
-SOCIAL_ADMIN_UI_URL        = env("SOCIAL_ADMIN_UI_URL")
+SOCIAL_ADMIN_UI_URL = env("SOCIAL_ADMIN_UI_URL")
 
 SOCIAL_METRICS_SYNC_INTERVAL_MINUTES = env("SOCIAL_METRICS_SYNC_INTERVAL_MINUTES")
-
 SOCIAL_MAX_MEDIA_PER_POST = env("SOCIAL_MAX_MEDIA_PER_POST")
-SOCIAL_MAX_MEDIA_SIZE_MB  = env("SOCIAL_MAX_MEDIA_SIZE_MB")
+SOCIAL_MAX_MEDIA_SIZE_MB = env("SOCIAL_MAX_MEDIA_SIZE_MB")
 
 SOCIAL_OAUTH_REDIRECTS = {
-    "FACEBOOK":  f"{SOCIAL_OAUTH_REDIRECT_BASE.rstrip('/')}/api/v1/social/oauth/facebook/callback/",
+    "FACEBOOK": f"{SOCIAL_OAUTH_REDIRECT_BASE.rstrip('/')}/api/v1/social/oauth/facebook/callback/",
     "INSTAGRAM": f"{SOCIAL_OAUTH_REDIRECT_BASE.rstrip('/')}/api/v1/social/oauth/instagram/callback/",
-    "TIKTOK":    f"{SOCIAL_OAUTH_REDIRECT_BASE.rstrip('/')}/api/v1/social/oauth/tiktok/callback/",
-    "YOUTUBE":   env("YOUTUBE_REDIRECT_URI"),
-    "X":         env("X_REDIRECT_URI"),
+    "TIKTOK": f"{SOCIAL_OAUTH_REDIRECT_BASE.rstrip('/')}/api/v1/social/oauth/tiktok/callback/",
+    "YOUTUBE": env("YOUTUBE_REDIRECT_URI", default=""),
 }
 
-FACEBOOK_PAGE_ID                = env("FACEBOOK_PAGE_ID")
-FACEBOOK_PAGE_ACCESS_TOKEN      = env("FACEBOOK_PAGE_ACCESS_TOKEN")
-INSTAGRAM_BUSINESS_ACCOUNT_ID   = env("INSTAGRAM_BUSINESS_ACCOUNT_ID")
-META_SOCIAL_SCOPES              = env.list("META_SOCIAL_SCOPES")
+FACEBOOK_PAGE_ID = env("FACEBOOK_PAGE_ID")
+FACEBOOK_PAGE_ACCESS_TOKEN = env("FACEBOOK_PAGE_ACCESS_TOKEN")
+INSTAGRAM_BUSINESS_ACCOUNT_ID = env("INSTAGRAM_BUSINESS_ACCOUNT_ID")
+META_SOCIAL_SCOPES = env.list("META_SOCIAL_SCOPES")
 
-TIKTOK_CLIENT_KEY     = env("TIKTOK_CLIENT_KEY")
-TIKTOK_CLIENT_SECRET  = env("TIKTOK_CLIENT_SECRET")
-TIKTOK_SCOPES         = env.list("TIKTOK_SCOPES")
+TIKTOK_CLIENT_KEY = env("TIKTOK_CLIENT_KEY")
+TIKTOK_CLIENT_SECRET = env("TIKTOK_CLIENT_SECRET")
+TIKTOK_SCOPES = env.list("TIKTOK_SCOPES")
 
-GOOGLE_CLIENT_ID      = env("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET  = env("GOOGLE_CLIENT_SECRET")
-YOUTUBE_REDIRECT_URI  = env("YOUTUBE_REDIRECT_URI")
-YOUTUBE_SCOPES        = env.list("YOUTUBE_SCOPES")
-
-X_API_KEY      = env("X_API_KEY")
-X_API_SECRET   = env("X_API_SECRET")
-X_BEARER_TOKEN = env("X_BEARER_TOKEN")
-X_REDIRECT_URI = env("X_REDIRECT_URI")
+YOUTUBE_REDIRECT_URI = env("YOUTUBE_REDIRECT_URI", default="")
+YOUTUBE_SCOPES = env.list("YOUTUBE_SCOPES", default=[])
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Banners & hero
-# ─────────────────────────────────────────────────────────────────────────────
-BANNERS_ENABLED              = env.bool("BANNERS_ENABLED", default=True)
-BANNERS_HERO_CACHE_SECONDS   = env.int("BANNERS_HERO_CACHE_SECONDS", default=60)
+BANNERS_ENABLED = env.bool("BANNERS_ENABLED", default=True)
+BANNERS_HERO_CACHE_SECONDS = env.int("BANNERS_HERO_CACHE_SECONDS", default=60)
 BANNERS_MAX_DESKTOP_UPLOAD_MB = env.int("BANNERS_MAX_DESKTOP_UPLOAD_MB", default=8)
-BANNERS_MAX_MOBILE_UPLOAD_MB  = env.int("BANNERS_MAX_MOBILE_UPLOAD_MB",  default=4)
+BANNERS_MAX_MOBILE_UPLOAD_MB = env.int("BANNERS_MAX_MOBILE_UPLOAD_MB", default=4)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AI & Automations
-# ─────────────────────────────────────────────────────────────────────────────
 AI_PROVIDER = env("AI_PROVIDER")
 AI_MODEL = env("AI_MODEL")
 AI_BASE_URL = env("AI_BASE_URL")
@@ -723,14 +757,19 @@ AI_HISTORY_TURNS = env("AI_HISTORY_TURNS")
 AI_KEY_ENC_KEY = env("AI_KEY_ENC_KEY") or SECRET_KEY
 
 GROQ_API_KEY = env("GROQ_API_KEY")
+OPENAI_API_KEY = env("OPENAI_API_KEY")
 GEMINI_API_KEY = env("GEMINI_API_KEY")
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY")
 XAI_API_KEY = env("XAI_API_KEY")
+
 OPENROUTER_API_KEY = env("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL")
+OPENROUTER_MODEL = env("OPENROUTER_MODEL")
+OPENROUTER_HTTP_REFERER = env("OPENROUTER_HTTP_REFERER")
+OPENROUTER_X_TITLE = env("OPENROUTER_X_TITLE")
+OPENROUTER_MONTHLY_BUDGET_KES = env("OPENROUTER_MONTHLY_BUDGET_KES")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Logging
-# ─────────────────────────────────────────────────────────────────────────────
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -747,117 +786,78 @@ LOGGING = {
         },
     },
     "loggers": {
-        "whatsapp": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
+        "whatsapp": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "whatsapp.webhook": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "INFO",
             "propagate": False,
         },
-        "social": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
+        "social": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "social.oauth": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "INFO",
             "propagate": False,
         },
-        "social.publish": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "social.metrics": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "banners": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "banners.tasks": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "checkout": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
+        "social.publish": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "social.metrics": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "banners": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "banners.tasks": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "checkout": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "checkout.tasks": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "INFO",
             "propagate": False,
         },
-        "dashboard.aiandautomations": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "dashboard.aiandautomations.services.assistant": {
+        "dashboard.aiautomations": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "dashboard.aiautomations.services": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "INFO",
             "propagate": False,
         },
-        "dashboard.aiandautomations.services.automations": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "dashboard.users": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
+        "dashboard.aiautomations.tools": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "dashboard.aiautomations.dispatch": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "dashboard.users": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "dashboard.users.tasks": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "INFO",
             "propagate": False,
         },
-
-        # ── ANALYTICS (dashboard.analytics) ──
-        # Parent logger — warnings when a tab's query fails.
-        "dashboard.analytics": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        # Middleware — set to DEBUG to log every page view as it's recorded.
+        "dashboard.analytics": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "dashboard.analytics.middleware": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "WARNING",
+            "propagate": False,
+        },
+        "authentication": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "authentication.views": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "authentication.google": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
             "propagate": False,
         },
     },
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ANALYTICS (dashboard.analytics)
-# ─────────────────────────────────────────────────────────────────────────────
-# Toggle for the PageView middleware. When False, no rows are written —
-# useful in tests or when you want the analytics tab to fall back to
-# order-derived estimates.
 ANALYTICS_PAGEVIEW_ENABLED = env.bool("ANALYTICS_PAGEVIEW_ENABLED", default=True)
 
-# Skip paths — comma-separated prefixes the middleware should ignore.
-# Override in .env if you mount your storefront under a different prefix.
 ANALYTICS_PAGEVIEW_SKIP_PREFIXES = env.list(
     "ANALYTICS_PAGEVIEW_SKIP_PREFIXES",
     default=["/admin", "/static", "/media", "/api", "/_next", "/favicon"],
 )
 
-# Trim old page views after this many days. The prune task (if registered)
-# reads this value.
 ANALYTICS_PAGEVIEW_RETENTION_DAYS = env.int(
     "ANALYTICS_PAGEVIEW_RETENTION_DAYS",
     default=90,
 )
+
+
+AUTH_STRATEGY = env("AUTH_STRATEGY")

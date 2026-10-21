@@ -1,16 +1,3 @@
-# dashboard/shipping/management/commands/seed_shipping.py
-
-"""
-Seed the shipping tables with the shop's real starting data.
-
-    python manage.py seed_shipping
-
-Idempotent: existing rows are matched by name/slug and left alone.
-Re-running on a populated DB is a no-op for those rows. The seed
-mirrors the frontend's previous mock data so the page is not empty
-after the first migration.
-"""
-
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand

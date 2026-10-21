@@ -30,6 +30,22 @@ function formatKES(amount: number): string {
 
 const BEST_SELLERS_LIMIT = 8;
 
+type StockKind = 'in' | 'low' | 'out' | 'unknown';
+
+function normalizeStock(raw: string | undefined): StockKind {
+    const s = (raw || '').toLowerCase().replace(/[_\s-]/g, '');
+    if (s === 'instock' || s === 'in') return 'in';
+    if (s === 'lowstock' || s === 'low') return 'low';
+    if (s === 'outofstock' || s === 'out' || s === 'soldout') return 'out';
+    return 'unknown';
+}
+const STOCK_STYLES: Record<StockKind, { bg: string; label: string }> = {
+    in:      { bg: 'bg-green-600 text-white',   label: 'In Stock' },
+    low:     { bg: 'bg-orange-500 text-white',  label: 'Low Stock' },
+    out:     { bg: 'bg-red-600 text-white',     label: 'Out of Stock' },
+    unknown: { bg: 'bg-slate-500 text-white',   label: 'Unknown' },
+};
+
 export default function BestSellingProducts() {
     const [products, setProducts] = useState<CatalogBestSeller[]>([]);
     const [loading, setLoading] = useState(true);
@@ -69,7 +85,8 @@ export default function BestSellingProducts() {
         ): Promise<void> => {
             e.preventDefault();
             e.stopPropagation();
-            if (product.stockStatus === 'Out of Stock') return;
+
+            if (normalizeStock(product.stockStatus) === 'out') return;
 
             setCartAddingId(product.id);
             try {
@@ -117,7 +134,7 @@ export default function BestSellingProducts() {
                                 key={i}
                                 className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
                             >
-                                <div className="aspect-[16/10] bg-slate-100" />
+                                <div className="aspect-[20/16] bg-slate-100" />
                                 <div className="p-3 space-y-2">
                                     <div className="h-3 bg-slate-100 rounded w-1/3" />
                                     <div className="h-4 bg-slate-100 rounded w-3/4" />
@@ -137,15 +154,15 @@ export default function BestSellingProducts() {
         return (
             <section className="bg-slate-50 py-12 border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <h2 className="text-xl font-bold text-slate-900 mb-1">
+                    <h2 className="text-xl font-bold text-slate-900 mb-0.5">
                         Best Selling Products
                     </h2>
                     <p className="text-xs text-slate-600 mb-4">
                         {error ?? 'No best sellers are available right now.'}
                     </p>
                     <Link
-                        href="/pages/best-selling"
-                        className="inline-flex items-center space-x-1 text-xs font-medium text-blue-950 hover:underline"
+                        href="/pages/bestsellingproducts"
+                        className="inline-flex items-center space-x-1 text-sm font-medium text-blue-950 hover:underline"
                     >
                         <span>Browse Best Sellers</span>
                     </Link>
@@ -156,12 +173,12 @@ export default function BestSellingProducts() {
 
     // ── Grid ──────────────────────────────────────────────────
     return (
-        <section className="bg-slate-50 py-6 lg:py-8 border-b border-slate-200">
+        <section className="bg-slate-50 py-6 lg:py-6 border-b border-slate-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
                 {/* Section Header */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-3">
                     <div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
                             Best Selling Products
                         </h2>
                         <p className="text-[13px] text-slate-600 mt-1">
@@ -171,7 +188,7 @@ export default function BestSellingProducts() {
                     </div>
                     <Link
                         href="/pages/best-selling"
-                        className="text-[13px] font-medium text-blue-950 hover:underline mt-2 sm:mt-0 inline-flex items-center"
+                        className="text-[13px] font-medium text-blue-950 hover:underline mt-1 sm:mt-0 inline-flex items-center"
                     >
                         View all best sellers →
                     </Link>
@@ -194,40 +211,39 @@ export default function BestSellingProducts() {
                                 )
                                 : null;
 
+                        const stockKind = normalizeStock(product.stockStatus);
+                        const stock = STOCK_STYLES[stockKind];
+                        const isOutOfStock = stockKind === 'out';
+
                         return (
                             <Link
                                 key={product.id}
-                                href={`/pages/best-selling?open=${product.id}`}
+                                href={`/pages/bestsellingproducts?open=${product.id}`}
                                 className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
                             >
                                 <div>
-                                    {/* Full-width flush image header */}
-                                    <div className="aspect-[16/10] w-full bg-slate-100 overflow-hidden relative">
+                                    {/* Full-width flush image header — 20:16 aspect */}
+                                    <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
                                         <img
                                             src={product.images[0] ?? '/placeholder.jpeg'}
                                             alt={product.name}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
 
-                                        {/* Left stack — Best Seller + stock badge */}
-                                        <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1.5">
-                                            <span className="bg-blue-950 text-white font-medium text-[10px] px-2 py-0.5 rounded shadow-xs">
+                                        {/* Left stack — Best Seller + discount + stock */}
+                                        <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-0.5">
+                                            <span className="bg-blue-950 text-white font-medium text-[12px] px-2 py-0.5 rounded shadow-sm">
                                                 Best Seller
                                             </span>
                                             {discountPercentage && (
-                                                <span className="bg-red-600 text-white font-semibold text-[10px] px-2 py-0.5 rounded shadow-xs">
+                                                <span className="bg-red-600 text-white font-semibold text-[12px] px-2 py-0.5 rounded shadow-sm">
                                                     -{discountPercentage}%
                                                 </span>
                                             )}
                                             <span
-                                                className={`text-[10px] font-medium px-2 py-0.5 rounded shadow-xs ${product.stockStatus === 'In Stock'
-                                                        ? 'bg-emerald-100 text-emerald-800'
-                                                        : product.stockStatus === 'Low Stock'
-                                                            ? 'bg-amber-100 text-amber-800'
-                                                            : 'bg-red-100 text-red-800'
-                                                    }`}
+                                                className={`text-[12px] font-semibold px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
                                             >
-                                                {product.stockStatus}
+                                                {stock.label}
                                             </span>
                                         </div>
 
@@ -251,15 +267,15 @@ export default function BestSellingProducts() {
                                     {/* Content Info */}
                                     <div className="p-3 pb-1">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-[11px] font-medium text-slate-500 uppercase">
+                                            <p className="text-[12px] font-medium text-slate-500 uppercase">
                                                 {product.brand}
                                             </p>
-                                            <p className="text-[11px] text-slate-400">
+                                            <p className="text-[12px] text-slate-400">
                                                 {product.category}
                                             </p>
                                         </div>
 
-                                        <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mt-1 mb-1">
+                                        <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mt-0.5 mb-1">
                                             {product.name}
                                         </h3>
 
@@ -271,7 +287,7 @@ export default function BestSellingProducts() {
                                                 <span className="text-[12px] font-medium text-slate-800">
                                                     {toNum(product.rating).toFixed(1)}
                                                 </span>
-                                                <span className="text-[11px] text-slate-500">
+                                                <span className="text-[12px] text-slate-500">
                                                     ({product.reviewCount})
                                                 </span>
                                             </div>
@@ -279,29 +295,24 @@ export default function BestSellingProducts() {
                                     </div>
                                 </div>
 
-                                {/* Price & Add to Cart Action */}
-                                <div className="p-4 pt-0 mt-auto">
+                                <div className="p-2 pt-0 mt-auto">
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-baseline space-x-2">
                                             <span className="text-base font-bold text-slate-900">
                                                 {formatKES(price)}
                                             </span>
                                             {previousPrice !== null && (
-                                                <span className="text-[11px] text-slate-500 line-through">
+                                                <span className="text-[12px] text-slate-500 line-through">
                                                     {formatKES(previousPrice)}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* Add to Cart Button */}
                                     <button
                                         type="button"
                                         onClick={(e) => handleAddToCart(product, e)}
-                                        disabled={
-                                            isAdding ||
-                                            product.stockStatus === 'Out of Stock'
-                                        }
+                                        disabled={isAdding || isOutOfStock}
                                         className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
                                     >
                                         {isAdding ? (
@@ -327,7 +338,7 @@ export default function BestSellingProducts() {
                                                 </svg>
                                                 <span>Adding...</span>
                                             </>
-                                        ) : product.stockStatus === 'Out of Stock' ? (
+                                        ) : isOutOfStock ? (
                                             <span>Sold Out</span>
                                         ) : (
                                             <>

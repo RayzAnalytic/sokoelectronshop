@@ -1,4 +1,3 @@
-// app/pages/special-deals/page.tsx
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -27,9 +26,6 @@ import {
   type DealSortBy,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
   if (v === null || v === undefined) return 0;
   return typeof v === 'number' ? v : Number(v);
@@ -63,6 +59,20 @@ function urgencyClass(ms: number): string {
   return 'bg-slate-50 text-slate-600 border-slate-200';
 }
 
+type StockStatus = 'In Stock' | 'Low Stock' | 'Out of Stock';
+
+const stockStatusFor = (deal: CatalogDealCard): StockStatus => {
+  if (!deal.inStock || deal.stockCount <= 0) return 'Out of Stock';
+  if (deal.stockCount < 5) return 'Low Stock';
+  return 'In Stock';
+};
+
+function stockBadgeClasses(status: StockStatus): string {
+  if (status === 'In Stock') return 'bg-green-600 text-white';
+  if (status === 'Low Stock') return 'bg-orange-500 text-white';
+  return 'bg-red-600 text-white';
+}
+
 const SORT_OPTIONS: DealSortBy[] = [
   'Featured Deals',
   'Biggest Discount',
@@ -71,9 +81,6 @@ const SORT_OPTIONS: DealSortBy[] = [
   'Ending Soon',
 ];
 
-// ─────────────────────────────────────────────────────────────
-// Public wrapper — Suspense boundary for useSearchParams()
-// ─────────────────────────────────────────────────────────────
 export default function SpecialDealsPage() {
   return (
     <Suspense fallback={null}>
@@ -82,16 +89,12 @@ export default function SpecialDealsPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// The real page
-// ─────────────────────────────────────────────────────────────
 function SpecialDealsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const openId = searchParams.get('open');
 
-  // ── Live ticker for countdowns ────────────────────────────
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
@@ -99,7 +102,6 @@ function SpecialDealsPageInner() {
     return () => clearInterval(id);
   }, []);
 
-  // ── Filter / sort state ───────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -109,8 +111,8 @@ function SpecialDealsPageInner() {
   const [selectedAvailability, setSelectedAvailability] = useState<string>('All');
   const [selectedDiscountLevel, setSelectedDiscountLevel] = useState<string>('All');
   const [sortBy, setSortBy] = useState<DealSortBy>('Featured Deals');
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // ── Data ──────────────────────────────────────────────────
   const [deals, setDeals] = useState<CatalogDealCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -118,22 +120,18 @@ function SpecialDealsPageInner() {
   const [categories, setCategories] = useState<CatalogCategoryRef[]>([]);
   const [brands, setBrands] = useState<CatalogBrandRef[]>([]);
 
-  // ── Modal ─────────────────────────────────────────────────
   const [modalProduct, setModalProduct] = useState<CatalogDealCard | null>(null);
 
-  // ── UI ────────────────────────────────────────────────────
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
   const addItem = useCart((s) => s.addItem);
 
-  // ── Debounce search ───────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  // ── Fetch filter dropdown sources (categories, brands) ────
   useEffect(() => {
     const ctrl = new AbortController();
     Promise.all([
@@ -144,13 +142,10 @@ function SpecialDealsPageInner() {
         setCategories(cats);
         setBrands(brs);
       })
-      .catch(() => {
-        /* non-fatal — dropdowns stay empty */
-      });
+      .catch(() => {});
     return () => ctrl.abort();
   }, []);
 
-  // ── Fetch deals whenever filters change ───────────────────
   useEffect(() => {
     const ctrl = new AbortController();
     setLoading(true);
@@ -193,9 +188,9 @@ function SpecialDealsPageInner() {
     selectedAvailability,
     selectedDiscountLevel,
     sortBy,
+    reloadKey,
   ]);
 
-  // ── Fetch modal detail from ?open= ────────────────────────
   useEffect(() => {
     if (!openId) {
       setModalProduct(null);
@@ -215,7 +210,6 @@ function SpecialDealsPageInner() {
     return () => ctrl.abort();
   }, [openId, router, pathname]);
 
-  // ── URL helpers for the modal ─────────────────────────────
   const openProductInUrl = (productId: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('open', productId);
@@ -229,7 +223,6 @@ function SpecialDealsPageInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  // ── Dropdown option lists (with an "All" option) ──────────
   const categoryNames = useMemo(
     () => ['All', ...categories.map((c) => c.name)],
     [categories],
@@ -239,7 +232,6 @@ function SpecialDealsPageInner() {
     [brands],
   );
 
-  // ── Add to cart ───────────────────────────────────────────
   const handleAddToCart = useCallback(
     async (product: CatalogDealCard) => {
       if (!product.inStock) return;
@@ -252,9 +244,9 @@ function SpecialDealsPageInner() {
         image: product.image,
         unitPrice: toNum(product.price),
         compareAtPrice: toNum(product.originalPrice),
-        slug: product.productId,
+        slug: product.slug,
         stockCount: product.stockCount,
-        stock: product.inStock ? 'In Stock' : 'Out of Stock',
+        stock: stockStatusFor(product),
       });
 
       setNotification(`Successfully added "${product.name}" to cart.`);
@@ -263,7 +255,6 @@ function SpecialDealsPageInner() {
     [addItem],
   );
 
-  // ── Clear filters ─────────────────────────────────────────
   const clearAllFilters = () => {
     setSearchQuery('');
     setDebouncedSearch('');
@@ -284,9 +275,6 @@ function SpecialDealsPageInner() {
     (selectedDiscountLevel !== 'All' ? 1 : 0) +
     (searchQuery.trim() !== '' ? 1 : 0);
 
-  // ─────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-900 selection:text-white">
       {notification && (
@@ -296,7 +284,6 @@ function SpecialDealsPageInner() {
         </div>
       )}
 
-      {/* Details modal */}
       {modalProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white border border-slate-200 rounded-sm shadow-2xl max-w-2xl w-full overflow-hidden relative">
@@ -324,19 +311,26 @@ function SpecialDealsPageInner() {
                   </div>
                 </div>
 
-                {(() => {
-                  const ms =
-                    new Date(modalProduct.endDate).getTime() -
-                    (now ?? Date.now());
-                  return (
-                    <div
-                      className={`mt-2 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 ${urgencyClass(ms)}`}
-                    >
-                      <Clock className="w-3.5 h-3.5 shrink-0" />
-                      <span>{formatRemaining(ms)}</span>
-                    </div>
-                  );
-                })()}
+                {modalProduct.endDate ? (
+                  (() => {
+                    const ms =
+                      new Date(modalProduct.endDate).getTime() -
+                      (now ?? Date.now());
+                    return (
+                      <div
+                        className={`mt-2 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 ${urgencyClass(ms)}`}
+                      >
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                        <span>{formatRemaining(ms)}</span>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 bg-slate-50 text-slate-600 border-slate-200">
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span>Ongoing deal</span>
+                  </div>
+                )}
               </div>
 
               <div className="sm:w-3/5 p-3 flex flex-col justify-between space-y-2">
@@ -363,14 +357,11 @@ function SpecialDealsPageInner() {
                       </span>
                     </div>
                     <span
-                      className={`text-[12px] font-semibold px-2 py-1 rounded-full ${modalProduct.inStock
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                          : 'bg-red-50 text-red-700 border border-red-100'
-                        }`}
+                      className={`text-[12px] font-semibold px-2.5 py-1 rounded-full ${stockBadgeClasses(stockStatusFor(modalProduct))}`}
                     >
-                      {modalProduct.inStock
-                        ? `In Stock (${modalProduct.stockCount})`
-                        : 'Out of Stock'}
+                      {stockStatusFor(modalProduct) === 'Out of Stock'
+                        ? 'Out of Stock'
+                        : `${stockStatusFor(modalProduct)} (${modalProduct.stockCount})`}
                     </span>
                   </div>
 
@@ -480,219 +471,163 @@ function SpecialDealsPageInner() {
           </div>
         </div>
 
-        <div className="mb-1 overflow-x-auto pb-2">
-          <div className="flex items-center space-x-2 min-w-max">
-            {categoryNames.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 text-xs font-medium rounded-sm transition-colors border ${selectedCategory === cat
-                    ? 'bg-blue-950 text-white border-blue-950 shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
+        <div className="bg-white border border-slate-200 rounded-sm p-3 mb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                Category
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
               >
-                {cat === 'All' ? 'All Deals' : cat}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-sm p-1 mb-2">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="flex items-center justify-between lg:justify-start space-x-4">
-              <p className="text-xs text-slate-600 font-medium">
-                Showing{' '}
-                <span className="font-bold text-slate-900">
-                  {deals.length}
-                </span>{' '}
-                active deals
-              </p>
-
-              <button
-                onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                className="lg:hidden inline-flex items-center space-x-1.5 text-xs font-medium bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded"
-              >
-                <Filter className="w-3.5 h-3.5" />
-                <span>
-                  Filters{' '}
-                  {activeFilterCount > 0 && `(${activeFilterCount})`}
-                </span>
-              </button>
+                {categoryNames.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat === 'All' ? 'All Categories' : cat}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="hidden lg:flex flex-wrap items-center gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                Search Deals
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search deals..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                Brand
+              </label>
               <select
                 value={selectedBrand}
                 onChange={(e) => setSelectedBrand(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-700 focus:outline-none focus:border-blue-950 font-medium"
+                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
               >
-                <option value="All">All Brands</option>
-                {brandNames
-                  .filter((b) => b !== 'All')
-                  .map((brand) => (
-                    <option key={brand} value={brand}>
-                      {brand}
-                    </option>
-                  ))}
+                {brandNames.map((b) => (
+                  <option key={b} value={b}>
+                    {b === 'All' ? 'All Brands' : b}
+                  </option>
+                ))}
               </select>
+            </div>
 
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                Availability
+              </label>
               <select
                 value={selectedAvailability}
                 onChange={(e) => setSelectedAvailability(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-700 focus:outline-none focus:border-blue-950 font-medium"
+                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
               >
                 <option value="All">All Availability</option>
                 <option value="In Stock">In Stock</option>
                 <option value="Out of Stock">Out of Stock</option>
               </select>
+            </div>
 
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                Discount
+              </label>
               <select
                 value={selectedDiscountLevel}
                 onChange={(e) => setSelectedDiscountLevel(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-700 focus:outline-none focus:border-blue-950 font-medium"
+                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
               >
                 <option value="All">Any Discount</option>
                 <option value="10">10% or more</option>
                 <option value="15">15% or more</option>
                 <option value="20">20% or more</option>
               </select>
-
-              <div className="flex items-center space-x-1 bg-slate-50 border border-slate-200 rounded px-2 py-1">
-                <span className="text-[11px] text-slate-400">KES</span>
-                <input
-                  type="number"
-                  placeholder="Min"
-                  value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value)}
-                  className="w-16 text-xs bg-transparent focus:outline-none text-slate-800"
-                />
-                <span className="text-slate-400">-</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value)}
-                  className="w-16 text-xs bg-transparent focus:outline-none text-slate-800"
-                />
-              </div>
-
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={clearAllFilters}
-                  className="text-xs font-medium text-red-600 hover:underline px-2 py-1"
-                >
-                  Clear Filters
-                </button>
-              )}
             </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-500 whitespace-nowrap">
-                Sort by:
-              </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as DealSortBy)}
-                className="text-xs bg-white border border-slate-200 rounded px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-950 font-medium"
-              >
-                {SORT_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Sort By
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as DealSortBy)}
+                  className="w-full bg-white border border-slate-200 rounded-sm px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                >
+                  {SORT_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={clearAllFilters}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-sm text-xs transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           </div>
 
+          <div className="lg:hidden mt-3 pt-3 border-t border-slate-200">
+            <button
+              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+              className="inline-flex items-center space-x-1.5 text-xs font-medium bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>
+                More Filters{' '}
+                {activeFilterCount > 0 && `(${activeFilterCount})`}
+              </span>
+            </button>
+          </div>
+
           {mobileFiltersOpen && (
-            <div className="lg:hidden mt-4 pt-4 border-t border-slate-200 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                    Brand
-                  </label>
-                  <select
-                    value={selectedBrand}
-                    onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700"
-                  >
-                    <option value="All">All Brands</option>
-                    {brandNames
-                      .filter((b) => b !== 'All')
-                      .map((brand) => (
-                        <option key={brand} value={brand}>
-                          {brand}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                    Availability
-                  </label>
-                  <select
-                    value={selectedAvailability}
-                    onChange={(e) =>
-                      setSelectedAvailability(e.target.value)
-                    }
-                    className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700"
-                  >
-                    <option value="All">All Availability</option>
-                    <option value="In Stock">In Stock</option>
-                    <option value="Out of Stock">Out of Stock</option>
-                  </select>
+            <div className="lg:hidden mt-3 pt-3 border-t border-slate-200 space-y-3">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  Price Range (KES)
+                </label>
+                <div className="flex space-x-1">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    className="w-1/2 text-xs bg-white border border-slate-200 rounded p-2"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    className="w-1/2 text-xs bg-white border border-slate-200 rounded p-2"
+                  />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                    Discount
-                  </label>
-                  <select
-                    value={selectedDiscountLevel}
-                    onChange={(e) =>
-                      setSelectedDiscountLevel(e.target.value)
-                    }
-                    className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700"
-                  >
-                    <option value="All">Any Discount</option>
-                    <option value="10">10%+ OFF</option>
-                    <option value="15">15%+ OFF</option>
-                    <option value="20">20%+ OFF</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                    Price Range (KES)
-                  </label>
-                  <div className="flex space-x-1">
-                    <input
-                      type="number"
-                      placeholder="Min"
-                      value={minPrice}
-                      onChange={(e) => setMinPrice(e.target.value)}
-                      className="w-1/2 text-xs bg-slate-50 border border-slate-200 rounded p-2"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Max"
-                      value={maxPrice}
-                      onChange={(e) => setMaxPrice(e.target.value)}
-                      className="w-1/2 text-xs bg-slate-50 border border-slate-200 rounded p-2"
-                    />
-                  </div>
-                </div>
-              </div>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={clearAllFilters}
-                  className="w-full text-xs font-medium text-red-600 bg-red-50 border border-red-200 py-2 rounded"
-                >
-                  Clear All Filters
-                </button>
-              )}
             </div>
           )}
+        </div>
+
+        <div className="mb-3">
+          <p className="text-xs text-slate-600 font-medium">
+            Showing{' '}
+            <span className="font-bold text-slate-900">{deals.length}</span>{' '}
+            active deals
+          </p>
         </div>
 
         {activeFilterCount > 0 && (
@@ -789,7 +724,7 @@ function SpecialDealsPageInner() {
               backend.
             </p>
             <button
-              onClick={() => setSortBy((s) => s)}
+              onClick={() => setReloadKey((k) => k + 1)}
               className="inline-flex items-center space-x-1.5 text-xs font-medium bg-blue-950 text-white px-4 py-2 rounded"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -825,8 +760,9 @@ function SpecialDealsPageInner() {
         {!loading && !hasError && deals.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
             {deals.map((product) => {
+              const stockStatus = stockStatusFor(product);
               const remainingMs =
-                now !== null
+                now !== null && product.endDate
                   ? new Date(product.endDate).getTime() - now
                   : null;
 
@@ -848,6 +784,12 @@ function SpecialDealsPageInner() {
                           {product.discountPct}% OFF
                         </div>
                       </div>
+
+                      <span
+                        className={`absolute top-2 right-2 text-[12px] font-semibold px-2 py-0.5 rounded shadow-xs ${stockBadgeClasses(stockStatus)}`}
+                      >
+                        {stockStatus}
+                      </span>
                     </div>
 
                     <div className="p-3">
