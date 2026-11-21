@@ -94,18 +94,29 @@ async function uploadBannerImage(
     form.append('file', file);
     form.append('kind', kind);
 
-    const csrf = document.cookie
-        .split('; ')
-        .find((c) => c.startsWith('csrftoken='))
-        ?.split('=')[1] ?? '';
+    // JWT from localStorage — same key the rest of the app uses
+    const token =
+        typeof window !== 'undefined'
+            ? window.localStorage.getItem('myshop.access')
+            : null;
+
+    if (!token) {
+        throw new Error('You are not signed in. Please log in again.');
+    }
 
     const res = await fetch(`${API_ORIGIN}/api/v1/admin/banners/uploads/`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'X-CSRFToken': csrf },
+        headers: {
+            // DO NOT set Content-Type — the browser sets it with the multipart boundary
+            Authorization: `Bearer ${token}`,
+        },
         body: form,
         signal,
     });
+
+    if (res.status === 401) {
+        throw new Error('Session expired. Log out and log in again.');
+    }
 
     if (!res.ok) {
         let detail = `Upload failed (${res.status})`;
