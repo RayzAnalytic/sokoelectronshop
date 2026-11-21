@@ -887,3 +887,18 @@ ANALYTICS_PAGEVIEW_RETENTION_DAYS = env.int(
 
 
 AUTH_STRATEGY = env("AUTH_STRATEGY")
+# TEMPORARY DEBUG LOGGING — remove after fixing
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "DEBUG",
+    },
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+    },
+}
