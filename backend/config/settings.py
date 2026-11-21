@@ -498,7 +498,18 @@ ANYMAIL = {
     "SENDGRID_API_KEY": env("SENDGRID_API_KEY"),
 }
 
-SILENCED_SYSTEM_CHECKS = ["anymail.W003"]
+# ── Silenced system checks ────────────────────────────────────────────
+# anymail.W003       : django-anymail dropped official SendGrid support
+# django_ratelimit.E003 : LocMemCache is not a "shared cache" — fine for
+#                         the single Gunicorn worker on Render's free tier
+# django_ratelimit.W001 : same reason, warning-level variant
+# ──────────────────────────────────────────────────────────────────────
+SILENCED_SYSTEM_CHECKS = [
+    "anymail.W003",
+    "django_ratelimit.E003",
+    "django_ratelimit.W001",
+]
+
 warnings.filterwarnings(
     "ignore",
     message="django-anymail has dropped official support for SendGrid",
