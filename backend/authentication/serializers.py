@@ -804,10 +804,24 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             composed = f"{first} {last}".strip()
             me["name"] = composed or user.email or "—"
 
-        is_admin = user.role in (Role.OWNER, Role.STAFF)
+        # ── FIXED: respect is_superuser / is_staff in addition to role ──
+        # Any of these three flags means the user is admin-level and must
+        # land on the admin dashboard, never on the customer account page.
+        is_admin = (
+            user.is_superuser
+            or user.is_staff
+            or user.role in (Role.OWNER, Role.STAFF)
+        )
+
         redirect_to = user.redirect_path or (
             "/admin" if is_admin else "/pages/account"
         )
+
+        # Guard: even if `redirect_path` returns "/pages/account" (e.g. the
+        # user's `role` field is still "customer" but is_superuser=True),
+        # an admin-level user must never be sent to the customer page.
+        if is_admin and redirect_to == "/pages/account":
+            redirect_to = "/admin"
 
         data["user"] = me
         data["redirect_to"] = redirect_to
