@@ -94,22 +94,41 @@ async function uploadBannerImage(
     form.append('file', file);
     form.append('kind', kind);
 
-    // JWT from localStorage — same key the rest of the app uses
-    const token =
-        typeof window !== 'undefined'
-            ? window.localStorage.getItem('myshop.access')
-            : null;
+    // Try every reasonable key the app might use for the access token.
+    // Order matters: the most specific first, fallback to generic.
+    const token = (() => {
+        if (typeof window === 'undefined') return null;
+        const candidates = [
+            'myshop.access',      // customer login
+            'admin.access',       // admin dashboard (common pattern)
+            'admin_token',
+            'access_token',
+            'accessToken',
+            'token',
+            'jwt',
+        ];
+        for (const key of candidates) {
+            const v = window.localStorage.getItem(key);
+            if (v && v.length > 20) return v;   // JWT is always long
+        }
+        // Nothing found — dump what IS there so it's debuggable
+        console.warn(
+            '[uploadBannerImage] No JWT found in localStorage. Keys present:',
+            Object.keys(window.localStorage),
+        );
+        return null;
+    })();
 
     if (!token) {
-        throw new Error('You are not signed in. Please log in again.');
+        throw new Error(
+            'You are not signed in. Please log in again. ' +
+            '(No access token found in localStorage — check the console for available keys.)',
+        );
     }
 
     const res = await fetch(`${API_ORIGIN}/api/v1/admin/banners/uploads/`, {
         method: 'POST',
-        headers: {
-            // DO NOT set Content-Type — the browser sets it with the multipart boundary
-            Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: form,
         signal,
     });
