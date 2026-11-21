@@ -29,8 +29,7 @@ export function SettingsSnapshotProvider({
   const refresh = useCallback(async () => {
     try {
       setSettings(await adminApi.settings.runtime());
-    } catch {
-      /* non-fatal — pages fall back to their own defaults */
+    } catch { 
     } finally {
       setReady(true);
     }

@@ -1,8 +1,7 @@
-# ai/views.py
-
 from __future__ import annotations
 
 import json
+import logging
 from datetime import timedelta
 
 from django.db.models import Prefetch, Q, Sum
@@ -82,6 +81,8 @@ from .serializers import (
 from .services import generate_content, run_automation, stream_assistant_reply
 from .tools import execute_tool, tool_manifest
 
+logger = logging.getLogger(__name__)
+
 
 class EventStreamRenderer(BaseRenderer):
     media_type = "text/event-stream"
@@ -101,7 +102,14 @@ class EventStreamRenderer(BaseRenderer):
 
 
 def _sse(event: dict) -> bytes:
-    return f"data: {json.dumps(event)}\n\n".encode("utf-8")
+    return f"data: {json.dumps(event, default=str)}\n\n".encode("utf-8")
+
+
+def _sse_response(events):
+    response = StreamingHttpResponse(events, content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
 
 
 def _require_enabled() -> Response | None:
@@ -130,7 +138,7 @@ def _audit(request, action: str, **extra) -> None:
             path=request.path[:255],
             **extra,
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 
@@ -152,7 +160,7 @@ def overview(request):
         bucket = by_day.setdefault(
             key, {"assistant": 0, "content": 0, "search": 0, "insights": 0, "automation": 0}
         )
-        bucket[row.feature] = bucket.get(row.feature, 0) + row.tokens_in + row.tokens_out
+        bucket[row.feature] = bucket.get(row.feature, 0) + (row.tokens_in or 0) + (row.tokens_out or 0)
 
     order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     usage_by_day = [{"day": d, **by_day[d]} for d in order if d in by_day]
@@ -213,15 +221,15 @@ def digest(request):
     revenue_today = revenue_yesterday = 0.0
     orders_today = 0
     try:
-        from checkout.models import Order as OrderModel  # type: ignore
+        from checkout.models import Order as OrderModel
 
         Order = OrderModel
-    except Exception:  # noqa: BLE001
+    except Exception:
         try:
-            from orders.models import Order as OrderModel  # type: ignore
+            from orders.models import Order as OrderModel
 
             Order = OrderModel
-        except Exception:  # noqa: BLE001
+        except Exception:
             Order = None
 
     if Order is not None:
@@ -289,6 +297,7 @@ def conversations(request):
         qs = (
             AIConversation.objects.filter(user=request.user)
             .exclude(status="archived")
+            .prefetch_related("messages")
             .order_by("-is_pinned", "-updated_at")
         )
         return Response(AIConversationSerializer(qs, many=True).data)
@@ -311,7 +320,10 @@ def conversations(request):
 @api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([*ConversationPermissions])
 def conversation_detail(request, pk: int):
-    conv = get_object_or_404(AIConversation, pk=pk)
+    conv = get_object_or_404(
+        AIConversation.objects.prefetch_related("messages__tool_calls"),
+        pk=pk,
+    )
     if not IsConversationOwner().has_object_permission(request, None, conv):
         return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -370,14 +382,14 @@ def conversation_export(request, pk: int):
 
     lines = [
         f"# AI Copilot — {conv.title}",
-        f"_Exported {timezone.now().strftime('%Y-%m-%d %H:%M')}_",
+        f"_Exported {timezone.localtime().strftime('%Y-%m-%d %H:%M')}_",
         "",
     ]
     for m in conv.messages.all():
         who = {"user": "You", "assistant": "Copilot", "system": "System", "tool": "Tool"}.get(
             m.role, m.role
         )
-        lines.append(f"### {who} · {m.created_at.strftime('%H:%M')}")
+        lines.append(f"### {who} · {timezone.localtime(m.created_at).strftime('%H:%M')}")
         if m.content:
             lines.append(m.content)
         if m.chart:
@@ -413,7 +425,8 @@ def conversation_messages(request, pk: int):
         return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == "GET":
-        return Response(AIMessageSerializer(conv.messages.all(), many=True).data)
+        messages = conv.messages.prefetch_related("tool_calls").all()
+        return Response(AIMessageSerializer(messages, many=True).data)
 
     disabled = _require_enabled()
     if disabled:
@@ -438,15 +451,24 @@ def conversation_messages(request, pk: int):
         if event.get("type") == "error":
             return Response({"detail": event["message"]}, status=status.HTTP_502_BAD_GATEWAY)
 
-    msg = conv.messages.filter(pk=last_message_id).first() or conv.messages.last()
+    msg = (
+        conv.messages.prefetch_related("tool_calls").filter(pk=last_message_id).first()
+        or conv.messages.prefetch_related("tool_calls").last()
+    )
     return Response(AIMessageSerializer(msg).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["POST"])
 @permission_classes([IsAdminUser, IsAIAssistantEnabled])
-@renderer_classes([EventStreamRenderer])
 def conversation_stream(request, pk: int):
-    conv = get_object_or_404(AIConversation, pk=pk)
+    try:
+        conv = AIConversation.objects.get(pk=pk)
+    except AIConversation.DoesNotExist:
+        return Response(
+            {"detail": "Conversation not found.", "conversation_id": pk},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
     if not IsConversationOwner().has_object_permission(request, None, conv):
         return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -454,20 +476,29 @@ def conversation_stream(request, pk: int):
     if disabled:
         return disabled
 
-    ser = AIMessageCreateSerializer(data=request.data)
-    ser.is_valid(raise_exception=True)
-    content = ser.validated_data["content"].strip()
-    context = dict(ser.validated_data.get("context", {}) or {})
+    try:
+        ser = AIMessageCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        content = (ser.validated_data["content"] or "").strip()
+        context = dict(ser.validated_data.get("context", {}) or {})
 
-    incoming_attachments = ser.validated_data.get("attachments", []) or []
-    if incoming_attachments:
-        context["attachments"] = incoming_attachments
+        incoming_attachments = ser.validated_data.get("attachments", []) or []
+        if incoming_attachments:
+            context["attachments"] = incoming_attachments
 
-    user_msg = AIMessage.objects.create(conversation=conv, role="user", content=content)
-    if conv.messages.filter(role="user").count() == 1:
-        conv.title = content[:60]
-        conv.message_count = conv.messages.count()
-        conv.save(update_fields=["title", "message_count", "updated_at"])
+        user_msg = AIMessage.objects.create(conversation=conv, role="user", content=content)
+        if conv.messages.filter(role="user").count() == 1:
+            conv.title = content[:60]
+            conv.message_count = conv.messages.count()
+            conv.save(update_fields=["title", "message_count", "updated_at"])
+    except Exception as exc:
+        logger.exception("conversation_stream setup failed for pk=%s", pk)
+
+        def setup_error_stream():
+            yield _sse({"type": "error", "message": str(exc)})
+            yield _sse({"type": "done", "messageId": None})
+
+        return _sse_response(setup_error_stream())
 
     def event_stream():
         try:
@@ -478,13 +509,12 @@ def conversation_stream(request, pk: int):
                 user=request.user,
             ):
                 yield _sse(event)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
+            logger.exception("conversation_stream generator crashed for pk=%s", pk)
             yield _sse({"type": "error", "message": str(exc)})
+            yield _sse({"type": "done", "messageId": None})
 
-    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
-    response["Cache-Control"] = "no-cache"
-    response["X-Accel-Buffering"] = "no"
-    return response
+    return _sse_response(event_stream())
 
 
 @api_view(["POST"])
@@ -597,8 +627,6 @@ def execute_insight(request, pk: int):
     ser.is_valid(raise_exception=True)
 
     redirect = ins.href
-    if ins.action and ins.action.get("kind"):
-        pass
 
     AIInsight.objects.filter(pk=pk).update(
         viewed_at=ins.viewed_at or timezone.now(),
@@ -612,14 +640,11 @@ def execute_insight(request, pk: int):
 @permission_classes([IsAdminUser, CanManageAutomations])
 def automations(request):
     if request.method == "GET":
-        qs = (
-            AIAutomation.objects.all()
-            .prefetch_related(
-                Prefetch(
-                    "executions",
-                    queryset=AIAutomationRun.objects.order_by("-started_at")[:5],
-                    to_attr="_prefetched_runs",
-                )
+        qs = AIAutomation.objects.all().prefetch_related(
+            Prefetch(
+                "executions",
+                queryset=AIAutomationRun.objects.order_by("-started_at")[:5],
+                to_attr="_prefetched_runs",
             )
         )
         status_filter = request.query_params.get("status")
@@ -693,7 +718,10 @@ def automation_runs(request, pk: int):
     status_filter = request.query_params.get("status")
     if status_filter and status_filter != "all":
         qs = qs.filter(status=status_filter)
-    limit = int(request.query_params.get("limit") or 50)
+    try:
+        limit = max(1, min(int(request.query_params.get("limit") or 50), 500))
+    except (TypeError, ValueError):
+        limit = 50
     return Response(AIAutomationRunSerializer(qs[:limit], many=True).data)
 
 
@@ -722,7 +750,7 @@ def automation_run_now(request, pk: int):
         run.summary = str(result.get("summary", ""))[:255]
         run.output = result.get("output", {}) or {}
         run.items_affected = int(result.get("items_affected", 0) or 0)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         run.status = "failed"
         run.error_message = str(exc)[:2000]
 
@@ -872,12 +900,12 @@ def action_execute(request):
         )
 
     try:
-        from .services import execute_action_tool  # type: ignore
+        from .services import execute_action_tool
 
         result = execute_action_tool(tool_name, params, user=request.user)
         success = bool(result.get("success"))
         message = result.get("summary") or result.get("message") or ""
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         success = False
         message = str(exc)
         result = {"success": False, "summary": message}
@@ -910,15 +938,15 @@ def content_generate(request):
 
     Product = None
     try:
-        from products.models import Product as ProductModel  # type: ignore
+        from products.models import Product as ProductModel
 
         Product = ProductModel.objects.filter(pk=data["product_id"]).first()
-    except Exception:  # noqa: BLE001
+    except Exception:
         try:
-            from catalog.models import Product as ProductModel  # type: ignore
+            from catalog.models import Product as ProductModel
 
             Product = ProductModel.objects.filter(pk=data["product_id"]).first()
-        except Exception:  # noqa: BLE001
+        except Exception:
             Product = None
 
     product_name = getattr(Product, "name", f"Product {data['product_id']}")
@@ -931,7 +959,7 @@ def content_generate(request):
             length=data["length"],
             user=request.user,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
     return Response(payload)
 
@@ -1034,9 +1062,24 @@ def usage(request):
     now = timezone.now()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     qs = AIUsageLog.objects.filter(created_at__gte=month_start)
-    tokens = sum(r.tokens_in + r.tokens_out for r in qs)
-    cost = sum(r.cost_kes for r in qs)
-    days = max(1, (now - month_start).days or 1)
+
+    agg = qs.aggregate(
+        tokens_in=Sum("tokens_in"),
+        tokens_out=Sum("tokens_out"),
+        cost=Sum("cost_kes"),
+    )
+    tokens = int(agg["tokens_in"] or 0) + int(agg["tokens_out"] or 0)
+    cost = float(agg["cost"] or 0.0)
+
+    assistant_agg = qs.filter(feature="assistant").aggregate(
+        tokens_in=Sum("tokens_in"),
+        tokens_out=Sum("tokens_out"),
+    )
+    assistant_tokens = int(assistant_agg["tokens_in"] or 0) + int(
+        assistant_agg["tokens_out"] or 0
+    )
+
+    days = max(1, now.day)
 
     by_day: dict[str, dict[str, int]] = {}
     for row in AIUsageLog.objects.filter(created_at__gte=now - timedelta(days=7)):
@@ -1044,7 +1087,7 @@ def usage(request):
         bucket = by_day.setdefault(
             key, {"assistant": 0, "content": 0, "search": 0, "insights": 0, "automation": 0}
         )
-        bucket[row.feature] = bucket.get(row.feature, 0) + row.tokens_in + row.tokens_out
+        bucket[row.feature] = bucket.get(row.feature, 0) + (row.tokens_in or 0) + (row.tokens_out or 0)
 
     order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     usage_by_day = [{"day": d, **by_day[d]} for d in order if d in by_day]
@@ -1066,9 +1109,6 @@ def usage(request):
         for r in cost_rows
     ]
 
-    assistant_tokens = sum(
-        r.tokens_in + r.tokens_out for r in qs if r.feature == "assistant"
-    )
     share = int(round((assistant_tokens / tokens) * 100)) if tokens else 0
 
     return Response(
@@ -1100,5 +1140,8 @@ def audit_log(request):
     user_id = request.query_params.get("user")
     if user_id:
         qs = qs.filter(user_id=user_id)
-    limit = int(request.query_params.get("limit") or 100)
+    try:
+        limit = max(1, min(int(request.query_params.get("limit") or 100), 1000))
+    except (TypeError, ValueError):
+        limit = 100
     return Response(AIAuditLogSerializer(qs[:limit], many=True).data)

@@ -153,21 +153,29 @@ export default function BrandsPage() {
     return () => document.removeEventListener('click', onDoc);
   }, [openKebabId]);
 
-  const handleSave = async (
-    data: Omit<Brand, 'id' | 'productsCount'> & { id?: string },
-  ) => {
+  const handleSave = async (data: Record<string, any> | FormData) => {
     if (saving) return;
     setSaving(true);
 
     try {
-      const payload = brandToApi(data);
-
-      if (data.id) {
-        await adminApi.brands.update(data.id, payload);
-        flash('Brand updated.');
+      if (data instanceof FormData) {
+        const id = data.get('id');
+        if (id) {
+          await adminApi.brands.update(String(id), data);
+          flash('Brand updated.');
+        } else {
+          await adminApi.brands.create(data);
+          flash('Brand created.');
+        }
       } else {
-        await adminApi.brands.create(payload);
-        flash('Brand created.');
+        const payload = brandToApi(data as Partial<Brand>);
+        if (data.id) {
+          await adminApi.brands.update(String(data.id), payload);
+          flash('Brand updated.');
+        } else {
+          await adminApi.brands.create(payload);
+          flash('Brand created.');
+        }
       }
 
       await refresh();
@@ -297,11 +305,11 @@ export default function BrandsPage() {
   const activeBrands = brands.filter((b) => b.status === 'Active').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12 relative">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10 relative">
       {toast && (
-        <div className="fixed bottom-4 right-4 z-[120] bg-slate-900 text-white text-[13px] px-3 py-2 rounded shadow-lg flex items-start gap-2 max-w-md">
+        <div className="fixed bottom-4 right-4 z-[120] bg-slate-900 text-white text-[13px] px-3 py-2 rounded flex items-start gap-2 max-w-md">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{toast}</span>
+          <span className="">{toast}</span>
         </div>
       )}
 
@@ -357,7 +365,7 @@ export default function BrandsPage() {
                 <div className="text-[13px] font-medium text-slate-500 truncate">
                   {s.label}
                 </div>
-                <div className="text-[14px] font-semibold text-slate-900 leading-tight truncate">
+                <div className="text-[14px] font-semibold text-slate-900 truncate">
                   {s.value}
                 </div>
               </div>
@@ -385,11 +393,10 @@ export default function BrandsPage() {
               <button
                 key={opt}
                 onClick={() => setSortBy(opt)}
-                className={`px-2 py-1.5 rounded text-[12px] font-medium transition whitespace-nowrap ${
-                  sortBy === opt
+                className={`px-2 py-1.5 rounded text-[12px] font-medium transition whitespace-nowrap ${sortBy === opt
                     ? 'bg-blue-50 border border-blue-950 text-blue-950'
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 {opt === 'sales'
                   ? 'Sales'
@@ -402,22 +409,20 @@ export default function BrandsPage() {
             <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1 rounded transition ${
-                  viewMode === 'grid'
+                className={`p-1 rounded transition ${viewMode === 'grid'
                     ? 'bg-white text-blue-950 shadow-sm'
                     : 'text-slate-500 hover:text-slate-900'
-                }`}
+                  }`}
                 title="Grid view"
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1 rounded transition ${
-                  viewMode === 'list'
+                className={`p-1 rounded transition ${viewMode === 'list'
                     ? 'bg-white text-blue-950 shadow-sm'
                     : 'text-slate-500 hover:text-slate-900'
-                }`}
+                  }`}
                 title="List view"
               >
                 <List className="w-3.5 h-3.5" />
@@ -523,7 +528,7 @@ export default function BrandsPage() {
                         <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0" />
                       )}
                     </div>
-                    <p className="text-[13px] text-slate-500 line-clamp-2 leading-relaxed min-h-[28px]">
+                    <p className="text-[13px] text-slate-500 line-clamp-2 min-h-[28px]">
                       {brand.description || 'No description.'}
                     </p>
                   </div>
@@ -551,11 +556,10 @@ export default function BrandsPage() {
 
                   <div className="flex items-center justify-between gap-1.5 pt-0.5">
                     <span
-                      className={`inline-flex items-center gap-0.5 text-[13px] font-medium px-1.5 py-0.5 rounded ${
-                        brand.salesGrowth >= 0
+                      className={`inline-flex items-center gap-0.5 text-[13px] font-medium px-1.5 py-0.5 rounded ${brand.salesGrowth >= 0
                           ? 'bg-emerald-50 text-emerald-700'
                           : 'bg-red-50 text-red-600'
-                      }`}
+                        }`}
                     >
                       {brand.salesGrowth >= 0 ? (
                         <ArrowUpRight className="w-3 h-3" />
@@ -569,11 +573,10 @@ export default function BrandsPage() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => setSeoDrawer(brand)}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                          seoFilled
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${seoFilled
                             ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
                             : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
-                        }`}
+                          }`}
                         title={seoFilled ? 'SEO complete' : 'SEO missing'}
                       >
                         <Globe className="w-2.5 h-2.5" />
@@ -581,11 +584,10 @@ export default function BrandsPage() {
                       </button>
                       <button
                         onClick={() => toggleStatus(brand.id)}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                          brand.status === 'Active'
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${brand.status === 'Active'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                             : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                        }`}
+                          }`}
                       >
                         {brand.status === 'Active' ? (
                           <Eye className="w-2.5 h-2.5" />
@@ -688,11 +690,10 @@ export default function BrandsPage() {
                         </td>
                         <td className="py-1.5 px-2 text-right">
                           <span
-                            className={`inline-flex items-center gap-0.5 text-[13px] font-medium ${
-                              brand.salesGrowth >= 0
+                            className={`inline-flex items-center gap-0.5 text-[13px] font-medium ${brand.salesGrowth >= 0
                                 ? 'text-emerald-600'
                                 : 'text-red-600'
-                            }`}
+                              }`}
                           >
                             {brand.salesGrowth >= 0 ? (
                               <ArrowUpRight className="w-3 h-3" />
@@ -706,11 +707,10 @@ export default function BrandsPage() {
                         <td className="py-1.5 px-2 text-center">
                           <button
                             onClick={() => setSeoDrawer(brand)}
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                              seoFilled
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${seoFilled
                                 ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
                                 : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
-                            }`}
+                              }`}
                           >
                             <Globe className="w-2.5 h-2.5" />
                             {seoFilled ? 'Ready' : 'Missing'}
@@ -719,11 +719,10 @@ export default function BrandsPage() {
                         <td className="py-1.5 px-2">
                           <button
                             onClick={() => toggleStatus(brand.id)}
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                              brand.status === 'Active'
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${brand.status === 'Active'
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                                 : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                            }`}
+                              }`}
                           >
                             {brand.status === 'Active' ? (
                               <Eye className="w-2.5 h-2.5" />
@@ -806,11 +805,11 @@ export default function BrandsPage() {
 
       {deleteBrandId && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
           onClick={() => setDeleteBrandId(null)}
         >
           <div
-            className="bg-white border border-slate-200 rounded max-w-md w-full p-3 shadow-xl"
+            className="bg-white border border-slate-200 rounded max-w-md w-full p-2 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2">
@@ -821,7 +820,7 @@ export default function BrandsPage() {
                 Delete brand?
               </h3>
             </div>
-            <p className="text-[13px] text-slate-500 mt-2">
+            <p className="text-[13px] text-slate-500 mt-1">
               Products associated with this brand will remain but lose their
               brand assignment. This cannot be undone.
             </p>
@@ -866,7 +865,7 @@ function BrandDetailDrawer({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto shadow-xl flex flex-col"
+        className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto  flex flex-col"
       >
         <div className="px-3 py-2.5 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -891,13 +890,13 @@ function BrandDetailDrawer({
           </div>
           <button
             onClick={onClose}
-            className="h-7 w-7 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+            className="h-7 w-7 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-3 space-y-2.5">
+        <div className="p-2 space-y-2">
           <div className="grid grid-cols-3 gap-1.5">
             <Stat
               label="Products"
@@ -917,29 +916,26 @@ function BrandDetailDrawer({
           </div>
 
           <div
-            className={`rounded p-2 flex items-center justify-between gap-2 ${
-              brand.salesGrowth >= 0
+            className={`rounded p-2 flex items-center justify-between gap-2 ${brand.salesGrowth >= 0
                 ? 'bg-emerald-50 border border-emerald-100'
                 : 'bg-red-50 border border-red-100'
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2">
               <span
-                className={`w-7 h-7 rounded flex items-center justify-center ${
-                  brand.salesGrowth >= 0
+                className={`w-7 h-7 rounded flex items-center justify-center ${brand.salesGrowth >= 0
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-red-100 text-red-600'
-                }`}
+                  }`}
               >
                 <TrendingUp className="w-3.5 h-3.5" />
               </span>
               <div>
                 <p
-                  className={`text-[13px] font-medium ${
-                    brand.salesGrowth >= 0
+                  className={`text-[13px] font-medium ${brand.salesGrowth >= 0
                       ? 'text-emerald-800'
                       : 'text-red-700'
-                  }`}
+                    }`}
                 >
                   Sales growth
                 </p>
@@ -949,9 +945,8 @@ function BrandDetailDrawer({
               </div>
             </div>
             <span
-              className={`text-[14px] font-bold inline-flex items-center gap-1 ${
-                brand.salesGrowth >= 0 ? 'text-emerald-700' : 'text-red-600'
-              }`}
+              className={`text-[14px] font-bold inline-flex items-center gap-1 ${brand.salesGrowth >= 0 ? 'text-emerald-700' : 'text-red-600'
+                }`}
             >
               {brand.salesGrowth >= 0 ? (
                 <ArrowUpRight className="w-3.5 h-3.5" />
@@ -969,7 +964,7 @@ function BrandDetailDrawer({
                 <Building2 className="w-3.5 h-3.5" />
                 About
               </div>
-              <p className="text-[13px] text-slate-600 leading-relaxed">
+              <p className="text-[13px] text-slate-600">
                 {brand.description}
               </p>
             </div>
@@ -996,22 +991,20 @@ function BrandDetailDrawer({
           <div className="grid grid-cols-2 gap-1.5 pt-1">
             <button
               onClick={onOpenSeo}
-              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-[13px] font-medium border transition ${
-                seoFilled
+              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-[13px] font-medium border transition ${seoFilled
                   ? 'bg-blue-50 border-blue-100 text-blue-950 hover:bg-blue-100'
                   : 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100'
-              }`}
+                }`}
             >
               <Globe className="w-3 h-3" />
               {seoFilled ? 'Edit SEO' : 'Add SEO'}
             </button>
             <button
               onClick={onToggleFeatured}
-              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-[13px] font-medium border transition ${
-                brand.featured
+              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-[13px] font-medium border transition ${brand.featured
                   ? 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
+                }`}
             >
               <Star
                 className={`w-3 h-3 ${brand.featured ? 'fill-amber-700' : ''}`}
@@ -1105,7 +1098,7 @@ function SEODrawer({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto shadow-xl flex flex-col"
+        className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto  flex flex-col"
       >
         <div className="px-3 py-2.5 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -1129,16 +1122,15 @@ function SEODrawer({
           </button>
         </div>
 
-        <div className="p-3 space-y-2.5">
+        <div className="p-2 space-y-2">
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[13px] font-medium text-slate-700">
                 Meta Title
               </label>
               <span
-                className={`text-[13px] font-mono ${
-                  titleOk ? 'text-emerald-600' : 'text-amber-600'
-                }`}
+                className={`text-[13px] font-mono ${titleOk ? 'text-emerald-600' : 'text-amber-600'
+                  }`}
               >
                 {titleLength}/60
               </span>
@@ -1162,9 +1154,8 @@ function SEODrawer({
                 Meta Description
               </label>
               <span
-                className={`text-[13px] font-mono ${
-                  descOk ? 'text-emerald-600' : 'text-amber-600'
-                }`}
+                className={`text-[13px] font-mono ${descOk ? 'text-emerald-600' : 'text-amber-600'
+                  }`}
               >
                 {descLength}/160
               </span>
@@ -1320,7 +1311,7 @@ function KebabMenu({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="absolute top-full mt-1 right-0 w-44 bg-white border border-slate-200 rounded shadow-lg z-50 py-1"
+      className="absolute top-full mt-1 right-0 w-44 bg-white border border-slate-200 rounded  z-50 py-1"
     >
       <button
         onClick={onEdit}

@@ -1,4 +1,3 @@
-// components/newarrivals/NewArrivals.tsx
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -12,9 +11,6 @@ import {
     type NewArrivalsQuery,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
     if (v === null || v === undefined) return 0;
     return typeof v === 'number' ? v : Number(v);
@@ -38,22 +34,24 @@ function normalizeStock(raw: string | undefined): StockKind {
     if (s === 'outofstock' || s === 'out' || s === 'soldout') return 'out';
     return 'unknown';
 }
+
+/* Palette-locked stock chips */
 const STOCK_STYLES: Record<StockKind, { bg: string; label: string }> = {
-    in:      { bg: 'bg-green-600 text-white',   label: 'In Stock' },
-    low:     { bg: 'bg-orange-500 text-white',  label: 'Low Stock' },
-    out:     { bg: 'bg-red-600 text-white',     label: 'Out of Stock' },
-    unknown: { bg: 'bg-slate-500 text-white',   label: 'Unknown' },
+    in: { bg: 'bg-[#00E5FF] text-[#0B0D10]', label: 'In Stock' },
+    low: { bg: 'bg-[#00B8D4] text-[#0B0D10]', label: 'Low Stock' },
+    out: { bg: 'bg-[#6B7280] text-white', label: 'Out of Stock' },
+    unknown: { bg: 'bg-[#6B7280] text-white', label: 'Unknown' },
 };
 
 export default function NewArrivals() {
     const [products, setProducts] = useState<CatalogNewArrival[]>([]);
     const [loading, setLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [cartAddingId, setCartAddingId] = useState<string | null>(null);
 
     const addItem = useCart((s) => s.addItem);
 
-    // ── Fetch the newest 4 from the same endpoint as the page ──
     useEffect(() => {
         const ctrl = new AbortController();
         setLoading(true);
@@ -66,13 +64,21 @@ export default function NewArrivals() {
 
         catalogApi.newArrivals
             .list(query, ctrl.signal)
-            .then(setProducts)
+            .then((data) => {
+                if (ctrl.signal.aborted) return;
+                setProducts(data);
+            })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setProducts([]);
                 setError('Could not load new arrivals.');
             })
-            .finally(() => setLoading(false));
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setLoading(false);
+                setHasLoadedOnce(true);
+            });
 
         return () => ctrl.abort();
     }, []);
@@ -111,32 +117,31 @@ export default function NewArrivals() {
         [addItem],
     );
 
-    // ── Loading skeleton ──────────────────────────────────────
     if (loading && products.length === 0) {
         return (
-            <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-6 lg:py-6 border-b border-blue-950">
-                <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-3 gap-2">
-                        <div>
-                            <h2 className="text-xl sm:text-2xl font-bold text-white">
+            <section className="bg-[#11161D] py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-[#0B0D10]">
+                <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 lg:px-6">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-2 gap-1.5 sm:gap-2">
+                        <div className="min-w-0">
+                            <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-white">
                                 New Arrivals
                             </h2>
-                            <p className="text-sm sm:text-sm text-blue-100">
+                            <p className="text-[11px] xs:text-[12px] sm:text-sm text-white/75">
                                 Explore the latest electronics added to our store.
                             </p>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 xs:gap-2.5 sm:gap-3">
                         {Array.from({ length: NEW_ARRIVALS_LIMIT }).map((_, i) => (
                             <div
                                 key={i}
-                                className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+                                className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                             >
-                                <div className="aspect-[16/10] bg-slate-100" />
-                                <div className="p-3 space-y-2">
-                                    <div className="h-3 bg-slate-100 rounded w-1/2" />
-                                    <div className="h-4 bg-slate-100 rounded w-3/4" />
-                                    <div className="h-3 bg-slate-100 rounded w-1/3" />
+                                <div className="aspect-[20/16] bg-[#F3F6F9]" />
+                                <div className="p-2 xs:p-3 space-y-1.5 xs:space-y-2">
+                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/2" />
+                                    <div className="h-3 xs:h-4 bg-[#F3F6F9] rounded w-3/4" />
+                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/3" />
                                 </div>
                             </div>
                         ))}
@@ -146,71 +151,72 @@ export default function NewArrivals() {
         );
     }
 
-    // ── Error state ───────────────────────────────────────────
-    if (error && products.length === 0) {
+    if (hasLoadedOnce && error && products.length === 0) {
         return (
-            <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-12 border-b border-blue-950">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <h2 className="text-xl font-bold text-white mb-1">New Arrivals</h2>
-                    <p className="text-xs text-blue-100 mb-4">{error}</p>
+            <section className="bg-[#11161D] py-10 xs:py-12 border-b border-[#0B0D10]">
+                <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 text-center">
+                    <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white mb-1">
+                        New Arrivals
+                    </h2>
+                    <p className="text-[11px] xs:text-[12px] sm:text-xs text-white/75 mb-3">
+                        {error}
+                    </p>
                     <Link
                         href="/pages/new-arrivals"
-                        className="inline-flex items-center space-x-1 text-sm font-medium text-white hover:text-blue-100 hover:underline"
+                        className="inline-flex items-center space-x-1 text-[12px] xs:text-[13px] sm:text-sm font-medium text-[#00E5FF] hover:text-[#00B8D4] hover:underline transition-colors"
                     >
                         <span>Browse All Products</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-3 h-3 xs:w-3.5 xs:h-3.5" />
                     </Link>
                 </div>
             </section>
         );
     }
 
-    // ── Empty state ───────────────────────────────────────────
-    if (products.length === 0) {
+    if (hasLoadedOnce && products.length === 0) {
         return (
-            <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-12 border-b border-blue-950">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <h2 className="text-xl font-bold text-white mb-1">New Arrivals</h2>
-                    <p className="text-sm text-blue-100 mb-4">
+            <section className="bg-[#11161D] py-10 xs:py-12 border-b border-[#0B0D10]">
+                <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 text-center">
+                    <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white mb-1">
+                        New Arrivals
+                    </h2>
+                    <p className="text-[12px] xs:text-[13px] sm:text-sm text-white/75 mb-2">
                         No new products are available right now.
                     </p>
                     <Link
                         href="/pages/new-arrivals"
-                        className="inline-flex items-center space-x-1 text-sm font-medium text-white hover:text-blue-100 hover:underline"
+                        className="inline-flex items-center space-x-1 text-[12px] xs:text-[13px] sm:text-sm font-medium text-[#00E5FF] hover:text-[#00B8D4] hover:underline transition-colors"
                     >
                         <span>Browse All Products</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-3 h-3 xs:w-3.5 xs:h-3.5" />
                     </Link>
                 </div>
             </section>
         );
     }
 
-    // ── Grid ──────────────────────────────────────────────────
     return (
-        <section className="bg-gradient-to-b from-blue-800 via-blue-900 to-blue-950 py-6 lg:py-6 border-b border-blue-950">
-            <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
-                {/* Section Header */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 gap-2">
-                    <div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-white">
-                            New Arrivals
+        <section className="bg-[#11161D] py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-[#0B0D10]">
+            <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 lg:px-6">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-3 xs:mb-4 sm:mb-5 gap-1.5 sm:gap-2">
+                    <div className="min-w-0">
+                        <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-white">
+                            New <span className="text-[#00E5FF]">Arrivals</span>
                         </h2>
-                        <p className="text-xs sm:text-sm text-blue-100">
+                        <p className="text-[11px] xs:text-[12px] sm:text-xs md:text-sm text-white/75">
                             Explore the latest electronics added to our store.
                         </p>
                     </div>
                     <Link
                         href="/pages/products/newarrivals"
-                        className="text-sm font-semibold text-white hover:text-blue-100 hover:underline inline-flex items-center space-x-1 shrink-0"
+                        className="text-[11px] xs:text-[12px] sm:text-sm font-semibold text-white hover:text-[#00E5FF] hover:underline inline-flex items-center space-x-1 shrink-0 self-start sm:self-auto transition-colors"
                     >
                         <span>View All</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-3 h-3 xs:w-3.5 xs:h-3.5" />
                     </Link>
                 </div>
 
-                {/* Product Grid - 4 columns */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 xs:gap-2.5 sm:gap-3">
                     {products.map((product) => {
                         const isAdding = cartAddingId === product.id;
                         const price = toNum(product.price);
@@ -227,24 +233,23 @@ export default function NewArrivals() {
                             <Link
                                 key={product.id}
                                 href={`/pages/new-arrivals?open=${product.id}`}
-                                className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
+                                className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-[#00E5FF] hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
                             >
                                 <div>
-                                    {/* Image */}
-                                    <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
+                                    <div className="aspect-[20/16] w-full bg-[#F3F6F9] overflow-hidden relative">
                                         <img
                                             src={product.images[0] ?? '/placeholder.jpeg'}
                                             alt={product.name}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
 
-                                       <div className="absolute top-0 left-0 w-26 h-26 overflow-hidden pointer-events-none z-10">
-    <div className="absolute transform -rotate-45 bg-gradient-to-br from-blue-800 via-blue-900 to-blue-950 text-white font-bold text-[13px] tracking-widest py-1 left-[-40px] top-[18px] w-[140px] text-center shadow-sm">
-        NEW
-    </div>
-</div>
+                                        {/* NEW ribbon — Electric Neon Cyan, bold black text */}
+                                        <div className="absolute top-0 left-0 w-20 h-20 xs:w-24 xs:h-24 overflow-hidden pointer-events-none z-10">
+                                            <div className="absolute transform -rotate-45 bg-gradient-to-br from-[#00E5FF] via-[#00E5FF] to-[#00B8D4] text-[#0B0D10] font-extrabold text-[10px] xs:text-[11px] sm:text-[13px] py-1 left-[-42px] top-[14px] xs:top-[18px] w-[150px] text-center shadow-sm">
+                                                NEW
+                                            </div>
+                                        </div>
 
-                                        {/* Wishlist heart — top right */}
                                         <WishlistButton
                                             variantId={product.id}
                                             productId={product.id}
@@ -257,33 +262,32 @@ export default function NewArrivals() {
                                             stockCount={product.stockQuantity}
                                             stock={product.stockStatus}
                                             size="sm"
-                                            className="absolute top-2 right-2 z-10"
+                                            className="absolute top-1 xs:top-1.5 sm:top-2 right-1 xs:right-1.5 sm:right-2 z-10"
                                         />
 
-                                        {/* Stock status — bottom left, solid bg */}
                                         <span
-                                            className={`absolute bottom-2 left-2 z-10 text-[12px] font-semibold px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
+                                            className={`absolute bottom-1 xs:bottom-1.5 sm:bottom-2 left-1 xs:left-1.5 sm:left-2 z-10 text-[9px] xs:text-[10px] sm:text-[12px] font-semibold px-1 xs:px-1.5 sm:px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
                                         >
                                             {stock.label}
                                         </span>
                                     </div>
 
-                                    <div className="p-2 pb-2">
-                                        <p className="text-[12px] font-semibold text-slate-500 uppercase mb-1">
+                                    <div className="p-1.5 xs:p-2 pb-1.5 xs:pb-2">
+                                        <p className="text-[10px] xs:text-[11px] sm:text-[12px] font-semibold text-[#6B7280] uppercase mb-0.5 xs:mb-1 truncate">
                                             {product.brand}
                                         </p>
 
-                                        <h3 className="text-sm font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mb-1">
+                                        <h3 className="text-[11px] xs:text-[12px] sm:text-sm font-semibold text-[#111827] group-hover:text-[#00B8D4] transition-colors line-clamp-2 mb-0.5 xs:mb-1">
                                             {product.name}
                                         </h3>
 
                                         {toNum(product.rating) > 0 && (
-                                            <div className="flex items-center space-x-1 mb-1">
-                                                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                                                <span className="text-xs font-medium text-slate-800">
+                                            <div className="flex items-center space-x-1 mb-0.5 xs:mb-1">
+                                                <Star className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 fill-[#00B8D4] text-[#00B8D4] shrink-0" />
+                                                <span className="text-[10px] xs:text-[11px] sm:text-xs font-medium text-[#111827]">
                                                     {toNum(product.rating).toFixed(1)}
                                                 </span>
-                                                <span className="text-[12px] text-slate-500">
+                                                <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] truncate">
                                                     ({product.reviewCount})
                                                 </span>
                                             </div>
@@ -291,13 +295,13 @@ export default function NewArrivals() {
                                     </div>
                                 </div>
 
-                                <div className="p-3 pt-0 mt-auto">
-                                    <div className="flex items-baseline space-x-2 mb-3">
-                                        <span className="text-sm font-bold text-slate-900">
+                                <div className="p-1.5 xs:p-2 sm:p-3 pt-0 mt-auto">
+                                    <div className="flex items-baseline flex-wrap gap-x-1 xs:gap-x-1.5 sm:gap-x-2 gap-y-0.5 mb-1.5 xs:mb-2 sm:mb-3 min-w-0">
+                                        <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-[#111827] whitespace-nowrap">
                                             {formatKES(price)}
                                         </span>
                                         {comparePrice !== null && (
-                                            <span className="text-[12px] text-slate-500 line-through">
+                                            <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] line-through whitespace-nowrap">
                                                 {formatKES(comparePrice)}
                                             </span>
                                         )}
@@ -307,16 +311,16 @@ export default function NewArrivals() {
                                         type="button"
                                         onClick={(e) => handleAddToCart(product, e)}
                                         disabled={isAdding || isOutOfStock}
-                                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-sm transition duration-150 ease-in-out disabled:opacity-50 flex items-center justify-center space-x-1.5"
+                                        className="w-full bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-1.5 xs:py-2 px-1.5 xs:px-2 sm:px-3 rounded text-[10px] xs:text-[11px] sm:text-sm transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 xs:space-x-1.5"
                                     >
                                         {isAdding ? (
-                                            <span>Adding...</span>
+                                            <span className="truncate">Adding...</span>
                                         ) : isOutOfStock ? (
-                                            <span>Sold Out</span>
+                                            <span className="truncate">Sold Out</span>
                                         ) : (
                                             <>
-                                                <ShoppingCart className="w-3.5 h-3.5" />
-                                                <span>Add to Cart</span>
+                                                <ShoppingCart className="w-3 h-3 xs:w-3.5 xs:h-3.5 shrink-0" />
+                                                <span className="truncate">Add to Cart</span>
                                             </>
                                         )}
                                     </button>

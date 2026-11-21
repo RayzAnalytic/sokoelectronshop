@@ -1,10 +1,27 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+export const API_BASE = (() => {
+    const env = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (env) return env.replace(/\/$/, '');
+    if (
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1')
+    ) {
+        return 'http://localhost:8000';
+    }
+    return '';
+})();
 
-const ACCESS_KEY = 'myshop.access';
-const REFRESH_KEY = 'myshop.refresh';
+const ACCESS_KEY = 'razestore.access';
+const REFRESH_KEY = 'razestore.refresh';
 
 function isBrowser(): boolean {
     return typeof window !== 'undefined';
+}
+
+function withTrailingSlash(path: string): string {
+    const [base, ...queryParts] = path.split('?');
+    const query = queryParts.length > 0 ? `?${queryParts.join('?')}` : '';
+    return base.endsWith('/') ? base + query : `${base}/${query}`;
 }
 
 type AuthListener = (authenticated: boolean) => void;
@@ -84,7 +101,7 @@ export interface Me {
     is_email_verified: boolean;
     redirect_to: string;
     joined_at?: string;
-    username?: string; 
+    username?: string;
     default_address?: Address | null;
 }
 
@@ -601,7 +618,7 @@ export interface SpecialDealsQuery {
     sort_by?: DealSortBy;
 }
 
-export type DeliveryMethod = 'express' | 'standard' | 'pickup';
+export type DeliveryMethod = 'express' | 'standard' | 'pickup' | 'nationwide';
 
 export type CheckoutSource = 'web' | 'whatsapp' | 'admin' | 'phone';
 
@@ -679,11 +696,7 @@ export type OrderStatus =
     | 'cancelled'
     | 'failed';
 
-export type OrderPaymentStatus =
-    | 'unpaid'
-    | 'paid'
-    | 'refunded'
-    | 'failed';
+export type OrderPaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'failed';
 
 export type OrderPaymentMethod = 'MPESA' | 'COD';
 
@@ -1297,7 +1310,7 @@ export async function ensureCsrf(): Promise<void> {
     if (csrfReady) return csrfReady;
     csrfReady = (async () => {
         try {
-            await fetch(`${API_BASE}/api/v1/auth/csrf/`, {
+            await fetch(`${API_BASE}${withTrailingSlash('/api/v1/auth/csrf/')}`, {
                 method: 'GET',
                 credentials: 'include',
             });
@@ -1332,11 +1345,14 @@ async function doRefresh(): Promise<string | null> {
     if (!refresh) return null;
 
     try {
-        const res = await fetch(`${API_BASE}/api/v1/auth/token/refresh/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh }),
-        });
+        const res = await fetch(
+            `${API_BASE}${withTrailingSlash('/api/v1/auth/token/refresh/')}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh }),
+            },
+        );
 
         if (!res.ok) {
             clearTokens();
@@ -1357,6 +1373,7 @@ export async function request<T>(
 ): Promise<T> {
     const method: HttpMethod = opts.method ?? 'GET';
     const isUnsafe = !SAFE_METHODS.has(method);
+    const url = `${API_BASE}${withTrailingSlash(path)}`;
 
     const headers: Record<string, string> = {
         Accept: 'application/json',
@@ -1364,9 +1381,23 @@ export async function request<T>(
     };
 
     let body: BodyInit | undefined;
-    if (opts.body !== undefined) {
-        headers['Content-Type'] = 'application/json';
-        body = JSON.stringify(opts.body);
+    if (opts.body !== undefined && opts.body !== null) {
+        const isForm =
+            typeof FormData !== 'undefined' && opts.body instanceof FormData;
+
+        if (isForm) {
+            body = opts.body as FormData;
+        } else if (typeof opts.body === 'string') {
+            body = opts.body;
+        } else if (
+            typeof Blob !== 'undefined' &&
+            opts.body instanceof Blob
+        ) {
+            body = opts.body;
+        } else {
+            headers['Content-Type'] = 'application/json';
+            body = JSON.stringify(opts.body);
+        }
     }
 
     const access = getAccessToken();
@@ -1378,7 +1409,7 @@ export async function request<T>(
         if (token) headers['X-CSRFToken'] = token;
     }
 
-    let res = await fetch(`${API_BASE}${path}`, {
+    let res = await fetch(url, {
         method,
         headers,
         body,
@@ -1396,7 +1427,7 @@ export async function request<T>(
 
         if (newAccess) {
             headers['Authorization'] = `Bearer ${newAccess}`;
-            res = await fetch(`${API_BASE}${path}`, {
+            res = await fetch(url, {
                 method,
                 headers,
                 body,
@@ -1439,7 +1470,7 @@ export async function uploadRequest<T>(
         if (token) headers['X-CSRFToken'] = token;
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${API_BASE}${withTrailingSlash(path)}`, {
         method: 'POST',
         body: form,
         credentials: 'include',
@@ -1480,9 +1511,6 @@ export const api = {
             return await request<Me>('/api/v1/auth/me/');
         } catch (err) {
             if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-                if (err.status === 401 && getRefreshToken()) {
-                    clearTokens();
-                }
                 return null;
             }
             throw err;
@@ -1575,7 +1603,7 @@ export const api = {
         }),
 
     googleLoginUrl: (next?: string): string => {
-        const base = `${API_BASE}/api/v1/auth/google/`;
+        const base = `${API_BASE}${withTrailingSlash('/api/v1/auth/google/')}`;
         if (!next) return base;
         return `${base}?next=${encodeURIComponent(next)}`;
     },
@@ -1661,7 +1689,7 @@ export const storeStatusApi = {
             return {
                 status: 'open',
                 paused_message: '',
-                business_name: 'SokoFlow',
+                business_name: 'Razestore',
                 tagline: '',
                 currency: 'KES',
                 timezone: 'Africa/Nairobi',
@@ -2060,7 +2088,9 @@ export const accountApi = {
             if (access) headers['Authorization'] = `Bearer ${access}`;
 
             const res = await fetch(
-                `${API_BASE}/api/v1/account/orders/${encodeURIComponent(reference)}/pdf/`,
+                `${API_BASE}${withTrailingSlash(
+                    `/api/v1/account/orders/${encodeURIComponent(reference)}/pdf/`,
+                )}`,
                 {
                     credentials: 'include',
                     headers,

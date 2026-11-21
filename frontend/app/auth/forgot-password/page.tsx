@@ -1,4 +1,4 @@
-// app/auth/forgot-password/page.tsx
+ 
 'use client';
 
 import React, { useState } from 'react';
@@ -33,13 +33,7 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
 
-    try {
-      // Backend always returns 200 with a generic message, whether or
-      // not the email exists — this prevents account enumeration. The
-      // only non-200 responses are:
-      //   * 429 — rate limit (3/hour per IP, from `PasswordResetThrottle`)
-      //   * 5xx — server error
-      //   * 400 — malformed email (already caught by client validation)
+    try { 
       await api.forgotPassword(email.trim());
       setSuccess(true);
     } catch (err) {
@@ -65,9 +59,7 @@ export default function ForgotPasswordPage() {
       setLoading(false);
     }
   };
-
-  // Reset the form so the customer can try a different email. Called
-  // by the "Use a different email" link that appears after success.
+ 
   const handleTryAgain = () => {
     setSuccess(false);
     setError('');
@@ -76,8 +68,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-      <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
-        {/* Brand */}
+      <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-3 sm:p-5 space-y-3"> 
         <header className="text-center space-y-2 pt-2">
           <h1 className="text-[18px] font-semibold text-slate-900">
             Reset your password
@@ -87,25 +78,22 @@ export default function ForgotPasswordPage() {
             instructions.
           </p>
         </header>
-
-        {/* Global error */}
+ 
         {error && (
-          <div className="bg-rose-50 border border-rose-200 rounded-sm px-3 py-2 text-[12px] text-rose-700">
+          <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[12px] text-rose-700">
             {error}
           </div>
         )}
-
-        {/* Success */}
+ 
         {success && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-sm px-3 py-2 text-[12px] text-emerald-700">
+          <div className="bg-emerald-50 border border-emerald-200 rounded px-3 py-2 text-[12px] text-emerald-700">
             If an account exists for {email}, you will receive a password reset
             link shortly. Check your spam folder if you don&apos;t see it within
             a few minutes.
           </div>
         )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+ 
+        <form onSubmit={handleSubmit} className="space-y-2" noValidate>
           <div className="space-y-1">
             <label className="block text-[12px] font-medium text-slate-700">
               Email address
@@ -117,7 +105,7 @@ export default function ForgotPasswordPage() {
               disabled={loading || success}
               autoComplete="email"
               placeholder="name@example.com"
-              className={`w-full bg-white border rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldError
+              className={`w-full bg-white border rounded px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldError
                   ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                   : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
                 }`}
@@ -130,7 +118,7 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={loading || success}
-            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <>
@@ -160,9 +148,7 @@ export default function ForgotPasswordPage() {
             )}
           </button>
         </form>
-
-        {/* Post-success helper — lets the customer try a different
-            email without needing to reload the page or navigate away. */}
+ 
         {success && (
           <div className="text-center">
             <button
@@ -173,9 +159,7 @@ export default function ForgotPasswordPage() {
               Use a different email
             </button>
           </div>
-        )}
-
-        {/* Sign in link */}
+        )} 
         <div className="text-center text-[13px] text-slate-600 pt-1">
           Remember your password?{' '}
           <Link

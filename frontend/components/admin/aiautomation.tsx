@@ -185,6 +185,12 @@ interface AIAutomationCopilotProps {
     defaultOpen?: boolean;
 }
 
+interface SendMessageOptions {
+    regenerateFor?: string;
+    attachmentsOverride?: Attachment[];
+    _retryDepth?: number;
+}
+
 const rp = (
     label: string,
     description: string,
@@ -355,8 +361,8 @@ const QUICK_ACTIONS: QuickAction[] = [
 const TOOLTIP_STYLE: React.CSSProperties = {
     backgroundColor: '#ffffff',
     border: '1px solid #e2e8f0',
-    borderRadius: '2px',
-    color: '#0f172a',
+    borderRadius: '6px',
+    color: '#334155',
     fontSize: '13px',
     padding: '6px 8px',
     boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
@@ -475,6 +481,7 @@ function toChatMessage(m: AdminAIMessage): ChatMessage {
         actions: sanitizeActions(raw.actions),
         provenance: sanitizeProvenance(raw.provenance),
         toolCalls: sanitizeToolCalls(raw.toolCalls),
+        error: typeof raw.error === 'string' ? raw.error : undefined,
     };
 }
 
@@ -502,7 +509,7 @@ function savePersisted(state: PersistedState) {
     if (typeof window === 'undefined') return;
     try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {}
+    } catch { }
 }
 
 function loadAudit(): AuditEntry[] {
@@ -520,7 +527,7 @@ function saveAudit(entries: AuditEntry[]) {
     if (typeof window === 'undefined') return;
     try {
         window.localStorage.setItem(AUDIT_KEY, JSON.stringify(entries.slice(0, 200)));
-    } catch {}
+    } catch { }
 }
 
 function renderInline(text: string): React.ReactNode {
@@ -533,16 +540,16 @@ function renderInline(text: string): React.ReactNode {
         if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
         const token = match[0];
         if (token.startsWith('**')) {
-            parts.push(<strong key={`b-${key++}`} className="font-semibold">{token.slice(2, -2)}</strong>);
+            parts.push(<strong key={`b-${key++}`} className="font-semibold text-slate-800">{token.slice(2, -2)}</strong>);
         } else if (token.startsWith('*')) {
             parts.push(<em key={`i-${key++}`}>{token.slice(1, -1)}</em>);
         } else if (token.startsWith('`')) {
-            parts.push(<code key={`c-${key++}`} className="bg-slate-100 text-slate-800 px-1 py-0.5 rounded-sm text-[12.5px] font-mono">{token.slice(1, -1)}</code>);
+            parts.push(<code key={`c-${key++}`} className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[12.5px] font-mono">{token.slice(1, -1)}</code>);
         } else if (token.startsWith('[')) {
             const m = token.match(/\[([^\]]+)\]\(([^)]+)\)/);
             if (m) {
                 parts.push(
-                    <a key={`a-${key++}`} href={m[2]} className="text-blue-600 underline hover:text-blue-800 transition-colors" target="_blank" rel="noopener noreferrer">
+                    <a key={`a-${key++}`} href={m[2]} className="text-blue-600 underline  hover:text-blue-800 transition-colors" target="_blank" rel="noopener noreferrer">
                         {m[1]}
                     </a>,
                 );
@@ -566,9 +573,9 @@ function renderMarkdown(text: string): React.ReactNode {
     const flushList = () => {
         if (!listItems.length) return;
         if (listType === 'ol') {
-            nodes.push(<ol key={`l-${key++}`} className="list-decimal pl-5 space-y-0.5 my-1">{listItems}</ol>);
+            nodes.push(<ol key={`l-${key++}`} className="list-decimal pl-5 space-y-1 my-2">{listItems}</ol>);
         } else {
-            nodes.push(<ul key={`l-${key++}`} className="list-disc pl-5 space-y-0.5 my-1">{listItems}</ul>);
+            nodes.push(<ul key={`l-${key++}`} className="list-disc pl-5 space-y-1 my-2">{listItems}</ul>);
         }
         listItems = [];
         listType = null;
@@ -576,7 +583,7 @@ function renderMarkdown(text: string): React.ReactNode {
     const flushCode = () => {
         if (!codeLines.length) return;
         nodes.push(
-            <pre key={`c-${key++}`} className="bg-slate-900 text-slate-100 p-2 rounded-sm text-[12px] overflow-x-auto my-1.5">
+            <pre key={`c-${key++}`} className="bg-slate-800 text-slate-100 p-3 rounded text-[12px] verflow-x-auto my-2">
                 <code>{codeLines.join('\n')}</code>
             </pre>,
         );
@@ -593,30 +600,30 @@ function renderMarkdown(text: string): React.ReactNode {
         const olMatch = line.match(/^\s*(\d+)\.\s+(.*)$/);
         if (olMatch) {
             if (listType !== 'ol') { flushList(); listType = 'ol'; }
-            listItems.push(<li key={`li-${key++}`}>{renderInline(olMatch[2])}</li>);
+            listItems.push(<li key={`li-${key++}`} className="">{renderInline(olMatch[2])}</li>);
             continue;
         }
         const ulMatch = line.match(/^\s*[-*]\s+(.*)$/);
         if (ulMatch) {
             if (listType !== 'ul') { flushList(); listType = 'ul'; }
-            listItems.push(<li key={`li-${key++}`}>{renderInline(ulMatch[1])}</li>);
+            listItems.push(<li key={`li-${key++}`} className="">{renderInline(ulMatch[1])}</li>);
             continue;
         }
         flushList();
-        if (!line.trim()) { nodes.push(<div key={`sp-${key++}`} className="h-1" />); continue; }
+        if (!line.trim()) { nodes.push(<div key={`sp-${key++}`} className="h-2" />); continue; }
         const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
         if (hMatch) {
             const level = hMatch[1].length;
-            const cls = level === 1 ? 'text-[15px] font-bold my-2' : level === 2 ? 'text-[14px] font-semibold my-1.5' : 'text-[13.5px] font-semibold my-1';
+            const cls = level === 1 ? 'text-[15px] font-bold my-2.5' : level === 2 ? 'text-[14px] font-semibold my-2' : 'text-[14px] font-semibold my-1.5';
             nodes.push(<p key={`h-${key++}`} className={cls}>{renderInline(hMatch[2])}</p>);
             continue;
         }
         const bqMatch = line.match(/^>\s+(.*)$/);
         if (bqMatch) {
-            nodes.push(<blockquote key={`bq-${key++}`} className="border-l-2 border-slate-300 pl-2 italic text-slate-600 my-1">{renderInline(bqMatch[1])}</blockquote>);
+            nodes.push(<blockquote key={`bq-${key++}`} className="border-l-2 border-slate-300 pl-3 italic text-slate-600 my-2">{renderInline(bqMatch[1])}</blockquote>);
             continue;
         }
-        nodes.push(<p key={`p-${key++}`} className="my-0.5 leading-relaxed">{renderInline(line)}</p>);
+        nodes.push(<p key={`p-${key++}`} className="my-1">{renderInline(line)}</p>);
     }
     flushList();
     flushCode();
@@ -733,6 +740,7 @@ export default function AIAutomationCopilot({
     const fileRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<{ start: () => void; stop: () => void; abort: () => void } | null>(null);
     const notifiedAlerts = useRef<Set<string>>(new Set());
+    const forceNewConvRef = useRef(false);
 
     const activeMessages = useMemo(
         () => (activeConversationId ? messagesByConv[activeConversationId] ?? [] : []),
@@ -742,9 +750,7 @@ export default function AIAutomationCopilot({
     const setActiveMessages = useCallback(
         (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
             setMessagesByConv((prev) => {
-                const id = activeConversationId && /^\d+$/.test(activeConversationId)
-                    ? activeConversationId
-                    : 'local';
+                const id = activeConversationId ?? 'local';
                 const current = prev[id] ?? [];
                 return { ...prev, [id]: updater(current) };
             });
@@ -804,15 +810,15 @@ export default function AIAutomationCopilot({
     const loadAlerts = useCallback((signal?: AbortSignal) => {
         adminApi.ai.alerts
             .list({}, signal)
-            .then((list) => setAlerts(list as unknown as AdminAIAlert[]))
-            .catch(() => {});
+            .then((list) => setAlerts(list))
+            .catch(() => { });
     }, []);
 
     const loadInsights = useCallback((signal?: AbortSignal) => {
         adminApi.ai.insights
             .list({}, signal)
             .then((list) => setInsights(list))
-            .catch(() => {});
+            .catch(() => { });
     }, []);
 
     const loadAutomations = useCallback((signal?: AbortSignal) => {
@@ -820,7 +826,7 @@ export default function AIAutomationCopilot({
         adminApi.ai.automations
             .list({}, signal)
             .then((list) => setAutomations(list))
-            .catch(() => {})
+            .catch(() => { })
             .finally(() => setAutomationsLoading(false));
     }, []);
 
@@ -839,7 +845,7 @@ export default function AIAutomationCopilot({
     useEffect(() => {
         if (typeof Notification === 'undefined') return;
         if (Notification.permission === 'default' && open) {
-            Notification.requestPermission().catch(() => {});
+            Notification.requestPermission().catch(() => { });
         }
     }, [open]);
 
@@ -853,7 +859,7 @@ export default function AIAutomationCopilot({
             notifiedAlerts.current.add(key);
             try {
                 new Notification(a.title, { body: a.description, tag: key });
-            } catch {}
+            } catch { }
         }
     }, [alerts]);
 
@@ -946,6 +952,10 @@ export default function AIAutomationCopilot({
     );
 
     const ensureConversation = useCallback(async (): Promise<string> => {
+        if (forceNewConvRef.current) {
+            forceNewConvRef.current = false;
+            return createConversation();
+        }
         if (activeConversationId && /^\d+$/.test(activeConversationId)) {
             return activeConversationId;
         }
@@ -964,9 +974,12 @@ export default function AIAutomationCopilot({
     }, [streamingId, setActiveMessages, pushToast]);
 
     const sendMessage = useCallback(
-        async (text: string, opts: { regenerateFor?: string; attachmentsOverride?: Attachment[] } = {}) => {
+        async (text: string, opts: SendMessageOptions = {}) => {
             const trimmed = text.trim();
-            if (!trimmed || isThinking) return;
+            if (!trimmed) return;
+
+            const retryDepth = opts._retryDepth ?? 0;
+            if (retryDepth === 0 && isThinking) return;
 
             const convId = await ensureConversation();
             const useAttachments = opts.attachmentsOverride ?? attachments;
@@ -999,7 +1012,10 @@ export default function AIAutomationCopilot({
                     content: trimmed,
                     timestamp: nowHHMM(),
                 };
-                setMessagesForConv((prev) => prev.filter((m) => m.id !== opts.regenerateFor).filter((m) => !m.streaming));
+                const idx = activeMessages.findIndex((m) => m.id === opts.regenerateFor);
+                const cutoff = idx >= 0 ? idx + 1 : activeMessages.length;
+                const preserved = activeMessages.slice(0, cutoff);
+                setMessagesForConv(() => preserved);
             } else {
                 userMsg = {
                     id: uid('m'),
@@ -1038,7 +1054,7 @@ export default function AIAutomationCopilot({
                 setMessagesForConv((prev) => prev.map((m) => m.id === streamId ? { ...m, ...patch } : m));
             };
 
-            const streamContext = {
+            const streamContext: Record<string, unknown> = {
                 path: context.path,
                 label: context.label,
                 description: context.description,
@@ -1046,14 +1062,25 @@ export default function AIAutomationCopilot({
                 fields: context.pack?.fields ?? [],
                 readOnly,
                 piiMasked,
-            } as { path?: string; module?: string; label?: string; description?: string };
+            };
+
+            let retryScheduled = false;
 
             try {
                 await adminApi.ai.assistant.messages.stream(convId, trimmed, {
-                    onChunk: (chunk) => {
+                    onChunk: (chunk: string) => {
                         setMessagesForConv((prev) => prev.map((m) => m.id === streamId ? { ...m, content: m.content + chunk } : m));
                     },
-                    onMeta: (meta) => {
+                    onMeta: (meta: {
+                        chart?: AdminAIChartSpec | null;
+                        table?: { headers: string[]; rows: string[][] } | null;
+                        link?: { label: string; href: string } | null;
+                        quickReplies?: string[] | null;
+                        provenance?: unknown;
+                        actions?: unknown;
+                        toolCalls?: unknown;
+                        error?: string;
+                    }) => {
                         updateStream({
                             chart: meta.chart ?? undefined,
                             table: meta.table ?? undefined,
@@ -1062,16 +1089,21 @@ export default function AIAutomationCopilot({
                             provenance: sanitizeProvenance(meta.provenance),
                             actions: sanitizeActions(meta.actions),
                             toolCalls: sanitizeToolCalls(meta.toolCalls),
+                            error: typeof meta.error === 'string' ? meta.error : undefined,
                         });
                     },
-                    onAction: (action) => {
-                        if (action) setPendingAction(action as unknown as PendingAction);
+                    onAction: (action: unknown) => {
+                        if (action) setPendingAction(action as PendingAction);
                     },
-                    onDone: (finalMessage) => {
+                    onDone: (finalMessage: AdminAIMessage | null | undefined) => {
+                        if (!finalMessage) {
+                            updateStream({ timestamp: nowHHMM(), streaming: false });
+                            return;
+                        }
                         const mapped = toChatMessage(finalMessage);
                         updateStream({ ...mapped, id: streamId, streaming: false });
                     },
-                    onError: (err) => {
+                    onError: (err: Error) => {
                         updateStream({
                             content: err.message || 'I could not reach the data service. Please try again.',
                             timestamp: nowHHMM(),
@@ -1084,18 +1116,50 @@ export default function AIAutomationCopilot({
                     },
                     signal: ctrl.signal,
                     context: streamContext,
-                    attachments: useAttachments.map((a) => ({ name: a.name, size: a.size, type: a.type })),
-                });
+                    attachments: useAttachments.map((a) => ({
+                        name: a.name,
+                        size: a.size,
+                        type: a.type,
+                        content: a.preview,
+                    })),
+                } as unknown as Parameters<typeof adminApi.ai.assistant.messages.stream>[2]);
             } catch (err) {
+                const errStatus = (err as { status?: number }).status;
                 const msg = err instanceof Error ? err.message : 'I could not reach the data service. Please try again.';
-                updateStream({
-                    content: msg,
-                    timestamp: nowHHMM(),
-                    streaming: false,
-                    error: 'network',
-                    actions: [{ id: 'retry', label: 'Retry', icon: RotateCcw, tone: 'primary', prompt: trimmed }],
-                });
-            } finally {
+
+                if (errStatus === 404 && retryDepth === 0) {
+                    try {
+                        if (/^\d+$/.test(convId)) {
+                            await adminApi.ai.assistant.conversations.remove(convId).catch(() => { });
+                        }
+                    } catch { }
+
+                    setMessagesByConv((prev) => {
+                        const copy = { ...prev };
+                        delete copy[convId];
+                        return copy;
+                    });
+                    setConversations((prev) => prev.filter((c) => c.id !== convId));
+                    setActiveConversationId(null);
+                    forceNewConvRef.current = true;
+
+                    retryScheduled = true;
+                    void sendMessage(trimmed, {
+                        attachmentsOverride: useAttachments,
+                        _retryDepth: 1,
+                    });
+                } else {
+                    updateStream({
+                        content: msg,
+                        timestamp: nowHHMM(),
+                        streaming: false,
+                        error: errStatus === 404 ? 'conversation_gone' : 'network',
+                        actions: [{ id: 'retry', label: 'Retry', icon: RotateCcw, tone: 'primary', prompt: trimmed }],
+                    });
+                }
+            }
+
+            if (!retryScheduled) {
                 abortRef.current = null;
                 setStreamingId(null);
                 setIsThinking(false);
@@ -1128,28 +1192,28 @@ export default function AIAutomationCopilot({
             if (activeConversationId && /^\d+$/.test(activeConversationId)) {
                 await adminApi.ai.assistant.messages.feedback(messageId, value);
             }
-        } catch {}
+        } catch { }
     }, [activeConversationId, setActiveMessages, pushToast]);
 
     const handleDismissAlert = useCallback(async (id: string) => {
         setAlerts((prev) => prev.filter((a) => String(a.id) !== id));
-        try { await adminApi.ai.alerts.dismiss(id); } catch {}
+        try { await adminApi.ai.alerts.dismiss(id); } catch { }
     }, []);
 
     const handleAcknowledgeAlert = useCallback(async (id: string) => {
         setAlerts((prev) => prev.map((a) => String(a.id) === id ? { ...a, acknowledgedAt: new Date().toISOString() } : a));
-        try { await adminApi.ai.alerts.acknowledge(id); pushToast({ type: 'success', message: 'Alert acknowledged' }); } catch {}
+        try { await adminApi.ai.alerts.acknowledge(id); pushToast({ type: 'success', message: 'Alert acknowledged' }); } catch { }
     }, [pushToast]);
 
     const handleSnoozeAlert = useCallback(async (id: string, minutes: number) => {
         const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
         setAlerts((prev) => prev.map((a) => String(a.id) === id ? { ...a, snoozedUntil: until } : a));
-        try { await adminApi.ai.alerts.snooze(id, minutes); pushToast({ type: 'info', message: `Snoozed for ${minutes}m` }); } catch {}
+        try { await adminApi.ai.alerts.snooze(id, minutes); pushToast({ type: 'info', message: `Snoozed for ${minutes}m` }); } catch { }
     }, [pushToast]);
 
     const handleDismissInsight = useCallback(async (id: string) => {
         setInsights((prev) => prev.filter((i) => String(i.id) !== id));
-        try { await adminApi.ai.insights.dismiss(id); } catch {}
+        try { await adminApi.ai.insights.dismiss(id); } catch { }
     }, []);
 
     const handleExecuteInsight = useCallback(async (id: string, fallbackHref: string) => {
@@ -1210,7 +1274,7 @@ export default function AIAutomationCopilot({
             if (/^\d+$/.test(activeConversationId)) {
                 await adminApi.ai.assistant.conversations.remove(activeConversationId);
             }
-        } catch {}
+        } catch { }
         setMessagesByConv((prev) => {
             const copy = { ...prev };
             delete copy[activeConversationId];
@@ -1229,7 +1293,7 @@ export default function AIAutomationCopilot({
     const deleteConversation = useCallback(async (id: string) => {
         try {
             if (/^\d+$/.test(id)) await adminApi.ai.assistant.conversations.remove(id);
-        } catch {}
+        } catch { }
         setConversations((prev) => prev.filter((c) => c.id !== id));
         setMessagesByConv((prev) => {
             const copy = { ...prev };
@@ -1243,7 +1307,7 @@ export default function AIAutomationCopilot({
         setConversations((prev) => prev.map((c) => c.id === id ? { ...c, title } : c));
         try {
             if (/^\d+$/.test(id)) await adminApi.ai.assistant.conversations.rename(id, title);
-        } catch {}
+        } catch { }
     }, []);
 
     const togglePinConversation = useCallback((id: string) => {
@@ -1325,6 +1389,19 @@ export default function AIAutomationCopilot({
 
     const openNewChat = useCallback(() => { void createConversation(); setTab('chat'); }, [createConversation]);
 
+    useEffect(() => {
+        const handler = (event: Event) => {
+            const detail = (event as CustomEvent<{ prompt?: string }>).detail;
+            const prompt = detail?.prompt;
+            if (!prompt) return;
+            setOpen(true);
+            setTab('chat');
+            void sendMessage(prompt);
+        };
+        window.addEventListener('ai-copilot:ask', handler);
+        return () => window.removeEventListener('ai-copilot:ask', handler);
+    }, [setOpen, sendMessage]);
+
     const isFullscreen = mode === 'fullscreen';
     const isDocked = mode === 'docked';
 
@@ -1333,10 +1410,10 @@ export default function AIAutomationCopilot({
             return 'fixed inset-0 z-[130] flex flex-col bg-white border-0 shadow-none overflow-hidden';
         }
         if (isDocked) {
-            return 'fixed top-0 right-0 bottom-0 z-[130] w-full md:w-[520px] flex flex-col bg-white border-l border-slate-200 shadow-2xl overflow-hidden';
+            return 'fixed top-0 right-0 bottom-0 z-[130] w-full md:w-[520px] flex flex-col bg-white border-l border-slate-200 overflow-hidden';
         }
         if (mode === 'minimized') return 'hidden';
-        return 'fixed z-[130] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col bg-white border border-slate-200 rounded-sm shadow-2xl overflow-hidden w-[calc(100vw-0.75rem)] h-[calc(100vh-0.75rem)] md:w-[95vw] md:h-[80vh] md:min-h-[620px] md:max-w-[1360px] md:max-h-[860px]';
+        return 'fixed z-[130] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col bg-white border border-slate-200 rounded overflow-hidden w-[calc(100vw-0.75rem)] h-[calc(100vh-0.75rem)] md:w-[95vw] md:h-[80vh] md:min-h-[620px] md:max-w-[1360px] md:max-h-[860px]';
     }, [isFullscreen, isDocked, mode]);
 
     const allPrompts = context.pack?.prompts ?? GENERAL_PROMPTS;
@@ -1376,7 +1453,7 @@ export default function AIAutomationCopilot({
                     className={panelClasses}
                     style={{ colorScheme: isDark ? 'dark' : 'light' }}
                 >
-                    <div className={isDark ? 'dark flex-1 min-h-0 flex flex-col bg-slate-950 text-slate-100' : 'flex-1 min-h-0 flex flex-col bg-white'}>
+                    <div className="flex-1 min-h-0 flex flex-col bg-white">
                         <PanelHeader
                             context={context}
                             tab={tab}
@@ -1508,9 +1585,7 @@ export default function AIAutomationCopilot({
                                 accept=".csv,.txt,.json,.md,image/*"
                                 onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
                             />
-                        </div>
-
-                        <PanelFooter context={context} readOnly={readOnly} piiMasked={piiMasked} />
+                        </div> 
                     </div>
                 </div>
             )}
@@ -1562,7 +1637,7 @@ export function AskAIButton({ prompt, className, children }: { prompt: string; c
         <button
             type="button"
             onClick={() => { window.dispatchEvent(new CustomEvent('ai-copilot:ask', { detail: { prompt } })); }}
-            className={className ?? 'inline-flex items-center gap-1 text-[12px] text-blue-700 hover:underline'}
+            className={className ?? 'inline-flex items-center gap-1.5 text-[12px] text-blue-700 hover:underline transition-colors'}
         >
             <Sparkles className="w-3.5 h-3.5" />
             {children ?? 'Ask AI'}
@@ -1574,9 +1649,9 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: st
     return (
         <div className="fixed bottom-20 right-4 z-[200] flex flex-col gap-2 max-w-[320px]">
             {toasts.map((t) => {
-                const tone = t.type === 'success' ? 'bg-emerald-600' : t.type === 'error' ? 'bg-rose-600' : 'bg-slate-900';
+                const tone = t.type === 'success' ? 'bg-emerald-600' : t.type === 'error' ? 'bg-rose-600' : 'bg-slate-800';
                 return (
-                    <div key={t.id} className={`${tone} text-white px-3 py-2 rounded-full shadow-xl flex items-start gap-2 text-[13px] animate-in fade-in slide-in-from-bottom-2`}>
+                    <div key={t.id} className={`${tone} text-white px-3 py-2 rounded flex items-start gap-2 text-[13px] animate-in fade-in slide-in-from-bottom-2`}>
                         {t.type === 'success' ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : t.type === 'error' ? <XCircle className="w-4 h-4 mt-0.5 shrink-0" /> : <Info className="w-4 h-4 mt-0.5 shrink-0" />}
                         <span className="flex-1">{t.message}</span>
                         {t.action && (
@@ -1601,7 +1676,7 @@ function FloatingButton({ open, badge, mode, onClick }: { open: boolean; badge: 
             onClick={onClick}
             aria-label={open ? 'Close AI Copilot' : 'Open AI Copilot'}
             aria-expanded={open}
-            className={`fixed bottom-4 right-4 z-[135] h-12 w-12 rounded-full shadow-lg flex items-center justify-center transition ${open && !isMinimized ? 'bg-slate-900 hover:bg-slate-800 text-white' : 'bg-blue-950 hover:bg-blue-900 text-white'}`}
+            className={`fixed bottom-4 right-4 z-[135] h-12 w-12 rounded-full shadow flex items-center justify-center transition ${open && !isMinimized ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-blue-950 hover:bg-blue-900 text-white'}`}
         >
             {open && !isMinimized ? <X className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
             {!open && badge > 0 && (
@@ -1616,15 +1691,15 @@ function FloatingButton({ open, badge, mode, onClick }: { open: boolean; badge: 
 function MinimizedPill({ onRestore, onClose, messages, context }: { onRestore: () => void; onClose: () => void; messages: ChatMessage[]; context: PageContext }) {
     const last = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
     return (
-        <div className="fixed bottom-20 right-4 z-[135] w-[300px] bg-white border border-slate-200 rounded-sm shadow-2xl p-2 flex items-start gap-2">
-            <span className="w-8 h-8 rounded-sm bg-blue-950 text-white flex items-center justify-center shrink-0">
+        <div className="fixed bottom-20 right-4 z-[135] w-[300px] bg-white border border-slate-200 rounded p-3 flex items-start gap-2">
+            <span className="w-8 h-8 rounded bg-blue-950 text-white flex items-center justify-center shrink-0">
                 <Bot className="w-4 h-4" />
             </span>
             <button onClick={onRestore} className="flex-1 text-left min-w-0">
-                <p className="text-[12.5px] font-semibold text-slate-900 truncate">{context.label} · AI</p>
-                <p className="text-[12px] text-slate-500 line-clamp-2 leading-snug">{last?.content ?? 'Tap to resume conversation'}</p>
+                <p className="text-[12.5px] font-semibold text-slate-700 truncate">{context.label} · AI</p>
+                <p className="text-[12px] text-slate-500 line-clamp-2">{last?.content ?? 'Tap to resume conversation'}</p>
             </button>
-            <button onClick={onClose} aria-label="Close" className="p-1 rounded-sm hover:bg-slate-100 text-slate-400 hover:text-slate-700 shrink-0">
+            <button onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 shrink-0">
                 <X className="w-3.5 h-3.5" />
             </button>
         </div>
@@ -1663,58 +1738,58 @@ function PanelHeader({
 
     return (
         <header className="border-b border-slate-200 bg-white shrink-0">
-            <div className="px-2 py-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
+            <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                     <button
                         onClick={onToggleSidebar}
                         aria-label="Toggle conversations"
-                        className={`p-1.5 rounded-sm hover:bg-slate-100 ${sidebarOpen ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}
+                        className={`p-1.5 rounded hover:bg-slate-100 ${sidebarOpen ? 'bg-slate-100 text-slate-700' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         <PanelLeft className="w-4 h-4" />
                     </button>
-                    <span className="w-8 h-8 rounded-sm bg-blue-950 text-white flex items-center justify-center shrink-0">
+                    <span className="w-8 h-8 rounded bg-blue-950 text-white flex items-center justify-center shrink-0">
                         <Bot className="w-4 h-4" />
                     </span>
                     <div className="min-w-0">
-                        <h2 className="text-[15px] font-semibold text-slate-900 truncate">Store Assistant</h2>
+                        <h2 className="text-[15px] font-semibold text-slate-700 truncate">Store Assistant</h2>
                         <p className="text-[13px] text-slate-500 truncate">{context.label}</p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-0.5 shrink-0">
-                    <button onClick={onNewChat} aria-label="New chat" title="New chat (⌘N)" className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800">
+                    <button onClick={onNewChat} aria-label="New chat" title="New chat (⌘N)" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
                         <Plus className="w-4 h-4" />
                     </button>
-                    <button onClick={onExport} aria-label="Export" title="Export conversation" className="hidden sm:inline-flex p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800">
+                    <button onClick={onExport} aria-label="Export" title="Export conversation" className="hidden sm:inline-flex p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
                         <Download className="w-4 h-4" />
                     </button>
-                    
+
                     <div className="relative">
-                        <button onClick={() => setMenuOpen((v) => !v)} aria-label="Layout" className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800">
+                        <button onClick={() => setMenuOpen((v) => !v)} aria-label="Layout" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
                             <LayoutDashboard className="w-4 h-4" />
                         </button>
                         {menuOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded-sm shadow-xl py-1 z-10">
-                                <button onClick={() => { onMode('floating'); setMenuOpen(false); }} className="w-full text-left px-2 py-1.5 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Maximize2 className="w-3.5 h-3.5" /> Floating</button>
-                                <button onClick={() => { onMode('docked'); setMenuOpen(false); }} className="w-full text-left px-2 py-1.5 text-[13px] hover:bg-slate-50 flex items-center gap-2"><PanelRight className="w-3.5 h-3.5" /> Docked</button>
-                                <button onClick={() => { onMode('fullscreen'); setMenuOpen(false); }} className="w-full text-left px-2 py-1.5 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Maximize2 className="w-3.5 h-3.5" /> Fullscreen</button>
-                                <button onClick={() => { onMode('minimized'); setMenuOpen(false); }} className="w-full text-left px-2 py-1.5 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Minimize className="w-3.5 h-3.5" /> Minimise</button>
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded py-1 z-10">
+                                <button onClick={() => { onMode('floating'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Maximize2 className="w-3.5 h-3.5" /> Floating</button>
+                                <button onClick={() => { onMode('docked'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><PanelRight className="w-3.5 h-3.5" /> Docked</button>
+                                <button onClick={() => { onMode('fullscreen'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Maximize2 className="w-3.5 h-3.5" /> Fullscreen</button>
+                                <button onClick={() => { onMode('minimized'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Minimize className="w-3.5 h-3.5" /> Minimise</button>
                             </div>
                         )}
                     </div>
-                    <button onClick={onOpenSettings} aria-label="Settings" className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800">
+                    <button onClick={onOpenSettings} aria-label="Settings" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
                         <Settings className="w-4 h-4" />
                     </button>
-                    <button onClick={onClear} aria-label="Clear conversation" className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800">
+                    <button onClick={onClear} aria-label="Clear conversation" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
                         <Trash2 className="w-4 h-4" />
                     </button>
-                    <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800">
+                    <button onClick={onClose} aria-label="Close" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
                         <IoCloseSharp className="w-4 h-4" />
                     </button>
                 </div>
             </div>
 
-            <nav role="tablist" aria-label="Copilot sections" className="px-2 pb-2 flex items-center gap-1 overflow-x-auto">
+            <nav role="tablist" aria-label="Copilot sections" className="px-3 pb-2 flex items-center gap-1 overflow-x-auto">
                 {tabs.map((t) => {
                     const Icon = t.icon;
                     const active = tab === t.id;
@@ -1724,12 +1799,12 @@ function PanelHeader({
                             role="tab"
                             aria-selected={active}
                             onClick={() => onTab(t.id)}
-                            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${active ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap  ${active ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-700'}`}
                         >
                             <Icon className="w-4 h-4" />
                             {t.label}
                             {t.badge ? (
-                                <span className={`ml-0.5 min-w-[18px] h-[18px] rounded-sm text-[12px] font-semibold flex items-center justify-center px-1 ${active ? 'bg-white/20 text-white' : 'bg-rose-500 text-white'}`}>
+                                <span className={`ml-0.5 min-w-[18px] h-[18px] rounded-full text-[12px] font-semibold flex items-center justify-center px-1 ${active ? 'bg-white/20 text-white' : 'bg-rose-500 text-white'}`}>
                                     {t.badge > 9 ? '9+' : t.badge}
                                 </span>
                             ) : null}
@@ -1762,21 +1837,21 @@ function ConversationSidebar({
     });
 
     return (
-        <div className="absolute inset-y-0 left-0 z-20 w-[260px] bg-white border-r border-slate-200 flex flex-col shadow-xl">
-            <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200">
-                <p className="text-[13px] font-semibold text-slate-900">Conversations</p>
+        <div className="absolute inset-y-0 left-0 z-20 w-[260px] bg-white border-r border-slate-200 flex flex-col">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-200">
+                <p className="text-[13px] font-semibold text-slate-700">Conversations</p>
                 <div className="flex items-center gap-1">
-                    <button onClick={onNew} aria-label="New conversation" className="p-1 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800"><Plus className="w-4 h-4" /></button>
-                    <button onClick={onClose} aria-label="Close sidebar" className="p-1 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800"><X className="w-4 h-4" /></button>
+                    <button onClick={onNew} aria-label="New conversation" className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"><Plus className="w-4 h-4" /></button>
+                    <button onClick={onClose} aria-label="Close sidebar" className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"><X className="w-4 h-4" /></button>
                 </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
                 {sorted.length === 0 && (
                     <p className="text-[12px] text-slate-400 px-2 py-4 text-center">No conversations yet</p>
                 )}
                 {sorted.map((c) => (
-                    <div key={c.id} className={`group rounded-sm border ${activeId === c.id ? 'bg-blue-50 border-blue-100' : 'bg-white border-transparent hover:bg-slate-50'}`}>
-                        <div className="flex items-center gap-1 px-2 py-1.5">
+                    <div key={c.id} className={`group rounded border ${activeId === c.id ? 'bg-blue-50 border-blue-100' : 'bg-white border-transparent hover:bg-slate-50'}`}>
+                        <div className="flex items-center gap-1 px-2 py-2">
                             <button onClick={() => onSelect(c.id)} className="flex-1 text-left min-w-0">
                                 {editingId === c.id ? (
                                     <input
@@ -1788,20 +1863,20 @@ function ConversationSidebar({
                                             if (e.key === 'Enter') { onRename(c.id, titleDraft.trim() || c.title); setEditingId(null); }
                                             if (e.key === 'Escape') setEditingId(null);
                                         }}
-                                        className="w-full bg-white border border-blue-200 rounded-sm px-1 py-0.5 text-[12.5px]"
+                                        className="w-full bg-white border border-blue-200 rounded px-2 py-1 text-[12.5px]"
                                     />
                                 ) : (
-                                    <p className="text-[12.5px] font-medium text-slate-900 truncate">{c.title}</p>
+                                    <p className="text-[12.5px] font-medium text-slate-700 truncate">{c.title}</p>
                                 )}
                                 <p className="text-[11px] text-slate-400 truncate">{c.messageCount} msgs · {new Date(c.updatedAt).toLocaleDateString()}</p>
                             </button>
-                            <button onClick={() => onPin(c.id)} aria-label="Pin" className="p-0.5 rounded-sm opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700">
+                            <button onClick={() => onPin(c.id)} aria-label="Pin" className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700">
                                 {c.pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
                             </button>
-                            <button onClick={() => { setEditingId(c.id); setTitleDraft(c.title); }} aria-label="Rename" className="p-0.5 rounded-sm opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700">
+                            <button onClick={() => { setEditingId(c.id); setTitleDraft(c.title); }} aria-label="Rename" className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700">
                                 <Edit3 className="w-3 h-3" />
                             </button>
-                            <button onClick={() => onDelete(c.id)} aria-label="Delete" className="p-0.5 rounded-sm opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600">
+                            <button onClick={() => onDelete(c.id)} aria-label="Delete" className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600">
                                 <Trash2 className="w-3 h-3" />
                             </button>
                         </div>
@@ -1840,44 +1915,44 @@ function ChatView({
 
     return (
         <div className="flex-1 min-h-0 flex flex-col bg-slate-50 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-2">
                 {empty && !isThinking && (
                     <div className="h-full flex flex-col min-h-0">
-                        <div className="flex flex-col items-center justify-center gap-2 py-4 shrink-0">
-                            <span className="w-12 h-12 rounded-sm bg-blue-950 text-white flex items-center justify-center">
+                        <div className="flex flex-col items-center justify-center gap-2 py-6 shrink-0">
+                            <span className="w-12 h-12 rounded bg-blue-950 text-white flex items-center justify-center">
                                 <Sparkles className="w-5 h-5" />
                             </span>
-                            <p className="text-[15px] font-semibold text-slate-800 text-center">Ask anything about {context.label}</p>
+                            <p className="text-[15px] font-semibold text-slate-700 text-center">Ask anything about {context.label}</p>
                             <p className="text-[12.5px] text-slate-500 text-center max-w-[320px]">
-                                I can see <b>{context.label}</b> and every other admin module. Choose a suggestion, search, or type below.
+                                I can see <b className="text-slate-700">{context.label}</b> and every other admin module. Choose a suggestion, search, or type below.
                             </p>
                             <div className="relative w-full max-w-[360px]">
-                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                                 <input
                                     value={query}
                                     onChange={(e) => onQueryChange(e.target.value)}
                                     placeholder="Search suggestions…"
-                                    className="w-full bg-white border border-slate-200 rounded-sm pl-7 pr-2 py-1.5 text-[12.5px] focus:outline-none focus:ring-1 focus:ring-blue-200"
+                                    className="w-full bg-white border border-slate-200 rounded pl-8 pr-2 py-2 text-[12.5px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
                                 />
                             </div>
                         </div>
 
                         {digest.length > 0 && (
-                            <div className="grid grid-cols-3 gap-1.5 mb-2">
+                            <div className="grid grid-cols-3 gap-2 mb-3">
                                 {digest.map((d) => (
                                     <button
                                         key={d.label}
                                         onClick={() => onQuickReply(`Show me ${d.label.toLowerCase()}`)}
-                                        className={`text-left rounded-sm border p-2 ${TONE_CLASSES[d.tone].chip}`}
+                                        className={`text-left rounded order p-2.5 ${TONE_CLASSES[d.tone].chip}`}
                                     >
-                                        <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{d.label}</p>
-                                        <p className="text-[18px] font-bold leading-tight">{d.value}</p>
+                                        <p className="text-[10px] font-semibold uppercase  opacity-80">{d.label}</p>
+                                        <p className="text-[18px] font-bold mt-1">{d.value}</p>
                                     </button>
                                 ))}
                             </div>
                         )}
 
-                        <div className="flex-1 min-h-0 grid grid-cols-2 sm:grid-cols-3 gap-1.5 content-start pb-1">
+                        <div className="flex-1 min-h-0 grid grid-cols-2 sm:grid-cols-3 gap-2 content-start pb-1">
                             {prompts.length === 0 && (
                                 <p className="col-span-full text-center text-[12.5px] text-slate-400 py-4">No suggestions match &quot;{query}&quot;</p>
                             )}
@@ -1888,19 +1963,19 @@ function ChatView({
                                         key={item.label}
                                         onClick={() => onQuickReply(item.prompt)}
                                         disabled={disabled}
-                                        className="text-left bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm rounded-sm p-2 transition group disabled:opacity-50 flex flex-col gap-1.5 min-h-[72px]"
+                                        className="text-left bg-white border border-slate-200 hover:border-slate-300 hover:shadow rounded p-2.5 transition group disabled:opacity-50 flex flex-col gap-2 min-h-[78px]"
                                     >
-                                        <span className={`w-7 h-7 rounded-sm flex items-center justify-center border shrink-0 ${TONE_CLASSES[item.tone].chip}`}>
+                                        <span className={`w-7 h-7 rounded flex items-center justify-center border shrink-0 ${TONE_CLASSES[item.tone].chip}`}>
                                             <Icon className="w-3.5 h-3.5" />
                                         </span>
-                                        <span className="text-[12px] font-semibold text-slate-800 leading-tight line-clamp-2">{item.label}</span>
+                                        <span className="text-[12px] font-semibold text-slate-700 line-clamp-2">{item.label}</span>
                                     </button>
                                 );
                             })}
                         </div>
 
                         {readOnly && (
-                            <div className="mt-2 flex items-center gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded-sm px-2 py-1.5">
+                            <div className="mt-1 flex items-center gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-3 py-2">
                                 <Lock className="w-3.5 h-3.5" />
                                 Read-only mode is on. AI actions will not execute.
                             </div>
@@ -1948,8 +2023,8 @@ function TypingDots() {
 
 function TypingCard({ label }: { label?: string }) {
     return (
-        <div role="status" aria-live="polite" className="inline-flex items-center gap-2 bg-white border border-slate-200 rounded-lg rounded-tl-none px-2.5 py-2 shadow-sm">
-            <span className="w-6 h-6 rounded-sm bg-blue-950 text-white flex items-center justify-center shrink-0">
+        <div role="status" aria-live="polite" className="inline-flex items-center gap-2 bg-white border border-slate-200 rounded-xl rounded-tl-none px-3 py-2 shadow">
+            <span className="w-6 h-6 rounded bg-blue-950 text-white flex items-center justify-center shrink-0">
                 <Bot className="w-3.5 h-3.5" />
             </span>
             <TypingDots />
@@ -1991,16 +2066,16 @@ function MessageBubble({
         setTimeout(() => setCopied(false), 1200);
     };
 
-    const cornerClasses = isUser ? 'rounded-lg rounded-tr-none' : 'rounded-lg rounded-tl-none';
+    const cornerClasses = isUser ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none';
 
     return (
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
             <div className="max-w-[88%]">
-                <div className={`${cornerClasses} px-3 py-2 text-[13.5px] ${isUser ? 'bg-blue-950 text-white' : 'bg-white border border-slate-200 text-slate-800'}`}>
+                <div className={`${cornerClasses} px-3 py-2.5 text-[14px] ${isUser ? 'bg-blue-950 text-white' : 'bg-white border border-slate-200 text-slate-700'}`}>
                     {message.attachments && message.attachments.length > 0 && (
-                        <div className="mb-2 flex flex-wrap gap-1">
+                        <div className="mb-1 flex flex-wrap gap-1.5">
                             {message.attachments.map((a) => (
-                                <span key={a.id} className={`inline-flex items-center gap-1 text-[11.5px] px-1.5 py-0.5 rounded-sm border ${isUser ? 'border-blue-800 bg-blue-900 text-blue-100' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                                <span key={a.id} className={`inline-flex items-center gap-1.5 text-[13px] px-2 py-1 rounded border ${isUser ? 'border-blue-800 bg-blue-900 text-blue-100' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
                                     {a.type.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
                                     {a.name}
                                 </span>
@@ -2009,15 +2084,15 @@ function MessageBubble({
                     )}
 
                     {message.content && (
-                        <div className="whitespace-pre-wrap leading-relaxed">
+                        <div className="whitespace-pre-wrap">
                             {isUser ? message.content : renderMarkdown(message.content)}
                             {streaming && <span className="inline-block w-1 h-3.5 bg-slate-400 ml-0.5 align-middle animate-pulse" />}
                         </div>
                     )}
 
                     {streaming && (
-                        <div className="mt-2 flex justify-start">
-                            <button onClick={onStop} className="inline-flex items-center gap-1 text-[11.5px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-sm transition">
+                        <div className="mt-1 flex justify-start">
+                            <button onClick={onStop} className="inline-flex items-center gap-1.5 text-[13px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg transition">
                                 <Square className="w-3 h-3" />
                                 Stop
                             </button>
@@ -2028,9 +2103,9 @@ function MessageBubble({
                     {message.table && !streaming && <TableBlock table={message.table} />}
 
                     {message.toolCalls && message.toolCalls.length > 0 && !streaming && (
-                        <div className="mt-2 space-y-1">
+                        <div className="mt-2 space-y-1.5">
                             {message.toolCalls.map((tc) => (
-                                <div key={tc.id} className={`flex items-center gap-1.5 text-[11.5px] px-2 py-1 rounded-sm border ${tc.status === 'done' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : tc.status === 'error' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-blue-50 text-blue-950 border-blue-100'}`}>
+                                <div key={tc.id} className={`flex items-center gap-2 text-[11.5px] px-2.5 py-1.5 rounded border ${tc.status === 'done' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : tc.status === 'error' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-blue-50 text-blue-950 border-blue-100'}`}>
                                     {tc.status === 'done' ? <CheckCircle2 className="w-3 h-3" /> : tc.status === 'error' ? <XCircle className="w-3 h-3" /> : <Loader2 className="w-3 h-3 animate-spin" />}
                                     <span className="font-mono">{tc.name}</span>
                                     {tc.resultSummary && <span className="opacity-75 truncate">· {tc.resultSummary}</span>}
@@ -2041,23 +2116,23 @@ function MessageBubble({
                     )}
 
                     {!isUser && !streaming && message.isVerified === false && message.missingData && message.missingData.length > 0 && (
-                        <div className="mt-2 flex items-start gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded-sm px-2 py-1.5">
+                        <div className="mt-2 flex items-start gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2">
                             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                            <span>Some data could not be resolved: {message.missingData.join('; ')}</span>
+                            <span className="">Some data could not be resolved: {message.missingData.join('; ')}</span>
                         </div>
                     )}
 
                     {message.provenance && message.provenance.length > 0 && !streaming && (
-                        <div className="mt-2">
-                            <button onClick={() => setProvenanceOpen((v) => !v)} className="inline-flex items-center gap-1 text-[11.5px] text-slate-500 hover:text-slate-800 transition-colors">
+                        <div className="mt-2.5">
+                            <button onClick={() => setProvenanceOpen((v) => !v)} className="inline-flex items-center gap-1.5 text-[11.5px] text-slate-500 hover:text-slate-700 transition-colors">
                                 <Database className="w-3 h-3" />
                                 Based on {message.provenance.length} source{message.provenance.length === 1 ? '' : 's'}
                                 <ChevronDown className={`w-3 h-3 transition ${provenanceOpen ? 'rotate-180' : ''}`} />
                             </button>
                             {provenanceOpen && (
-                                <div className="mt-1 flex flex-wrap gap-1">
+                                <div className="mt-2 flex flex-wrap gap-1.5">
                                     {message.provenance.map((p, i) => (
-                                        <button key={i} onClick={() => p.href && onNavigate(p.href)} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">
+                                        <button key={i} onClick={() => p.href && onNavigate(p.href)} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
                                             <Database className="w-2.5 h-2.5" />
                                             {p.label}
                                             {p.count != null && <span className="opacity-60">({p.count})</span>}
@@ -2069,7 +2144,7 @@ function MessageBubble({
                     )}
 
                     {message.link && !streaming && (
-                        <button onClick={() => onNavigate(message.link!.href)} className={`mt-2 inline-flex items-center gap-1 text-[12.5px] font-medium hover:underline transition-colors ${isUser ? 'text-blue-100' : 'text-blue-950'}`}>
+                        <button onClick={() => onNavigate(message.link!.href)} className={`mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium hover:underline transition-colors {isUser ? 'text-blue-100' : 'text-blue-950'}`}>
                             <ArrowRight className="w-3.5 h-3.5" />
                             {message.link.label}
                         </button>
@@ -2079,7 +2154,7 @@ function MessageBubble({
                         <div className="mt-1 flex flex-wrap gap-1.5">
                             {message.actions.map((a) => {
                                 const Icon: IconComponent = isIconComponent(a.icon) ? a.icon : Zap;
-                                const tone = a.tone === 'danger' ? 'bg-rose-50 text-rose-700 border-rose-100 hover:border-rose-200' : a.tone === 'primary' ? 'bg-blue-950 text-white border-blue-950 hover:bg-blue-900' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300';
+                                const tone = a.tone === 'danger' ? 'bg-rose-50 text-rose-700 border-rose-100 hover:border-rose-200' : a.tone === 'primary' ? 'bg-blue-950 text-white border-blue-950 hover:bg-blue-900' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300';
                                 return (
                                     <button
                                         key={a.id}
@@ -2087,7 +2162,7 @@ function MessageBubble({
                                             if (a.href) onNavigate(a.href);
                                             else if (a.prompt) onRetry(a.prompt);
                                         }}
-                                        className={`inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-1 rounded-sm border transition ${tone}`}
+                                        className={`inline-flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 rounded-lg border transition ${tone}`}
                                     >
                                         <Icon className="w-3 h-3" />
                                         {a.label}
@@ -2104,7 +2179,7 @@ function MessageBubble({
                                     key={q}
                                     onClick={() => onQuickReply(q)}
                                     disabled={disabled}
-                                    className="text-[11.5px] font-medium bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-950 px-2 py-1 rounded-sm transition disabled:opacity-50"
+                                    className="text-[12px] font-medium bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-600 hover:text-blue-950 px-2.5 py-1.5 rounded transition disabled:opacity-50"
                                 >
                                     {q}
                                 </button>
@@ -2112,26 +2187,26 @@ function MessageBubble({
                         </div>
                     )}
 
-                    <div className={`mt-1.5 flex items-center justify-between gap-2 ${isUser ? 'text-blue-200' : 'text-slate-400'}`}>
+                    <div className={`mt-1 flex items-center justify-between gap-2 ${isUser ? 'text-blue-200' : 'text-slate-400'}`}>
                         <span className="text-[10.5px] font-mono">{message.timestamp}</span>
                         <div className="flex items-center gap-0.5">
                             {isUser && !streaming && (
-                                <button onClick={() => onEdit(message.id)} aria-label="Edit" className="p-1 rounded-sm hover:bg-white/10 text-current">
+                                <button onClick={() => onEdit(message.id)} aria-label="Edit" className="p-1 rounded hover:bg-white/10 text-current">
                                     <Edit3 className="w-3 h-3" />
                                 </button>
                             )}
                             {!isUser && !streaming && message.content && (
                                 <>
-                                    <button onClick={copy} aria-label="Copy" className="p-1 rounded-sm hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                                    <button onClick={copy} aria-label="Copy" className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
                                         {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                                     </button>
-                                    <button onClick={() => onRegenerate(message.id)} aria-label="Regenerate" className="p-1 rounded-sm hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                                    <button onClick={() => onRegenerate(message.id)} aria-label="Regenerate" className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
                                         <RotateCcw className="w-3 h-3" />
                                     </button>
-                                    <button onClick={() => onFeedback(message.id, 'up')} aria-label="Helpful" className={`p-1 rounded-sm hover:bg-slate-100 transition-colors ${message.feedback === 'up' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-700'}`}>
+                                    <button onClick={() => onFeedback(message.id, 'up')} aria-label="Helpful" className={`p-1 rounded hover:bg-slate-100 transition-colors ${message.feedback === 'up' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-700'}`}>
                                         <ThumbsUp className="w-3 h-3" />
                                     </button>
-                                    <button onClick={() => onFeedback(message.id, 'down')} aria-label="Not helpful" className={`p-1 rounded-sm hover:bg-slate-100 transition-colors ${message.feedback === 'down' ? 'text-rose-600' : 'text-slate-400 hover:text-slate-700'}`}>
+                                    <button onClick={() => onFeedback(message.id, 'down')} aria-label="Not helpful" className={`p-1 rounded hover:bg-slate-100 transition-colors ${message.feedback === 'down' ? 'text-rose-600' : 'text-slate-400 hover:text-slate-700'}`}>
                                         <ThumbsDown className="w-3 h-3" />
                                     </button>
                                 </>
@@ -2145,15 +2220,24 @@ function MessageBubble({
 }
 
 function ChartBlock({ spec }: { spec: AdminAIChartSpec }) {
-    const type = spec.type as string;
-
-    if (type === 'pie' || type === 'doughnut') {
+    if (spec.type === 'pie' || spec.type === 'doughnut') {
+        const isDoughnut = spec.type === 'doughnut';
         return (
-            <div className="mt-2 rounded-sm border border-slate-200 bg-slate-50 p-2">
+            <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2">
                 <div className="h-44">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            <Pie data={spec.data} cx="50%" cy="50%" innerRadius={type === 'doughnut' ? 40 : 0} outerRadius={70} paddingAngle={type === 'doughnut' ? 3 : 0} dataKey="value" label={(entry: { name?: string }) => `${entry.name ?? ''}`} labelLine={false}>
+                            <Pie
+                                data={spec.data}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={isDoughnut ? 40 : 0}
+                                outerRadius={70}
+                                paddingAngle={isDoughnut ? 3 : 0}
+                                dataKey="value"
+                                label={(entry: { name?: string }) => `${entry.name ?? ''}`}
+                                labelLine={false}
+                            >
                                 {spec.data.map((entry, i) => (
                                     <Cell key={i} fill={entry.color || CHART_COLORS[i % CHART_COLORS.length]} />
                                 ))}
@@ -2166,9 +2250,9 @@ function ChartBlock({ spec }: { spec: AdminAIChartSpec }) {
         );
     }
 
-    if (type === 'area') {
+    if (spec.type === 'area') {
         return (
-            <div className="mt-2 rounded-sm border border-slate-200 bg-slate-50 p-2">
+            <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2">
                 <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={spec.data} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
@@ -2195,10 +2279,10 @@ function ChartBlock({ spec }: { spec: AdminAIChartSpec }) {
         );
     }
 
-    const Chart = type === 'line' ? LineChart : BarChart;
+    const Chart = spec.type === 'line' ? LineChart : BarChart;
 
     return (
-        <div className="mt-1 rounded-sm border border-slate-200 bg-slate-50 p-2">
+        <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2">
             <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                     <Chart data={spec.data} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
@@ -2208,10 +2292,10 @@ function ChartBlock({ spec }: { spec: AdminAIChartSpec }) {
                         <Tooltip contentStyle={TOOLTIP_STYLE} />
                         {spec.series.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
                         {spec.series.map((s) =>
-                            type === 'line' ? (
+                            spec.type === 'line' ? (
                                 <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} dot={{ r: 2 }} />
                             ) : (
-                                <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[2, 2, 0, 0]} />
+                                <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} />
                             ),
                         )}
                     </Chart>
@@ -2223,12 +2307,12 @@ function ChartBlock({ spec }: { spec: AdminAIChartSpec }) {
 
 function TableBlock({ table }: { table: { headers: string[]; rows: string[][] } }) {
     return (
-        <div className="mt-1 border border-slate-200 rounded-sm overflow-hidden overflow-x-auto">
+        <div className="mt-2 border border-slate-200 rounded overflow-hidden overflow-x-auto">
             <table className="w-full text-[12px]">
                 <thead>
                     <tr className="bg-slate-50 text-slate-500">
                         {table.headers.map((h) => (
-                            <th key={h} className="text-left py-1.5 px-2 font-medium whitespace-nowrap">{h}</th>
+                            <th key={h} className="text-left py-2 px-2.5 font-medium whitespace-nowrap">{h}</th>
                         ))}
                     </tr>
                 </thead>
@@ -2236,7 +2320,7 @@ function TableBlock({ table }: { table: { headers: string[]; rows: string[][] } 
                     {table.rows.map((row, i) => (
                         <tr key={i}>
                             {row.map((cell, j) => (
-                                <td key={j} className="py-1.5 px-2 text-slate-700 whitespace-nowrap">{cell}</td>
+                                <td key={j} className="py-2 px-2.5 text-slate-600 whitespace-nowrap">{cell}</td>
                             ))}
                         </tr>
                     ))}
@@ -2285,7 +2369,7 @@ const Composer = React.forwardRef<HTMLTextAreaElement, {
     return (
         <div className="border-t border-slate-200 bg-white p-2 shrink-0">
             {editMessageId && (
-                <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-100 rounded-sm px-2 py-1">
+                <div className="mb-1 flex items-center gap-2 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-2.5 py-1.5">
                     <Edit3 className="w-3 h-3" />
                     Editing message — send to regenerate from here
                     <button onClick={onCancelEdit} className="ml-auto text-amber-700 hover:text-amber-900 transition-colors">Cancel</button>
@@ -2293,17 +2377,17 @@ const Composer = React.forwardRef<HTMLTextAreaElement, {
             )}
 
             {showSlash && (
-                <div className="mb-1.5 bg-white border border-slate-200 rounded-sm shadow-md max-h-[180px] overflow-y-auto">
+                <div className="mb-1 bg-white border border-slate-200 rounded max-h-[180px] overflow-y-auto">
                     {slashCommands
                         .filter((s) => s.cmd.startsWith(value.split(' ')[0]) || value.startsWith('/'))
                         .map((s) => (
                             <button
                                 key={s.cmd}
                                 onClick={() => { onChange(s.cmd + ' '); onSlashChange(false); (ref as React.RefObject<HTMLTextAreaElement>).current?.focus(); }}
-                                className="w-full text-left px-2 py-1 text-[12px] hover:bg-slate-50 flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-[12px] hover:bg-slate-50 flex items-center gap-2"
                             >
                                 <Command className="w-3 h-3 text-slate-400" />
-                                <span className="font-mono text-slate-900">{s.cmd}</span>
+                                <span className="font-mono text-slate-700">{s.cmd}</span>
                                 <span className="text-slate-400 ml-auto">{s.hint}</span>
                             </button>
                         ))}
@@ -2311,9 +2395,9 @@ const Composer = React.forwardRef<HTMLTextAreaElement, {
             )}
 
             {attachments.length > 0 && (
-                <div className="mb-1.5 flex flex-wrap gap-1">
+                <div className="mb-1 flex flex-wrap gap-1.5">
                     {attachments.map((a) => (
-                        <span key={a.id} className="inline-flex items-center gap-1 text-[11px] bg-slate-50 border border-slate-200 rounded-sm px-1.5 py-0.5">
+                        <span key={a.id} className="inline-flex items-center gap-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded px-2 py-1">
                             {a.type.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
                             <span className="max-w-[120px] truncate">{a.name}</span>
                             <span className="text-slate-400">{formatBytes(a.size)}</span>
@@ -2339,33 +2423,30 @@ const Composer = React.forwardRef<HTMLTextAreaElement, {
                         }
                     }}
                     placeholder={`Ask about ${context.label}… (⌘J to toggle)`}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-sm pl-3 pr-20 py-3 text-[13px] text-slate-900 placeholder:text-slate-400 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-blue-200 focus:bg-white focus:border-blue-200 min-h-[68px] max-h-40"
+                    className="w-full bg-slate-50 border border-slate-200 rounded pl-3 pr-24 py-3 text-[13px] text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-blue-200 focus:bg-white focus:border-blue-200 min-h-[72px] max-h-40"
                 />
-                <div className="absolute bottom-1.5 right-1 flex items-center gap-0.5">
-                    <button onClick={onAttach} aria-label="Attach file" className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors">
+                <div className="absolute bottom-2 right-2 flex items-center gap-0.5">
+                    <button onClick={onAttach} aria-label="Attach file" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
                         <Paperclip className="w-4 h-4" />
                     </button>
-                    <button onClick={onMicToggle} aria-label={listening ? 'Stop dictation' : 'Voice input'} className={`p-1.5 rounded-sm hover:bg-slate-100 transition-colors ${listening ? 'text-rose-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <button onClick={onMicToggle} aria-label={listening ? 'Stop dictation' : 'Voice input'} className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${listening ? 'text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}>
                         {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                     </button>
-                    <button onClick={onSpeakToggle} aria-label={speaking ? 'Stop speaking' : 'Read last reply'} className={`p-1.5 rounded-sm hover:bg-slate-100 transition-colors ${speaking ? 'text-blue-700' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <button onClick={onSpeakToggle} aria-label={speaking ? 'Stop speaking' : 'Read last reply'} className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${speaking ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                         {speaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
                     {streaming ? (
-                        <button onClick={onStop} aria-label="Stop" className="p-1.5 rounded-sm bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors">
+                        <button onClick={onStop} aria-label="Stop" className="p-1.5 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors">
                             <Square className="w-4 h-4" />
                         </button>
                     ) : (
-                        <button onClick={onSend} disabled={!canSend} aria-label="Send" className="p-1.5 rounded-sm disabled:opacity-40 text-blue-700 hover:bg-blue-50 transition-colors">
+                        <button onClick={onSend} disabled={!canSend} aria-label="Send" className="p-1.5 rounded disabled:opacity-40 text-blue-700 hover:bg-blue-50 transition-colors">
                             <Send className="w-4 h-4" />
                         </button>
                     )}
                 </div>
             </div>
-            <p className="mt-1 text-[10.5px] text-slate-400 flex items-center justify-between">
-                <span className="inline-flex items-center gap-1"><Command className="w-2.5 h-2.5" />↵ to send · Shift+↵ newline · / for commands</span>
-                <span className="hidden sm:inline">{value.length} chars</span>
-            </p>
+            
         </div>
     );
 });
@@ -2382,7 +2463,7 @@ function AlertsView({
 }) {
     if (alerts.length === 0) {
         return (
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-50">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-3 bg-slate-50">
                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                 <p className="text-[13px]">All caught up.</p>
                 <button onClick={onRefresh} className="text-[12px] text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors"><RefreshCw className="w-3 h-3" />Refresh</button>
@@ -2399,16 +2480,16 @@ function AlertsView({
     return (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50 p-2 space-y-2">
             <div className="flex items-center justify-between px-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Live alerts</p>
+                <p className="text-[11px] font-semibold uppercase text-slate-400">Live alerts</p>
                 <button onClick={onRefresh} className="text-[11px] text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors"><RefreshCw className="w-3 h-3" />Refresh</button>
             </div>
             {groups.map((g) => {
                 const list = alerts.filter((a) => a.severity === g.key);
                 if (list.length === 0) return null;
                 return (
-                    <div key={g.key} className="space-y-1.5">
-                        <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{g.label} · {list.length}</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <div key={g.key} className="space-y-2">
+                        <p className="px-1 text-[11px] font-semibold uppercase text-slate-400">{g.label} · {list.length}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {list.map((a) => (
                                 <AlertCard
                                     key={String(a.id)}
@@ -2447,51 +2528,51 @@ function AlertCard({ alert, onDismiss, onAcknowledge, onSnooze, onNavigate }: {
     const isAcknowledged = !!alert.acknowledgedAt;
 
     return (
-        <div className={`bg-white border rounded-sm p-2 space-y-1.5 ${isAcknowledged ? 'opacity-70' : 'border-slate-200'}`}>
-            <div className="flex items-start justify-between gap-1.5">
+        <div className={`bg-white border rounded p-2 space-y-2 ${isAcknowledged ? 'opacity-70' : 'border-slate-200'}`}>
+            <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2 min-w-0">
-                    <span className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 border ${tone.chip}`}>
+                    <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 border ${tone.chip}`}>
                         <Icon className="w-3.5 h-3.5" />
                     </span>
                     <div className="min-w-0">
-                        <p className="text-[13px] font-semibold text-slate-900 leading-tight">{alert.title}</p>
-                        <p className="text-[12px] text-slate-500 mt-1 leading-snug">{alert.description}</p>
+                        <p className="text-[13px] font-semibold text-slate-700 ">{alert.title}</p>
+                        <p className="text-[12px] text-slate-500 mt-1 ">{alert.description}</p>
                         {isSnoozed && (
-                            <span className="inline-flex items-center gap-1 mt-1 text-[11px] text-slate-500">
+                            <span className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] text-slate-500">
                                 <Clock className="w-3 h-3" />
                                 Snoozed until {new Date(alert.snoozedUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                         )}
                         {isAcknowledged && (
-                            <span className="inline-flex items-center gap-1 mt-1 text-[11px] text-emerald-700">
+                            <span className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] text-emerald-700">
                                 <CheckCircle2 className="w-3 h-3" />Acknowledged
                             </span>
                         )}
                     </div>
                 </div>
-                <button onClick={onDismiss} aria-label="Dismiss alert" className="p-1 rounded-sm hover:bg-slate-100 text-slate-400 hover:text-slate-700 shrink-0 transition-colors">
+                <button onClick={onDismiss} aria-label="Dismiss alert" className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 shrink-0 transition-colors">
                     <X className="w-3.5 h-3.5" />
                 </button>
             </div>
 
             {snoozeOpen && (
-                <div className="flex items-center gap-1 pt-1">
+                <div className="flex items-center gap-1.5 pt-1">
                     {SNOOZE_OPTIONS.map((opt) => (
-                        <button key={opt.label} onClick={() => { onSnooze(opt.minutes); setSnoozeOpen(false); }} className="text-[11px] font-medium bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-950 px-2 py-1 rounded-sm transition">
+                        <button key={opt.label} onClick={() => { onSnooze(opt.minutes); setSnoozeOpen(false); }} className="text-[11px] font-medium bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-600 hover:text-blue-950 px-2 py-1 rounded transition">
                             {opt.label}
                         </button>
                     ))}
                 </div>
             )}
 
-            <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2.5">
                     <span className="text-[10.5px] font-mono text-slate-400">{alert.timestamp}</span>
                     {!isAcknowledged && (
-                        <button onClick={onAcknowledge} className="text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors">Acknowledge</button>
+                        <button onClick={onAcknowledge} className="text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors">Acknowledge</button>
                     )}
                     {!isSnoozed && !snoozeOpen && (
-                        <button onClick={() => setSnoozeOpen(true)} className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors">
+                        <button onClick={() => setSnoozeOpen(true)} className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors">
                             <Clock className="w-3 h-3" />Snooze
                         </button>
                     )}
@@ -2513,7 +2594,7 @@ function InsightsView({ insights, onDismiss, onNavigate, onRefresh }: {
 }) {
     if (insights.length === 0) {
         return (
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-50">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-3 bg-slate-50">
                 <Lightbulb className="w-8 h-8" />
                 <p className="text-[13px]">No new insights right now.</p>
                 <button onClick={onRefresh} className="text-[12px] text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors"><RefreshCw className="w-3 h-3" />Refresh</button>
@@ -2530,32 +2611,32 @@ function InsightsView({ insights, onDismiss, onNavigate, onRefresh }: {
 
     return (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50 p-2">
-            <div className="flex items-center justify-between px-1 mb-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Insights</p>
+            <div className="flex items-center justify-between px-1 mb-1">
+                <p className="text-[11px] font-semibold uppercase text-slate-400">Insights</p>
                 <button onClick={onRefresh} className="text-[11px] text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors"><RefreshCw className="w-3 h-3" />Refresh</button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {insights.map((ins) => {
                     const Icon = categoryIcon[ins.category] ?? Lightbulb;
                     const tone = ins.priority === 'high' ? 'bg-rose-50 text-rose-700 border-rose-100' : ins.priority === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-slate-100 text-slate-600 border-slate-200';
                     return (
-                        <div key={String(ins.id)} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
-                            <div className="flex items-start justify-between gap-1.5">
+                        <div key={String(ins.id)} className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0">
-                                    <span className="w-7 h-7 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+                                    <span className="w-7 h-7 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                                         <Icon className="w-4 h-4" />
                                     </span>
                                     <div className="min-w-0">
-                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{ins.category}</p>
-                                        <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-sm text-[10.5px] font-medium border ${tone}`}>{ins.priority}</span>
+                                        <p className="text-[10px] font-semibold uppercase text-slate-400">{ins.category}</p>
+                                        <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-[12px] font-medium border  ${tone}`}>{ins.priority}</span>
                                     </div>
                                 </div>
-                                <button onClick={() => onDismiss(String(ins.id))} aria-label="Dismiss insight" className="p-1 rounded-sm hover:bg-slate-100 text-slate-400 hover:text-slate-700 shrink-0 transition-colors">
+                                <button onClick={() => onDismiss(String(ins.id))} aria-label="Dismiss insight" className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 shrink-0 transition-colors">
                                     <X className="w-3.5 h-3.5" />
                                 </button>
                             </div>
-                            <p className="text-[12.5px] text-slate-800 leading-snug">{ins.text}</p>
-                            <div className="flex items-center justify-end pt-1.5 border-t border-slate-100">
+                            <p className="text-[13px] text-slate-600 ">{ins.text}</p>
+                            <div className="flex items-center justify-end pt-2 border-t border-slate-100">
                                 <button onClick={() => onNavigate(String(ins.id), ins.href)} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-blue-950 hover:underline transition-colors">
                                     {ins.actionLabel}
                                     <ArrowRight className="w-3 h-3" />
@@ -2597,7 +2678,7 @@ function AutomationsView({
 
     if (loading && automations.length === 0) {
         return (
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-50">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-3 bg-slate-50">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-900" />
                 <p className="text-[13px]">Loading automations…</p>
             </div>
@@ -2606,7 +2687,7 @@ function AutomationsView({
 
     if (automations.length === 0) {
         return (
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-2 bg-slate-50">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-3 bg-slate-50">
                 <Workflow className="w-8 h-8" />
                 <p className="text-[13px]">No automations configured yet.</p>
                 <button onClick={onRefresh} className="text-[12px] text-blue-700 hover:underline inline-flex items-center gap-1 transition-colors">
@@ -2618,13 +2699,13 @@ function AutomationsView({
 
     return (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50 p-2">
-            <div className="flex items-center justify-between px-1 mb-1.5 gap-1">
+            <div className="flex items-center justify-between px-1 mb-1 gap-2">
                 <div className="flex items-center gap-1 overflow-x-auto">
                     {(['all', 'Active', 'Paused', 'Draft'] as const).map((f) => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
-                            className={`text-[11px] font-medium px-2 py-0.5 rounded-sm border whitespace-nowrap transition-colors ${filter === f ? 'bg-blue-950 text-white border-blue-950' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                            className={`text-[11px] font-medium px-2.5 py-1 rounded border whitespace-nowrap transition-colors ${filter === f ? 'bg-blue-950 text-white border-blue-950' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}
                         >
                             {f === 'all' ? 'All' : f}
                         </button>
@@ -2635,7 +2716,7 @@ function AutomationsView({
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {filtered.map((a) => {
                     const isExpanded = expanded.has(String(a.id));
                     const statusTone = a.status === 'Active'
@@ -2651,46 +2732,46 @@ function AutomationsView({
                     const isRunning = runningId === String(a.id);
 
                     return (
-                        <div key={String(a.id)} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
-                            <div className="flex items-start justify-between gap-1.5">
+                        <div key={String(a.id)} className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-start gap-2 min-w-0">
-                                    <span className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 border ${statusTone}`}>
+                                    <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 border ${statusTone}`}>
                                         <Workflow className="w-3.5 h-3.5" />
                                     </span>
                                     <div className="min-w-0">
-                                        <p className="text-[13px] font-semibold text-slate-900 leading-tight truncate">{a.name}</p>
-                                        <p className="text-[11px] text-slate-500 truncate">{String(a.kind).replace(/_/g, ' ')} · {a.scheduleKind}</p>
+                                        <p className="text-[13px] font-semibold text-slate-700  runcate">{a.name}</p>
+                                        <p className="text-[11px] text-slate-500 truncate  ">{String(a.kind).replace(/_/g, ' ')} · {a.scheduleKind}</p>
                                     </div>
                                 </div>
-                                <span className={`inline-block px-1.5 py-0.5 rounded-sm text-[10.5px] font-semibold border shrink-0 ${statusTone}`}>{a.status}</span>
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10.5px] font-semibold border shrink-0 ${statusTone}`}>{a.status}</span>
                             </div>
 
-                            <p className="text-[11.5px] text-slate-600 line-clamp-2 leading-snug">{a.description || 'No description'}</p>
+                            <p className="text-[11.5px] text-slate-500 line-clamp-2">{a.description || 'No description'}</p>
 
-                            <div className="grid grid-cols-2 gap-1 text-[11px]">
-                                <div className="flex items-center gap-1 text-slate-500">
+                            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                                <div className="flex items-center gap-1.5 text-slate-500">
                                     <Activity className="w-3 h-3" />
                                     <span>{a.successRate}% success</span>
                                 </div>
-                                <div className="flex items-center gap-1 text-slate-500">
+                                <div className="flex items-center gap-1.5 text-slate-500">
                                     <Timer className="w-3 h-3" />
                                     <span>{a.runs} runs</span>
                                 </div>
-                                <div className={`flex items-center gap-1 ${lastRunTone}`}>
+                                <div className={`flex items-center gap-1.5 ${lastRunTone}`}>
                                     <Clock className="w-3 h-3" />
                                     <span>Last: {a.lastRun || '—'}</span>
                                 </div>
-                                <div className="flex items-center gap-1 text-slate-500">
+                                <div className="flex items-center gap-1.5 text-slate-500">
                                     <Calendar className="w-3 h-3" />
                                     <span>Next: {a.nextRunAt ? new Date(a.nextRunAt).toLocaleDateString() : '—'}</span>
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
-                                <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-1.5">
                                     <button
                                         onClick={() => onToggle(a.id, a.status !== 'Active')}
-                                        className={`text-[11px] font-medium px-2 py-0.5 rounded-sm border transition-colors ${a.status === 'Active' ? 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'}`}
+                                        className={`text-[11px] font-medium px-2.5 py-1 rounded border transition-colors leading-relaxed ${a.status === 'Active' ? 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'}`}
                                     >
                                         {a.status === 'Active' ? 'Pause' : 'Activate'}
                                     </button>
@@ -2701,7 +2782,7 @@ function AutomationsView({
                                             setTimeout(() => setRunningId(null), 1200);
                                         }}
                                         disabled={isRunning || a.status !== 'Active'}
-                                        className="text-[11px] font-medium px-2 py-0.5 rounded-sm bg-blue-950 text-white hover:bg-blue-900 disabled:opacity-50 inline-flex items-center gap-1 transition-colors"
+                                        className="text-[11px] font-medium px-2.5 py-1 rounded bg-blue-950 text-white hover:bg-blue-900 disabled:opacity-50 inline-flex items-center gap-1 transition-colors"
                                     >
                                         {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                                         Run now
@@ -2709,7 +2790,7 @@ function AutomationsView({
                                 </div>
                                 <button
                                     onClick={() => toggleExpanded(String(a.id))}
-                                    className="text-[11px] text-slate-500 hover:text-slate-800 inline-flex items-center gap-1 transition-colors"
+                                    className="text-[11px] text-slate-500 hover:text-slate-700 inline-flex items-center gap-1 transition-colors"
                                 >
                                     {isExpanded ? 'Hide' : 'Runs'}
                                     <ChevronDown className={`w-3 h-3 transition ${isExpanded ? 'rotate-180' : ''}`} />
@@ -2717,15 +2798,15 @@ function AutomationsView({
                             </div>
 
                             {isExpanded && (
-                                <div className="mt-1 space-y-1 pt-1.5 border-t border-slate-100">
+                                <div className="mt-1 space-y-1.5 pt-2 border-t border-slate-100">
                                     {a.recentRuns.length === 0 ? (
                                         <p className="text-[11px] text-slate-400">No runs recorded yet.</p>
                                     ) : (
                                         a.recentRuns.slice(0, 3).map((r) => (
-                                            <div key={r.id} className="flex items-start gap-1 text-[11px]">
-                                                <span className={`w-1.5 h-1.5 rounded-sm mt-1 shrink-0 ${r.status === 'success' ? 'bg-emerald-500' : r.status === 'failed' ? 'bg-rose-500' : r.status === 'running' ? 'bg-blue-500 animate-pulse' : 'bg-slate-400'}`} />
+                                            <div key={r.id} className="flex items-start gap-1.5 text-[11px]">
+                                                <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${r.status === 'success' ? 'bg-emerald-500' : r.status === 'failed' ? 'bg-rose-500' : r.status === 'running' ? 'bg-blue-500 animate-pulse' : 'bg-slate-400'}`} />
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="text-slate-700 truncate">{r.summary || r.status}</p>
+                                                    <p className="text-slate-600 truncate">{r.summary || r.status}</p>
                                                     <p className="text-slate-400 text-[10.5px]">
                                                         {r.startedRelative} · {r.durationMs}ms · {r.itemsAffected} items
                                                         {r.costKes > 0 && ` · ${r.costKes.toFixed(2)} KES`}
@@ -2747,20 +2828,20 @@ function AutomationsView({
 function ActionsView({ actions, onRun }: { actions: QuickAction[]; onRun: (a: QuickAction) => void }) {
     return (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-slate-50 p-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {actions.map((a) => {
                     const Icon: IconComponent = isIconComponent(a.icon) ? a.icon : Zap;
                     const tone = TONE_CLASSES[a.tone ?? 'blue'];
                     return (
-                        <button key={a.id} onClick={() => onRun(a)} className="text-left bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm rounded-sm p-2 transition group">
-                            <div className="flex items-center gap-2 mb-1.5">
-                                <span className={`w-7 h-7 rounded-sm flex items-center justify-center border shrink-0 ${tone.chip}`}>
+                        <button key={a.id} onClick={() => onRun(a)} className="text-left bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm rounded p-2 transition group">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className={`w-7 h-7 rounded flex items-center justify-center border shrink-0 ${tone.chip}`}>
                                     <Icon className="w-4 h-4" />
                                 </span>
-                                <p className="text-[13px] font-semibold text-slate-900 truncate">{a.label}</p>
+                                <p className="text-[13px] font-semibold text-slate-700 truncate">{a.label}</p>
                                 <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 ml-auto shrink-0 transition-colors" />
                             </div>
-                            <p className="text-[11.5px] text-slate-500 leading-snug line-clamp-2">{a.description}</p>
+                            <p className="text-[11.5px] text-slate-500 line-clamp-2">{a.description}</p>
                         </button>
                     );
                 })}
@@ -2772,40 +2853,40 @@ function ActionsView({ actions, onRun }: { actions: QuickAction[]; onRun: (a: Qu
 function ConfirmDialog({ action, onConfirm, onCancel }: { action: PendingAction; onConfirm: () => void; onCancel: () => void }) {
     return (
         <div className="fixed inset-0 z-[160] bg-slate-900/40 flex items-center justify-center px-3" role="dialog" aria-modal="true">
-            <div className="bg-white rounded-sm shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded shadow max-w-md w-full border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
-                    <span className={`w-8 h-8 rounded-sm flex items-center justify-center ${action.destructive ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-950'}`}>
+                    <span className={`w-8 h-8 rounded flex items-center justify-center ${action.destructive ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-950'}`}>
                         {action.destructive ? <AlertTriangle className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
                     </span>
                     <div className="min-w-0">
-                        <p className="text-[14px] font-semibold text-slate-900">{action.title}</p>
-                        <p className="text-[11.5px] text-slate-500 font-mono">{action.tool}</p>
+                        <p className="text-[14px] font-semibold text-slate-700">{action.title}</p>
+                        <p className="text-[13px] text-slate-500 font-mono">{action.tool}</p>
                     </div>
                 </div>
                 <div className="px-4 py-3 space-y-2">
-                    <p className="text-[13px] text-slate-700 leading-relaxed">{action.description}</p>
+                    <p className="text-[13px] text-slate-600">{action.description}</p>
                     {action.preview && action.preview.length > 0 && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-0.5">
+                        <div className="bg-slate-50 border border-slate-200 rounded p-2.5 space-y-1">
                             {action.preview.map((p, i) => (
                                 <div key={i} className="flex items-center justify-between text-[12px]">
                                     <span className="text-slate-500">{p.label}</span>
-                                    <span className="text-slate-900 font-medium font-mono">{p.value}</span>
+                                    <span className="text-slate-700 font-medium font-mono">{p.value}</span>
                                 </div>
                             ))}
                         </div>
                     )}
                     {action.destructive && (
-                        <div className="flex items-start gap-1.5 text-[11.5px] text-rose-700 bg-rose-50 border border-rose-100 rounded-sm px-2 py-1.5">
+                        <div className="flex items-start gap-2 text-[13px] text-rose-700 bg-rose-50 border border-rose-100 rounded px-2.5 py-2">
                             <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                             This action is destructive and will be logged in the audit trail.
                         </div>
                     )}
                 </div>
                 <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-1.5">
-                    <button onClick={onCancel} className="px-3 py-1.5 text-[12.5px] font-medium rounded-sm border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 transition-colors">
+                    <button onClick={onCancel} className="px-3 py-1.5 text-[13px] font-medium rounded border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition-colors">
                         {action.cancelLabel ?? 'Cancel'}
                     </button>
-                    <button onClick={onConfirm} className={`px-3 py-1.5 text-[12.5px] font-medium rounded-sm text-white transition-colors ${action.destructive ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-950 hover:bg-blue-900'}`}>
+                    <button onClick={onConfirm} className={`px-3 py-1.5 text-[13px] font-medium rounded text-white transition-colors ${action.destructive ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-950 hover:bg-blue-900'}`}>
                         {action.confirmLabel ?? 'Confirm'}
                     </button>
                 </div>
@@ -2830,23 +2911,23 @@ function SettingsDrawer({ onClose, theme, onTheme, readOnly, onReadOnly, piiMask
         <div className="fixed inset-0 z-[150] bg-slate-900/40 flex justify-end" role="dialog" aria-modal="true" onClick={onClose}>
             <div className="bg-white w-full max-w-[420px] h-full shadow-2xl border-l border-slate-200 flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="px-3 py-3 border-b border-slate-200 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-sm bg-slate-100 text-slate-700 flex items-center justify-center"><Settings className="w-4 h-4" /></span>
+                    <span className="w-8 h-8 rounded bg-slate-100 text-slate-600 flex items-center justify-center"><Settings className="w-4 h-4" /></span>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-semibold text-slate-900">Copilot settings</p>
-                        <p className="text-[11.5px] text-slate-500 truncate">Context: {context.label}</p>
+                        <p className="text-[14px] font-semibold text-slate-700">Copilot settings</p>
+                        <p className="text-[13px] text-slate-500 truncate">Context: {context.label}</p>
                     </div>
-                    <button onClick={onClose} aria-label="Close settings" className="p-1.5 rounded-sm hover:bg-slate-100 text-slate-500 transition-colors"><X className="w-4 h-4" /></button>
+                    <button onClick={onClose} aria-label="Close settings" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 transition-colors"><X className="w-4 h-4" /></button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 space-y-4">
                     <section className="space-y-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Appearance</p>
-                        <div className="grid grid-cols-3 gap-1.5">
+                        <p className="text-[11px] font-semibold uppercase text-slate-400">Appearance</p>
+                        <div className="grid grid-cols-3 gap-2">
                             {(['light', 'dark', 'auto'] as const).map((t) => (
                                 <button
                                     key={t}
                                     onClick={() => onTheme(t)}
-                                    className={`rounded-sm border px-2 py-2 text-[12px] font-medium flex flex-col items-center gap-1 transition-colors ${theme === t ? 'border-blue-300 bg-blue-50 text-blue-950' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                    className={`rounded border px-2 py-2.5 text-[12px] font-medium flex flex-col items-center gap-1.5 transition-colors ${theme === t ? 'border-blue-300 bg-blue-50 text-blue-950' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
                                 >
                                     {t === 'light' ? <Sun className="w-4 h-4" /> : t === 'dark' ? <Moon className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
                                     {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -2856,16 +2937,16 @@ function SettingsDrawer({ onClose, theme, onTheme, readOnly, onReadOnly, piiMask
                     </section>
 
                     <section className="space-y-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Safety</p>
+                        <p className="text-[11px] font-semibold uppercase text-slate-400 ">Safety</p>
                         <ToggleRow icon={Lock} label="Read-only mode" hint="AI can answer questions but cannot execute write actions." value={readOnly} onChange={onReadOnly} />
                         <ToggleRow icon={EyeOff} label="Mask PII" hint="Emails, phone numbers, and addresses are hidden by default." value={piiMasked} onChange={onPiiMasked} />
                     </section>
 
                     <section className="space-y-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Capabilities on this page</p>
-                        <div className="flex flex-wrap gap-1">
+                        <p className="text-[11px] font-semibold uppercase text-slate-400 ">Capabilities on this page</p>
+                        <div className="flex flex-wrap gap-1.5">
                             {(context.pack?.tools ?? []).map((t) => (
-                                <span key={t} className="text-[11px] font-mono px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-700 border border-slate-200">{t}</span>
+                                <span key={t} className="text-[11px] font-mono px-2 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200  ">{t}</span>
                             ))}
                             {(!context.pack?.tools || context.pack.tools.length === 0) && (
                                 <span className="text-[11.5px] text-slate-400">No tools wired for this route yet.</span>
@@ -2875,18 +2956,18 @@ function SettingsDrawer({ onClose, theme, onTheme, readOnly, onReadOnly, piiMask
 
                     <section className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Audit log ({auditEntries.length})</p>
+                            <p className="text-[11px] font-semibold uppercase text-slate-400">Audit log ({auditEntries.length})</p>
                             {auditEntries.length > 0 && (
                                 <button onClick={onClearAudit} className="text-[11px] text-rose-600 hover:underline transition-colors">Clear</button>
                             )}
                         </div>
-                        <div className="space-y-1 max-h-[220px] overflow-y-auto">
+                        <div className="space-y-1.5 max-h-[220px] overflow-y-auto">
                             {auditEntries.length === 0 && <p className="text-[11.5px] text-slate-400">No AI actions recorded yet.</p>}
                             {auditEntries.map((e) => (
-                                <div key={e.id} className="bg-slate-50 border border-slate-200 rounded-sm px-2 py-1 text-[11px] flex items-start gap-1.5">
-                                    <span className={`w-1.5 h-1.5 rounded-full mt-1 shrink-0 ${e.status === 'success' ? 'bg-emerald-500' : e.status === 'failed' ? 'bg-rose-500' : e.status === 'cancelled' ? 'bg-slate-400' : 'bg-amber-500'}`} />
+                                <div key={e.id} className="bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-[11px] flex items-start gap-2">
+                                    <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${e.status === 'success' ? 'bg-emerald-500' : e.status === 'failed' ? 'bg-rose-500' : e.status === 'cancelled' ? 'bg-slate-400' : 'bg-amber-500'}`} />
                                     <div className="min-w-0">
-                                        <p className="font-medium text-slate-800 truncate">{e.action}{e.target ? ` · ${e.target}` : ''}</p>
+                                        <p className="font-medium text-slate-700 truncate">{e.action}{e.target ? ` · ${e.target}` : ''}</p>
                                         <p className="text-slate-400">{new Date(e.timestamp).toLocaleString()} · {e.actor}</p>
                                     </div>
                                 </div>
@@ -2894,13 +2975,13 @@ function SettingsDrawer({ onClose, theme, onTheme, readOnly, onReadOnly, piiMask
                         </div>
                     </section>
 
-                    <section className="space-y-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Keyboard</p>
-                        <div className="grid grid-cols-2 gap-1 text-[11.5px] text-slate-600">
-                            <kbd className="bg-slate-100 border border-slate-200 rounded-sm px-1.5 py-0.5 font-mono">⌘J</kbd><span>Toggle panel</span>
-                            <kbd className="bg-slate-100 border border-slate-200 rounded-sm px-1.5 py-0.5 font-mono">⌘K</kbd><span>Toggle sidebar</span>
-                            <kbd className="bg-slate-100 border border-slate-200 rounded-sm px-1.5 py-0.5 font-mono">⌘↵</kbd><span>Send</span>
-                            <kbd className="bg-slate-100 border border-slate-200 rounded-sm px-1.5 py-0.5 font-mono">Esc</kbd><span>Close / cancel</span>
+                    <section className="space-y-1.5">
+                        <p className="text-[11px] font-semibold uppercase text-slate-400">Keyboard</p>
+                        <div className="grid grid-cols-2 gap-1.5 text-[13px] text-slate-600 leading-relaxed">
+                            <kbd className="bg-slate-100 border border-slate-200 rounded px-2 py-1 font-mono"> </kbd><span>Toggle panel</span>
+                            <kbd className="bg-slate-100 border border-slate-200 rounded px-2 py-1 font-mono"> </kbd><span>Toggle sidebar</span>
+                            <kbd className="bg-slate-100 border border-slate-200 rounded px-2 py-1 font-mono"> </kbd><span>Send</span>
+                            <kbd className="bg-slate-100 border border-slate-200 rounded px-2 py-1 font-mono"> </kbd><span>Close / cancel</span>
                         </div>
                     </section>
                 </div>
@@ -2918,33 +2999,18 @@ function ToggleRow({ icon: Icon, label, hint, value, onChange }: {
 }) {
     const SafeIcon: IconComponent = isIconComponent(Icon) ? Icon : Zap;
     return (
-        <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-sm p-2">
-            <span className="w-7 h-7 rounded-sm bg-white border border-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+            <span className="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-600 flex items-center justify-center shrink-0">
                 <SafeIcon className="w-3.5 h-3.5" />
             </span>
             <div className="flex-1 min-w-0">
-                <p className="text-[12.5px] font-semibold text-slate-900">{label}</p>
-                <p className="text-[11px] text-slate-500 leading-snug">{hint}</p>
+                <p className="text-[13px] font-semibold text-slate-700">{label}</p>
+                <p className="text-[11px] text-slate-500">{hint}</p>
             </div>
-            <button onClick={() => onChange(!value)} role="switch" aria-checked={value} className={`w-8 h-4 rounded-full relative transition shrink-0 ${value ? 'bg-blue-950' : 'bg-slate-300'}`}>
-                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition ${value ? 'left-[18px]' : 'left-0.5'}`} />
+            <button onClick={() => onChange(!value)} role="switch" aria-checked={value} className={`w-9 h-5 rounded-full relative transition shrink-0 ${value ? 'bg-blue-950' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition ${value ? 'left-[18px]' : 'left-0.5'}`} />
             </button>
         </div>
     );
 }
 
-function PanelFooter({ context, readOnly, piiMasked }: { context: PageContext; readOnly: boolean; piiMasked: boolean }) {
-    return (
-        <footer className="border-t border-slate-200 bg-white px-2 py-2 flex items-center justify-between gap-2 text-[11px] text-slate-400 shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-                <span className="inline-flex items-center gap-1"><Shield className="w-3 h-3" />{readOnly ? 'Read-only' : 'Write enabled'}</span>
-                <span className="inline-flex items-center gap-1">{piiMasked ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}PII {piiMasked ? 'masked' : 'visible'}</span>
-                <span className="hidden sm:inline-flex items-center gap-1"><KeyRound className="w-3 h-3" />Audited</span>
-            </div>
-            <span className="hidden sm:inline-flex items-center gap-1 font-mono truncate">
-                <Filter className="w-3 h-3" />
-                {context.label}
-            </span>
-        </footer>
-    );
-}

@@ -1,36 +1,25 @@
+from django.core.files.storage import default_storage
 from django.db.models import F, Max, Q, Sum
-from django.utils import timezone
 from rest_framework import status as http
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from .models import Banner, Placement, Status
-from .serializers import BannerSerializer
+from .serializers import BannerAdminSerializer, BannerSerializer
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Admin — powers /dashboard/banners
-# ─────────────────────────────────────────────────────────────────────────────
 class BannerAdminViewSet(ModelViewSet):
-    """
-    Full CRUD for banners plus:
-      POST   /api/dashboard/banners/{id}/duplicate/
-      POST   /api/dashboard/banners/{id}/toggle/
-      GET    /api/dashboard/banners/stats/
-      POST   /api/dashboard/banners/reset/
-    """
-
-    serializer_class = BannerSerializer
+    serializer_class = BannerAdminSerializer
     queryset = Banner.objects.all()
 
     def get_queryset(self):
         qs = super().get_queryset()
         p = self.request.query_params
 
-        # ?q=search
         if q := p.get('q'):
             qs = qs.filter(
                 Q(name__icontains=q)
@@ -38,17 +27,14 @@ class BannerAdminViewSet(ModelViewSet):
                 | Q(badge__icontains=q)
             )
 
-        # ?placement=HOME_HERO|CATEGORY_HERO|PROMO_STRIP|ALL
         placement = p.get('placement')
         if placement and placement != 'ALL':
             qs = qs.filter(placement=placement)
 
-        # ?status=ACTIVE|SCHEDULED|DRAFT|EXPIRED|ALL
         status = p.get('status')
         if status and status != 'ALL':
             qs = qs.filter(status=status)
 
-        # ?sort=order|recent|name|ctr
         sort = p.get('sort', 'order')
         if sort == 'recent':
             return qs.order_by('-updated_at')
@@ -58,7 +44,39 @@ class BannerAdminViewSet(ModelViewSet):
             return qs.order_by(F('clicks').desc(nulls_last=True))
         return qs.order_by('order', 'id')
 
-    # ── POST /api/dashboard/banners/{id}/duplicate/ ───────────────────────
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='uploads',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def uploads(self, request):
+        f = request.FILES.get('file')
+        kind = request.data.get('kind', 'desktop')
+
+        if not f:
+            return Response(
+                {'detail': 'No file provided.'},
+                status=http.HTTP_400_BAD_REQUEST,
+            )
+        if not (f.content_type or '').startswith('image/'):
+            return Response(
+                {'detail': 'Only image files are allowed.'},
+                status=http.HTTP_400_BAD_REQUEST,
+            )
+        if f.size > 15 * 1024 * 1024:
+            return Response(
+                {'detail': 'Image is too large (max 15 MB).'},
+                status=http.HTTP_400_BAD_REQUEST,
+            )
+
+        path = default_storage.save(f'banners/{kind}/{f.name}', f)
+        url = request.build_absolute_uri(default_storage.url(path))
+        return Response(
+            {'url': url},
+            status=http.HTTP_201_CREATED,
+        )
+
     @action(detail=True, methods=['post'])
     def duplicate(self, request, pk=None):
         src = self.get_object()
@@ -87,15 +105,37 @@ class BannerAdminViewSet(ModelViewSet):
             self.get_serializer(copy).data, status=http.HTTP_201_CREATED
         )
 
-    # ── POST /api/dashboard/banners/{id}/toggle/ ──────────────────────────
     @action(detail=True, methods=['post'])
     def toggle(self, request, pk=None):
         b = self.get_object()
-        b.status = Status.DRAFT if b.status == Status.ACTIVE else Status.ACTIVE
+
+        if b.status == Status.ACTIVE:
+            b.status = Status.DRAFT
+        else:
+            if b.placement == Placement.HOME_HERO:
+                live_count = (
+                    Banner.objects.filter(
+                        placement=Placement.HOME_HERO,
+                        status__in=[Status.ACTIVE, Status.SCHEDULED],
+                    )
+                    .exclude(pk=b.pk)
+                    .count()
+                )
+                if live_count >= Banner.MAX_HERO_SLIDES:
+                    return Response(
+                        {
+                            'detail': (
+                                f'Maximum {Banner.MAX_HERO_SLIDES} hero slides '
+                                'may be active or scheduled at once.'
+                            )
+                        },
+                        status=http.HTTP_400_BAD_REQUEST,
+                    )
+            b.status = Status.ACTIVE
+
         b.save(update_fields=['status', 'updated_at'])
         return Response(self.get_serializer(b).data)
 
-    # ── GET /api/dashboard/banners/stats/ ─────────────────────────────────
     @action(detail=False, methods=['get'])
     def stats(self, request):
         agg = Banner.objects.aggregate(
@@ -111,55 +151,25 @@ class BannerAdminViewSet(ModelViewSet):
             'conversions': agg['conversions'] or 0,
         })
 
-    # ── POST /api/dashboard/banners/reset/ ────────────────────────────────
-    @action(detail=False, methods=['post'])
-    def reset(self, request):
-        from .management.commands.seed_banners import seed
-        Banner.objects.all().delete()
-        seed()
-        return Response({'ok': True, 'count': Banner.objects.count()})
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Public — powers <Hero />
-# ─────────────────────────────────────────────────────────────────────────────
-def _live_window_q(now):
-    """
-    (start_at is null OR start_at <= now) AND (end_at is null OR end_at > now)
-    """
-    return (
-        (Q(start_at__isnull=True) | Q(start_at__lte=now))
-        & (Q(end_at__isnull=True) | Q(end_at__gt=now))
-    )
-
 
 class HeroSlidesView(APIView):
-    """
-    GET /api/banners/hero/
-    Mirrors activeHeroSlides() in lib/bannerStore.ts:
-      placement = HOME_HERO, status = ACTIVE, within schedule, sorted by order.
-    """
-
-    permission_classes = [AllowAny]   # ← ADDED
+    permission_classes = [AllowAny]
 
     def get(self, request):
-        now = timezone.now()
-        qs = (
-            Banner.objects
-            .filter(placement=Placement.HOME_HERO, status=Status.ACTIVE)
-            .filter(_live_window_q(now))
-            .order_by('order', 'id')
-        )
-        return Response(BannerSerializer(qs, many=True).data)
+        qs = Banner.objects.hero()
+        data = BannerSerializer(qs, many=True).data
+
+        for row in data:
+            for field in ('desktop_image', 'tablet_image', 'mobile_image'):
+                val = row.get(field) or ''
+                if val and not val.startswith(('http://', 'https://', 'data:')):
+                    row[field] = request.build_absolute_uri(val)
+
+        return Response(data)
 
 
 class BannerTrackView(APIView):
-    """
-    POST /api/banners/<id>/track/<impression|click|conversion>/
-    Atomic counter bump — safe for concurrent calls.
-    """
-
-    permission_classes = [AllowAny]   # ← ADDED
+    permission_classes = [AllowAny]
 
     EVENT_FIELD = {
         'impression': 'impressions',
@@ -171,12 +181,14 @@ class BannerTrackView(APIView):
         field = self.EVENT_FIELD.get(event)
         if not field:
             return Response(
-                {'detail': 'Unknown event'}, status=http.HTTP_400_BAD_REQUEST
+                {'detail': 'Unknown event'},
+                status=http.HTTP_400_BAD_REQUEST,
             )
 
         updated = Banner.objects.filter(pk=pk).update(**{field: F(field) + 1})
         if not updated:
             return Response(
-                {'detail': 'Not found'}, status=http.HTTP_404_NOT_FOUND
+                {'detail': 'Not found'},
+                status=http.HTTP_404_NOT_FOUND,
             )
         return Response({'ok': True})

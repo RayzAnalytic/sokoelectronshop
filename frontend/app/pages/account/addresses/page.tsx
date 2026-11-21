@@ -238,15 +238,15 @@ export default function AddressesPage() {
     };
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-2">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-center gap-2">
+                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-3 py-2 rounded flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-400" />
                     {toast}
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 rounded p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <MapPin className="h-5 w-5 text-blue-950" />
@@ -258,7 +258,7 @@ export default function AddressesPage() {
                 </div>
                 <button
                     onClick={openAdd}
-                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-xs transition"
+                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-xs transition"
                 >
                     <Plus className="h-3.5 w-3.5" />
                     Add Address
@@ -266,7 +266,7 @@ export default function AddressesPage() {
             </div>
 
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
@@ -277,9 +277,9 @@ export default function AddressesPage() {
                     {[0, 1].map((i) => (
                         <div
                             key={i}
-                            className="bg-white border border-slate-200 rounded-sm p-5 space-y-3 animate-pulse"
+                            className="bg-white border border-slate-200 rounded p-5 space-y-2 animate-pulse"
                         >
-                            <div className="h-8 w-8 rounded-sm bg-slate-200" />
+                            <div className="h-8 w-8 rounded bg-slate-200" />
                             <div className="h-3 w-2/3 bg-slate-200 rounded" />
                             <div className="h-3 w-1/2 bg-slate-200 rounded" />
                             <div className="h-3 w-3/4 bg-slate-200 rounded" />
@@ -287,8 +287,8 @@ export default function AddressesPage() {
                     ))}
                 </div>
             ) : addresses.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
-                    <MapPin className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                <div className="bg-white border border-slate-200 rounded p-12 text-center">
+                    <MapPin className="h-10 w-10 text-slate-300 mx-auto mb-2" />
                     <h2 className="text-sm font-semibold text-slate-900">
                         No addresses saved
                     </h2>
@@ -297,11 +297,11 @@ export default function AddressesPage() {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {addresses.map((addr) => (
                         <div
                             key={addr.id}
-                            className={`bg-white border rounded-sm p-5 relative ${addr.is_default
+                            className={`bg-white border rounded p-5 relative ${addr.is_default
                                 ? 'border-blue-950 ring-1 ring-blue-950/10'
                                 : 'border-slate-200'
                                 }`}
@@ -312,7 +312,7 @@ export default function AddressesPage() {
                                 </span>
                             )}
 
-                            <div className="flex items-center gap-2 mb-3">
+                            <div className="flex items-center gap-2 mb-2">
                                 <span className="w-8 h-8 rounded-sm bg-slate-100 flex items-center justify-center text-slate-700">
                                     <MapPin className="h-4 w-4" />
                                 </span>
@@ -338,7 +338,7 @@ export default function AddressesPage() {
                                 </p>
                             </div>
 
-                            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
+                            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2">
                                 {!addr.is_default && (
                                     <button
                                         onClick={() => handleSetDefault(addr.id)}
@@ -350,14 +350,14 @@ export default function AddressesPage() {
                                 <div className="ml-auto flex items-center gap-1.5">
                                     <button
                                         onClick={() => openEdit(addr)}
-                                        className="h-8 w-8 rounded-sm border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 transition"
+                                        className="h-8 w-8 rounded border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 transition"
                                         aria-label="Edit"
                                     >
                                         <Edit3 className="h-3.5 w-3.5" />
                                     </button>
                                     <button
                                         onClick={() => setDeleteTarget(addr)}
-                                        className="h-8 w-8 rounded-sm border border-slate-200 hover:bg-red-50 hover:border-red-200 flex items-center justify-center text-red-600 transition"
+                                        className="h-8 w-8 rounded border border-slate-200 hover:bg-red-50 hover:border-red-200 flex items-center justify-center text-red-600 transition"
                                         aria-label="Delete"
                                     >
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -371,16 +371,16 @@ export default function AddressesPage() {
 
             {modalOpen && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/70 backdrop-blur-sm"
+                    className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/70 backdrop-blur-sm"
                     onClick={closeModal}
                     role="dialog"
                     aria-modal="true"
                 >
                     <div
-                        className="bg-white w-full max-w-lg rounded-sm shadow-2xl border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col"
+                        className="bg-white w-full max-w-lg rounded border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between p-3 border-b border-slate-200 bg-slate-50 shrink-0">
+                        <div className="flex items-center justify-between p-2 border-b border-slate-200 bg-slate-50 shrink-0">
                             <h2 className="text-sm font-bold text-slate-900">
                                 {editing ? 'Edit Address' : 'Add New Address'}
                             </h2>
@@ -395,7 +395,7 @@ export default function AddressesPage() {
 
                         <div className="p-3 overflow-y-auto space-y-3">
                             <div>
-                                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                                <label className="block text-[11px] font-semibold uppercase  text-slate-500 mb-2">
                                     Label
                                 </label>
                                 <div className="flex gap-2">
@@ -406,7 +406,7 @@ export default function AddressesPage() {
                                             onClick={() =>
                                                 setForm({ ...form, label: lbl })
                                             }
-                                            className={`px-3 py-1.5 rounded-sm text-xs font-medium border transition-colors ${form.label === lbl
+                                            className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${form.label === lbl
                                                 ? 'bg-blue-950 text-white border-blue-950'
                                                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                                                 }`}
@@ -417,7 +417,7 @@ export default function AddressesPage() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <Field
                                     label="Full name"
                                     value={form.full_name}
@@ -441,7 +441,7 @@ export default function AddressesPage() {
                                 onChange={(v) => setForm({ ...form, street: v })}
                             />
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <Field
                                     label="Town / City"
                                     value={form.town}
@@ -461,7 +461,7 @@ export default function AddressesPage() {
                                                 county: e.target.value,
                                             })
                                         }
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     >
                                         {KENYAN_COUNTIES.map((c) => (
                                             <option key={c} value={c}>
@@ -497,7 +497,7 @@ export default function AddressesPage() {
                             </label>
 
                             {formError && (
-                                <div className="bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-start gap-2">
+                                <div className="bg-red-50 border border-red-100 rounded px-3 py-2 flex items-start gap-2">
                                     <AlertCircle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
                                     <p className="text-[11px] text-red-800">
                                         {formError}
@@ -506,11 +506,11 @@ export default function AddressesPage() {
                             )}
                         </div>
 
-                        <div className="p-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 shrink-0">
+                        <div className="p-2 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 shrink-0">
                             <button
                                 onClick={closeModal}
                                 disabled={saving}
-                                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium rounded-sm text-xs transition disabled:opacity-60"
+                                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium rounded text-xs transition disabled:opacity-60"
                             >
                                 Cancel
                             </button>
@@ -518,7 +518,7 @@ export default function AddressesPage() {
                                 onClick={handleSave}
                                 disabled={saving}
                                 aria-busy={saving}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white font-medium rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {saving ? (
                                     <>
@@ -538,16 +538,16 @@ export default function AddressesPage() {
 
             {deleteTarget && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/70 backdrop-blur-sm"
+                    className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/70 backdrop-blur-sm"
                     onClick={() => !deleting && setDeleteTarget(null)}
                     role="dialog"
                     aria-modal="true"
                 >
                     <div
-                        className="bg-white w-full max-w-sm rounded-sm shadow-2xl border border-slate-200 p-5"
+                        className="bg-white w-full max-w-sm rounded border border-slate-200 p-5"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-2">
                             <span className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
                                 <Trash2 className="h-4 w-4" />
                             </span>
@@ -565,7 +565,7 @@ export default function AddressesPage() {
                             <button
                                 onClick={() => setDeleteTarget(null)}
                                 disabled={deleting}
-                                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium rounded-sm text-xs transition disabled:opacity-60"
+                                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium rounded text-xs transition disabled:opacity-60"
                             >
                                 Cancel
                             </button>
@@ -573,7 +573,7 @@ export default function AddressesPage() {
                                 onClick={confirmDelete}
                                 disabled={deleting}
                                 aria-busy={deleting}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {deleting ? (
                                     <>
@@ -613,7 +613,7 @@ function Field({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
-                className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
         </label>
     );

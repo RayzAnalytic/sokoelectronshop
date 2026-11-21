@@ -1,4 +1,3 @@
-// app/pages/checkout/page.tsx
 "use client";
 
 import React, {
@@ -20,19 +19,13 @@ import {
   Loader2,
   ArrowRight,
   ArrowLeft,
-  Store,
-  Truck,
-  Zap,
   Tag,
   X,
   Lock,
-  RotateCcw,
   MapPin,
   Phone,
   Mail,
   User,
-  ChevronDown,
-  StickyNote,
   Banknote,
   Wallet,
   ShoppingCart,
@@ -45,6 +38,7 @@ import {
   checkoutApi,
   paymentsApi,
   pollPayment,
+  shippingApi,
   ApiError,
   isInsufficientStockError,
   type Payment,
@@ -56,7 +50,7 @@ import {
 
 type PaymentChoice = "pay-on-delivery" | "pay-now";
 type PayNowMethod = "mpesa";
-type DeliveryMethod = "express" | "standard" | "pickup";
+type DeliveryMethod = "express" | "standard" | "pickup" | "nationwide";
 type Step = 1 | 2;
 type Phase = "idle" | "submitting" | "awaiting-pin" | "failed";
 
@@ -68,6 +62,14 @@ interface CheckoutItem {
   price: number;
   quantity: number;
   image: string;
+}
+
+interface ZoneRate {
+  id: number;
+  method: string;
+  methodName: string;
+  price: number;
+  freeShippingThreshold: number | null;
 }
 
 interface OrderDraft {
@@ -97,25 +99,11 @@ interface OrderDraft {
   items: CheckoutItem[];
 }
 
-const FALLBACK_COUNTIES = [
-  "Nairobi",
-  "Mombasa",
-  "Kisumu",
-  "Nakuru",
-  "Kiambu",
-  "Machakos",
-  "Kajiado",
-  "Uasin Gishu",
-  "Kakamega",
-  "Meru",
-  "Nyeri",
-  "Kilifi",
-];
-
 const FALLBACK_DELIVERY_FEES: Record<DeliveryMethod, number> = {
   express: 500,
   standard: 300,
   pickup: 0,
+  nationwide: 500,
 };
 
 const FALLBACK_FREE_DELIVERY_THRESHOLD = 5000;
@@ -287,6 +275,7 @@ function CheckoutInner() {
   }, [searchParams]);
 
   const urlDelivery = searchParams.get("delivery");
+  const urlCounty = searchParams.get("county");
   const urlCoupon = searchParams.get("coupon");
   const urlNotes = searchParams.get("notes") ?? "";
 
@@ -332,15 +321,10 @@ function CheckoutInner() {
 
   const paymentAbortRef = useRef<AbortController | null>(null);
   const idempotencyKeyRef = useRef<string | null>(null);
-
-  // ── Synchronous source of truth for the current order reference ────
-  // `orderDraft` is React state and lags behind by a render. If the
-  // shopper cancels the STK push in the same tick the push is sent,
-  // `abandonCurrentOrder()` would read a stale `null` and no-op. This
-  // ref is always up to date the moment a push succeeds.
   const currentOrderRef = useRef<string | null>(null);
 
   const [hydrated, setHydrated] = useState(false);
+  const [zoneRates, setZoneRates] = useState<ZoneRate[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -349,9 +333,7 @@ function CheckoutInner() {
       .then((cfg) => {
         if (!cancelled) setConfig(cfg);
       })
-      .catch(() => {
-        /* fall back to FALLBACK_* constants */
-      })
+      .catch(() => { })
       .finally(() => {
         if (!cancelled) setConfigResolved(true);
       });
@@ -360,7 +342,42 @@ function CheckoutInner() {
     };
   }, []);
 
-  const counties = config?.counties ?? FALLBACK_COUNTIES;
+  useEffect(() => {
+    if (!formData.county) {
+      setZoneRates([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const zones = await shippingApi.zones();
+        if (cancelled) return;
+        const zone = zones.find((z) => z.counties.includes(formData.county));
+        if (!zone) {
+          setZoneRates([]);
+          return;
+        }
+        setZoneRates(
+          zone.rates.map((r) => ({
+            id: r.id,
+            method: r.method,
+            methodName: r.methodName,
+            price: Number(r.price) || 0,
+            freeShippingThreshold:
+              r.freeShippingThreshold !== null &&
+                r.freeShippingThreshold !== undefined
+                ? Number(r.freeShippingThreshold)
+                : null,
+          })),
+        );
+      } catch {
+        if (!cancelled) setZoneRates([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.county]);
 
   const expressFee = useMemo(() => {
     if (!config) return FALLBACK_DELIVERY_FEES.express;
@@ -378,6 +395,7 @@ function CheckoutInner() {
       pickup: config
         ? Number(config.delivery_fees.pickup)
         : FALLBACK_DELIVERY_FEES.pickup,
+      nationwide: FALLBACK_DELIVERY_FEES.nationwide,
     }),
     [config, expressFee],
   );
@@ -404,9 +422,7 @@ function CheckoutInner() {
         const saved = JSON.parse(raw);
         setFormData((p) => ({ ...p, ...saved }));
       }
-    } catch {
-      /* ignore */
-    }
+    } catch { }
     setHydrated(true);
   }, []);
 
@@ -414,9 +430,7 @@ function CheckoutInner() {
     if (!hydrated) return;
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(formData));
-    } catch {
-      /* quota, ignore */
-    }
+    } catch { }
   }, [formData, hydrated]);
 
   useEffect(() => {
@@ -441,18 +455,18 @@ function CheckoutInner() {
           const cart =
             localSnapshot.length > 0
               ? await cartApi.merge(
-                  localSnapshot.map((i) => ({
-                    productId: i.productId,
-                    name: i.name,
-                    brand: i.brand,
-                    image: i.image,
-                    unitPrice: i.unitPrice,
-                    compareAtPrice: i.compareAtPrice ?? null,
-                    quantity: i.quantity,
-                    stock: i.stock,
-                    stockCount: i.stockCount,
-                  })),
-                )
+                localSnapshot.map((i) => ({
+                  productId: i.productId,
+                  name: i.name,
+                  brand: i.brand,
+                  image: i.image,
+                  unitPrice: i.unitPrice,
+                  compareAtPrice: i.compareAtPrice ?? null,
+                  quantity: i.quantity,
+                  stock: i.stock,
+                  stockCount: i.stockCount,
+                })),
+              )
               : await cartApi.get();
 
           if (cancelled) return;
@@ -461,9 +475,7 @@ function CheckoutInner() {
           if (localSnapshot.length > 0) {
             useCart.getState().clear();
           }
-        } catch {
-          /* fall through */
-        }
+        } catch { }
       } finally {
         if (!cancelled) {
           setAuthResolved(true);
@@ -519,12 +531,29 @@ function CheckoutInner() {
 
   const discountAmount = round2(subtotal * appliedDiscountPct);
 
+  const matchedZoneRate = useMemo(
+    () => zoneRates.find((r) => r.method === formData.deliveryMethod) ?? null,
+    [zoneRates, formData.deliveryMethod],
+  );
+
   const shippingFee = useMemo(() => {
     if (formData.deliveryMethod === "pickup") return 0;
+
+    if (matchedZoneRate) {
+      if (
+        matchedZoneRate.freeShippingThreshold !== null &&
+        subtotal - discountAmount >= matchedZoneRate.freeShippingThreshold
+      ) {
+        return 0;
+      }
+      return matchedZoneRate.price;
+    }
+
     if (subtotal - discountAmount >= freeDeliveryThreshold) return 0;
-    return deliveryFees[formData.deliveryMethod];
+    return deliveryFees[formData.deliveryMethod] ?? 0;
   }, [
     formData.deliveryMethod,
+    matchedZoneRate,
     subtotal,
     discountAmount,
     freeDeliveryThreshold,
@@ -551,14 +580,6 @@ function CheckoutInner() {
     total += txnFee;
 
     if (!Number.isFinite(total)) {
-      // eslint-disable-next-line no-console
-      console.error("Checkout totals produced NaN — check config shape:", {
-        config,
-        taxConfig,
-        subtotal,
-        discountAmount,
-        shippingFee,
-      });
       total = taxable + shippingFee;
     }
 
@@ -604,7 +625,6 @@ function CheckoutInner() {
   useEffect(() => {
     if (!urlCoupon) return;
     void applyCouponCode(urlCoupon, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -621,14 +641,23 @@ function CheckoutInner() {
   }, [hydrated, me]);
 
   useEffect(() => {
-    if (
-      urlDelivery === "express" ||
-      urlDelivery === "standard" ||
-      urlDelivery === "pickup"
-    ) {
-      setFormData((p) => ({ ...p, deliveryMethod: urlDelivery }));
-    }
-  }, [urlDelivery]);
+    setFormData((p) => ({
+      ...p,
+      ...(urlDelivery ? { deliveryMethod: urlDelivery as DeliveryMethod } : {}),
+      ...(urlCounty ? { county: urlCounty } : {}),
+    }));
+  }, [urlDelivery, urlCounty]);
+
+  useEffect(() => {
+    if (!zoneRates.length) return;
+    if (zoneRates.some((r) => r.method === formData.deliveryMethod)) return;
+    const fallback = zoneRates[0];
+    if (!fallback) return;
+    setFormData((p) => ({
+      ...p,
+      deliveryMethod: fallback.method as DeliveryMethod,
+    }));
+  }, [zoneRates, formData.deliveryMethod]);
 
   useEffect(() => {
     if (phase !== "awaiting-pin") return;
@@ -658,8 +687,8 @@ function CheckoutInner() {
 
   if (checkoutItems.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex items-center justify-center p-3">
-        <div className="max-w-md w-full bg-white border border-slate-200 rounded-sm p-6 text-center space-y-3">
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex items-center justify-center p-2">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded p-6 text-center space-y-2">
           <div className="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
             <ShoppingCart className="w-6 h-6" />
           </div>
@@ -671,7 +700,7 @@ function CheckoutInner() {
           </p>
           <Link
             href="/pages/cart"
-            className="inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition"
+            className="inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded text-[13px] transition"
           >
             Back to cart
           </Link>
@@ -683,7 +712,7 @@ function CheckoutInner() {
   const estimatedDelivery = (() => {
     const d = new Date();
     const days = config?.delivery_days
-      ? (config.delivery_days[formData.deliveryMethod] ?? 0)
+      ? (config.delivery_days[formData.deliveryMethod] ?? 3)
       : formData.deliveryMethod === "express"
         ? 1
         : formData.deliveryMethod === "pickup"
@@ -847,16 +876,6 @@ function CheckoutInner() {
     },
   });
 
-  // ── Persist the draft + reference atomically ──────────────────────
-  // Previously this only wrote to sessionStorage, which left the
-  // in-memory `orderDraft` stale (still null). `abandonCurrentOrder`
-  // then had no reference to work with and silently no-op'd, leaving
-  // the M-Pesa PENDING order alive when the shopper switched to COD.
-  //
-  // We now write all three destinations in one call:
-  //   1. sessionStorage — survives a page reload
-  //   2. currentOrderRef — synchronous, survives a re-render race
-  //   3. orderDraft state — for display / subsequent reads
   const saveDraft = (draft: OrderDraft, reference: string) => {
     const next: OrderDraft = { ...draft, orderReference: reference };
 
@@ -867,9 +886,7 @@ function CheckoutInner() {
         `${ORDER_KEY_PREFIX}${reference}`,
         JSON.stringify(next),
       );
-    } catch {
-      /* quota, ignore */
-    }
+    } catch { }
 
     setOrderDraft(next);
   };
@@ -879,25 +896,14 @@ function CheckoutInner() {
     void submit();
   };
 
-  // ── Sync cart after a stock / pricing rejection ────────────────────
-  // The backend tells us exactly which SKU ran out; re-fetch the cart
-  // so the offending line disappears and totals recompute before the
-  // shopper tries again.
   const refreshServerCart = async () => {
     if (!me) return;
     try {
       const fresh = await cartApi.get();
       setServerCart(fresh);
-    } catch {
-      /* leave existing cart in place */
-    }
+    } catch { }
   };
 
-  // ── Abandon the current PENDING order (if any) ─────────────────────
-  // Called when the shopper switches payment method, so the M-Pesa
-  // attempt doesn't leave a second order alive when COD eventually
-  // succeeds. Prefers the synchronous ref over React state so we never
-  // race a render.
   const abandonCurrentOrder = async () => {
     const ref =
       currentOrderRef.current ||
@@ -906,8 +912,6 @@ function CheckoutInner() {
       null;
 
     if (!ref) {
-      // Not an error — the COD flow calls this unconditionally and
-      // there is simply nothing to abandon on a fresh session.
       return;
     }
 
@@ -915,10 +919,6 @@ function CheckoutInner() {
       await checkoutApi.abandonOrder(ref);
       currentOrderRef.current = null;
     } catch (err) {
-      // The order may already be cancelled / paid / not abandonable —
-      // all of those are fine. We log so a genuine backend failure
-      // (auth, network, 500) doesn't vanish into the void.
-      // eslint-disable-next-line no-console
       console.warn("[checkout] abandonOrder failed for", ref, err);
     }
   };
@@ -935,7 +935,7 @@ function CheckoutInner() {
     if (formData.paymentChoice === "pay-now" && amountRounded > maxStkAmount) {
       setErrorMessage(
         `M-Pesa can only process payments up to ${formatKES(maxStkAmount)}. ` +
-          `Please reduce your cart or choose Pay on delivery.`,
+        `Please reduce your cart or choose Pay on delivery.`,
       );
       return;
     }
@@ -952,15 +952,7 @@ function CheckoutInner() {
     }
 
     if (formData.paymentChoice === "pay-on-delivery") {
-      // Cancel any M-Pesa attempt order first, so switching methods
-      // doesn't produce two orders for one cart. `abandonCurrentOrder`
-      // is what cancels the PENDING M-Pesa order AND any live STK
-      // payment attached to it — the backend now kills the payment
-      // before marking the order cancelled.
       await abandonCurrentOrder();
-
-      // The abandoned M-Pesa reference is dead. Don't let a later COD
-      // retry try to abandon it again.
       currentOrderRef.current = null;
 
       try {
@@ -984,11 +976,6 @@ function CheckoutInner() {
   };
 
   const handleCreateOrderError = async (err: unknown) => {
-    // ── Narrow `err` before reading `.message` ───────────────────────
-    // `isInsufficientStockError` returns plain `boolean`, so it does
-    // NOT narrow `err` from `unknown`. We re-check with `instanceof
-    // ApiError` here so TypeScript is happy and we still get a real
-    // message at runtime.
     if (isInsufficientStockError(err)) {
       const msg =
         err instanceof Error
@@ -1009,8 +996,8 @@ function CheckoutInner() {
       const detail = extractServerMessage(err.data);
       setErrorMessage(
         detail ||
-          err.message ||
-          "Could not place your order. Please try again.",
+        err.message ||
+        "Could not place your order. Please try again.",
       );
       return;
     }
@@ -1041,14 +1028,10 @@ function CheckoutInner() {
         idemKey,
       );
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("STK push failed:", err, (err as ApiError)?.data);
 
-      // Stock / pricing rejections aren't M-Pesa failures — surface
-      // the real reason and refresh the cart so the shopper can act.
       if (isInsufficientStockError(err)) {
         setPhase("idle");
-        // See note in `handleCreateOrderError` — narrow before reading.
         const msg =
           err instanceof Error
             ? err.message
@@ -1076,16 +1059,13 @@ function CheckoutInner() {
       setPaymentError(
         err instanceof ApiError
           ? extractServerMessage(err.data) ||
-              err.message ||
-              "Could not reach M-Pesa. Please try again."
+          err.message ||
+          "Could not reach M-Pesa. Please try again."
           : "Could not start the M-Pesa request. Please try again.",
       );
       return;
     }
 
-    // `saveDraft` now also updates the ref and React state, so
-    // `abandonCurrentOrder` will have a reference to work with even
-    // if the shopper cancels on the very next tick.
     saveDraft(draft, stk.order_reference);
 
     setPayment(stk);
@@ -1112,8 +1092,8 @@ function CheckoutInner() {
       setPhase("failed");
       setPaymentError(
         finalPayment.result_description ||
-          describeStatus(finalPayment.status) ||
-          "Payment could not be completed.",
+        describeStatus(finalPayment.status) ||
+        "Payment could not be completed.",
       );
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -1127,14 +1107,10 @@ function CheckoutInner() {
   const finalizeSuccess = (orderReference: string) => {
     try {
       sessionStorage.removeItem(SESSION_KEY);
-    } catch {
-      /* ignore */
-    }
+    } catch { }
 
     if (me) {
-      void cartApi.clear().catch(() => {
-        /* the order is placed; a stale cart is recoverable */
-      });
+      void cartApi.clear().catch(() => { });
     } else {
       localClearCart();
     }
@@ -1144,12 +1120,8 @@ function CheckoutInner() {
   };
 
   const handleRetryPayment = () => {
-    // Always start a fresh idempotency key on retry so the backend
-    // creates a new Payment row rather than returning the failed one.
     idempotencyKeyRef.current = generateUUID();
 
-    // Prefer the synchronous ref — it is the authoritative source for
-    // the order we are retrying.
     const ref =
       currentOrderRef.current ||
       orderDraft?.orderReference ||
@@ -1165,7 +1137,6 @@ function CheckoutInner() {
       orderReference: ref ?? baseDraft.orderReference,
     };
 
-    // Keep the ref in sync with the draft we're about to retry.
     if (ref) currentOrderRef.current = ref;
 
     setOrderDraft(nextDraft);
@@ -1173,13 +1144,8 @@ function CheckoutInner() {
   };
 
   const handleChangeMethod = async () => {
-    // Stop any in-flight polling first.
     paymentAbortRef.current?.abort();
 
-    // Cancel the still-open M-Pesa payment server-side. This must
-    // finish BEFORE we abandon the order — otherwise the backend's
-    // "kill live payments" step races an in-flight cancel and the
-    // safety net can miss a PROCESSING payment.
     if (
       payment &&
       (payment.status === "PROCESSING" || payment.status === "PENDING")
@@ -1187,15 +1153,10 @@ function CheckoutInner() {
       try {
         await paymentsApi.cancel(payment.id);
       } catch (err) {
-        // Swallow — the abandon step below is the real source of
-        // truth. Log so we know if the endpoint is misbehaving.
-        // eslint-disable-next-line no-console
         console.warn("[checkout] cancel payment failed", payment.id, err);
       }
     }
 
-    // Cancel the PENDING order so switching to COD doesn't leave
-    // a second order behind.
     await abandonCurrentOrder();
     currentOrderRef.current = null;
 
@@ -1209,10 +1170,13 @@ function CheckoutInner() {
 
   const taxRatePercent = Math.round(taxConfig.rate * 100);
 
+  const shippingMethodLabel =
+    matchedZoneRate?.methodName || formData.deliveryMethod;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-3 h-14 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-3 h-14 flex items-center justify-between gap-2">
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <img
               src="/logo.jpeg"
@@ -1238,9 +1202,9 @@ function CheckoutInner() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-3 py-3 space-y-3">
+      <main className="max-w-6xl mx-auto px-3 py-3 space-y-2">
         {me && (
-          <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="bg-emerald-50 border border-emerald-100 rounded p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <p className="text-[13px] text-emerald-900">
               Signed in as{" "}
               <span className="font-medium">
@@ -1261,7 +1225,7 @@ function CheckoutInner() {
         <StepIndicator current={step} />
 
         {errorMessage && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-center gap-2 text-[13px]">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-center gap-2 text-[13px]">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{errorMessage}</span>
           </div>
@@ -1269,12 +1233,12 @@ function CheckoutInner() {
 
         <form
           onSubmit={handlePlaceOrder}
-          className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-start"
         >
-          <div className="lg:col-span-7 space-y-3">
+          <div className="lg:col-span-7 space-y-2">
             {step === 1 && (
               <>
-                <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+                <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <SectionHeader
                     icon={<User className="w-3.5 h-3.5" />}
                     title="Your details"
@@ -1285,7 +1249,7 @@ function CheckoutInner() {
                     }
                   />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px]">
                     <div className="sm:col-span-2">
                       <Field
                         label="Email address"
@@ -1320,14 +1284,14 @@ function CheckoutInner() {
                   </div>
                 </section>
 
-                <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+                <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <SectionHeader
                     icon={<MapPin className="w-3.5 h-3.5" />}
                     title="Delivery address"
                     subtitle="Where should we deliver your order?"
                   />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px]">
                     <div className="sm:col-span-2">
                       <Field
                         label="Street address"
@@ -1351,21 +1315,12 @@ function CheckoutInner() {
                       <label className="block font-medium text-slate-700 mb-1">
                         County
                       </label>
-                      <div className="relative">
-                        <select
-                          name="county"
-                          value={formData.county}
-                          onChange={handleChange}
-                          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 pr-8 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 appearance-none"
-                        >
-                          {counties.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <div className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-700">
+                        {formData.county}
                       </div>
+                      <p className="text-[12px] text-slate-400 mt-1">
+                        Set from your cart delivery selection
+                      </p>
                     </div>
 
                     <Field
@@ -1377,56 +1332,12 @@ function CheckoutInner() {
                     />
                   </div>
                 </section>
-
-                <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
-                  <SectionHeader
-                    icon={<Truck className="w-3.5 h-3.5" />}
-                    title="Delivery method"
-                    subtitle={`Estimated arrival ${estimatedDelivery}`}
-                  />
-
-                  <div className="space-y-2">
-                    <DeliveryOption
-                      id="express"
-                      current={formData.deliveryMethod}
-                      onSelect={(v) =>
-                        setFormData((p) => ({ ...p, deliveryMethod: v }))
-                      }
-                      icon={<Zap className="w-3.5 h-3.5" />}
-                      title="Express courier"
-                      sub="24–48 hours with live tracking"
-                      price={deliveryFees.express}
-                    />
-                    <DeliveryOption
-                      id="standard"
-                      current={formData.deliveryMethod}
-                      onSelect={(v) =>
-                        setFormData((p) => ({ ...p, deliveryMethod: v }))
-                      }
-                      icon={<Truck className="w-3.5 h-3.5" />}
-                      title="Standard shipping"
-                      sub="3–5 business days"
-                      price={deliveryFees.standard}
-                    />
-                    <DeliveryOption
-                      id="pickup"
-                      current={formData.deliveryMethod}
-                      onSelect={(v) =>
-                        setFormData((p) => ({ ...p, deliveryMethod: v }))
-                      }
-                      icon={<Store className="w-3.5 h-3.5" />}
-                      title="Store pickup"
-                      sub="Ready in 1 hour"
-                      price={deliveryFees.pickup}
-                    />
-                  </div>
-                </section>
               </>
             )}
 
             {step === 2 && phase === "idle" && (
               <>
-                <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+                <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <SectionHeader
                     icon={<CreditCard className="w-3.5 h-3.5" />}
                     title="How would you like to pay?"
@@ -1442,28 +1353,25 @@ function CheckoutInner() {
                           paymentChoice: "pay-on-delivery",
                         }))
                       }
-                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${
-                        formData.paymentChoice === "pay-on-delivery"
-                          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
-                          : "border-slate-200 hover:bg-slate-50"
-                      }`}
+                      className={`p-3 border rounded text-left transition flex items-start gap-2 ${formData.paymentChoice === "pay-on-delivery"
+                        ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
+                        : "border-slate-200 hover:bg-slate-50"
+                        }`}
                     >
                       <span
-                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${
-                          formData.paymentChoice === "pay-on-delivery"
-                            ? "bg-blue-950 text-white"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
+                        className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${formData.paymentChoice === "pay-on-delivery"
+                          ? "bg-blue-950 text-white"
+                          : "bg-slate-100 text-slate-500"
+                          }`}
                       >
                         <Banknote className="w-4 h-4" />
                       </span>
                       <span className="min-w-0">
                         <span
-                          className={`block text-[13px] font-medium ${
-                            formData.paymentChoice === "pay-on-delivery"
-                              ? "text-blue-950"
-                              : "text-slate-800"
-                          }`}
+                          className={`block text-[13px] font-medium ${formData.paymentChoice === "pay-on-delivery"
+                            ? "text-blue-950"
+                            : "text-slate-800"
+                            }`}
                         >
                           Pay on delivery
                         </span>
@@ -1478,28 +1386,25 @@ function CheckoutInner() {
                       onClick={() =>
                         setFormData((p) => ({ ...p, paymentChoice: "pay-now" }))
                       }
-                      className={`p-3 border rounded-sm text-left transition flex items-start gap-2.5 ${
-                        formData.paymentChoice === "pay-now"
-                          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
-                          : "border-slate-200 hover:bg-slate-50"
-                      }`}
+                      className={`p-2 border rounded text-left transition flex items-start gap-2.5 ${formData.paymentChoice === "pay-now"
+                        ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
+                        : "border-slate-200 hover:bg-slate-50"
+                        }`}
                     >
                       <span
-                        className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${
-                          formData.paymentChoice === "pay-now"
-                            ? "bg-blue-950 text-white"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
+                        className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${formData.paymentChoice === "pay-now"
+                          ? "bg-blue-950 text-white"
+                          : "bg-slate-100 text-slate-500"
+                          }`}
                       >
                         <Wallet className="w-4 h-4" />
                       </span>
                       <span className="min-w-0">
                         <span
-                          className={`block text-[13px] font-medium ${
-                            formData.paymentChoice === "pay-now"
-                              ? "text-blue-950"
-                              : "text-slate-800"
-                          }`}
+                          className={`block text-[13px] font-medium ${formData.paymentChoice === "pay-now"
+                            ? "text-blue-950"
+                            : "text-slate-800"
+                            }`}
                         >
                           Pay now
                         </span>
@@ -1511,7 +1416,7 @@ function CheckoutInner() {
                   </div>
 
                   {formData.paymentChoice === "pay-now" && (
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-3 space-y-3 text-[13px]">
+                    <div className="bg-emerald-50 border border-emerald-100 rounded p-2 space-y-2 text-[13px]">
                       <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
                         <Smartphone className="w-3.5 h-3.5" />
                         M-Pesa Express (STK push)
@@ -1535,7 +1440,7 @@ function CheckoutInner() {
                   )}
 
                   {formData.paymentChoice === "pay-on-delivery" && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 space-y-2 text-[13px]">
+                    <div className="bg-slate-50 border border-slate-200 rounded p-2 space-y-2 text-[13px]">
                       <div className="flex items-center gap-1.5 text-slate-800 font-medium">
                         <Banknote className="w-3.5 h-3.5" />
                         Cash or M-Pesa on delivery
@@ -1549,23 +1454,7 @@ function CheckoutInner() {
                   )}
                 </section>
 
-                <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
-                  <SectionHeader
-                    icon={<StickyNote className="w-3.5 h-3.5" />}
-                    title="Order notes"
-                    subtitle="Optional — delivery instructions or gift message"
-                  />
-                  <textarea
-                    name="orderNotes"
-                    value={formData.orderNotes}
-                    onChange={handleChange}
-                    rows={2}
-                    placeholder="e.g. Call on arrival, leave at reception"
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
-                  />
-                </section>
-
-                <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+                <section className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1640,7 +1529,7 @@ function CheckoutInner() {
                   <button
                     type="button"
                     onClick={goBack}
-                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     Back
@@ -1648,7 +1537,7 @@ function CheckoutInner() {
                 ) : (
                   <Link
                     href="/pages/cart"
-                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     Return to cart
@@ -1659,7 +1548,7 @@ function CheckoutInner() {
                   <button
                     type="button"
                     onClick={goNext}
-                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-[13px] transition"
+                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-[13px] transition"
                   >
                     Continue
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1667,30 +1556,10 @@ function CheckoutInner() {
                 )}
               </div>
             )}
-
-            {phase === "idle" && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <TrustBadge
-                  icon={<Lock className="w-3.5 h-3.5" />}
-                  title="Secure payment"
-                  sub="SSL encrypted"
-                />
-                <TrustBadge
-                  icon={<RotateCcw className="w-3.5 h-3.5" />}
-                  title="30-day returns"
-                  sub="No questions asked"
-                />
-                <TrustBadge
-                  icon={<ShieldCheck className="w-3.5 h-3.5" />}
-                  title="Genuine products"
-                  sub="Warranty included"
-                />
-              </div>
-            )}
           </div>
 
-          <aside className="lg:col-span-5 space-y-3 lg:sticky lg:top-16">
-            <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+          <aside className="lg:col-span-5 space-y-2 lg:sticky lg:top-16">
+            <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h2 className="text-[15px] font-semibold text-slate-900">
                   Order summary
@@ -1734,7 +1603,7 @@ function CheckoutInner() {
               {phase === "idle" && (
                 <div className="pt-2 border-t border-slate-100">
                   {appliedCoupon ? (
-                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1.5">
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
                       <span className="text-[13px] font-medium text-emerald-700 inline-flex items-center gap-1.5">
                         <Tag className="w-3.5 h-3.5" />
                         {appliedCoupon} — {Math.round(appliedDiscountPct * 100)}
@@ -1764,14 +1633,14 @@ function CheckoutInner() {
                             }
                           }}
                           placeholder="Coupon code"
-                          className="w-full bg-white border border-slate-200 rounded-sm pl-8 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                          className="w-full bg-white border border-slate-200 rounded pl-8 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
                       </div>
                       <button
                         type="button"
                         onClick={handleApplyCoupon}
                         disabled={couponChecking}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
                       >
                         {couponChecking ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1783,9 +1652,8 @@ function CheckoutInner() {
                   )}
                   {couponMessage && (
                     <p
-                      className={`text-[13px] mt-1.5 ${
-                        couponValid ? "text-emerald-600" : "text-red-600"
-                      }`}
+                      className={`text-[13px] mt-1 ${couponValid ? "text-emerald-600" : "text-red-600"
+                        }`}
                     >
                       {couponMessage}
                     </p>
@@ -1793,19 +1661,19 @@ function CheckoutInner() {
                 </div>
               )}
 
-              <div className="pt-3 border-t border-slate-100 space-y-2 text-[13px] text-slate-600">
+              <div className="pt-2 border-t border-slate-100 space-y-2 text-[13px] text-slate-600">
                 <Row label="Subtotal" value={formatKES(subtotal)} />
                 {discountAmount > 0 && (
                   <Row
-                    label={`Discount${
-                      appliedCoupon ? ` (${appliedCoupon})` : ""
-                    }`}
+                    label={`Discount${appliedCoupon ? ` (${appliedCoupon})` : ""
+                      }`}
                     value={`- ${formatKES(discountAmount)}`}
                     success
                   />
                 )}
                 <Row
-                  label={`Shipping (${formData.deliveryMethod})`}
+                  label={`Shipping (${shippingMethodLabel})${formData.county ? ` • ${formData.county}` : ""
+                    }`}
                   value={shippingFee === 0 ? "Free" : formatKES(shippingFee)}
                 />
                 {taxConfig.enabled && (
@@ -1820,7 +1688,7 @@ function CheckoutInner() {
                 )}
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-[15px] font-semibold text-slate-900">
                   Total
                 </span>
@@ -1840,7 +1708,7 @@ function CheckoutInner() {
                 <button
                   type="submit"
                   disabled={!authResolved}
-                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Lock className="w-3.5 h-3.5" />
                   {formData.paymentChoice === "pay-on-delivery"
@@ -1853,7 +1721,7 @@ function CheckoutInner() {
                 <button
                   type="button"
                   disabled
-                  className="w-full bg-blue-950 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 opacity-70 cursor-not-allowed"
+                  className="w-full bg-blue-950 text-white font-medium py-2.5 px-4 rounded text-[13px] transition flex items-center justify-center gap-1.5 opacity-70 cursor-not-allowed"
                 >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   {formData.paymentChoice === "pay-now"
@@ -1866,14 +1734,14 @@ function CheckoutInner() {
                 <button
                   type="button"
                   onClick={goNext}
-                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5"
+                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-[13px] transition flex items-center justify-center gap-1.5"
                 >
                   Continue to payment
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
 
-              <p className="text-[13px] text-slate-500 text-center leading-relaxed">
+              <p className="text-[13px] text-slate-500 text-center">
                 By placing your order you authorize us to charge your selected
                 payment method.
               </p>
@@ -1895,7 +1763,7 @@ function PinWaitingScreen({
   onCancel: () => void;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-sm p-6 space-y-4 text-center">
+    <section className="bg-white border border-slate-200 rounded p-6 space-y-2 text-center">
       <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
         <Smartphone className="w-6 h-6" />
       </div>
@@ -1910,7 +1778,7 @@ function PinWaitingScreen({
         </p>
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 text-left text-[13px] space-y-2">
+      <div className="bg-slate-50 border border-slate-200 rounded p-2 text-left text-[13px] space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">Amount</span>
           <span className="font-semibold text-slate-900">
@@ -1953,7 +1821,7 @@ function PaymentFailedScreen({
   onChangeMethod: () => void;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-sm p-6 space-y-4 text-center">
+    <section className="bg-white border border-slate-200 rounded p-6 space-y-2 text-center">
       <div className="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-600 flex items-center justify-center">
         <AlertCircle className="w-6 h-6" />
       </div>
@@ -1971,7 +1839,7 @@ function PaymentFailedScreen({
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition w-full sm:w-auto"
+          className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded text-[13px] transition w-full sm:w-auto"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           Try again
@@ -1979,7 +1847,7 @@ function PaymentFailedScreen({
         <button
           type="button"
           onClick={onChangeMethod}
-          className="inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-sm text-[13px] transition w-full sm:w-auto"
+          className="inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded text-[13px] transition w-full sm:w-auto"
         >
           Change payment method
         </button>
@@ -1999,39 +1867,36 @@ function StepIndicator({ current }: { current: Step }) {
     { n: 2 as Step, label: "Payment" },
   ];
   return (
-    <ol className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+    <ol className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
       {steps.map((s, idx) => {
         const isComplete = current > s.n;
         const isActive = current === s.n;
         return (
           <li key={s.n} className="flex items-center gap-2 flex-1">
             <span
-              className={`w-6 h-6 rounded-sm flex items-center justify-center text-[13px] font-medium shrink-0 ${
-                isComplete
-                  ? "bg-emerald-500 text-white"
-                  : isActive
-                    ? "bg-blue-950 text-white"
-                    : "bg-slate-100 text-slate-500"
-              }`}
+              className={`w-6 h-6 rounded flex items-center justify-center text-[13px] font-medium shrink-0 ${isComplete
+                ? "bg-emerald-500 text-white"
+                : isActive
+                  ? "bg-blue-950 text-white"
+                  : "bg-slate-100 text-slate-500"
+                }`}
             >
               {isComplete ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.n}
             </span>
             <span
-              className={`text-[13px] font-medium truncate ${
-                isActive
-                  ? "text-blue-950"
-                  : isComplete
-                    ? "text-emerald-700"
-                    : "text-slate-500"
-              }`}
+              className={`text-[13px] font-medium truncate ${isActive
+                ? "text-blue-950"
+                : isComplete
+                  ? "text-emerald-700"
+                  : "text-slate-500"
+                }`}
             >
               {s.label}
             </span>
             {idx < steps.length - 1 && (
               <span
-                className={`flex-1 h-px ${
-                  isComplete ? "bg-emerald-500" : "bg-slate-200"
-                }`}
+                className={`flex-1 h-px ${isComplete ? "bg-emerald-500" : "bg-slate-200"
+                  }`}
               />
             )}
           </li>
@@ -2052,7 +1917,7 @@ function SectionHeader({
 }) {
   return (
     <header className="flex items-start gap-2 pb-2 border-b border-slate-100">
-      <span className="w-7 h-7 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+      <span className="w-7 h-7 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
         {icon}
       </span>
       <div className="min-w-0">
@@ -2103,95 +1968,15 @@ function Field({
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full bg-white border rounded-sm py-2 text-[13px] focus:outline-none focus:ring-1 ${
-            icon ? "pl-8 pr-3" : "px-3"
-          } ${
-            error
+          className={`w-full bg-white border rounded py-2 text-[13px] focus:outline-none focus:ring-1 ${icon ? "pl-8 pr-3" : "px-3"
+            } ${error
               ? "border-red-500 focus:ring-red-500"
               : "border-slate-200 focus:border-blue-950 focus:ring-blue-950"
-          } ${mono ? "font-mono" : ""}`}
+            } ${mono ? "font-mono" : ""}`}
         />
       </div>
       {error && <p className="text-[13px] text-red-600 mt-1">{error}</p>}
     </label>
-  );
-}
-
-function DeliveryOption({
-  id,
-  current,
-  onSelect,
-  icon,
-  title,
-  sub,
-  price,
-}: {
-  id: DeliveryMethod;
-  current: DeliveryMethod;
-  onSelect: (v: DeliveryMethod) => void;
-  icon: React.ReactNode;
-  title: string;
-  sub: string;
-  price: number;
-}) {
-  const active = current === id;
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(id)}
-      className={`w-full flex items-center justify-between gap-2 p-2 border rounded-sm text-left transition ${
-        active
-          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
-          : "border-slate-200 hover:bg-slate-50"
-      }`}
-    >
-      <span className="flex items-start gap-2 min-w-0">
-        <span
-          className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${
-            active ? "bg-blue-950 text-white" : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          {icon}
-        </span>
-        <span className="min-w-0">
-          <span
-            className={`block text-[13px] font-medium ${
-              active ? "text-blue-950" : "text-slate-800"
-            }`}
-          >
-            {title}
-          </span>
-          <span className="block text-[13px] text-slate-500 mt-0.5">{sub}</span>
-        </span>
-      </span>
-      <span className="text-[13px] font-medium text-slate-900 shrink-0">
-        {price === 0 ? "Free" : formatKES(price)}
-      </span>
-    </button>
-  );
-}
-
-function TrustBadge({
-  icon,
-  title,
-  sub,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  sub: string;
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center gap-2">
-      <span className="w-7 h-7 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium text-slate-900 truncate">
-          {title}
-        </p>
-        <p className="text-[13px] text-slate-500 truncate">{sub}</p>
-      </div>
-    </div>
   );
 }
 
@@ -2216,9 +2001,8 @@ function Row({
         {label}
       </span>
       <span
-        className={`${emphasis ? "text-slate-900 font-semibold" : ""} ${
-          success ? "text-emerald-600 font-medium" : ""
-        } ${mono ? "font-mono" : ""}`}
+        className={`${emphasis ? "text-slate-900 font-semibold" : ""} ${success ? "text-emerald-600 font-medium" : ""
+          } ${mono ? "font-mono" : ""}`}
       >
         {value}
       </span>

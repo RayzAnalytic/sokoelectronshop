@@ -1272,6 +1272,8 @@ export type AdminTransactionStatus =
 
 export type AdminTransactionMethod = 'MPESA' | 'COD';
 
+export type AdminTransactionSource = 'STK' | 'C2B' | 'MANUAL';
+
 export type AdminTransactionDateRange =
     | 'Today'
     | 'Yesterday'
@@ -1294,10 +1296,11 @@ export interface AdminTransactionReversal {
 export interface AdminTransaction {
     id: string;
     ref: string;
-    orderNumber: string;
+    orderNumber: string | null;
     amount: string;
     fee: string;
     phoneNumber: string;
+    source: AdminTransactionSource;
     status: AdminTransactionStatus;
     responseCode: string;
     responseDesc: string;
@@ -1336,6 +1339,7 @@ export interface AdminTransactionFilters {
     q?: string;
     status?: AdminTransactionStatus;
     method?: AdminTransactionMethod;
+    source?: AdminTransactionSource | '';
     dateRange?: AdminTransactionDateRange;
     minAmount?: string;
     maxAmount?: string;
@@ -1353,6 +1357,45 @@ export interface AdminReconcileWrite {
 
 export interface AdminBulkExportWrite {
     ids: string[];
+}
+
+export interface AdminCompleteOrderItemPayload {
+    product_id?: string;
+    name: string;
+    brand?: string;
+    unit_price: string;
+    quantity: number;
+    image_url?: string;
+    serial_number?: string;
+    imei?: string;
+}
+
+export interface AdminCompleteOrderPayload {
+    items: AdminCompleteOrderItemPayload[];
+    customer_name?: string;
+    customer_phone?: string;
+    address?: string;
+}
+
+export interface AdminCompleteOrderResult {
+    reference: string;
+    total: string;
+    items_count: number;
+}
+
+export interface AdminStickerData {
+    order_reference: string;
+    item_id: number;
+    name: string;
+    brand: string;
+    quantity: number;
+    unit_price: string;
+    serial_number: string;
+    imei: string;
+    customer_name: string;
+    customer_phone_last4: string;
+    created_at: string;
+    qr_payload: string;
 }
 
 export type AdminKenyaRegions = Record<string, string[]>;
@@ -1525,6 +1568,23 @@ export interface AdminReturnRequest {
     requestedAt: string;
     resolvedAt: string | null;
     items: AdminReturnItem[];
+}
+
+export interface AdminReturnRequestWrite {
+    orderId?: string;
+    customer?: AdminReturnCustomer;
+    reason?: string;
+    reasonId?: number | null;
+    notes?: string;
+    internalNotes?: string;
+    status?: AdminReturnStatus;
+    refundStatus?: AdminRefundStatus;
+    refundMethod?: AdminRefundMethod;
+    originalAmount?: string;
+    refundAmount?: string;
+    address?: string;
+    tracking?: string;
+    items?: AdminReturnItemWrite[];
 }
 
 export interface AdminReturnReason {
@@ -5909,7 +5969,49 @@ export interface AdminMetaCampaignAnalytics {
     totals: AdminMetaCampaignAnalyticsTotals;
     per_channel: AdminMetaCampaignAnalyticsChannel[];
 }
+export type AdminPosterStatus = 'ACTIVE' | 'SCHEDULED' | 'PAUSED' | 'EXPIRED';
 
+export interface AdminPoster {
+    id: number;
+    placement: string;
+    order: number;
+    headline: string;
+    subheadline: string;
+    desktop_image: string | null;
+    mobile_image: string | null;
+    cta_text: string;
+    cta_href: string;
+    brand_name: string;
+    sponsor_label: string;
+    status: AdminPosterStatus;
+    is_published: boolean;
+    start_at: string | null;
+    end_at: string | null;
+    impression_count: number;
+    click_count: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AdminPosterWrite {
+    placement?: string;
+    order?: number;
+    headline: string;
+    subheadline?: string;
+    cta_text?: string;
+    cta_href?: string;
+    brand_name?: string;
+    sponsor_label?: string;
+    is_published?: boolean;
+    start_at?: string | null;
+    end_at?: string | null;
+}
+
+export interface AdminPosterFilters {
+    placement?: string;
+    status?: AdminPosterStatus | 'ALL';
+    search?: string;
+}
 export type {
     Banner,
     BannerWriteInput,

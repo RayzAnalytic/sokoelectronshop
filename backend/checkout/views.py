@@ -1,7 +1,7 @@
 import csv
 import logging
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from io import StringIO
 
 from django.conf import settings
@@ -25,6 +25,7 @@ from .exceptions import (
 from .models import (
     MpesaCallbackLog,
     Order,
+    OrderItem,
     Payment,
     ReconciliationLog,
 )
@@ -33,6 +34,7 @@ from .serializers import (
     AddCartItemSerializer,
     BulkExportSerializer,
     CartSerializer,
+    CompleteOrderSerializer,
     CouponValidateSerializer,
     MergeCartSerializer,
     OrderCreateResponseSerializer,
@@ -68,12 +70,13 @@ from .services import (
 
 logger = logging.getLogger(__name__)
 
-
 _DELIVERY_TO_METHOD_NAME = {
     "standard": "Standard Delivery",
     "express": "Express Boda",
     "pickup": "Pickup Mtaani / Locker",
 }
+
+_MAX_IMAGE_URL_LEN = 500
 
 
 def _settings():
@@ -223,6 +226,66 @@ def _locked_payment_or_none(payment_id, request):
     )
     qs = _scope_payment_to_caller(qs, request)
     return qs.first()
+
+
+def _safe_image_url(url: str) -> str:
+    if not url:
+        return ""
+    if url.startswith("data:"):
+        return ""
+    if len(url) > _MAX_IMAGE_URL_LEN:
+        return ""
+    return url
+
+
+def _resolve_product_image(product_id: str, request=None) -> str:
+    if not product_id:
+        return ""
+    try:
+        from catalog.models import Product
+    except Exception:
+        return ""
+
+    product = None
+    base = Product._base_manager
+    for field in ("pk", "sku", "barcode", "slug"):
+        try:
+            product = (
+                base
+                .prefetch_related("images")
+                .filter(**{field: product_id})
+                .first()
+            )
+        except Exception:
+            product = None
+        if product:
+            break
+
+    if not product:
+        return ""
+
+    first = product.images.order_by("sort_order", "id").first()
+    if not first:
+        return ""
+
+    if first.external_url:
+        return _safe_image_url(first.external_url)
+
+    if not first.image:
+        return ""
+
+    try:
+        url = first.image.url
+    except Exception:
+        return ""
+
+    if request is not None:
+        try:
+            url = request.build_absolute_uri(url)
+        except Exception:
+            pass
+
+    return _safe_image_url(url)
 
 
 class CheckoutConfigView(APIView):
@@ -662,6 +725,32 @@ class MpesaTimeoutView(APIView):
         return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
+class ShippingQuoteView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        county = (request.query_params.get("county") or request.GET.get("county") or "").strip()
+        method = (request.query_params.get("method") or request.GET.get("method") or "standard").strip().lower()
+        if method not in ("standard", "express", "pickup"):
+            method = "standard"
+        from .services import _resolve_shipping_fee as _rsf
+        try:
+            fee = _rsf(method, county)
+        except Exception:
+            fee = _shipping_method_fee(method)
+        from .services import _free_shipping_threshold as _fst
+        try:
+            threshold = _fst(method, county)
+        except Exception:
+            threshold = Decimal(_free_shipping_threshold())
+        return Response({
+            "county": county,
+            "method": method,
+            "price": str(fee),
+            "free_threshold": str(threshold),
+        })
+
+
 def _empty_cart_payload():
     return {
         "id": None,
@@ -742,17 +831,22 @@ class CartMergeView(APIView):
 
     def post(self, request):
         ser = MergeCartSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
         raw_items = ser.validated_data.get("items") or []
         normalised = []
         for item in raw_items:
+            image = (item.get("image") or "").strip()
+            if not image or image.startswith("data:") or len(image) > _MAX_IMAGE_URL_LEN:
+                image = _resolve_product_image(item["productId"], request)
+
             normalised.append({
                 "productId": item["productId"],
                 "variantId": item.get("variantId") or "",
                 "name": item["name"],
                 "brand": item.get("brand") or "",
-                "image": item.get("image") or "",
+                "image": image,
                 "variantLabel": item.get("variantLabel") or "",
                 "unitPrice": item["unitPrice"],
                 "compareAtPrice": item.get("compareAtPrice"),
@@ -835,6 +929,10 @@ def _filtered_ledger_qs(request):
     method = (request.query_params.get("method") or "").strip().upper()
     if method in {c for c, _ in Payment.Method.choices}:
         qs = qs.filter(method=method)
+
+    source = (request.query_params.get("source") or "").strip().upper()
+    if source in {"STK", "C2B", "MANUAL"}:
+        qs = qs.filter(source=source)
 
     date_range = (request.query_params.get("dateRange") or "").strip()
     if date_range in _DATE_RANGE_DAYS:
@@ -1172,4 +1270,159 @@ class OrderStatusChangeView(APIView):
         return Response({
             "reference": order.reference,
             "status": order.status,
+        })
+
+
+class C2BValidationView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+class C2BConfirmationView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        data = request.data or {}
+        trans_id = (data.get("TransID") or "").strip()
+        if not trans_id:
+            return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+        if Payment.objects.filter(mpesa_receipt_number=trans_id).exists():
+            return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+        try:
+            amount = Decimal(str(data.get("TransAmount") or "0"))
+        except (InvalidOperation, ValueError):
+            amount = Decimal("0")
+
+        phone = (data.get("MSISDN") or "").strip()
+        full_name = " ".join(
+            part.strip()
+            for part in (
+                data.get("FirstName", ""),
+                data.get("MiddleName", ""),
+                data.get("LastName", ""),
+            )
+            if part and part.strip()
+        ) or "Walk-in customer"
+
+        with transaction.atomic():
+            order = Order.objects.create(
+                status=Order.Status.CONFIRMED,
+                payment_status=Order.PaymentStatus.PAID,
+                payment_method=Order.PaymentMethod.MPESA,
+                source=Order.Source.IN_STORE,
+                contact_email="",
+                contact_phone=phone,
+                full_name=full_name,
+                address_street="In-store",
+                address_town="Counter",
+                address_county="Nairobi",
+                delivery_method="pickup",
+                estimated_delivery="Today",
+                subtotal=Decimal("0"),
+                shipping=Decimal("0"),
+                tax=Decimal("0"),
+                total=amount,
+                notes=f"Auto-created from Till {trans_id}",
+            )
+            Payment.objects.create(
+                method=Payment.Method.MPS,
+                source=Payment.Source.C2B,
+                status=Payment.Status.SUCCESS,
+                amount=amount,
+                phone_number=phone,
+                idempotency_key=trans_id,
+                mpesa_receipt_number=trans_id,
+                result_code=0,
+                result_description="Buy Goods payment",
+                raw_callback=data,
+                order=order,
+            )
+
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+class CompleteOrderFromPaymentView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        try:
+            payment = Payment.objects.select_related("order").get(pk=pk, source="C2B")
+        except Payment.DoesNotExist:
+            return _error("Payment not found.", http_status=status.HTTP_404_NOT_FOUND)
+
+        order = payment.order
+        if order is None:
+            return _error("Payment has no linked order.")
+
+        ser = CompleteOrderSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        subtotal = Decimal("0")
+        order.items.all().delete()
+
+        for row in data["items"]:
+            qty = row["quantity"]
+            unit = row["unit_price"]
+            OrderItem.objects.create(
+                order=order,
+                product_id=row.get("product_id", "") or "",
+                name=row["name"],
+                brand=row.get("brand", "") or "",
+                unit_price=unit,
+                quantity=qty,
+                image_url=row.get("image_url", "") or "",
+                serial_number=row.get("serial_number", "") or "",
+                imei=row.get("imei", "") or "",
+            )
+            subtotal += unit * qty
+
+        order.subtotal = subtotal
+        order.total = payment.amount
+        order.shipping = max(Decimal("0"), payment.amount - subtotal)
+        if data.get("customer_name"):
+            order.full_name = data["customer_name"]
+        if data.get("customer_phone"):
+            order.contact_phone = data["customer_phone"]
+        if data.get("address"):
+            order.address_street = data["address"]
+        order.save()
+
+        return Response({
+            "reference": order.reference,
+            "total": str(order.total),
+            "items_count": order.items.count(),
+        })
+
+
+class StickerDataView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, reference, item_id):
+        try:
+            item = OrderItem.objects.select_related("order").get(
+                order__reference=reference, id=item_id
+            )
+        except OrderItem.DoesNotExist:
+            return _error("Item not found.", http_status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            "order_reference": item.order.reference,
+            "item_id": item.id,
+            "name": item.name,
+            "brand": item.brand,
+            "quantity": item.quantity,
+            "unit_price": str(item.unit_price),
+            "serial_number": item.serial_number,
+            "imei": item.imei,
+            "customer_name": item.order.full_name,
+            "customer_phone_last4": (item.order.contact_phone or "")[-4:],
+            "created_at": item.order.created_at.isoformat(),
+            "qr_payload": f"{item.order.reference}/{item.id}",
         })

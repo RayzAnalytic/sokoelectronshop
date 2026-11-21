@@ -1,4 +1,3 @@
-// components/featuredproducts/FeaturedProducts.tsx
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -12,9 +11,6 @@ import {
     type ProductsQuery,
 } from '@/lib/api';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 const toNum = (v: string | number | null | undefined): number => {
     if (v === null || v === undefined) return 0;
     return typeof v === 'number' ? v : Number(v);
@@ -29,7 +25,6 @@ function formatKES(amount: number): string {
 
 const FEATURED_LIMIT = 8;
 
-
 type StockKind = 'in' | 'low' | 'out' | 'unknown';
 
 function normalizeStock(raw: string | undefined): StockKind {
@@ -40,28 +35,12 @@ function normalizeStock(raw: string | undefined): StockKind {
     return 'unknown';
 }
 
-
+/* Palette-locked stock chips */
 const STOCK_STYLES: Record<StockKind, { bg: string; dot: boolean; label: string }> = {
-    in: {
-        bg: 'bg-green-600 text-white',
-        dot: false,
-        label: 'In Stock',
-    },
-    low: {
-        bg: 'bg-orange-500 text-white',
-        dot: false,
-        label: 'Low Stock',
-    },
-    out: {
-        bg: 'bg-red-600 text-white',
-        dot: false,
-        label: 'Out of Stock',
-    },
-    unknown: {
-        bg: 'bg-slate-500 text-white',
-        dot: false,
-        label: 'Unknown',
-    },
+    in: { bg: 'bg-[#00E5FF] text-[#0B0D10]', dot: false, label: 'In Stock' },
+    low: { bg: 'bg-[#00B8D4] text-[#0B0D10]', dot: false, label: 'Low Stock' },
+    out: { bg: 'bg-[#6B7280] text-white', dot: false, label: 'Out of Stock' },
+    unknown: { bg: 'bg-[#6B7280] text-white', dot: false, label: 'Unknown' },
 };
 
 function stockStyle(raw: string | undefined) {
@@ -71,12 +50,12 @@ function stockStyle(raw: string | undefined) {
 export default function FeaturedProducts() {
     const [products, setProducts] = useState<CatalogProduct[]>([]);
     const [loading, setLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [cartAddingId, setCartAddingId] = useState<string | null>(null);
 
     const addItem = useCart((s) => s.addItem);
 
-    // ── Fetch featured products from the same API as /pages/products ──
     useEffect(() => {
         const ctrl = new AbortController();
         setLoading(true);
@@ -90,13 +69,21 @@ export default function FeaturedProducts() {
 
         catalogApi.products
             .list(query, ctrl.signal)
-            .then((page) => setProducts(page.results))
+            .then((page) => {
+                if (ctrl.signal.aborted) return;
+                setProducts(page.results);
+            })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setProducts([]);
                 setError('Failed to load featured products.');
             })
-            .finally(() => setLoading(false));
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setLoading(false);
+                setHasLoadedOnce(true);
+            });
 
         return () => ctrl.abort();
     }, []);
@@ -136,60 +123,60 @@ export default function FeaturedProducts() {
     );
 
     return (
-        <section className="bg-white py-6 lg:py-6 border-b border-slate-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6">
-                    <div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                            Featured Electronics
+        <section className="bg-white py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-slate-200">
+            <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-4 lg:px-4">
+
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-4 xs:mb-5 sm:mb-6 gap-1.5 sm:gap-0">
+                    <div className="min-w-0">
+                        <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-[#111827]">
+                            Featured <span className="text-[#00B8D4]">Electronics</span>
                         </h2>
-                        <p className="text-[14px] text-slate-600 mt-0.5">
+                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] text-[#6B7280] mt-0.5">
                             Top-rated hardware and audio essentials handpicked for
                             performance and reliability.
                         </p>
                     </div>
                     <Link
                         href="/pages/products"
-                        className="text-[14px] font-medium text-blue-950 hover:underline mt-1 sm:mt-0 inline-flex items-center"
+                        className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] font-medium text-[#111827] hover:text-[#00B8D4] hover:underline mt-1 sm:mt-0 inline-flex items-center shrink-0 self-start sm:self-auto transition-colors"
                     >
                         View all products →
                     </Link>
                 </div>
 
-                {/* Error state */}
                 {error && !loading && (
-                    <div className="text-center py-10 bg-red-50 border border-red-200 rounded-sm">
-                        <p className="text-[13px] text-red-700">{error}</p>
+                    <div className="text-center py-8 xs:py-10 bg-[#F3F6F9] border border-slate-200 rounded">
+                        <p className="text-[12px] xs:text-[13px] text-[#6B7280]">{error}</p>
                     </div>
                 )}
 
-                {/* Loading skeleton */}
                 {loading && products.length === 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 xs:gap-3 sm:gap-3">
                         {Array.from({ length: FEATURED_LIMIT }).map((_, i) => (
                             <div
                                 key={i}
-                                className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+                                className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                             >
-                                <div className="aspect-[16/10] bg-slate-100" />
-                                <div className="p-3 space-y-2">
-                                    <div className="h-3 bg-slate-100 rounded w-1/3" />
-                                    <div className="h-4 bg-slate-100 rounded w-3/4" />
-                                    <div className="h-3 bg-slate-100 rounded w-1/2" />
-                                    <div className="h-8 bg-slate-100 rounded mt-3" />
+                                <div className="aspect-[20/16] bg-[#F3F6F9]" />
+                                <div className="p-2 xs:p-3 space-y-1.5 xs:space-y-2">
+                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/3" />
+                                    <div className="h-3 xs:h-4 bg-[#F3F6F9] rounded w-3/4" />
+                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/2" />
+                                    <div className="h-7 xs:h-8 bg-[#F3F6F9] rounded mt-2 xs:mt-2" />
                                 </div>
                             </div>
                         ))}
                     </div>
                 )}
-                {!loading && !error && products.length === 0 && (
-                    <p className="text-center py-10 text-[13px] text-slate-500">
+
+                {!loading && hasLoadedOnce && !error && products.length === 0 && (
+                    <p className="text-center py-8 xs:py-10 text-[12px] xs:text-[13px] text-[#6B7280]">
                         No featured products at the moment.
                     </p>
                 )}
+
                 {!loading && !error && products.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 xs:gap-3 sm:gap-4">
                         {products.map((product) => {
                             const isAdding = cartAddingId === product.id;
                             const price = toNum(product.price);
@@ -214,28 +201,25 @@ export default function FeaturedProducts() {
                                 <Link
                                     key={product.id}
                                     href={`/pages/products?open=${product.id}`}
-                                    className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
+                                    className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-[#00B8D4] hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
                                 >
                                     <div>
-                                        {/* Product Image */}
-                                        <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
+                                        <div className="aspect-[20/16] w-full bg-[#F3F6F9] overflow-hidden relative">
                                             <img
                                                 src={product.images[0] ?? '/placeholder.jpeg'}
                                                 alt={product.name}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                             />
 
-                                            {/* Left stack — discount + stock badges */}
-                                            <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1.5">
+                                            <div className="absolute top-1 xs:top-1.5 sm:top-2 left-1 xs:left-1.5 sm:left-2 z-10 flex flex-col items-start gap-1 xs:gap-1.5">
                                                 {discountPercentage && (
-                                                    <span className="bg-red-600 text-white font-semibold text-[11px] px-2 py-0.5 rounded shadow-sm">
+                                                    <span className="bg-[#00E5FF] text-[#0B0D10] font-bold text-[9px] xs:text-[10px] sm:text-[11px] px-1 xs:px-1.5 sm:px-2 py-0.5 rounded shadow">
                                                         -{discountPercentage}%
                                                     </span>
                                                 )}
 
-                                                {/* Stock badge — solid bg, dot only on In Stock */}
                                                 <span
-                                                    className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
+                                                    className={`inline-flex items-center gap-1 text-[9px] xs:text-[10px] sm:text-[11px] font-semibold px-1 xs:px-1.5 sm:px-2 py-0.5 rounded shadow ${stock.bg}`}
                                                 >
                                                     {stock.dot && (
                                                         <span
@@ -247,7 +231,6 @@ export default function FeaturedProducts() {
                                                 </span>
                                             </div>
 
-                                            {/* Wishlist heart — top right */}
                                             <WishlistButton
                                                 variantId={product.id}
                                                 productId={product.id}
@@ -260,34 +243,33 @@ export default function FeaturedProducts() {
                                                 stockCount={product.stockQuantity}
                                                 stock={product.stock}
                                                 size="sm"
-                                                className="absolute top-2 right-2 z-10"
+                                                className="absolute top-1 xs:top-1.5 sm:top-2 right-1 xs:right-1.5 sm:right-2 z-10"
                                             />
                                         </div>
 
-                                        {/* Content Area */}
-                                        <div className="p-2 pb-2">
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-[12px] font-medium text-slate-500 uppercase">
+                                        <div className="p-1.5 xs:p-2 pb-1.5 xs:pb-2">
+                                            <div className="flex items-center justify-between gap-1">
+                                                <p className="text-[10px] xs:text-[11px] sm:text-[12px] font-medium text-[#6B7280] uppercase truncate">
                                                     {product.brand}
                                                 </p>
-                                                <p className="text-[12px] text-slate-400">
+                                                <p className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] truncate shrink-0">
                                                     {product.category}
                                                 </p>
                                             </div>
 
-                                            <h3 className="text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-1 mt-0.5 mb-1">
+                                            <h3 className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-[#111827] group-hover:text-[#00B8D4] transition-colors line-clamp-1 mt-0.5 mb-1">
                                                 {product.name}
                                             </h3>
 
                                             {Number(product.rating) > 0 && (
                                                 <div className="flex items-center space-x-1 mb-1">
-                                                    <div className="flex items-center text-amber-500">
-                                                        <Star className="w-3.5 h-3.5 fill-current" />
+                                                    <div className="flex items-center text-[#00B8D4]">
+                                                        <Star className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 fill-current" />
                                                     </div>
-                                                    <span className="text-[12px] font-medium text-slate-800">
+                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] font-medium text-[#111827]">
                                                         {toNum(product.rating).toFixed(1)}
                                                     </span>
-                                                    <span className="text-[12px] text-slate-500">
+                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] truncate">
                                                         ({product.reviewCount})
                                                     </span>
                                                 </div>
@@ -295,15 +277,14 @@ export default function FeaturedProducts() {
                                         </div>
                                     </div>
 
-                                    {/* Price and Add to Cart */}
-                                    <div className="p-2 pt-0 mt-auto">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-baseline space-x-2">
-                                                <span className="text-sm font-bold text-slate-900">
+                                    <div className="p-1.5 xs:p-2 pt-0 mt-auto">
+                                        <div className="flex items-center justify-between mb-1.5 xs:mb-2 gap-1">
+                                            <div className="flex items-baseline flex-wrap gap-x-1.5 xs:gap-x-2 gap-y-0.5 min-w-0">
+                                                <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-[#111827] whitespace-nowrap">
                                                     {formatKES(price)}
                                                 </span>
                                                 {comparePrice !== null && (
-                                                    <span className="text-[12px] text-slate-500 line-through">
+                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] line-through whitespace-nowrap">
                                                         {formatKES(comparePrice)}
                                                     </span>
                                                 )}
@@ -314,12 +295,12 @@ export default function FeaturedProducts() {
                                             type="button"
                                             onClick={(e) => handleAddToCart(product, e)}
                                             disabled={isAdding || isOutOfStock}
-                                            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5"
+                                            className="w-full bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-1.5 xs:py-2 px-2 xs:px-3 rounded text-[11px] xs:text-[12px] sm:text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 xs:space-x-1.5"
                                         >
                                             {isAdding ? (
                                                 <>
                                                     <svg
-                                                        className="animate-spin h-3.5 w-3.5 text-white"
+                                                        className="animate-spin h-3 w-3 xs:h-3.5 xs:w-3.5 text-[#0B0D10] shrink-0"
                                                         fill="none"
                                                         viewBox="0 0 24 24"
                                                     >
@@ -337,14 +318,14 @@ export default function FeaturedProducts() {
                                                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                                                         />
                                                     </svg>
-                                                    <span>Adding...</span>
+                                                    <span className="truncate">Adding...</span>
                                                 </>
                                             ) : isOutOfStock ? (
-                                                <span>Sold Out</span>
+                                                <span className="truncate">Sold Out</span>
                                             ) : (
                                                 <>
-                                                    <ShoppingCart className="w-3.5 h-3.5" />
-                                                    <span>Add to Cart</span>
+                                                    <ShoppingCart className="w-3 h-3 xs:w-3.5 xs:h-3.5 shrink-0" />
+                                                    <span className="truncate">Add to Cart</span>
                                                 </>
                                             )}
                                         </button>

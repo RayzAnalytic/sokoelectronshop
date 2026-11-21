@@ -10,13 +10,9 @@ import React, {
 import {
   Plus, CheckCircle2, X, Send, Download, Users, TrendingUp, UserPlus,
   UserX, Percent, Search, Trash2, Eye, ChevronDown, Check, Mail, List,
-  Tag, FileText, BarChart3, Layers, Edit3, Play, Pause, AlertTriangle,
-  Upload, Loader2, RefreshCw, Image as ImageIcon,
+  FileText, Edit3, Play, Pause, AlertTriangle, Upload, Loader2, RefreshCw,
+  Image as ImageIcon,
 } from 'lucide-react';
-import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend,
-} from 'recharts';
 
 import { adminApi } from '@/lib/admin-api';
 import type {
@@ -24,10 +20,10 @@ import type {
   AdminSubscriberListWrite, AdminSegment, AdminEmailTemplate,
   AdminEmailTemplateWrite, AdminTemplateCategory, AdminCampaign,
   AdminCampaignWrite, AdminCampaignRecipient, AdminAudienceType,
-  AdminGrowthPoint, AdminCampaignPerformance, AdminAnalyticsSummary,
+  AdminAnalyticsSummary,
 } from '@/lib/admin-types';
 
-type Tab = 'subscribers' | 'lists' | 'segments' | 'templates' | 'campaigns' | 'analytics';
+type Tab = 'subscribers' | 'lists' | 'templates' | 'campaigns';
 type StatusFilter = 'Subscribed' | 'Unsubscribed';
 
 const SOURCE_OPTIONS = ['Footer Popup', 'Checkout', 'WhatsApp Opt-in', 'Manual Import'];
@@ -121,13 +117,10 @@ export default function NewsletterPage() {
   const [segments, setSegments] = useState<AdminSegment[]>([]);
   const [templates, setTemplates] = useState<AdminEmailTemplate[]>([]);
   const [campaigns, setCampaigns] = useState<AdminCampaign[]>([]);
-  const [growth, setGrowth] = useState<AdminGrowthPoint[]>([]);
-  const [perf, setPerf] = useState<AdminCampaignPerformance[]>([]);
   const [summary, setSummary] = useState<AdminAnalyticsSummary | null>(null);
 
   const [loadingSubs, setLoadingSubs] = useState(true);
   const [loadingCore, setLoadingCore] = useState(true);
-  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -141,7 +134,6 @@ export default function NewsletterPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter | null>(null);
-  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [listFilter, setListFilter] = useState<number | null>(null);
 
   useEffect(() => {
@@ -171,7 +163,6 @@ export default function NewsletterPage() {
             statusFilter === 'Subscribed' ? 'active'
               : statusFilter === 'Unsubscribed' ? 'unsubscribed'
                 : undefined,
-          source: sourceFilter ?? undefined,
           list: listFilter !== null ? String(listFilter) : undefined,
           search: debouncedSearch || undefined,
         },
@@ -183,7 +174,7 @@ export default function NewsletterPage() {
     } finally {
       if (!signal?.aborted) setLoadingSubs(false);
     }
-  }, [statusFilter, sourceFilter, listFilter, debouncedSearch]);
+  }, [statusFilter, listFilter, debouncedSearch]);
 
   const loadStats = useCallback(async (signal?: AbortSignal) => {
     try { setStats(await adminApi.newsletter.subscribers.stats(signal)); }
@@ -226,22 +217,9 @@ export default function NewsletterPage() {
     }
   }, []);
 
-  const loadAnalytics = useCallback(async (signal?: AbortSignal) => {
-    setLoadingAnalytics(true);
-    try {
-      const [g, p, s] = await Promise.all([
-        adminApi.newsletter.analytics.growth(signal),
-        adminApi.newsletter.analytics.campaigns(signal),
-        adminApi.newsletter.analytics.summary(signal),
-      ]);
-      setGrowth(asArray<AdminGrowthPoint>(g));
-      setPerf(asArray<AdminCampaignPerformance>(p));
-      setSummary(s);
-    } catch (e) {
-      if (!isAbort(e)) setError(errMsg(e));
-    } finally {
-      if (!signal?.aborted) setLoadingAnalytics(false);
-    }
+  const loadSummary = useCallback(async (signal?: AbortSignal) => {
+    try { setSummary(await adminApi.newsletter.analytics.summary(signal)); }
+    catch (e) { if (!isAbort(e)) setError(errMsg(e)); }
   }, []);
 
   useEffect(() => {
@@ -250,25 +228,18 @@ export default function NewsletterPage() {
       setLoadingCore(true);
       await Promise.all([
         loadStats(c.signal), loadLists(c.signal), loadSegments(c.signal),
-        loadTemplates(c.signal), loadCampaigns(c.signal),
+        loadTemplates(c.signal), loadCampaigns(c.signal), loadSummary(c.signal),
       ]);
       if (!c.signal.aborted) setLoadingCore(false);
     })();
     return () => c.abort();
-  }, [loadStats, loadLists, loadSegments, loadTemplates, loadCampaigns]);
+  }, [loadStats, loadLists, loadSegments, loadTemplates, loadCampaigns, loadSummary]);
 
   useEffect(() => {
     const c = new AbortController();
     loadSubscribers(c.signal);
     return () => c.abort();
   }, [loadSubscribers]);
-
-  useEffect(() => {
-    if (activeTab !== 'analytics') return;
-    const c = new AbortController();
-    loadAnalytics(c.signal);
-    return () => c.abort();
-  }, [activeTab, loadAnalytics]);
 
   const liveIds = useMemo(
     () => campaigns
@@ -343,7 +314,7 @@ export default function NewsletterPage() {
   }, [lists, segments, stats]);
 
   const activeFilterCount =
-    (statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (listFilter !== null ? 1 : 0);
+    (statusFilter ? 1 : 0) + (listFilter !== null ? 1 : 0);
 
   const listNameForFilter =
     listFilter !== null
@@ -353,10 +324,8 @@ export default function NewsletterPage() {
   const tabs = [
     { id: 'subscribers' as Tab, label: 'Subscribers', icon: Users, count: stats?.total },
     { id: 'lists' as Tab, label: 'Lists', icon: List, count: lists.length },
-    { id: 'segments' as Tab, label: 'Segments', icon: Layers, count: segments.length },
     { id: 'templates' as Tab, label: 'Templates', icon: FileText, count: templates.length },
     { id: 'campaigns' as Tab, label: 'Campaigns', icon: Send, count: campaigns.length },
-    { id: 'analytics' as Tab, label: 'Analytics', icon: BarChart3 },
   ];
 
   const refreshSubscriberContext = useCallback(async () => {
@@ -481,7 +450,7 @@ export default function NewsletterPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-3 py-2 rounded flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
@@ -491,7 +460,7 @@ export default function NewsletterPage() {
       )}
 
       {error && (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[110] max-w-lg w-[calc(100%-24px)] bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm shadow-lg flex items-start gap-2 text-[13px]">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[110] max-w-lg w-[calc(100%-24px)] bg-red-50 border border-red-200 text-red-700 px-3 py-2 flex items-start gap-2 text-[13px]">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span className="flex-1">{error}</span>
           <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
@@ -501,30 +470,20 @@ export default function NewsletterPage() {
       )}
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-2 py-3 flex items-center justify-between gap-2">
+        <div className="max-w-[1700px] mx-auto px-3 py-3 flex items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Newsletter</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Subscriber lists, segments, templates, campaigns, and delivery analytics
+              Manage subscribers and send email campaigns
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportSubscribers}
-              disabled={subscribers.length === 0}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
-            <button
-              onClick={() => setCampaignDraft({})}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>New campaign</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setCampaignDraft({})}
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>New campaign</span>
+          </button>
         </div>
 
         <div className="max-w-[1700px] mx-auto px-2 flex items-center gap-0.5 border-t border-slate-100 pt-2 overflow-x-auto">
@@ -535,16 +494,16 @@ export default function NewsletterPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
-                  ? 'border-blue-950 text-blue-950'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
+                    ? 'border-blue-950 text-blue-950'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
                 {tab.label}
                 {tab.count !== undefined && (
                   <span
-                    className={`px-1.5 py-0.5 rounded-sm text-[13px] ${isActive ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'
+                    className={`px-1.5 py-0.5 rounded text-[13px] ${isActive ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'
                       }`}
                   >
                     {tab.count}
@@ -591,13 +550,13 @@ export default function NewsletterPage() {
             hintTone="emerald"
             icon={Percent}
             iconClass="bg-purple-50 text-purple-700"
-            loading={loadingCore || loadingAnalytics}
+            loading={loadingCore}
           />
         </div>
 
         {activeTab === 'subscribers' && (
           <>
-            <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+            <div className="bg-white border border-slate-200 rounded p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
               <div className="relative flex-1">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -605,7 +564,7 @@ export default function NewsletterPage() {
                   placeholder="Search by email or name…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -614,12 +573,6 @@ export default function NewsletterPage() {
                   value={statusFilter}
                   options={STATUS_OPTIONS as unknown as string[]}
                   onChange={(v) => setStatusFilter(v as StatusFilter | null)}
-                />
-                <FilterDropdown
-                  label="Source"
-                  value={sourceFilter}
-                  options={SOURCE_OPTIONS}
-                  onChange={(v) => setSourceFilter(v)}
                 />
                 <FilterDropdown
                   label="List"
@@ -634,7 +587,6 @@ export default function NewsletterPage() {
                   <button
                     onClick={() => {
                       setStatusFilter(null);
-                      setSourceFilter(null);
                       setListFilter(null);
                     }}
                     className="text-[13px] text-red-600 hover:underline font-medium px-2 py-2"
@@ -643,18 +595,26 @@ export default function NewsletterPage() {
                   </button>
                 )}
                 <button
+                  onClick={handleExportSubscribers}
+                  disabled={subscribers.length === 0}
+                  className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-700 font-medium px-2.5 py-2 rounded text-[13px]"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Export</span>
+                </button>
+                <button
                   onClick={() => setSubscriberModal({ open: true, initial: null })}
-                  className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                  className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-2 rounded text-[13px] transition"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add
                 </button>
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+            <div className="bg-white border border-slate-200 rounded overflow-hidden">
               <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <p className="text-[13px] font-medium text-slate-700">
-                  Subscribers directory · {loadingSubs ? '…' : subscribers.length}
+                  Subscribers · {loadingSubs ? '…' : subscribers.length}
                 </p>
                 <button
                   onClick={() => loadSubscribers()}
@@ -668,97 +628,91 @@ export default function NewsletterPage() {
                 <table className="w-full text-left border-collapse text-[13px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                      <th className="py-2 px-2 font-medium">Email</th>
-                      <th className="py-2 px-2 font-medium">Name</th>
-                      <th className="py-2 px-2 font-medium">Lists</th>
-                      <th className="py-2 px-2 font-medium">Source</th>
-                      <th className="py-2 px-2 font-medium">Status</th>
-                      <th className="py-2 px-2 font-medium">Joined</th>
-                      <th className="py-2 px-2 w-28" />
+                      <th className="py-2 px-3 font-medium">Email</th>
+                      <th className="py-2 px-3 font-medium">Name</th>
+                      <th className="py-2 px-3 font-medium">Lists</th>
+                      <th className="py-2 px-3 font-medium">Status</th>
+                      <th className="py-2 px-3 font-medium">Joined</th>
+                      <th className="py-2 px-3 w-24" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {loadingSubs && subscribers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
                           <Loader2 className="w-4 h-4 animate-spin inline-block mr-2" />
                           Loading subscribers…
                         </td>
                       </tr>
                     ) : subscribers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
                           No subscribers match your filters.
                         </td>
                       </tr>
                     ) : (
                       subscribers.map((sub) => (
                         <tr key={String(sub.id)} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 px-2 font-mono text-slate-900 truncate max-w-[260px]">
+                          <td className="py-2 px-3 font-mono text-slate-900 truncate max-w-[280px]">
                             {sub.email}
                           </td>
-                          <td className="py-2 px-2 text-slate-700">
+                          <td className="py-2 px-3 text-slate-700">
                             <div className="flex items-center gap-1.5">
                               <span className="truncate">{sub.name || '—'}</span>
                               {(sub.tags ?? []).includes('vip') && (
-                                <span className="bg-amber-50 text-amber-800 border border-amber-100 text-[13px] font-medium px-1.5 py-0.5 rounded-sm">
+                                <span className="bg-amber-50 text-amber-800 border border-amber-100 text-[12px] font-medium px-1.5 py-0.5 rounded">
                                   VIP
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="py-2 px-2">
+                          <td className="py-2 px-3">
                             <div className="flex flex-wrap gap-1">
                               {(sub.lists ?? []).slice(0, 2).map((l) => (
                                 <span
                                   key={String(l.id)}
-                                  className={`text-[13px] font-medium px-1.5 py-0.5 rounded-sm border ${safeColor(l.color)}`}
+                                  className={`text-[12px] font-medium px-1.5 py-0.5 rounded border ${safeColor(l.color)}`}
                                 >
                                   {l.name}
                                 </span>
                               ))}
                               {(sub.lists ?? []).length > 2 && (
-                                <span className="text-[13px] text-slate-500">
+                                <span className="text-[12px] text-slate-500">
                                   +{(sub.lists ?? []).length - 2}
                                 </span>
                               )}
                               {(sub.lists ?? []).length === 0 && (
-                                <span className="text-[13px] text-slate-400">—</span>
+                                <span className="text-[12px] text-slate-400">—</span>
                               )}
                             </div>
                           </td>
-                          <td className="py-2 px-2">
-                            <span className="inline-block px-2 py-0.5 rounded-sm font-medium border bg-slate-100 text-slate-600 border-slate-200">
-                              {sub.source || '—'}
-                            </span>
-                          </td>
-                          <td className="py-2 px-2">
+                          <td className="py-2 px-3">
                             <button
                               onClick={() => handleToggleSubscriber(sub)}
                               title="Toggle active status"
-                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border transition ${sub.status === 'Subscribed'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                                : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
+                              className={`inline-block px-2 py-0.5 rounded font-medium border transition ${sub.status === 'Subscribed'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                                  : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
                                 }`}
                             >
                               {sub.status}
                             </button>
                           </td>
-                          <td className="py-2 px-2 font-mono text-slate-400">
+                          <td className="py-2 px-3 font-mono text-slate-400 text-[12px]">
                             {fmtDate(sub.subscribed_at)}
                           </td>
-                          <td className="py-2 px-2">
-                            <div className="flex items-center gap-1">
+                          <td className="py-2 px-3">
+                            <div className="flex items-center gap-1 justify-end">
                               <button
                                 onClick={() => setSubscriberModal({ open: true, initial: sub })}
-                                className="p-1.5 rounded-sm bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
+                                className="p-1.5 rounded bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
                                 title="Edit subscriber"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDeleteSubscriber(sub)}
-                                className="p-1.5 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 transition"
+                                className="p-1.5 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50 transition"
                                 title="Remove subscriber"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -777,14 +731,14 @@ export default function NewsletterPage() {
 
         {activeTab === 'lists' && (
           <div className="space-y-2">
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between">
+            <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between">
               <div>
                 <p className="text-[13px] font-semibold text-slate-900">Subscriber lists</p>
-                <p className="text-[13px] text-slate-500">Group subscribers for targeted broadcasts</p>
+                <p className="text-[13px] text-slate-500">Group subscribers for targeted sends</p>
               </div>
               <button
                 onClick={() => setListModal({ open: true, initial: null })}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
               >
                 <Plus className="w-3.5 h-3.5" /> New list
               </button>
@@ -803,12 +757,12 @@ export default function NewsletterPage() {
                 {lists.map((list) => (
                   <div
                     key={String(list.id)}
-                    className="bg-white border border-slate-200 rounded-sm p-2 space-y-2"
+                    className="bg-white border border-slate-200 rounded p-2 space-y-2"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className={`w-9 h-9 rounded-sm flex items-center justify-center border shrink-0 ${safeColor(list.color)}`}
+                          className={`w-9 h-9 rounded flex items-center justify-center border shrink-0 ${safeColor(list.color)}`}
                         >
                           <List className="w-4 h-4" />
                         </span>
@@ -816,7 +770,7 @@ export default function NewsletterPage() {
                           <p className="text-[13px] font-medium text-slate-900 truncate">
                             {list.name}
                           </p>
-                          <p className="text-[13px] text-slate-500">
+                          <p className="text-[12px] text-slate-500">
                             {(list.subscriberCount ?? 0).toLocaleString()} subscribers
                           </p>
                         </div>
@@ -824,14 +778,14 @@ export default function NewsletterPage() {
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => setListModal({ open: true, initial: list })}
-                          className="p-1.5 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-600"
+                          className="p-1.5 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-600"
                           title="Edit list"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteList(list)}
-                          className="p-1.5 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50"
+                          className="p-1.5 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50"
                           title="Delete list"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -846,7 +800,6 @@ export default function NewsletterPage() {
                         onClick={() => {
                           setListFilter(list.id);
                           setStatusFilter(null);
-                          setSourceFilter(null);
                           setActiveTab('subscribers');
                         }}
                         className="text-[13px] font-medium text-blue-950 hover:underline"
@@ -872,82 +825,9 @@ export default function NewsletterPage() {
           </div>
         )}
 
-        {activeTab === 'segments' && (
-          <div className="space-y-2">
-            <div className="bg-white border border-slate-200 rounded-sm p-2">
-              <p className="text-[13px] font-semibold text-slate-900">Dynamic segments</p>
-              <p className="text-[13px] text-slate-500">
-                Rule-based audiences refreshed automatically from order + subscriber data
-              </p>
-            </div>
-            {loadingCore ? (
-              <SkeletonGrid />
-            ) : segments.length === 0 ? (
-              <EmptyState
-                icon={Layers}
-                title="No segments available"
-                body="Segments are defined server-side and appear here once configured."
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {segments.map((seg) => (
-                  <div
-                    key={seg.id}
-                    className="bg-white border border-slate-200 rounded-sm p-2 space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={`w-9 h-9 rounded-sm flex items-center justify-center border shrink-0 ${safeColor(seg.color)}`}
-                        >
-                          <Layers className="w-4 h-4" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-medium text-slate-900 truncate">
-                            {seg.name}
-                          </p>
-                          <p className="text-[13px] text-slate-500">
-                            {(seg.count ?? 0).toLocaleString()} contacts
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-[13px] text-slate-600">{seg.description}</p>
-                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1">
-                      <p className="text-[13px] font-medium text-slate-500">Rules</p>
-                      {(seg.rules ?? []).map((r, i) => (
-                        <p
-                          key={i}
-                          className="text-[13px] font-mono text-slate-700 inline-flex items-center gap-1"
-                        >
-                          <Tag className="w-3 h-3 text-slate-400" />
-                          {r}
-                        </p>
-                      ))}
-                    </div>
-                    <div className="pt-1 flex justify-end">
-                      <button
-                        onClick={() =>
-                          setCampaignDraft({
-                            audience_type: 'segment',
-                            audience_id: seg.id,
-                          })
-                        }
-                        className="text-[13px] font-medium text-emerald-700 hover:underline inline-flex items-center gap-0.5"
-                      >
-                        <Send className="w-3 h-3" /> Send to segment
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'templates' && (
           <div className="space-y-2">
-            <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between">
+            <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between">
               <div>
                 <p className="text-[13px] font-semibold text-slate-900">Email templates</p>
                 <p className="text-[13px] text-slate-500">
@@ -956,7 +836,7 @@ export default function NewsletterPage() {
               </div>
               <button
                 onClick={() => setTemplateModal({ open: true, initial: null })}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
               >
                 <Plus className="w-3.5 h-3.5" /> New template
               </button>
@@ -974,18 +854,18 @@ export default function NewsletterPage() {
                 {templates.map((tpl) => (
                   <div
                     key={String(tpl.id)}
-                    className="bg-white border border-slate-200 rounded-sm p-2 space-y-2"
+                    className="bg-white border border-slate-200 rounded p-2 space-y-2"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0">
+                        <span className="w-9 h-9 rounded bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0">
                           <FileText className="w-4 h-4" />
                         </span>
                         <div className="min-w-0">
                           <p className="text-[13px] font-medium text-slate-900 truncate">
                             {tpl.name}
                           </p>
-                          <p className="text-[13px] text-slate-500">
+                          <p className="text-[12px] text-slate-500">
                             {tpl.category} · Updated {fmtDate(tpl.updated_at)}
                           </p>
                         </div>
@@ -993,14 +873,14 @@ export default function NewsletterPage() {
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => setTemplateModal({ open: true, initial: tpl })}
-                          className="p-1.5 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-600"
+                          className="p-1.5 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-600"
                           title="Edit template"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteTemplate(tpl)}
-                          className="p-1.5 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50"
+                          className="p-1.5 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50"
                           title="Delete template"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1041,17 +921,11 @@ export default function NewsletterPage() {
         )}
 
         {activeTab === 'campaigns' && (
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded overflow-hidden">
+            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <p className="text-[13px] font-medium text-slate-700">
                 Campaigns · {campaigns.length}
               </p>
-              <button
-                onClick={() => setCampaignDraft({})}
-                className="text-[13px] font-medium text-blue-950 hover:underline inline-flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" /> New campaign
-              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
@@ -1064,7 +938,7 @@ export default function NewsletterPage() {
                     <th className="py-2 px-2 font-medium text-right">Open</th>
                     <th className="py-2 px-2 font-medium text-right">Click</th>
                     <th className="py-2 px-2 font-medium">Schedule / Sent</th>
-                    <th className="py-2 px-2 w-56" />
+                    <th className="py-2 px-2 w-44" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1078,7 +952,7 @@ export default function NewsletterPage() {
                   ) : campaigns.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-12 text-center text-slate-400">
-                        No campaigns yet. Create your first one.
+                        No campaigns yet. Click <span className="font-medium text-slate-700">New campaign</span> to get started.
                       </td>
                     </tr>
                   ) : (
@@ -1090,12 +964,14 @@ export default function NewsletterPage() {
                             <p className="font-medium text-slate-900 truncate max-w-[240px]">
                               {c.subject}
                             </p>
-                            <p className="text-[13px] text-slate-400 truncate">{c.name}</p>
+                            <p className="text-[12px] text-slate-400 truncate">{c.name}</p>
                           </td>
-                          <td className="py-2 px-2 text-slate-600">{c.audienceLabel || '—'}</td>
-                          <td className="py-2 px-2">
+                          <td className="py-2 px-2 text-slate-600 text-[12px]">
+                            {c.audienceLabel || '—'}
+                          </td>
+                          <td className="py-2 px-3">
                             <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border ${campaignStatusBadge(c.status)}`}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded  font-medium border ${campaignStatusBadge(c.status)}`}
                             >
                               {isLive && <Loader2 className="w-3 h-3 animate-spin" />}
                               {titleCase(c.status)}
@@ -1112,14 +988,14 @@ export default function NewsletterPage() {
                           <td className="py-2 px-2 text-right font-mono text-slate-700">
                             {pct(c.clickRate)}
                           </td>
-                          <td className="py-2 px-2 font-mono text-slate-400">
+                          <td className="py-2 px-2 font-mono text-slate-400 text-[12px]">
                             {c.sent_at
                               ? fmtDateTime(c.sent_at)
                               : c.scheduled_at
                                 ? fmtDateTime(c.scheduled_at)
                                 : 'Not scheduled'}
                           </td>
-                          <td className="py-2 px-2">
+                          <td className="py-2 px-3">
                             <div className="flex items-center justify-end gap-1">
                               {(c.status === 'draft' ||
                                 c.status === 'scheduled' ||
@@ -1131,16 +1007,16 @@ export default function NewsletterPage() {
                                         c.status === 'paused' ? 'resume' : 'send',
                                       )
                                     }
-                                    className="inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-2 rounded-sm text-[13px] transition"
+                                    className="inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-2 rounded text-[12px] transition"
                                   >
                                     <Play className="w-3 h-3" />
-                                    {c.status === 'paused' ? 'Resume' : 'Send now'}
+                                    {c.status === 'paused' ? 'Resume' : 'Send'}
                                   </button>
                                 )}
                               {isLive && (
                                 <button
                                   onClick={() => handleCampaignAction(c, 'pause')}
-                                  className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-700 font-medium px-2.5 py-2 rounded-sm text-[13px] hover:bg-amber-50 transition"
+                                  className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-700 font-medium px-2.5 py-2 rounded text-[12px] hover:bg-amber-50 transition"
                                 >
                                   <Pause className="w-3 h-3" /> Pause
                                 </button>
@@ -1148,7 +1024,7 @@ export default function NewsletterPage() {
                               {c.status === 'sent' && (
                                 <button
                                   onClick={() => setRecipientsFor(c)}
-                                  className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-2 rounded-sm text-[13px]"
+                                  className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-2 rounded text-[12px]"
                                 >
                                   <Eye className="w-3 h-3" /> Report
                                 </button>
@@ -1156,7 +1032,7 @@ export default function NewsletterPage() {
                               {(c.status === 'draft' || c.status === 'failed') && (
                                 <button
                                   onClick={() => handleDeleteCampaign(c)}
-                                  className="p-1.5 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 transition"
+                                  className="p-1.5 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50 transition"
                                   title="Delete campaign"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1170,166 +1046,6 @@ export default function NewsletterPage() {
                   )}
                 </tbody>
               </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'analytics' && (
-          <div className="space-y-2">
-            <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-semibold text-slate-900">Subscriber list growth</p>
-                <button
-                  onClick={() => loadAnalytics()}
-                  className="text-[13px] font-medium text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
-                >
-                  <RefreshCw className={`w-3 h-3 ${loadingAnalytics ? 'animate-spin' : ''}`} />{' '}
-                  Refresh
-                </button>
-              </div>
-              <div className="h-64 w-full">
-                {growth.length === 0 ? (
-                  <ChartPlaceholder loading={loadingAnalytics} />
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={growth}
-                      margin={{ top: 16, right: 24, left: 8, bottom: 8 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                      <XAxis
-                        dataKey="month"
-                        stroke="#94a3b8"
-                        fontSize={13}
-                        tickLine={false}
-                        axisLine={{ stroke: '#e2e8f0' }}
-                        padding={{ left: 12, right: 12 }}
-                      />
-                      <YAxis
-                        stroke="#94a3b8"
-                        fontSize={13}
-                        tickLine={false}
-                        axisLine={{ stroke: '#e2e8f0' }}
-                        allowDecimals={false}
-                        width={40}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '6px',
-                          color: '#0f172a',
-                          fontSize: '13px',
-                          boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
-                        }}
-                        labelStyle={{ color: '#64748b', fontSize: 12, marginBottom: 4 }}
-                        cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                        formatter={(value: number) => [value.toLocaleString(), 'Subscribers']}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="subscribers"
-                        name="Subscribers"
-                        stroke="#172554"
-                        strokeWidth={2.5}
-                        dot={{
-                          r: 4,
-                          fill: '#ffffff',
-                          stroke: '#172554',
-                          strokeWidth: 2,
-                        }}
-                        activeDot={{
-                          r: 6,
-                          fill: '#172554',
-                          stroke: '#ffffff',
-                          strokeWidth: 2,
-                        }}
-                        isAnimationActive={true}
-                        animationDuration={600}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-semibold text-slate-900">
-                  Campaign performance · open / click / bounce rates
-                </p>
-                <span className="text-[13px] text-slate-400">Last campaigns</span>
-              </div>
-              <div className="h-64 w-full">
-                {perf.length === 0 ? (
-                  <ChartPlaceholder loading={loadingAnalytics} />
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={perf} margin={{ top: 12, right: 16, left: 8, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                      <XAxis
-                        dataKey="name"
-                        stroke="#94a3b8"
-                        fontSize={13}
-                        tickLine={false}
-                        axisLine={{ stroke: '#e2e8f0' }}
-                      />
-                      <YAxis
-                        stroke="#94a3b8"
-                        fontSize={13}
-                        tickLine={false}
-                        axisLine={{ stroke: '#e2e8f0' }}
-                        width={40}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '6px',
-                          color: '#0f172a',
-                          fontSize: '13px',
-                          boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
-                        }}
-                        labelStyle={{ color: '#64748b', fontSize: 12, marginBottom: 4 }}
-                        cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: '13px' }} />
-                      <Bar dataKey="open" name="Open %" fill="#172554" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="click" name="Click %" fill="#059669" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="bounce" name="Bounce %" fill="#dc2626" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1">
-                <p className="text-[13px] font-medium text-slate-500">Emails delivered</p>
-                <p className="text-[15px] font-bold text-slate-900">
-                  {summary ? (summary.delivered_total ?? 0).toLocaleString() : '—'}
-                </p>
-                <p className="text-[13px] text-emerald-600 inline-flex items-center gap-0.5">
-                  <Check className="w-3 h-3" />
-                  {summary ? `${summary.delivery_rate ?? 0}% delivery rate` : '—'}
-                </p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1">
-                <p className="text-[13px] font-medium text-slate-500">Avg. open rate</p>
-                <p className="text-[15px] font-bold text-slate-900">
-                  {summary ? `${summary.avg_open_rate ?? 0}%` : '—'}
-                </p>
-                <p className="text-[13px] text-slate-500">
-                  Avg. click {summary ? `${summary.avg_click_rate ?? 0}%` : '—'}
-                </p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1">
-                <p className="text-[13px] font-medium text-slate-500">Unsubscribe rate</p>
-                <p className="text-[15px] font-bold text-slate-900">
-                  {summary ? `${summary.avg_unsub_rate ?? 0}%` : '—'}
-                </p>
-                <p className="text-[13px] text-slate-500">Below the 0.5% threshold</p>
-              </div>
             </div>
           </div>
         )}
@@ -1379,13 +1095,13 @@ export default function NewsletterPage() {
             <>
               <button
                 onClick={() => setTemplatePreview(null)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
               >
                 Close
               </button>
               <button
                 onClick={() => openCampaignFromTemplate(templatePreview)}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px]"
               >
                 <Send className="w-3.5 h-3.5" /> Use in campaign
               </button>
@@ -1403,13 +1119,13 @@ export default function NewsletterPage() {
               <img
                 src={templatePreview.hero_image_url}
                 alt=""
-                className="w-full rounded-sm border border-slate-200"
+                className="w-full rounded border border-slate-200"
               />
             </div>
           )}
           <div>
             <p className="text-[13px] font-medium text-slate-500 mb-1">Body</p>
-            <div className="bg-slate-50 border border-slate-200 rounded-sm p-3">
+            <div className="bg-slate-50 border border-slate-200 rounded p-2">
               <p className="text-[13px] text-slate-700 whitespace-pre-wrap">
                 {templatePreview.body}
               </p>
@@ -1484,11 +1200,11 @@ function StatCard({
   loading?: boolean;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+    <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-slate-500">{label}</p>
         {loading ? (
-          <div className="h-5 w-20 bg-slate-100 rounded-sm animate-pulse mt-1" />
+          <div className="h-5 w-20 bg-slate-100 rounded animate-pulse mt-1" />
         ) : (
           <p className="text-[15px] font-bold text-slate-900 mt-0.5">{value}</p>
         )}
@@ -1502,7 +1218,7 @@ function StatCard({
           </p>
         )}
       </div>
-      <span className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${iconClass}`}>
+      <span className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${iconClass}`}>
         <Icon className="w-4 h-4" />
       </span>
     </div>
@@ -1515,17 +1231,17 @@ function SkeletonGrid() {
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 animate-pulse"
+          className="bg-white border border-slate-200 rounded p-2 space-y-2 animate-pulse"
         >
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-sm bg-slate-100" />
+            <div className="w-9 h-9 rounded bg-slate-100" />
             <div className="flex-1 space-y-1.5">
-              <div className="h-3 w-1/2 bg-slate-100 rounded-sm" />
-              <div className="h-3 w-1/3 bg-slate-100 rounded-sm" />
+              <div className="h-3 w-1/2 bg-slate-100 rounded" />
+              <div className="h-3 w-1/3 bg-slate-100 rounded" />
             </div>
           </div>
-          <div className="h-3 w-full bg-slate-100 rounded-sm" />
-          <div className="h-3 w-4/5 bg-slate-100 rounded-sm" />
+          <div className="h-3 w-full bg-slate-100 rounded" />
+          <div className="h-3 w-4/5 bg-slate-100 rounded" />
         </div>
       ))}
     </div>
@@ -1542,26 +1258,12 @@ function EmptyState({
   body: string;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm py-12 flex flex-col items-center text-center">
-      <span className="w-10 h-10 rounded-sm bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
+    <div className="bg-white border border-slate-200 rounded py-12 flex flex-col items-center text-center">
+      <span className="w-10 h-10 rounded bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
         <Icon className="w-5 h-5" />
       </span>
       <p className="text-[13px] font-medium text-slate-700">{title}</p>
       <p className="text-[13px] text-slate-500 mt-0.5 max-w-sm">{body}</p>
-    </div>
-  );
-}
-
-function ChartPlaceholder({ loading }: { loading: boolean }) {
-  if (loading)
-    return (
-      <div className="h-full w-full flex items-center justify-center text-slate-400 text-[13px]">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading analytics…
-      </div>
-    );
-  return (
-    <div className="h-full w-full flex items-center justify-center text-slate-400 text-[13px]">
-      No data available yet.
     </div>
   );
 }
@@ -1600,24 +1302,24 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className={`bg-white border border-slate-200 rounded-sm ${maxWidth} w-full max-h-[90vh] flex flex-col shadow-xl`}
+        className={`bg-white border border-slate-200 rounded ${maxWidth} w-full max-h-[90vh] flex flex-col shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-2 py-2 border-b border-slate-200 shrink-0">
+        <div className="flex items-start justify-between px-3 py-2 border-b border-slate-200 shrink-0">
           <div className="min-w-0">
             <h3 className="text-[15px] font-semibold text-slate-900 truncate">{title}</h3>
             {subtitle && <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+            className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2 text-[13px]">{children}</div>
         {footer && (
-          <div className="px-2 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+          <div className="px-3 py-2 border-t border-slate-200 flex justify-end gap-2 shrink-0">
             {footer}
           </div>
         )}
@@ -1689,14 +1391,14 @@ function SubscriberModal({
         <>
           <button
             onClick={onClose}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px]"
           >
             {saving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1709,7 +1411,7 @@ function SubscriberModal({
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
@@ -1721,7 +1423,7 @@ function SubscriberModal({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="name@example.com"
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
       </div>
       <div>
@@ -1731,7 +1433,7 @@ function SubscriberModal({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Jane Wanjiru"
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1740,7 +1442,7 @@ function SubscriberModal({
           <select
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           >
             {SOURCE_OPTIONS.map((s) => (
               <option key={s} value={s}>
@@ -1754,7 +1456,7 @@ function SubscriberModal({
           <select
             value={isActive ? 'active' : 'inactive'}
             onChange={(e) => setIsActive(e.target.value === 'active')}
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           >
             <option value="active">Subscribed</option>
             <option value="inactive">Unsubscribed</option>
@@ -1770,7 +1472,7 @@ function SubscriberModal({
           value={tags}
           onChange={(e) => setTags(e.target.value)}
           placeholder="vip, buyer, whatsapp"
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
       </div>
       {initial && (initial.lists ?? []).length > 0 && (
@@ -1780,7 +1482,7 @@ function SubscriberModal({
             {initial.lists.map((l) => (
               <span
                 key={String(l.id)}
-                className={`text-[13px] font-medium px-1.5 py-0.5 rounded-sm border ${safeColor(l.color)}`}
+                className={`text-[13px] font-medium px-1.5 py-0.5 rounded border ${safeColor(l.color)}`}
               >
                 {l.name}
               </span>
@@ -1837,21 +1539,21 @@ function ListModal({
   return (
     <Modal
       title={initial ? 'Edit list' : 'New list'}
-      subtitle="Group subscribers for targeted broadcasts"
+      subtitle="Group subscribers for targeted sends"
       onClose={onClose}
       maxWidth="max-w-lg"
       footer={
         <>
           <button
             onClick={onClose}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px]"
           >
             {saving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1864,7 +1566,7 @@ function ListModal({
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
@@ -1876,7 +1578,7 @@ function ListModal({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Newsletter Weekly"
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
       </div>
       <div>
@@ -1886,7 +1588,7 @@ function ListModal({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="What kind of contacts belong in this list?"
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
       </div>
       <div>
@@ -1897,7 +1599,7 @@ function ListModal({
               key={preset.value}
               type="button"
               onClick={() => setColor(preset.value)}
-              className={`px-2.5 py-1.5 rounded-sm border text-[13px] font-medium transition ${preset.value} ${color === preset.value ? 'ring-2 ring-blue-950 ring-offset-1' : ''
+              className={`px-2.5 py-1.5 rounded border text-[13px] font-medium transition ${preset.value} ${color === preset.value ? 'ring-2 ring-blue-950 ring-offset-1' : ''
                 }`}
             >
               {preset.label}
@@ -1985,14 +1687,14 @@ function TemplateModal({
         <>
           <button
             onClick={onClose}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={saving || uploading}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px]"
           >
             {saving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -2005,7 +1707,7 @@ function TemplateModal({
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
@@ -2018,7 +1720,7 @@ function TemplateModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Welcome Email"
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         </div>
         <div>
@@ -2026,7 +1728,7 @@ function TemplateModal({
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as AdminTemplateCategory)}
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           >
             {TEMPLATE_CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -2043,7 +1745,7 @@ function TemplateModal({
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           placeholder="Karibu {{name}} — welcome to SokoFlow"
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
       </div>
       <div>
@@ -2093,7 +1795,7 @@ function TemplateModal({
             className="w-full h-32 object-cover rounded border border-slate-200"
           />
         ) : (
-          <div className="w-full h-24 rounded-sm border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 gap-2">
+          <div className="w-full h-24 rounded border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 gap-2">
             <ImageIcon className="w-4 h-4" />
             <span className="text-[13px]">No image selected</span>
           </div>
@@ -2106,7 +1808,7 @@ function TemplateModal({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder={'Hi {{name}},\n\nThank you for joining…'}
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] font-mono resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
         <p className="text-[13px] text-slate-400 mt-1">
           Merge tags: {'{{name}}'}, {'{{email}}'}, {'{{order_number}}'}, {'{{store_url}}'}
@@ -2120,7 +1822,7 @@ function TemplateModal({
             value={ctaText}
             onChange={(e) => setCtaText(e.target.value)}
             placeholder="Shop now"
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         </div>
         <div>
@@ -2130,7 +1832,7 @@ function TemplateModal({
             value={ctaUrl}
             onChange={(e) => setCtaUrl(e.target.value)}
             placeholder="https://sokoflow.co.ke/shop"
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         </div>
       </div>
@@ -2264,33 +1966,33 @@ function CampaignModal({
   return (
     <Modal
       title="New campaign"
-      subtitle="Compose and dispatch to your audience"
+      subtitle="Compose and send to your audience"
       onClose={onClose}
       footer={
         <>
           <button
             onClick={onClose}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={saving || uploading}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px]"
           >
             {saving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <Send className="w-3.5 h-3.5" />
             )}
-            {schedule === 'now' ? 'Dispatch broadcast' : 'Schedule broadcast'}
+            {schedule === 'now' ? 'Send now' : 'Schedule'}
           </button>
         </>
       }
     >
       {formError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{formError}</span>
         </div>
@@ -2300,7 +2002,7 @@ function CampaignModal({
         <select
           value={audienceKey}
           onChange={(e) => setAudienceKey(e.target.value)}
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
         >
           {audienceChoices.map((a) => (
             <option key={a.key} value={a.key}>
@@ -2315,7 +2017,7 @@ function CampaignModal({
           <select
             value={templateId}
             onChange={(e) => applyTemplate(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           >
             <option value="">Blank campaign</option>
             {templates.map((t) => (
@@ -2332,7 +2034,7 @@ function CampaignModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="October Launch Teaser"
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         </div>
       </div>
@@ -2343,7 +2045,7 @@ function CampaignModal({
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           placeholder="e.g. Weekly picks: top electronics & M-Pesa deals"
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
         />
       </div>
       <div>
@@ -2390,7 +2092,7 @@ function CampaignModal({
           <img
             src={heroImage}
             alt=""
-            className="w-full h-28 object-cover rounded-sm border border-slate-200"
+            className="w-full h-28 object-cover rounded border border-slate-200"
           />
         )}
       </div>
@@ -2412,10 +2114,10 @@ function CampaignModal({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="Hi {{name}}, welcome to this week's newsletter…"
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] font-mono leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] font-mono leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         ) : (
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 min-h-[160px]">
+          <div className="bg-slate-50 border border-slate-200 rounded p-2 min-h-[160px]">
             <p className="text-[15px] font-semibold text-slate-900">
               {subject || 'Untitled subject'}
             </p>
@@ -2424,14 +2126,14 @@ function CampaignModal({
               <img
                 src={heroImage}
                 alt=""
-                className="w-full rounded-sm border border-slate-200 mt-1"
+                className="w-full rounded border border-slate-200 mt-1"
               />
             )}
             <p className="text-[13px] text-slate-700 whitespace-pre-wrap mt-1">
               {body || 'No content entered yet.'}
             </p>
             {ctaText && (
-              <span className="inline-block mt-3 bg-blue-950 text-white text-[13px] font-medium px-2 py-1.5 rounded-sm">
+              <span className="inline-block mt-2 bg-blue-950 text-white text-[13px] font-medium px-2 py-1.5 rounded">
                 {ctaText}
               </span>
             )}
@@ -2449,7 +2151,7 @@ function CampaignModal({
             value={ctaText}
             onChange={(e) => setCtaText(e.target.value)}
             placeholder="Shop now"
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         </div>
         <div>
@@ -2459,7 +2161,7 @@ function CampaignModal({
             value={ctaUrl}
             onChange={(e) => setCtaUrl(e.target.value)}
             placeholder="https://sokoflow.co.ke/shop"
-            className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         </div>
       </div>
@@ -2468,7 +2170,7 @@ function CampaignModal({
         <select
           value={schedule}
           onChange={(e) => setSchedule(e.target.value as 'now' | 'tomorrow' | 'custom')}
-          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+          className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
         >
           <option value="now">Send immediately</option>
           <option value="tomorrow">Tomorrow morning (9 AM EAT)</option>
@@ -2479,12 +2181,12 @@ function CampaignModal({
             type="datetime-local"
             value={customDate}
             onChange={(e) => setCustomDate(e.target.value)}
-            className="w-full mt-2 bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+            className="w-full mt-2 bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
           />
         )}
       </div>
       {selectedAudience && (
-        <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between">
+        <div className="bg-slate-50 border border-slate-200 rounded p-2 flex items-center justify-between">
           <span className="text-[13px] text-slate-600">
             This campaign will reach{' '}
             <span className="font-semibold text-slate-900">
@@ -2551,42 +2253,42 @@ function RecipientsModal({
       footer={
         <button
           onClick={onClose}
-          className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px]"
+          className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
         >
           Close
         </button>
       }
     >
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="border border-slate-200 rounded-sm p-2">
+        <div className="border border-slate-200 rounded p-2">
           <p className="text-[13px] text-slate-500">Recipients</p>
           <p className="text-[15px] font-bold text-slate-900">
             {(campaign.recipient_count ?? 0).toLocaleString()}
           </p>
         </div>
-        <div className="border border-slate-200 rounded-sm p-2">
+        <div className="border border-slate-200 rounded p-2">
           <p className="text-[13px] text-slate-500">Delivered</p>
           <p className="text-[15px] font-bold text-slate-900">
             {(campaign.sent_count ?? 0).toLocaleString()}
           </p>
         </div>
-        <div className="border border-slate-200 rounded-sm p-2">
+        <div className="border border-slate-200 rounded p-2">
           <p className="text-[13px] text-slate-500">Open rate</p>
           <p className="text-[15px] font-bold text-slate-900">{pct(campaign.openRate)}</p>
         </div>
-        <div className="border border-slate-200 rounded-sm p-2">
+        <div className="border border-slate-200 rounded p-2">
           <p className="text-[13px] text-slate-500">Click rate</p>
           <p className="text-[15px] font-bold text-slate-900">{pct(campaign.clickRate)}</p>
         </div>
       </div>
       {loadError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm flex items-start gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{loadError}</span>
         </div>
       )}
-      <div className="border border-slate-200 rounded-sm overflow-hidden">
-        <div className="px-2 py-2 bg-slate-50 border-b border-slate-200">
+      <div className="border border-slate-200 rounded overflow-hidden">
+        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
           <p className="text-[13px] font-medium text-slate-700">
             Recipients {loading ? '' : `· ${rows.length}`}
           </p>
@@ -2618,12 +2320,12 @@ function RecipientsModal({
                     </td>
                     <td className="py-2 px-2">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${recipientBadge(r.status)}`}
+                        className={`inline-block px-2 py-0.5 rounded font-medium border ${recipientBadge(r.status)}`}
                       >
                         {titleCase(r.status)}
                       </span>
                     </td>
-                    <td className="py-2 px-2 font-mono text-slate-400">
+                    <td className="py-2 px-2 font-mono text-slate-400 text-[12px]">
                       {fmtDateTime(r.sent_at)}
                     </td>
                     <td className="py-2 px-2 text-slate-500 truncate max-w-[200px]">
@@ -2677,24 +2379,24 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-2 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
-          ? 'bg-blue-50 border-blue-950 text-blue-950'
-          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+        className={`flex items-center gap-1.5 border rounded px-2 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
+            ? 'bg-blue-50 border-blue-950 text-blue-950'
+            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}
       >
         {value ?? label}
         <ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1 max-h-72 overflow-y-auto">
+        <div className="absolute top-full mt-1 left-0 w-56 rounded border border-slate-200 bg-white shadow-lg z-50 p-1 max-h-72 overflow-y-auto">
           <button
             onClick={() => {
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive
-              ? 'bg-blue-50 text-blue-950 font-medium'
-              : 'text-slate-700 hover:bg-slate-50'
+            className={`w-full text-left px-2 py-2 rounded text-[13px] ${!isActive
+                ? 'bg-blue-50 text-blue-950 font-medium'
+                : 'text-slate-700 hover:bg-slate-50'
               }`}
           >
             All {label.toLowerCase()}
@@ -2709,9 +2411,9 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${selected
-                  ? 'bg-blue-50 text-blue-950 font-medium'
-                  : 'text-slate-700 hover:bg-slate-50'
+                className={`w-full text-left px-2 py-2 rounded text-[13px] flex items-center justify-between ${selected
+                    ? 'bg-blue-50 text-blue-950 font-medium'
+                    : 'text-slate-700 hover:bg-slate-50'
                   }`}
               >
                 <span className="truncate">{opt}</span>

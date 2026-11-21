@@ -39,6 +39,7 @@ import {
   ApiError,
   type Cart as ServerCart,
   type CartItem as ServerCartItem,
+  type CartMergeItemInput,
   type DeliveryMethod,
   type ShippingRate,
   type ShippingZone,
@@ -186,6 +187,40 @@ function fromServer(item: ServerCartItem): ViewItem {
   };
 }
 
+function toMergeItem(item: LocalCartItem): CartMergeItemInput {
+  const rawImage = item.image || '';
+  const image = rawImage.startsWith('data:') ? '' : rawImage;
+  return {
+    product_id: item.productId,
+    productId: item.productId,
+    name: item.name,
+    brand: item.brand,
+    image,
+    unit_price: item.unitPrice,
+    unitPrice: item.unitPrice,
+    compare_at_price: item.compareAtPrice ?? null,
+    compareAtPrice: item.compareAtPrice ?? null,
+    quantity: item.quantity,
+    stock: item.stock,
+    stock_count: item.stockCount,
+    stockCount: item.stockCount,
+  };
+}
+
+function isValidMergeItem(item: CartMergeItemInput): boolean {
+  const pid = item.product_id ?? item.productId;
+  const price = item.unit_price ?? item.unitPrice;
+  return (
+    !!pid &&
+    !!item.name &&
+    price !== undefined &&
+    price !== null &&
+    price !== '' &&
+    typeof item.quantity === 'number' &&
+    item.quantity > 0
+  );
+}
+
 export default function CartPage() {
   const router = useRouter();
 
@@ -215,7 +250,9 @@ export default function CartPage() {
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [couponMessage, setCouponMessage] = useState<string>('');
   const [couponValidating, setCouponValidating] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
   const [orderNotes, setOrderNotes] = useState<string>('');
+  const [notesOpen, setNotesOpen] = useState(false);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [busyAll, setBusyAll] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -289,35 +326,30 @@ export default function CartPage() {
         }
 
         const localSnapshot = useCart.getState().items;
+        const mergeItems = localSnapshot
+          .map(toMergeItem)
+          .filter(isValidMergeItem);
 
-        try {
-          const merged =
-            localSnapshot.length > 0
-              ? await cartApi.merge(
-                localSnapshot.map((i) => ({
-                  productId: i.productId,
-                  name: i.name,
-                  brand: i.brand,
-                  image: i.image,
-                  unitPrice: i.unitPrice,
-                  compareAtPrice: i.compareAtPrice ?? null,
-                  quantity: i.quantity,
-                  stock: i.stock,
-                  stockCount: i.stockCount,
-                })),
-              )
-              : await cartApi.get();
+        let next: ServerCart;
 
-          if (cancelled) return;
-          setServerCart(merged);
-
+        if (mergeItems.length > 0) {
+          try {
+            next = await cartApi.merge(mergeItems);
+            useCart.getState().clear();
+          } catch (err) {
+            console.warn('Cart merge failed, dropping local snapshot:', err);
+            useCart.getState().clear();
+            next = await cartApi.get();
+          }
+        } else {
           if (localSnapshot.length > 0) {
             useCart.getState().clear();
           }
-        } catch (err) {
-          console.error('Cart sync failed:', err);
-          if (!cancelled) setLoadError(true);
+          next = await cartApi.get();
         }
+
+        if (cancelled) return;
+        setServerCart(next);
       } catch {
         if (!cancelled) setLoadError(true);
       } finally {
@@ -489,6 +521,7 @@ export default function CartPage() {
       setAppliedCoupon('');
       setAppliedDiscount(0);
       setCouponMessage('');
+      setPromoOpen(false);
     }
   };
 
@@ -517,6 +550,7 @@ export default function CartPage() {
         setAppliedDiscount(fraction);
         setAppliedCoupon(result.code ?? code);
         setCouponMessage(result.message || 'Discount applied.');
+        setPromoOpen(false);
       } else {
         setAppliedCoupon('');
         setAppliedDiscount(0);
@@ -737,7 +771,7 @@ export default function CartPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       <Header />
 
-      <main className="max-w-6xl mx-auto px-3 py-3 space-y-2">
+      <main className="max-w-7xl mx-auto px-3 py-3 space-y-2">
         <nav className="flex items-center space-x-2 text-xs text-slate-500">
           <Link href="/" className="hover:text-slate-900 flex items-center space-x-1">
             <Home className="w-3.5 h-3.5" />
@@ -747,7 +781,7 @@ export default function CartPage() {
           <span className="text-slate-900 font-medium">Shopping Cart</span>
         </nav>
 
-        <div className="bg-white border border-slate-200 rounded-sm px-3 py-3 flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded px-3 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Shopping cart</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -765,14 +799,14 @@ export default function CartPage() {
                 Clear cart
               </button>
             )}
-            <span className="text-[13px] font-medium bg-blue-50 text-blue-950 px-2 py-0.5 rounded-sm border border-blue-100">
+            <span className="text-[13px] font-medium bg-blue-50 text-blue-950 px-2 py-0.5 rounded border border-blue-100">
               {totalUnits} item{totalUnits !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-center justify-between gap-2">
+          <div className="bg-red-50 border border-red-100 rounded px-3 py-2 flex items-center justify-between gap-2">
             <span className="text-[13px] text-red-700">{errorMessage}</span>
             <button
               onClick={() => setErrorMessage(null)}
@@ -785,15 +819,15 @@ export default function CartPage() {
         )}
 
         {isInitialLoading ? (
-          <div className="bg-white border border-slate-200 rounded-sm py-16 flex flex-col items-center gap-2">
+          <div className="bg-white border border-slate-200 rounded py-16 flex flex-col items-center gap-2">
             <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
             <p className="text-[13px] text-slate-500">Loading your cart…</p>
           </div>
         ) : items.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-start">
             <div className="lg:col-span-8 space-y-2">
               {hasFreeShipping && (
-                <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[13px] text-slate-700">
                       {remainingForFreeShipping > 0 ? (
@@ -812,7 +846,7 @@ export default function CartPage() {
                     </p>
                     <Truck className="w-3.5 h-3.5 text-blue-950 shrink-0" />
                   </div>
-                  <div className="h-1.5 rounded-sm bg-slate-100 overflow-hidden">
+                  <div className="h-1.5 rounded bg-slate-100 overflow-hidden">
                     <div
                       className={`h-full transition-all ${freeShippingProgress >= 100 ? 'bg-emerald-500' : 'bg-blue-950'
                         }`}
@@ -822,7 +856,7 @@ export default function CartPage() {
                 </div>
               )}
 
-              <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+              <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
                 <button
                   onClick={handleSelectAll}
                   className="inline-flex items-center gap-2 text-[13px] text-slate-700 hover:text-slate-900"
@@ -857,10 +891,10 @@ export default function CartPage() {
                   return (
                     <div
                       key={item.id}
-                      className={`p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors ${isBusy ? 'opacity-50' : 'hover:bg-slate-50/50'
+                      className={`p-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 transition-colors ${isBusy ? 'opacity-50' : 'hover:bg-slate-50/50'
                         }`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <button
                           onClick={() => handleToggleSelect(item.id)}
                           className="shrink-0"
@@ -874,17 +908,17 @@ export default function CartPage() {
                         </button>
                         <Link
                           href={`/pages/products?open=${item.productId}`}
-                          className="w-16 h-16 rounded-sm bg-slate-100 overflow-hidden shrink-0 border border-slate-200 block"
+                          className="w-16 h-16 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200 block"
                         >
                           <img
-                            src={item.image}
+                            src={item.image || '/placeholder.jpeg'}
                             alt={item.name}
                             className="w-full h-full object-cover"
                           />
                         </Link>
                         <div className="space-y-0.5 min-w-0">
                           {item.brand && (
-                            <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">
+                            <span className="text-[13px] font-medium text-blue-950 uppercase">
                               {item.brand}
                             </span>
                           )}
@@ -923,13 +957,13 @@ export default function CartPage() {
                             alert(`"${item.name}" saved to your wishlist.`);
                           }}
                           disabled={isBusy}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-sm hover:bg-rose-50 transition disabled:opacity-50"
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 transition disabled:opacity-50"
                           title="Save for later"
                         >
                           <Heart className="w-4 h-4" />
                         </button>
 
-                        <div className="flex items-center border border-slate-200 rounded-sm overflow-hidden bg-white">
+                        <div className="flex items-center border border-slate-200 rounded overflow-hidden bg-white">
                           <button
                             onClick={() =>
                               handleUpdateQuantity(item, item.quantity - 1)
@@ -968,7 +1002,7 @@ export default function CartPage() {
                         <button
                           onClick={() => handleRemoveItem(item.id)}
                           disabled={isBusy}
-                          className="text-slate-400 hover:text-red-600 p-1.5 rounded-sm hover:bg-red-50 transition disabled:opacity-50"
+                          className="text-slate-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 transition disabled:opacity-50"
                           aria-label="Remove item"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -987,29 +1021,58 @@ export default function CartPage() {
                 Continue shopping
               </Link>
 
-              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
-                <div className="flex items-center gap-2 text-slate-900 font-medium text-[13px]">
-                  <Tag className="w-3.5 h-3.5 text-blue-950" />
-                  <span>Have a promo code?</span>
-                </div>
-
+              <div className="bg-white border border-slate-200 rounded px-3 py-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 {appliedCoupon ? (
-                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-sm px-2 py-1.5">
-                    <span className="text-[13px] font-medium text-emerald-700">
-                      {appliedCoupon} applied — {Math.round(appliedDiscount * 100)}% off
+                  <span className="inline-flex items-center gap-1.5 text-[13px]">
+                    <Tag className="w-3 h-3 text-emerald-600" />
+                    <span className="font-medium text-emerald-700">
+                      {appliedCoupon}
+                    </span>
+                    <span className="text-slate-500">
+                      −{Math.round(appliedDiscount * 100)}%
                     </span>
                     <button
+                      type="button"
                       onClick={handleRemoveCoupon}
-                      className="text-emerald-700 hover:text-emerald-900 p-1"
+                      className="text-slate-400 hover:text-red-600 ml-0.5"
                       aria-label="Remove coupon"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </button>
-                  </div>
+                  </span>
                 ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPromoOpen(!promoOpen);
+                      setNotesOpen(false);
+                    }}
+                    className="text-[13px] font-medium text-blue-950 hover:underline inline-flex items-center gap-1"
+                  >
+                    <Tag className="w-3 h-3" />
+                    Have a promo code?
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotesOpen(!notesOpen);
+                    setPromoOpen(false);
+                  }}
+                  className={`text-[13px] font-medium hover:underline inline-flex items-center gap-1 ${orderNotes.trim() ? 'text-emerald-700' : 'text-blue-950'
+                    }`}
+                >
+                  <StickyNote className="w-3 h-3" />
+                  {orderNotes.trim() ? 'Order notes added' : 'Add order notes'}
+                </button>
+              </div>
+
+              {promoOpen && !appliedCoupon && (
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
                   <form
                     onSubmit={handleApplyCoupon}
-                    className="flex flex-col sm:flex-row items-stretch gap-2"
+                    className="flex items-stretch gap-2"
                   >
                     <input
                       type="text"
@@ -1017,12 +1080,13 @@ export default function CartPage() {
                       onChange={(e) => setCouponCode(e.target.value)}
                       placeholder="Enter coupon code"
                       disabled={couponValidating}
-                      className="flex-1 bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
+                      autoFocus
+                      className="flex-1 bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
                     />
                     <button
                       type="submit"
                       disabled={couponValidating || !couponCode.trim()}
-                      className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                      className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                     >
                       {couponValidating ? (
                         <>
@@ -1033,20 +1097,52 @@ export default function CartPage() {
                         'Apply'
                       )}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromoOpen(false);
+                        setCouponMessage('');
+                      }}
+                      className="text-slate-400 hover:text-slate-700 px-1"
+                      aria-label="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </form>
-                )}
+                  {couponMessage && (
+                    <p
+                      className={`text-[13px] font-medium ${appliedDiscount > 0 ? 'text-emerald-600' : 'text-red-600'
+                        }`}
+                    >
+                      {couponMessage}
+                    </p>
+                  )}
+                </div>
+              )}
 
-                {couponMessage && (
-                  <p
-                    className={`text-[13px] font-medium ${appliedDiscount > 0 ? 'text-emerald-600' : 'text-red-600'
-                      }`}
-                  >
-                    {couponMessage}
-                  </p>
-                )}
-              </div>
+              {notesOpen && (
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
+                  <textarea
+                    rows={2}
+                    value={orderNotes}
+                    onChange={(e) => setOrderNotes(e.target.value)}
+                    placeholder="Delivery instructions, gift message, preferred time…"
+                    autoFocus
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setNotesOpen(false)}
+                      className="text-[13px] font-medium text-blue-950 hover:underline"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
 
-              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+              <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <div className="flex items-center gap-2 text-slate-900 font-medium text-[13px]">
                   <Truck className="w-3.5 h-3.5 text-blue-950" />
                   <span>Delivery</span>
@@ -1060,7 +1156,7 @@ export default function CartPage() {
                     value={selectedCounty}
                     onChange={(e) => setSelectedCounty(e.target.value)}
                     disabled={zonesLoading || zonesError}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
                   >
                     <option value="">
                       {zonesLoading ? 'Loading counties…' : 'Select county…'}
@@ -1108,7 +1204,7 @@ export default function CartPage() {
                           key={rate.id}
                           type="button"
                           onClick={() => setSelectedRateId(rate.id)}
-                          className={`p-2.5 rounded-sm border text-left transition flex items-start gap-2 ${active
+                          className={`p-2 rounded border text-left transition flex items-start gap-2 ${active
                             ? 'border-blue-950 bg-blue-50'
                             : 'border-slate-200 hover:bg-slate-50'
                             }`}
@@ -1155,24 +1251,10 @@ export default function CartPage() {
                     </p>
                   )}
               </div>
-
-              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
-                <div className="flex items-center gap-2 text-slate-900 font-medium text-[13px]">
-                  <StickyNote className="w-3.5 h-3.5 text-blue-950" />
-                  <span>Order notes (optional)</span>
-                </div>
-                <textarea
-                  rows={2}
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder="Delivery instructions, gift message, preferred time…"
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
-                />
-              </div>
             </div>
 
             <div className="lg:col-span-4 space-y-2">
-              <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+              <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                 <h2 className="text-[15px] font-semibold text-slate-900 pb-2 border-b border-slate-100">
                   Order summary
                 </h2>
@@ -1229,7 +1311,7 @@ export default function CartPage() {
                   type="button"
                   onClick={handleCheckout}
                   disabled={!canCheckout}
-                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>Proceed to checkout</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -1252,7 +1334,7 @@ export default function CartPage() {
                     void handleWhatsAppOrder();
                   }}
                   disabled={!canCheckout || whatsappBusy}
-                  className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-medium py-2 px-4 rounded-sm text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-medium py-2 px-4 rounded text-[13px] transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {whatsappBusy ? (
                     <>
@@ -1276,14 +1358,14 @@ export default function CartPage() {
 
                 {whatsappMessage && (
                   <div
-                    className={`flex items-start justify-between gap-2 rounded-sm border px-2 py-1.5 ${whatsappMessage.kind === 'success'
+                    className={`flex items-start justify-between gap-2 rounded border px-2 py-1.5 ${whatsappMessage.kind === 'success'
                       ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
                       : whatsappMessage.kind === 'error'
                         ? 'bg-red-50 border-red-100 text-red-700'
                         : 'bg-blue-50 border-blue-100 text-blue-800'
                       }`}
                   >
-                    <span className="text-[13px] leading-snug">
+                    <span className="text-[13px]">
                       {whatsappMessage.text}
                     </span>
                     <button
@@ -1319,7 +1401,7 @@ export default function CartPage() {
             </div>
           </div>
         ) : (
-          <div className="text-center py-16 bg-white border border-slate-200 rounded-sm space-y-3">
+          <div className="text-center py-16 bg-white border border-slate-200 rounded space-y-2">
             <div className="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
               <ShoppingCart className="w-6 h-6" />
             </div>
@@ -1332,7 +1414,7 @@ export default function CartPage() {
             <div>
               <Link
                 href="/pages/products"
-                className="inline-flex items-center justify-center bg-blue-950 text-white font-medium py-2 px-4 rounded-sm text-[13px] hover:bg-blue-900 transition"
+                className="inline-flex items-center justify-center bg-blue-950 text-white font-medium py-2 px-4 rounded text-[13px] hover:bg-blue-900 transition"
               >
                 Browse products
               </Link>
@@ -1354,7 +1436,7 @@ function PaymentChip({
   label: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[13px] text-slate-600 bg-white border border-slate-200 rounded-sm px-2 py-1">
+    <span className="inline-flex items-center gap-1 text-[13px] text-slate-600 bg-white border border-slate-200 rounded px-2 py-1">
       {icon}
       {label}
     </span>

@@ -101,7 +101,8 @@ function BestSellingPageInner() {
     const [reloadKey, setReloadKey] = useState(0);
 
     const [products, setProducts] = useState<CatalogBestSeller[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [modalDetail, setModalDetail] = useState<CatalogBestSellerDetail | null>(null);
@@ -151,13 +152,21 @@ function BestSellingPageInner() {
 
         catalogApi.bestSelling
             .list(query, ctrl.signal)
-            .then(setProducts)
+            .then((data) => {
+                if (ctrl.signal.aborted) return;
+                setProducts(data);
+            })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setProducts([]);
                 setLoadError('Failed to load best sellers. Please try again.');
             })
-            .finally(() => setLoading(false));
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setLoading(false);
+                setHasLoadedOnce(true);
+            });
 
         return () => ctrl.abort();
     }, [
@@ -180,10 +189,12 @@ function BestSellingPageInner() {
         catalogApi.bestSelling
             .detail(openId, ctrl.signal)
             .then((detail) => {
+                if (ctrl.signal.aborted) return;
                 setModalDetail(detail);
                 setModalImageIndex(0);
             })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setModalDetail(null);
                 router.replace(pathname, { scroll: false });
@@ -199,9 +210,18 @@ function BestSellingPageInner() {
 
         catalogApi.bestSelling.reviews
             .list(modalDetail.product.id, ctrl.signal)
-            .then(setReviews)
-            .catch(() => setReviews([]))
-            .finally(() => setReviewsLoading(false));
+            .then((data) => {
+                if (ctrl.signal.aborted) return;
+                setReviews(data);
+            })
+            .catch(() => {
+                if (ctrl.signal.aborted) return;
+                setReviews([]);
+            })
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setReviewsLoading(false);
+            });
 
         return () => ctrl.abort();
     }, [reviewsModalOpen, modalDetail]);
@@ -313,7 +333,7 @@ function BestSellingPageInner() {
             catalogApi.bestSelling
                 .detail(modalDetail.product.id)
                 .then(setModalDetail)
-                .catch(() => {});
+                .catch(() => { });
         } catch {
             setReviewError('Could not submit review. Please try again.');
         } finally {
@@ -359,7 +379,7 @@ function BestSellingPageInner() {
                                 Explore the products customers are buying most from our electronics collection. Ranked automatically by actual completed orders and units sold.
                             </p>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 text-xs text-slate-600 shrink-0">
+                        <div className="bg-slate-50 border border-slate-200 rounded p-2 text-xs text-slate-600 shrink-0">
                             <span className="font-semibold text-slate-900 block mb-0.5">Kenya-wide Delivery</span>
                             <span>Dispatching daily from Nairobi warehouses</span>
                         </div>
@@ -368,16 +388,16 @@ function BestSellingPageInner() {
             </section>
 
             <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-4 lg:px-4 py-2">
-                <div className="bg-white border border-slate-200 rounded-sm p-3 mb-4 shadow-xs">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+                <div className="bg-white border border-slate-200 rounded p-3 mb-2 shadow-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 items-end">
                         <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                            <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                                 Category
                             </label>
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
                                 {categories.map((cat) => (
                                     <option key={cat} value={cat}>
@@ -388,7 +408,7 @@ function BestSellingPageInner() {
                         </div>
 
                         <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                            <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                                 Search Best Sellers
                             </label>
                             <div className="relative">
@@ -398,19 +418,19 @@ function BestSellingPageInner() {
                                     placeholder="Search best sellers..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                    className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                            <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                                 Brand
                             </label>
                             <select
                                 value={selectedBrand}
                                 onChange={(e) => setSelectedBrand(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
                                 {brands.map((b) => (
                                     <option key={b} value={b}>
@@ -421,13 +441,13 @@ function BestSellingPageInner() {
                         </div>
 
                         <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                            <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                                 Price Range
                             </label>
                             <select
                                 value={selectedPriceRange}
                                 onChange={(e) => setSelectedPriceRange(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                             >
                                 {PRICE_RANGES.map((r) => (
                                     <option key={r.value} value={r.value}>{r.label}</option>
@@ -436,13 +456,13 @@ function BestSellingPageInner() {
                         </div>
 
                         <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                            <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                                 Availability
                             </label>
                             <select
                                 value={selectedStock}
                                 onChange={(e) => setSelectedStock(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 text-slate-800"
                             >
                                 {STOCK_OPTIONS.map((s) => (
                                     <option key={s} value={s}>
@@ -454,7 +474,7 @@ function BestSellingPageInner() {
 
                         <div className="flex gap-2">
                             <div className="flex-1">
-                                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                                <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                                     Sort By
                                 </label>
                                 <select
@@ -462,7 +482,7 @@ function BestSellingPageInner() {
                                     onChange={(e) =>
                                         setSortBy(e.target.value as NonNullable<BestSellingQuery['sort_by']>)
                                     }
-                                    className="w-full bg-white border border-slate-200 rounded-sm px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                                    className="w-full bg-white border border-slate-200 rounded px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
                                 >
                                     {SORT_OPTIONS.map((o) => (
                                         <option key={o.value} value={o.value}>{o.label}</option>
@@ -472,7 +492,7 @@ function BestSellingPageInner() {
                             <div className="flex items-end">
                                 <button
                                     onClick={clearFilters}
-                                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-sm text-xs transition-colors"
+                                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded text-xs transition-colors"
                                 >
                                     Clear
                                 </button>
@@ -481,7 +501,7 @@ function BestSellingPageInner() {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-medium text-slate-600">
                         Showing{' '}
                         <span className="font-bold text-slate-900">{products.length}</span>{' '}
@@ -490,12 +510,12 @@ function BestSellingPageInner() {
                 </div>
 
                 {loadError && !loading && (
-                    <div className="bg-white border border-red-200 rounded-sm p-6 text-center my-4">
+                    <div className="bg-white border border-red-200 rounded p-6 text-center my-4">
                         <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-                        <p className="text-xs text-red-700 mb-3">{loadError}</p>
+                        <p className="text-xs text-red-700 mb-2">{loadError}</p>
                         <button
                             onClick={() => setReloadKey((k) => k + 1)}
-                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-xs transition-colors"
+                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded text-xs transition-colors"
                         >
                             Retry
                         </button>
@@ -503,11 +523,11 @@ function BestSellingPageInner() {
                 )}
 
                 {loading && products.length === 0 && !loadError && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {Array.from({ length: 8 }).map((_, i) => (
                             <div
                                 key={i}
-                                className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+                                className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                             >
                                 <div className="aspect-[20/16] bg-slate-100" />
                                 <div className="p-3 space-y-2">
@@ -521,7 +541,7 @@ function BestSellingPageInner() {
                 )}
 
                 {!loading && !loadError && products.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {products.map((product) => {
                             const isAdding = cartAddingId === product.id;
                             const price = toNum(product.price);
@@ -534,7 +554,7 @@ function BestSellingPageInner() {
                             return (
                                 <div
                                     key={product.id}
-                                    className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+                                    className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-blue-200 hover:shadow transition-all duration-200 flex flex-col justify-between"
                                 >
                                     <div>
                                         <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
@@ -544,7 +564,7 @@ function BestSellingPageInner() {
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                             />
 
-                                            <span className="absolute top-2.5 left-2.5 z-10 bg-blue-950 text-white font-medium text-[10px] px-2 py-0.5 rounded shadow-xs">
+                                            <span className="absolute top-2.5 left-2.5 z-10 bg-blue-950 text-white font-medium text-[10px] px-2 py-0.5 rounded">
                                                 Best Seller
                                             </span>
 
@@ -564,7 +584,7 @@ function BestSellingPageInner() {
                                             />
 
                                             <span
-                                                className={`absolute bottom-2.5 left-2.5 z-10 text-[10px] font-semibold px-2 py-0.5 rounded shadow-xs ${stockBadgeClasses(product.stockStatus)}`}
+                                                className={`absolute bottom-2.5 left-2.5 z-10 text-[10px] font-semibold px-2 py-0.5 rounded  ${stockBadgeClasses(product.stockStatus)}`}
                                             >
                                                 {product.stockStatus}
                                             </span>
@@ -572,7 +592,7 @@ function BestSellingPageInner() {
 
                                         <div className="p-2 pb-2">
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">
+                                                <span className="text-[13px] font-semibold text-slate-400 uppercase">
                                                     {product.brand}
                                                 </span>
                                                 <span className="text-[12px] text-slate-400">
@@ -602,8 +622,8 @@ function BestSellingPageInner() {
                                         </div>
                                     </div>
 
-                                    <div className="p-3 pt-0 mt-auto">
-                                        <div className="flex items-baseline space-x-2 mb-2">
+                                    <div className="p-2 pt-0 mt-auto">
+                                        <div className="flex items-baseline space-x-2 mb-1">
                                             <span className="text-sm font-extrabold text-slate-900">
                                                 {formatKES(price)}
                                             </span>
@@ -646,20 +666,20 @@ function BestSellingPageInner() {
                     </div>
                 )}
 
-                {!loading && !loadError && products.length === 0 && (
-                    <div className="bg-white border border-slate-200 rounded-sm p-8 text-center max-w-lg mx-auto my-6">
-                        <div className="w-12 h-12 bg-blue-50 text-blue-950 rounded-full flex items-center justify-center mx-auto mb-4">
+                {!loading && hasLoadedOnce && !loadError && products.length === 0 && (
+                    <div className="bg-white border border-slate-200 rounded p-8 text-center max-w-lg mx-auto my-6">
+                        <div className="w-12 h-12 bg-blue-50 text-blue-950 rounded-full flex items-center justify-center mx-auto mb-2">
                             <Search className="w-6 h-6" />
                         </div>
                         <h3 className="text-base font-bold text-slate-900 mb-1">
                             No best-selling products found
                         </h3>
-                        <p className="text-xs text-slate-600 mb-6">
+                        <p className="text-xs text-slate-600 mb-3">
                             Try changing or clearing your filters to view other available electronics.
                         </p>
                         <button
                             onClick={clearFilters}
-                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-xs transition-colors"
+                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded text-xs transition-colors"
                         >
                             Clear Filters
                         </button>
@@ -669,10 +689,10 @@ function BestSellingPageInner() {
 
             {modalDetail && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
-                    <div className="bg-white rounded-sm max-w-4xl w-full overflow-hidden shadow-2xl relative max-h-[92vh] flex flex-col">
+                    <div className="bg-white rounded max-w-4xl w-full overflow-hidden relative max-h-[92vh] flex flex-col">
                         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div>
-                                <span className="text-[11px] font-semibold text-blue-950 uppercase tracking-wide">
+                                <span className="text-[11px] font-semibold text-blue-950 uppercase">
                                     {modalDetail.product.brand} • {modalDetail.product.category}
                                 </span>
                                 <h2 className="text-base font-bold text-slate-900">Product Details</h2>
@@ -686,9 +706,9 @@ function BestSellingPageInner() {
                         </div>
 
                         <div className="overflow-y-auto flex-1">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5">
-                                <div className="bg-slate-50 p-2 flex flex-col items-center space-y-2 rounded-sm">
-                                    <div className="relative w-full aspect-[20/16] bg-white rounded-sm overflow-hidden border border-slate-200 shadow-xs">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+                                <div className="bg-slate-50 p-2 flex flex-col items-center space-y-2 rounded">
+                                    <div className="relative w-full aspect-[20/16] bg-white rounded overflow-hidden border border-slate-200 shadow">
                                         <img
                                             src={
                                                 modalDetail.product.images[modalImageIndex] ??
@@ -721,9 +741,9 @@ function BestSellingPageInner() {
                                             <button
                                                 key={idx}
                                                 onClick={() => setModalImageIndex(idx)}
-                                                className={`w-12 h-12 rounded-sm overflow-hidden border transition-all ${modalImageIndex === idx
-                                                        ? 'border-blue-200 scale-105 shadow-sm'
-                                                        : 'border-slate-200 opacity-70 hover:opacity-100 hover:border-slate-400'
+                                                className={`w-12 h-12 rounded overflow-hidden border transition-all ${modalImageIndex === idx
+                                                    ? 'border-blue-200 scale-105 shadow-sm'
+                                                    : 'border-slate-200 opacity-70 hover:opacity-100 hover:border-slate-400'
                                                     }`}
                                             >
                                                 <img
@@ -736,13 +756,13 @@ function BestSellingPageInner() {
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col justify-between space-y-3">
+                                <div className="flex flex-col justify-between space-y-2">
                                     <div className="space-y-2">
                                         <div>
-                                            <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">
+                                            <span className="text-[11px] font-semibold text-blue-600 uppercase">
                                                 {modalDetail.product.brand} • {modalDetail.product.category}
                                             </span>
-                                            <h2 className="text-lg font-bold text-slate-900 mt-1 leading-snug">
+                                            <h2 className="text-lg font-bold text-slate-900 mt-1">
                                                 {modalDetail.product.name}
                                             </h2>
                                         </div>
@@ -769,7 +789,7 @@ function BestSellingPageInner() {
                                             </span>
                                         </button>
 
-                                        <div className="text-[12px] text-slate-600 leading-relaxed space-y-2">
+                                        <div className="text-[12px] text-slate-600 space-y-2">
                                             {modalDetail.product.description
                                                 .split('\n\n')
                                                 .map((para, i) => (
@@ -796,7 +816,7 @@ function BestSellingPageInner() {
                                                 closeModal();
                                             }}
                                             disabled={normalizeStock(modalDetail.product.stockStatus) === 'out'}
-                                            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                                            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded text-[13px] transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
                                         >
                                             <ShoppingCart className="w-4 h-4" />
                                             <span>
@@ -808,9 +828,9 @@ function BestSellingPageInner() {
                             </div>
 
                             {modalDetail.related.length > 0 && (
-                                <div className="px-5 pb-5 border-t border-slate-100 pt-5">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h4 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">
+                                <div className="px-5 pb-5 border-t border-slate-100 pt-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h4 className="text-[13px] font-bold text-slate-900 uppercase">
                                             You may also like
                                         </h4>
                                         <span className="text-[11px] text-slate-400">
@@ -818,7 +838,7 @@ function BestSellingPageInner() {
                                         </span>
                                     </div>
 
-                                    <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                                    <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
                                         {modalDetail.related.map((rp) => (
                                             <button
                                                 key={rp.id}
@@ -854,10 +874,10 @@ function BestSellingPageInner() {
 
             {modalDetail && reviewsModalOpen && (
                 <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
-                    <div className="bg-white rounded-sm max-w-3xl w-full overflow-hidden shadow-2xl relative max-h-[88vh] flex flex-col">
+                    <div className="bg-white rounded-sm max-w-3xl w-full overflow-hidden  relative max-h-[88vh] flex flex-col">
                         <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div className="min-w-0">
-                                <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+                                <p className="text-[11px] uppercase font-semibold text-slate-500">
                                     Reviews for
                                 </p>
                                 <h2 className="text-base font-bold text-slate-900 truncate">
@@ -872,8 +892,8 @@ function BestSellingPageInner() {
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto flex-1 p-5 space-y-5">
-                            <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-sm p-4">
+                        <div className="overflow-y-auto flex-1 p-5 space-y-3">
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded p-3">
                                 <div className="text-center">
                                     <p className="text-3xl font-bold text-slate-900">
                                         {averageReviewRating.toFixed(1)}
@@ -883,8 +903,8 @@ function BestSellingPageInner() {
                                             <Star
                                                 key={i}
                                                 className={`w-3.5 h-3.5 ${i < Math.round(averageReviewRating)
-                                                        ? 'fill-current'
-                                                        : 'text-slate-300'
+                                                    ? 'fill-current'
+                                                    : 'text-slate-300'
                                                     }`}
                                             />
                                         ))}
@@ -893,7 +913,7 @@ function BestSellingPageInner() {
                                         {reviews.length} reviews
                                     </p>
                                 </div>
-                                <div className="flex-1 border-l border-slate-200 pl-4">
+                                <div className="flex-1 border-l border-slate-200 pl-3">
                                     <p className="text-[12px] text-slate-600">
                                         Based on verified purchases and community submissions.
                                     </p>
@@ -905,7 +925,7 @@ function BestSellingPageInner() {
 
                             <form
                                 onSubmit={handleSubmitReview}
-                                className="bg-white border border-slate-200 rounded-sm p-4 space-y-3"
+                                className="bg-white border border-slate-200 rounded p-4 space-y-2"
                             >
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-slate-900">Write a review</h3>
@@ -923,9 +943,9 @@ function BestSellingPageInner() {
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <div>
-                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        <label className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                                             Your name
                                         </label>
                                         <input
@@ -937,11 +957,11 @@ function BestSellingPageInner() {
                                             placeholder="e.g. Jane W."
                                             required
                                             maxLength={120}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        <label className="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                                             Rating
                                         </label>
                                         <div className="flex items-center gap-1">
@@ -955,8 +975,8 @@ function BestSellingPageInner() {
                                                 >
                                                     <Star
                                                         className={`w-5 h-5 transition ${n <= reviewForm.rating
-                                                                ? 'text-amber-500 fill-current'
-                                                                : 'text-slate-300'
+                                                            ? 'text-amber-500 fill-current'
+                                                            : 'text-slate-300'
                                                             }`}
                                                     />
                                                 </button>
@@ -966,7 +986,7 @@ function BestSellingPageInner() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <label className="block text-[11px] font-semibold uppercase  text-slate-500 mb-1">
                                         Title (optional)
                                     </label>
                                     <input
@@ -977,12 +997,12 @@ function BestSellingPageInner() {
                                         }
                                         placeholder="Summarize your experience"
                                         maxLength={200}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <label className="block text-[11px] font-semibold uppercase  text-slate-500 mb-1">
                                         Your review
                                     </label>
                                     <textarea
@@ -993,7 +1013,7 @@ function BestSellingPageInner() {
                                         }
                                         placeholder="Tell others what you think…"
                                         required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
                                     />
                                 </div>
 
@@ -1001,7 +1021,7 @@ function BestSellingPageInner() {
                                     <button
                                         type="submit"
                                         disabled={reviewSubmitting}
-                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-50"
+                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-xs transition disabled:opacity-50"
                                     >
                                         <Send className="w-3.5 h-3.5" />
                                         {reviewSubmitting ? 'Posting…' : 'Post review'}
@@ -1009,7 +1029,7 @@ function BestSellingPageInner() {
                                 </div>
                             </form>
 
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                                 <h3 className="text-sm font-bold text-slate-900">
                                     All reviews ({reviews.length})
                                 </h3>
@@ -1027,7 +1047,7 @@ function BestSellingPageInner() {
                                 {reviews.map((review) => (
                                     <div
                                         key={review.id}
-                                        className="border border-slate-200 rounded-sm p-3 space-y-1.5"
+                                        className="border border-slate-200 rounded p-2 space-y-1.5"
                                     >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
@@ -1045,8 +1065,8 @@ function BestSellingPageInner() {
                                                         <Star
                                                             key={i}
                                                             className={`w-3 h-3 ${i < review.rating
-                                                                    ? 'text-amber-500 fill-current'
-                                                                    : 'text-slate-300'
+                                                                ? 'text-amber-500 fill-current'
+                                                                : 'text-slate-300'
                                                                 }`}
                                                         />
                                                     ))}
@@ -1059,7 +1079,7 @@ function BestSellingPageInner() {
                                         <p className="text-xs font-semibold text-slate-800">
                                             {review.title}
                                         </p>
-                                        <p className="text-[12px] text-slate-600 leading-relaxed">
+                                        <p className="text-[12px] text-slate-600">
                                             {review.body}
                                         </p>
                                     </div>

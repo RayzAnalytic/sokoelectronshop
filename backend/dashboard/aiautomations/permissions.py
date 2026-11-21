@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Iterable
 
 from rest_framework.permissions import BasePermission, SAFE_METHODS
@@ -32,7 +33,21 @@ def _user_has_all_perms(user, codenames: Iterable[str]) -> bool:
 
 
 def ai_settings() -> AISettings:
-    return AISettings.get_solo()
+    try:
+        cfg = AISettings.get_solo()
+    except Exception:
+        cfg = None
+    if cfg is None:
+        cfg = AISettings.objects.order_by("pk").first()
+    if cfg is None:
+        cfg = AISettings.objects.create()
+    return cfg
+
+
+def _normalize_module_key(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"[^a-z]", "", str(value).lower())
 
 
 MODULE_READ_PERMS: dict[str, tuple[str, ...]] = {
@@ -141,7 +156,8 @@ class IsAIAssistantEnabled(BasePermission):
     def has_permission(self, request, view) -> bool:
         if not _user_is_staff(request.user):
             return False
-        return ai_settings().enabled
+        cfg = ai_settings()
+        return bool(cfg and cfg.enabled)
 
 
 class IsAIStreamingAllowed(BasePermission):
@@ -150,7 +166,8 @@ class IsAIStreamingAllowed(BasePermission):
     def has_permission(self, request, view) -> bool:
         if not _user_is_staff(request.user):
             return False
-        return ai_settings().streaming_enabled
+        cfg = ai_settings()
+        return bool(cfg and cfg.streaming_enabled)
 
 
 class CanAccessAIModule(BasePermission):
@@ -179,27 +196,28 @@ class CanAccessAIModule(BasePermission):
         if hasattr(view, "get_module_key"):
             key = view.get_module_key(request)  # type: ignore[attr-defined]
             if key:
-                return str(key).lower()
+                return _normalize_module_key(key)
 
         key = getattr(view, "module_key", "") or ""
         if key:
-            return str(key).lower()
+            return _normalize_module_key(key)
 
         qp = request.query_params.get("module") if hasattr(request, "query_params") else None
         if qp:
-            return str(qp).lower()
+            return _normalize_module_key(qp)
 
         data = getattr(request, "data", None)
         if isinstance(data, dict):
             for field in ("module", "module_key", "context_module"):
                 value = data.get(field)
                 if value:
-                    return str(value).lower()
+                    return _normalize_module_key(value)
             context = data.get("context")
             if isinstance(context, dict):
-                value = context.get("module")
-                if value:
-                    return str(value).lower()
+                for field in ("module", "module_key", "label"):
+                    value = context.get(field)
+                    if value:
+                        return _normalize_module_key(value)
 
         return ""
 
@@ -262,7 +280,8 @@ class CanPerformAIWriteActions(BasePermission):
         if request.method in SAFE_METHODS:
             return True
 
-        if not ai_settings().allow_write_actions:
+        cfg = ai_settings()
+        if not cfg or not cfg.allow_write_actions:
             return False
 
         if _user_is_superuser(request.user):
@@ -298,7 +317,8 @@ class RequiresConfirmation(BasePermission):
         if request.method in SAFE_METHODS:
             return True
 
-        if not ai_settings().require_confirmation_for_destructive:
+        cfg = ai_settings()
+        if not cfg or not cfg.require_confirmation_for_destructive:
             return True
 
         data = getattr(request, "data", None) or {}
@@ -346,6 +366,8 @@ class IsConversationOwner(BasePermission):
     def has_object_permission(self, request, view, obj) -> bool:
         if not _user_is_staff(request.user):
             return False
+        if obj is None:
+            return False
         if obj.user_id == getattr(request.user, "id", None):
             return True
         return request.user.has_perm("ai.view_all_conversations")
@@ -357,7 +379,12 @@ class IsMessageOwner(BasePermission):
     def has_object_permission(self, request, view, obj) -> bool:
         if not _user_is_staff(request.user):
             return False
-        if obj.conversation.user_id == getattr(request.user, "id", None):
+        if obj is None:
+            return False
+        conv = getattr(obj, "conversation", None)
+        if conv is None:
+            return False
+        if conv.user_id == getattr(request.user, "id", None):
             return True
         return request.user.has_perm("ai.view_all_conversations")
 
@@ -399,7 +426,10 @@ class CanRunAutomations(BasePermission):
             return False
         if _user_is_superuser(request.user):
             return True
-        return request.user.has_perm("ai.run_aiautomation")
+        return _user_has_any_perm(
+            request.user,
+            ("ai.run_aiautomation", "ai.change_aiautomation"),
+        )
 
 
 class CanToggleAutomations(BasePermission):
@@ -410,7 +440,10 @@ class CanToggleAutomations(BasePermission):
             return False
         if _user_is_superuser(request.user):
             return True
-        return request.user.has_perm("ai.toggle_aiautomation")
+        return _user_has_any_perm(
+            request.user,
+            ("ai.toggle_aiautomation", "ai.change_aiautomation"),
+        )
 
 
 class CanViewAutomationRuns(BasePermission):
@@ -530,7 +563,8 @@ class CanPreviewAIActions(BasePermission):
     def has_permission(self, request, view) -> bool:
         if not _user_is_staff(request.user):
             return False
-        return ai_settings().enabled
+        cfg = ai_settings()
+        return bool(cfg and cfg.enabled)
 
 
 class CanExecuteAIActions(BasePermission):
@@ -540,10 +574,10 @@ class CanExecuteAIActions(BasePermission):
         if not _user_is_staff(request.user):
             return False
 
-        settings_row = ai_settings()
-        if not settings_row.enabled:
+        cfg = ai_settings()
+        if not cfg or not cfg.enabled:
             return False
-        if not settings_row.allow_write_actions:
+        if not cfg.allow_write_actions:
             return False
 
         if _user_is_superuser(request.user):
@@ -551,7 +585,7 @@ class CanExecuteAIActions(BasePermission):
 
         required = self._resolve_required_perms(request, view)
         if not required:
-            return request.user.has_perm("ai.perform_destructive_ai_actions") or True
+            return True
 
         return _user_has_all_perms(request.user, required)
 

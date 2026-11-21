@@ -1,15 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  trailingSlash: true,  // keep / so Django APPEND_SLASH is happy
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
-      },
-    ];
-  },
+  trailingSlash: true,
+  devIndicators: false,
+  allowedDevOrigins: [
+    "172.16.102.232",
+  ],
 };
 
 export default nextConfig;

@@ -407,9 +407,9 @@ export default function ReviewsModerationPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12 relative">
       {toastMessage && (
-        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white px-2 py-2 rounded shadow-lg flex items-center gap-2 text-[13px] max-w-md">
+        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white px-2 py-2 rounded shadow flex items-center gap-2 text-[13px] max-w-md">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span className="leading-relaxed">{toastMessage}</span>
+          <span className="">{toastMessage}</span>
           <button
             onClick={() => setToastMessage(null)}
             className="text-slate-400 hover:text-white shrink-0"
@@ -464,7 +464,7 @@ export default function ReviewsModerationPage() {
         </div>
       </header>
 
-      <main className="max-w-[1700px] mx-auto px-0.5 py-2.5 space-y-2">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
         {isLoading && reviews.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded p-10 text-center">
             <Loader2 className="w-4 h-4 mx-auto text-slate-300 animate-spin" />
@@ -530,7 +530,7 @@ export default function ReviewsModerationPage() {
                     <p className="text-[13px] font-medium text-slate-500 truncate">
                       Total reviews
                     </p>
-                    <p className="text-[14px] font-semibold text-slate-900 leading-tight">
+                    <p className="text-[14px] font-semibold text-slate-900">
                       {totalReviewsCount}
                     </p>
                   </div>
@@ -544,7 +544,7 @@ export default function ReviewsModerationPage() {
                     <p className="text-[13px] font-medium text-slate-500 truncate">
                       Pending
                     </p>
-                    <p className="text-[14px] font-semibold text-slate-900 leading-tight">
+                    <p className="text-[14px] font-semibold text-slate-900">
                       {pendingCount}
                     </p>
                   </div>
@@ -558,7 +558,7 @@ export default function ReviewsModerationPage() {
                     <p className="text-[13px] font-medium text-slate-500 truncate">
                       Flagged
                     </p>
-                    <p className="text-[14px] font-semibold text-slate-900 leading-tight">
+                    <p className="text-[14px] font-semibold text-slate-900">
                       {flaggedCount}
                     </p>
                   </div>
@@ -572,7 +572,7 @@ export default function ReviewsModerationPage() {
                     <p className="text-[13px] font-medium text-slate-500 truncate">
                       Verified purchases
                     </p>
-                    <p className="text-[14px] font-semibold text-slate-900 leading-tight">
+                    <p className="text-[14px] font-semibold text-slate-900">
                       {verifiedCount}
                     </p>
                   </div>
@@ -580,7 +580,7 @@ export default function ReviewsModerationPage() {
               </div>
 
               <div className="lg:col-span-7 bg-white border border-slate-200 rounded p-2">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1">
                   <span className="w-6 h-6 rounded bg-blue-50 text-blue-950 flex items-center justify-center">
                     <BarChart3 className="w-3 h-3" />
                   </span>
@@ -954,7 +954,7 @@ export default function ReviewsModerationPage() {
         <div
           ref={menuRef}
           style={{ top: openMenu.top, left: openMenu.left, width: MENU_WIDTH }}
-          className="fixed z-[120] bg-white border border-slate-200 rounded shadow-lg py-1 text-[13px]"
+          className="fixed z-[120] bg-white border border-slate-200 rounded shadow py-1 text-[13px]"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -1153,7 +1153,7 @@ export default function ReviewsModerationPage() {
                   </p>
                 )}
 
-                <p className="text-[13px] text-slate-700 leading-relaxed pt-2 border-t border-slate-100">
+                <p className="text-[13px] text-slate-700 pt-2 border-t border-slate-100">
                   {activeSheetReview.comment}
                 </p>
 
@@ -1288,7 +1288,7 @@ export default function ReviewsModerationPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-md bg-red-50 text-red-600 flex items-center justify-center">
+              <span className="w-8 h-8 rounded bg-red-50 text-red-600 flex items-center justify-center">
                 <Flag className="w-4 h-4" />
               </span>
               <div>

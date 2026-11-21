@@ -23,10 +23,10 @@ def resolve_categories(names: list[str] | None) -> list[Category]:
     return list(Category.objects.filter(name__in=names, is_active=True))
 
 
-def resolve_products(names: list[str] | None) -> list[Product]:
-    if not names:
+def resolve_products(ids: list[str] | None) -> list[Product]:
+    if not ids:
         return []
-    return list(Product.objects.filter(name__in=names, is_active=True))
+    return list(Product.objects.filter(id__in=ids, is_active=True))
 
 
 def pause_discount(discount: Discount) -> Discount:

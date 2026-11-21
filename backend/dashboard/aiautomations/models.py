@@ -16,7 +16,7 @@ class AISettings(models.Model):
 
     enabled = models.BooleanField(default=False)
     provider = models.CharField(max_length=32, choices=PROVIDER_CHOICES, default="groq")
-    model = models.CharField(max_length=128, default="llama-3.3-70b-versatile")
+    model = models.CharField(max_length=128, default="openai/gpt-oss-120b")
     api_key = models.CharField(max_length=512, blank=True, default="")
     base_url = models.URLField(blank=True, default="")
 

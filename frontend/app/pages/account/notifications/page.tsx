@@ -128,8 +128,7 @@ export default function NotificationsPage() {
     const markReadSilent = (id: number) => {
         const target = notifications.find((n) => n.id === id);
         if (!target || target.is_read) return;
-        void accountApi.notifications.markRead(id).catch(() => {
-            /* the page is navigating away; nothing to do */
+        void accountApi.notifications.markRead(id).catch(() => { 
         });
     };
 
@@ -199,15 +198,15 @@ export default function NotificationsPage() {
     };
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-2">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded flex items-start gap-2 max-w-md">
                     <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed">{toast}</span>
+                    <span className="">{toast}</span>
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 rounded p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <Bell className="h-5 w-5 text-blue-950" />
@@ -228,7 +227,7 @@ export default function NotificationsPage() {
                             onClick={markAllRead}
                             disabled={busy}
                             aria-busy={busy}
-                            className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             Mark all read
@@ -240,7 +239,7 @@ export default function NotificationsPage() {
                             onClick={() => setClearConfirmOpen(true)}
                             disabled={busy}
                             aria-busy={busy}
-                            className="inline-flex items-center gap-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-medium px-3 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-medium px-3 py-2 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             Clear all
                         </button>
@@ -249,13 +248,13 @@ export default function NotificationsPage() {
             </div>
 
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-sm p-3 flex items-center gap-1.5">
+            <div className="bg-white border border-slate-200 rounded p-2 flex items-center gap-1.5">
                 {(['All', 'Unread'] as const).map((tab) => (
                     <button
                         key={tab}
@@ -278,12 +277,12 @@ export default function NotificationsPage() {
                 <div className="space-y-5">
                     {[0, 1].map((g) => (
                         <section key={g}>
-                            <div className="h-3 w-20 bg-slate-200 rounded mb-2 mx-1 animate-pulse" />
-                            <ul className="bg-white border border-slate-200 rounded-sm divide-y divide-slate-100 overflow-hidden">
+                            <div className="h-3 w-20 bg-slate-200 rounded mb-1 mx-1 animate-pulse" />
+                            <ul className="bg-white border border-slate-200 rounded divide-y divide-slate-100 overflow-hidden">
                                 {[0, 1, 2].map((i) => (
                                     <li
                                         key={i}
-                                        className="flex items-start gap-3 p-3 animate-pulse"
+                                        className="flex items-start gap-2 p-2 animate-pulse"
                                     >
                                         <span className="w-9 h-9 rounded-full bg-slate-200 shrink-0" />
                                         <div className="flex-1 space-y-2">
@@ -298,8 +297,8 @@ export default function NotificationsPage() {
                     ))}
                 </div>
             ) : visible.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
-                    <Bell className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                <div className="bg-white border border-slate-200 rounded p-12 text-center">
+                    <Bell className="h-10 w-10 text-slate-300 mx-auto mb-2" />
                     <h2 className="text-sm font-semibold text-slate-900">
                         {filter === 'Unread'
                             ? 'No unread notifications'
@@ -311,13 +310,13 @@ export default function NotificationsPage() {
                     </p>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                     {groups.map((group) => (
                         <section key={group.label}>
-                            <h2 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 mb-2 px-1">
+                            <h2 className="text-[11px] uppercase font-semibold text-slate-500 mb-2 px-1">
                                 {group.label}
                             </h2>
-                            <ul className="bg-white border border-slate-200 rounded-sm divide-y divide-slate-100 overflow-hidden">
+                            <ul className="bg-white border border-slate-200 rounded divide-y divide-slate-100 overflow-hidden">
                                 {group.items.map((n) => {
                                     const { Icon, tint } = iconFor(n.type);
                                     const isRemoving = removingId === n.id;
@@ -351,7 +350,7 @@ export default function NotificationsPage() {
                                                         {n.body}
                                                     </p>
                                                 )}
-                                                <p className="text-[10px] text-slate-400 mt-1.5">
+                                                <p className="text-[12px] text-slate-400 mt-1.5">
                                                     {new Date(
                                                         n.created_at,
                                                     ).toLocaleString('en-KE', {
@@ -365,7 +364,7 @@ export default function NotificationsPage() {
                                         </>
                                     );
 
-                                    const rowClass = `flex items-start gap-3 p-3 transition-colors ${n.is_read
+                                    const rowClass = `flex items-start gap-2 p-2 transition-colors ${n.is_read
                                         ? 'hover:bg-slate-50'
                                         : 'bg-blue-50/40 hover:bg-blue-50'
                                         } ${isRemoving ? 'opacity-50' : ''}`;
@@ -431,7 +430,7 @@ export default function NotificationsPage() {
 
             {clearConfirmOpen && (
                 <div
-                    className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+                    className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
                     onClick={() =>
                         !busy && setClearConfirmOpen(false)
                     }
@@ -439,10 +438,10 @@ export default function NotificationsPage() {
                     aria-modal="true"
                 >
                     <div
-                        className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-md p-3"
+                        className="bg-white border border-slate-200 rounded w-full max-w-md p-2"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-2">
                             <span className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
                                 <Trash2 className="h-4 w-4" />
                             </span>
@@ -450,7 +449,7 @@ export default function NotificationsPage() {
                                 <h3 className="text-sm font-bold text-slate-900">
                                     Clear all notifications?
                                 </h3>
-                                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                <p className="text-xs text-slate-500 mt-1">
                                     This permanently removes all{' '}
                                     <span className="font-medium text-slate-700">
                                         {notifications.length}
@@ -462,12 +461,12 @@ export default function NotificationsPage() {
                             </div>
                         </div>
 
-                        <div className="mt-5 flex justify-end gap-2">
+                        <div className="mt-3 flex justify-end gap-2">
                             <button
                                 type="button"
                                 onClick={() => setClearConfirmOpen(false)}
                                 disabled={busy}
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60"
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60"
                             >
                                 Cancel
                             </button>
@@ -476,7 +475,7 @@ export default function NotificationsPage() {
                                 onClick={confirmClearAll}
                                 disabled={busy}
                                 aria-busy={busy}
-                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {busy ? (
                                     <>

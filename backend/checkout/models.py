@@ -14,7 +14,6 @@ def generate_order_reference() -> str:
 
 
 def generate_verify_token() -> str:
-    """Short, URL-safe token used to verify a receipt via QR."""
     return uuid.uuid4().hex
 
 
@@ -82,16 +81,12 @@ class Order(models.Model):
         APP      = "app",      "Mobile app"
         ADMIN    = "admin",    "Admin"
         API      = "api",      "API"
+        IN_STORE = "in_store", "In-store"
 
     reference = models.CharField(
         max_length=32, unique=True, db_index=True,
         default=generate_order_reference,
     )
-    # ── Receipt verification token ───────────────────────────────────
-    # Printed in the QR on the admin receipt card. The scanner looks
-    # this up to confirm the order is genuine. Distinct from
-    # `reference` so the reference can be shown publicly without
-    # enabling verification of someone else's order.
     verify_token = models.CharField(
         max_length=64,
         unique=True,
@@ -273,11 +268,6 @@ class OrderItem(models.Model):
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     quantity = models.PositiveIntegerField(default=1)
 
-    # ── Serialised-unit metadata ─────────────────────────────────────
-    # Populated for individual-tracked goods (phones, laptops, etc.).
-    # Left blank for products that don't have them (accessories,
-    # consumables). The admin receipt card conditionally renders these
-    # as `S/N: …` and `IMEI: …` badges; both are optional.
     serial_number = models.CharField(max_length=120, blank=True, default="")
     imei = models.CharField(max_length=32, blank=True, default="")
     warranty_months = models.PositiveSmallIntegerField(default=0)
@@ -425,6 +415,11 @@ class Payment(models.Model):
         MPS = "MPS", "M-Pesa"
         COD = "COD", "Cash on delivery"
 
+    class Source(models.TextChoices):
+        STK    = "STK",    "STK Push"
+        C2B    = "C2B",    "Buy Goods / Till"
+        MANUAL = "MANUAL", "Manual entry"
+
     TERMINAL_STATUSES = {
         Status.SUCCESS, Status.FAILED, Status.CANCELLED,
         Status.TIMEOUT, Status.REVERSED,
@@ -442,6 +437,12 @@ class Payment(models.Model):
         max_length=16,
         choices=Method.choices,
         default=Method.MPS,
+        db_index=True,
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=Source.choices,
+        default=Source.STK,
         db_index=True,
     )
     status = models.CharField(
@@ -497,6 +498,7 @@ class Payment(models.Model):
             models.Index(fields=["order", "-created_at"]),
             models.Index(fields=["method", "status", "-created_at"]),
             models.Index(fields=["method", "-created_at"]),
+            models.Index(fields=["source", "-created_at"]),
         ]
 
     def __str__(self):

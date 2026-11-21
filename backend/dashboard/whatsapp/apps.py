@@ -5,3 +5,7 @@ class WhatsAppConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "dashboard.whatsapp"
     verbose_name = "WhatsApp Business"
+
+
+    def ready(self):
+        from . import signals  # noqa: F401

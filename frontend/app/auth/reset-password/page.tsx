@@ -1,4 +1,3 @@
-// app/auth/reset-password/page.tsx
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
@@ -6,24 +5,8 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 
-// Must match `AUTH_PASSWORD_VALIDATORS`'s MinimumLengthValidator on the
-// backend. The register page uses the same constant. Changing one
-// without the other means a password that passes here fails there.
 const MIN_PASSWORD_LENGTH = 10;
 
-/**
- * Extract DRF field errors from a reset-password error response.
- *
- * The backend returns validation failures as:
- *
- *     {
- *       "detail": "This password is too common.",
- *       "errors": { "new_password": ["This password is too common."] }
- *     }
- *
- * Mapping these onto the form's field errors highlights the password
- * input instead of dumping a generic banner.
- */
 function extractFieldErrors(
   data: unknown,
 ): { password?: string; confirmPassword?: string } {
@@ -62,13 +45,6 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // ── Token validation ──
-  // Runs once on mount. Two failure paths:
-  //   * No token in the URL — immediately shows the expired screen.
-  //   * Token is invalid/expired — the backend's verify endpoint
-  //     returns 400, and we show the same expired screen.
-  // The verify call is idempotent (it doesn't consume the token) so
-  // the customer can safely reload the page.
   useEffect(() => {
     if (!token) {
       setValidatingToken(false);
@@ -85,11 +61,6 @@ function ResetPasswordForm() {
         setValidatingToken(false);
       } catch (err) {
         if (cancelled) return;
-        // 400 is the documented "invalid or expired" response. Any
-        // other status (5xx, network) is a real error and shouldn't
-        // show the "expired" screen — but the customer's only path
-        // forward from here is to request a new link anyway, so we
-        // treat it the same.
         setTokenError(true);
         if (err instanceof ApiError && err.status !== 400) {
           setError('Something went wrong. Please request a new link.');
@@ -133,19 +104,10 @@ function ResetPasswordForm() {
     setLoading(true);
 
     try {
-      // The backend consumes the token on success — `used_at` is
-      // stamped and any other pending tokens for the same user are
-      // invalidated. A second submission with the same token returns
-      // 410 Gone, which we treat as "expired" below.
       await api.resetPassword(token, newPassword, confirmPassword);
       setSuccess(true);
     } catch (err) {
       if (err instanceof ApiError) {
-        // 400 — either the token was never valid (shouldn't happen
-        //       after the mount check) or the new password failed
-        //       Django's validators.
-        // 410 — token was consumed between the mount check and this
-        //       submit. Same expired screen.
         if (err.status === 410) {
           setTokenError(true);
           return;
@@ -182,11 +144,10 @@ function ResetPasswordForm() {
     }
   };
 
-  // ── Token validation in progress ──
   if (validatingToken) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-        <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-6 text-center space-y-3">
+        <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-6 text-center space-y-2">
           <svg
             className="animate-spin h-5 w-5 text-slate-400 mx-auto"
             fill="none"
@@ -214,11 +175,10 @@ function ResetPasswordForm() {
     );
   }
 
-  // ── Token invalid or expired ──
   if (tokenError) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-        <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
+        <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-3 sm:p-5 space-y-3">
           <header className="text-center space-y-2 pt-2">
             <span className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center mx-auto font-semibold text-[15px]">
               !
@@ -231,13 +191,13 @@ function ResetPasswordForm() {
             </p>
           </header>
 
-          <div className="bg-rose-50 border border-rose-200 rounded-sm px-3 py-2 text-[12px] text-rose-700">
+          <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[12px] text-rose-700">
             {error || 'Please request a new reset link to continue.'}
           </div>
 
           <Link
             href="/auth/forgot-password"
-            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition"
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded text-[13px] transition"
           >
             Request a new link
           </Link>
@@ -255,11 +215,10 @@ function ResetPasswordForm() {
     );
   }
 
-  // ── Success ──
   if (success) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-        <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
+        <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-3 sm:p-5 space-y-4">
           <header className="text-center space-y-2 pt-2">
             <span className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mx-auto font-semibold text-[15px]">
               ✓
@@ -275,7 +234,7 @@ function ResetPasswordForm() {
 
           <Link
             href="/auth/login"
-            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition"
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded text-[13px] transition"
           >
             Sign in
           </Link>
@@ -284,10 +243,9 @@ function ResetPasswordForm() {
     );
   }
 
-  // ── Main form ──
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-      <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
+      <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-3 sm:p-5 space-y-4">
         <header className="text-center space-y-2 pt-2">
           <span className="w-12 h-12 rounded-full bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center mx-auto font-semibold text-[15px]">
             S
@@ -301,13 +259,12 @@ function ResetPasswordForm() {
         </header>
 
         {error && (
-          <div className="bg-rose-50 border border-rose-200 rounded-sm px-3 py-2 text-[12px] text-rose-700">
+          <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[12px] text-rose-700">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3" noValidate>
-          {/* New password */}
           <div className="space-y-1">
             <label className="block text-[12px] font-medium text-slate-700">
               New password
@@ -320,9 +277,9 @@ function ResetPasswordForm() {
                 disabled={loading}
                 autoComplete="new-password"
                 placeholder="••••••••"
-                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.password
-                    ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
-                    : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
+                className={`w-full bg-white border rounded pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.password
+                  ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
+                  : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
                   }`}
               />
               <button
@@ -345,7 +302,6 @@ function ResetPasswordForm() {
             )}
           </div>
 
-          {/* Confirm password */}
           <div className="space-y-1">
             <label className="block text-[12px] font-medium text-slate-700">
               Confirm new password
@@ -358,9 +314,9 @@ function ResetPasswordForm() {
                 disabled={loading}
                 autoComplete="new-password"
                 placeholder="••••••••"
-                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.confirmPassword
-                    ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
-                    : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
+                className={`w-full bg-white border rounded pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.confirmPassword
+                  ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
+                  : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
                   }`}
               />
               <button
@@ -383,7 +339,7 @@ function ResetPasswordForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <>
@@ -433,7 +389,7 @@ export default function ResetPasswordPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-6 text-center text-[13px] text-slate-500">
+          <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-6 text-center text-[13px] text-slate-500">
             Loading reset password page…
           </div>
         </div>

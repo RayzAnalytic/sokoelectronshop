@@ -59,6 +59,12 @@ interface Product {
   variantOptions: { name: string; values: string[] }[];
 }
 
+interface ProductWriteExtras {
+  images?: string[];
+  features?: string[];
+  specs?: Record<string, string>;
+}
+
 const STATUSES: ProductStatus[] = ['Published', 'Draft', 'Archived'];
 
 const formatKES = (n: number) =>
@@ -116,16 +122,28 @@ function apiToProduct(p: AdminProduct): Product {
 }
 
 function productToApi(
-  p: Partial<Product>,
+  p: Partial<Product> & ProductWriteExtras,
   brandId: number,
   categoryId: number,
+  opts: { includeImages?: boolean } = {},
 ): AdminProductWrite {
   const price = p.salePrice ?? p.price ?? 0;
   const compare = p.salePrice ? (p.price ?? null) : null;
 
-  return {
+  const rawImages: string[] = Array.isArray(p.images)
+    ? p.images.filter(
+      (u): u is string => typeof u === 'string' && u.trim().length > 0,
+    )
+    : [];
+
+  const fallback: string[] =
+    p.image && p.image !== '/placeholder.png' ? [p.image] : [];
+
+  const imageUrls = rawImages.length > 0 ? rawImages : fallback;
+
+  const base: Partial<AdminProductWrite> = {
     name: p.name ?? '',
-    description: p.description ?? '',
+    description: p.description || p.shortDescription || '',
     brand_id: brandId,
     category_id: categoryId,
     price: String(price),
@@ -136,12 +154,27 @@ function productToApi(
     best_seller: p.bestSeller ?? false,
     sales_volume: '',
     is_active: p.status !== 'Draft' && p.status !== 'Archived',
-    images: p.image
-      ? [{ url: p.image, is_primary: true, sort_order: 0 }]
-      : [],
-    features: [],
-    specs: {},
   };
+
+  if (opts.includeImages !== false) {
+    base.images = imageUrls.map((url, i) => ({
+      url,
+      is_primary: i === 0,
+      sort_order: i,
+    }));
+  }
+
+  if (Array.isArray(p.features)) {
+    base.features = p.features.filter(
+      (f): f is string => typeof f === 'string' && f.trim().length > 0,
+    );
+  }
+
+  if (p.specs && typeof p.specs === 'object') {
+    base.specs = p.specs;
+  }
+
+  return base as AdminProductWrite;
 }
 
 export default function ProductsPage() {
@@ -373,7 +406,7 @@ export default function ProductsPage() {
       const payload = productToApi(
         {
           name: data.name || 'Untitled',
-          description: data.description || '',
+          description: data.shortDescription || data.description || '',
           shortDescription: data.shortDescription || '',
           category: data.category || '',
           brand: data.brand || '',
@@ -385,6 +418,9 @@ export default function ProductsPage() {
           image: data.images?.[0] || '/placeholder.png',
           featured: !!data.featured,
           bestSeller: false,
+          images: Array.isArray(data.images) ? data.images : [],
+          features: Array.isArray(data.features) ? data.features : [],
+          specs: data.specs && typeof data.specs === 'object' ? data.specs : {},
         },
         brandId,
         categoryId,
@@ -413,7 +449,12 @@ export default function ProductsPage() {
     try {
       const brandId = resolveBrandId(product.brand);
       const categoryId = resolveCategoryId(product.category);
-      const payload = productToApi(product, brandId, categoryId);
+      const payload = productToApi(
+        product,
+        brandId,
+        categoryId,
+        { includeImages: false },
+      );
 
       const updated = await adminApi.products.update(product.id, payload);
       setProducts((prev) =>
@@ -529,24 +570,24 @@ export default function ProductsPage() {
             <button
               onClick={() => setBulkOpen(true)}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] transition disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] transition disabled:opacity-60"
             >
               <Upload className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Bulk upload</span>
               <span className="sm:hidden">Bulk</span>
             </button>
 
-            <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200">
+            <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200">
               <button
                 onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded-sm transition ${viewMode === 'table' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                className={`p-1.5 rounded transition ${viewMode === 'table' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
                 title="Table view"
               >
                 <ListIcon className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('cards')}
-                className={`p-1.5 rounded-sm transition ${viewMode === 'cards' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                className={`p-1.5 rounded transition ${viewMode === 'cards' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
                 title="Card view"
               >
                 <LayoutGrid className="w-4 h-4" />
@@ -636,9 +677,9 @@ export default function ProductsPage() {
         </div>
 
         {selectedIds.length > 0 && (
-          <div className="bg-blue-950 text-white rounded-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="bg-blue-950 text-white rounded px-3 py-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-[13px]">
-              <span className="bg-blue-900 font-medium px-2 py-0.5 rounded-sm">
+              <span className="bg-blue-900 font-medium px-2 py-0.5 rounded">
                 {selectedIds.length} selected
               </span>
               <span className="text-blue-200 hidden sm:inline">Bulk actions</span>
@@ -646,25 +687,25 @@ export default function ProductsPage() {
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => flash('Change status: coming soon.')}
-                className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
+                className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded text-[13px] font-medium transition"
               >
                 Change status
               </button>
               <button
                 onClick={() => flash('Bulk price update: coming soon.')}
-                className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
+                className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded text-[13px] font-medium transition"
               >
                 Update price
               </button>
               <button
                 onClick={() => flash('Export CSV: coming soon.')}
-                className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
+                className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded text-[13px] font-medium transition"
               >
                 Export CSV
               </button>
               <button
                 onClick={confirmBulkDelete}
-                className="bg-red-600 hover:bg-red-500 px-2.5 py-2 rounded-sm text-[13px] font-medium transition inline-flex items-center gap-1"
+                className="bg-red-600 hover:bg-red-500 px-2.5 py-2 rounded text-[13px] font-medium transition inline-flex items-center gap-1"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete
@@ -674,12 +715,12 @@ export default function ProductsPage() {
         )}
 
         {isLoading ? (
-          <div className="bg-white border border-slate-200 rounded-sm p-12 text-center text-slate-500 text-[13px]">
+          <div className="bg-white border border-slate-200 rounded p-12 text-center text-slate-500 text-[13px]">
             <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
             Loading products…
           </div>
         ) : viewMode === 'table' ? (
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
@@ -693,13 +734,13 @@ export default function ProductsPage() {
                       />
                     </th>
                     <th className="py-2 px-2 font-medium">Image</th>
-                    <th className="py-2 px-3 font-medium">Product</th>
-                    <th className="py-2 px-3 font-medium">ID</th>
-                    <th className="py-2 px-3 font-medium">Category</th>
-                    <th className="py-2 px-3 font-medium text-right">Price</th>
-                    <th className="py-2 px-3 font-medium text-center">Stock</th>
-                    <th className="py-2 px-3 font-medium">Status</th>
-                    <th className="py-2 px-3 w-12"></th>
+                    <th className="py-2 px-2 font-medium">Product</th>
+                    <th className="py-2 px-2 font-medium">ID</th>
+                    <th className="py-2 px-2 font-medium">Category</th>
+                    <th className="py-2 px-2 font-medium text-right">Price</th>
+                    <th className="py-2 px-2 font-medium text-center">Stock</th>
+                    <th className="py-2 px-2 font-medium">Status</th>
+                    <th className="py-2 px-2 w-12"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -736,7 +777,7 @@ export default function ProductsPage() {
                           key={p.id}
                           className="hover:bg-slate-50 transition-colors"
                         >
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-2">
                             <input
                               type="checkbox"
                               checked={selectedIds.includes(p.id)}
@@ -748,7 +789,7 @@ export default function ProductsPage() {
                             <img
                               src={p.image}
                               alt={p.name}
-                              className="w-9 h-9 rounded-sm object-cover border border-slate-200"
+                              className="w-9 h-9 rounded object-cover border border-slate-200"
                             />
                           </td>
                           <td className="py-2 px-3 max-w-[280px]">
@@ -770,13 +811,13 @@ export default function ProductsPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-2 px-3 text-slate-500 font-mono">
+                          <td className="py-2 px-2 text-slate-500 font-mono">
                             {p.id}
                           </td>
-                          <td className="py-2 px-3 text-slate-600">
+                          <td className="py-2 px-2 text-slate-600">
                             {p.category}
                           </td>
-                          <td className="py-2 px-3 text-right">
+                          <td className="py-2 px-2 text-right">
                             <div className="font-semibold text-slate-900">
                               {formatKES(p.salePrice ?? p.price)}
                             </div>
@@ -788,14 +829,14 @@ export default function ProductsPage() {
                           </td>
                           <td className="py-2 px-3 text-center">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${stockBadge}`}
+                              className={`inline-block px-2 py-0.5 rounded font-medium border ${stockBadge}`}
                             >
                               {p.stock}
                             </span>
                           </td>
                           <td className="py-2 px-3">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${statusBadge}`}
+                              className={`inline-block px-2 py-0.5 rounded font-medium border ${statusBadge}`}
                             >
                               {p.status}
                             </span>
@@ -807,7 +848,7 @@ export default function ProductsPage() {
                                 setOpenKebabId(isKebabOpen ? null : p.id);
                               }}
                               disabled={isToggling}
-                              className="p-1.5 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition disabled:opacity-50"
+                              className="p-1.5 text-slate-400 hover:text-slate-900 rounded  hover:bg-slate-100 transition disabled:opacity-50"
                             >
                               {isToggling ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -862,25 +903,25 @@ export default function ProductsPage() {
               return (
                 <div
                   key={p.id}
-                  className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 relative"
+                  className="bg-white border border-slate-200 rounded p-2 space-y-2 relative"
                 >
-                  <div className="relative aspect-[4/3] rounded-sm overflow-hidden bg-slate-100 border border-slate-200">
+                  <div className="relative aspect-[4/3] rounded overflow-hidden bg-slate-100 border border-slate-200">
                     <img
                       src={p.image}
                       alt={p.name}
                       className="w-full h-full object-cover"
                     />
-                    <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm">
+                    <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded">
                       {p.status}
                     </span>
                     {p.featured && (
-                      <span className="absolute top-2 left-2 bg-amber-500 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                      <span className="absolute top-2 left-2 bg-amber-500 text-white font-medium text-[13px] px-2 py-0.5 rounded inline-flex items-center gap-1">
                         <Star className="w-3 h-3 fill-white" />
                         Featured
                       </span>
                     )}
                     {p.bestSeller && (
-                      <span className="absolute bottom-2 left-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                      <span className="absolute bottom-2 left-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded inline-flex items-center gap-1">
                         <Award className="w-3 h-3" />
                         Best seller
                       </span>
@@ -889,7 +930,7 @@ export default function ProductsPage() {
 
                   <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide truncate">
+                      <span className="text-[13px] font-medium text-blue-950 uppercase truncate">
                         {p.category}
                       </span>
                       <div className="relative">
@@ -899,7 +940,7 @@ export default function ProductsPage() {
                             setOpenKebabId(isKebabOpen ? null : p.id);
                           }}
                           disabled={isToggling}
-                          className="p-1 text-slate-400 hover:text-slate-900 rounded-sm hover:bg-slate-100 transition disabled:opacity-50"
+                          className="p-1 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100 transition disabled:opacity-50"
                         >
                           {isToggling ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -953,7 +994,7 @@ export default function ProductsPage() {
                       )}
                     </div>
                     <span
-                      className={`px-2 py-0.5 rounded-sm font-medium text-[13px] border ${stockBadge}`}
+                      className={`px-2 py-0.5 rounded font-medium text-[13px] border ${stockBadge}`}
                     >
                       {p.stock} left
                     </span>
@@ -981,27 +1022,27 @@ export default function ProductsPage() {
 
       {deleteProductId && (
         <Popup onClose={() => setDeleteProductId(null)}>
-          <div className="flex items-center gap-2">
-            <span className="w-9 h-9 rounded-sm bg-red-50 text-red-600 flex items-center justify-center">
+          <div className="flex items-center gap-1">
+            <span className="w-9 h-9 rounded bg-red-50 text-red-600 flex items-center justify-center">
               <AlertTriangle className="w-4 h-4" />
             </span>
             <h3 className="text-[15px] font-semibold text-slate-900">
               Delete product?
             </h3>
           </div>
-          <p className="text-[13px] text-slate-500 mt-2">
+          <p className="text-[13px] text-slate-500 mt-1">
             This cannot be undone. The product will be permanently removed.
           </p>
           <div className="flex justify-end gap-2 mt-3">
             <button
               onClick={() => setDeleteProductId(null)}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px]"
             >
               Cancel
             </button>
             <button
               onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+              className="bg-red-600 hover:bg-red-500 text-white font-medium px-2 py-2 rounded text-[13px]"
             >
               Delete
             </button>
@@ -1023,7 +1064,7 @@ export default function ProductsPage() {
             </button>
           </div>
 
-          <div className="space-y-3 text-[13px]">
+          <div className="space-y-2 text-[13px]">
             <label className="block">
               <span className="block font-medium text-slate-700 mb-1">Name</span>
               <input
@@ -1031,7 +1072,7 @@ export default function ProductsPage() {
                 onChange={(e) =>
                   setEditProduct({ ...editProduct, name: e.target.value })
                 }
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </label>
 
@@ -1049,7 +1090,7 @@ export default function ProductsPage() {
                       price: Number(e.target.value),
                     })
                   }
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
               <label className="block">
@@ -1067,7 +1108,7 @@ export default function ProductsPage() {
                         : undefined,
                     })
                   }
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
             </div>
@@ -1086,7 +1127,7 @@ export default function ProductsPage() {
                       stock: Number(e.target.value),
                     })
                   }
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
               <label className="block">
@@ -1102,7 +1143,7 @@ export default function ProductsPage() {
                       lowStockThreshold: Number(e.target.value),
                     })
                   }
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </label>
             </div>
@@ -1119,7 +1160,7 @@ export default function ProductsPage() {
                     status: e.target.value as ProductStatus,
                   })
                 }
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -1130,18 +1171,18 @@ export default function ProductsPage() {
             </label>
           </div>
 
-          <div className="flex justify-end gap-2 mt-3">
+          <div className="flex justify-end gap-2 mt-2">
             <button
               onClick={() => setEditProduct(null)}
               disabled={saving}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
             >
               Cancel
             </button>
             <button
               onClick={handleUpdate}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-60"
             >
               {saving ? (
                 <>
@@ -1175,17 +1216,17 @@ export default function ProductsPage() {
             </span>
             . The copy will be saved as Draft.
           </p>
-          <div className="flex justify-end gap-2 mt-3">
+          <div className="flex justify-end gap-2 mt-2">
             <button
               onClick={() => setDuplicateProduct(null)}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px]"
             >
               Cancel
             </button>
             <button
               onClick={confirmDuplicate}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-60"
             >
               {saving ? (
                 <>
@@ -1205,7 +1246,7 @@ export default function ProductsPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-4 py-2.5 rounded-sm shadow-lg">
+        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-3 py-2.5 rounded">
           {toast}
         </div>
       )}
@@ -1227,11 +1268,11 @@ function ProductDrawer({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow-xl flex flex-col"
+        className="bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow flex flex-col"
       >
-        <div className="px-3 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
+        <div className="px-2 py-2 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+            <span className="w-9 h-9 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
               <Package className="w-4 h-4" />
             </span>
             <div className="min-w-0">
@@ -1245,14 +1286,14 @@ function ProductDrawer({
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+            className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-3 space-y-3">
-          <div className="aspect-[16/9] rounded-sm overflow-hidden bg-slate-100 border border-slate-200">
+        <div className="p-3 space-y-2">
+          <div className="aspect-[16/9] rounded overflow-hidden bg-slate-100 border border-slate-200">
             <img
               src={product.image}
               alt={product.name}
@@ -1262,7 +1303,7 @@ function ProductDrawer({
 
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">
+              <span className="text-[13px] font-medium text-blue-950 uppercase">
                 {product.category}
               </span>
               <span className="text-slate-300">·</span>
@@ -1270,12 +1311,12 @@ function ProductDrawer({
                 {product.brand}
               </span>
               {product.featured && (
-                <span className="text-[13px] font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                <span className="text-[13px] font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded inline-flex items-center gap-1">
                   <Star className="w-3 h-3 fill-amber-700" /> Featured
                 </span>
               )}
               {product.bestSeller && (
-                <span className="text-[13px] font-medium bg-blue-50 text-blue-950 border border-blue-100 px-2 py-0.5 rounded-sm inline-flex items-center gap-1">
+                <span className="text-[13px] font-medium bg-blue-50 text-blue-950 border border-blue-100 px-2 py-0.5 rounded inline-flex items-center gap-1">
                   <Award className="w-3 h-3" /> Best seller
                 </span>
               )}
@@ -1285,7 +1326,7 @@ function ProductDrawer({
             </h2>
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+          <div className="bg-slate-50 border border-slate-200 rounded p-2 space-y-2">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
               <DollarSign className="w-3.5 h-3.5" />
               Pricing
@@ -1305,7 +1346,7 @@ function ProductDrawer({
             </div>
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-2">
+          <div className="bg-slate-50 border border-slate-200 rounded p-2 space-y-2">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-700">
               <Warehouse className="w-3.5 h-3.5" />
               Inventory
@@ -1329,7 +1370,7 @@ function ProductDrawer({
                 <FileText className="w-3.5 h-3.5" />
                 Description
               </div>
-              <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">
+              <p className="text-[13px] text-slate-600 whitespace-pre-line">
                 {product.description}
               </p>
             </div>
@@ -1341,7 +1382,7 @@ function ProductDrawer({
               Media
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="aspect-square rounded-sm overflow-hidden border border-slate-200 bg-slate-100">
+              <div className="aspect-square rounded overflow-hidden border border-slate-200 bg-slate-100">
                 <img
                   src={product.image}
                   alt=""
@@ -1401,7 +1442,7 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
+        className={`flex items-center gap-1.5 border rounded px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
           ? 'bg-blue-50 border-blue-950 text-blue-950'
           : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}
@@ -1415,7 +1456,7 @@ function FilterDropdown({
 
       {open && (
         <div
-          className={`absolute top-full mt-1 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1 ${align === 'end' ? 'right-0' : 'left-0'
+          className={`absolute top-full mt-1 w-56 rounded border border-slate-200 bg-white shadow z-50 p-1 ${align === 'end' ? 'right-0' : 'left-0'
             }`}
         >
           <button
@@ -1423,7 +1464,7 @@ function FilterDropdown({
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive
+            className={`w-full text-left px-2 py-2 rounded text-[13px] ${!isActive
               ? 'bg-blue-50 text-blue-950 font-medium'
               : 'text-slate-700 hover:bg-slate-50'
               }`}
@@ -1440,7 +1481,7 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${isSelected
+                className={`w-full text-left px-2 py-2 rounded text-[13px] flex items-center justify-between ${isSelected
                   ? 'bg-blue-50 text-blue-950 font-medium'
                   : 'text-slate-700 hover:bg-slate-50'
                   }`}
@@ -1476,7 +1517,7 @@ function KebabMenu({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`absolute top-full mt-1 w-52 bg-white border border-slate-200 rounded-sm shadow-lg z-50 py-1 ${align === 'right' ? 'right-0' : 'left-0'
+      className={`absolute top-full mt-1 w-52 bg-white border border-slate-200 rounded shadow  z-50 py-1 ${align === 'right' ? 'right-0' : 'left-0'
         }`}
     >
       <MenuItem
@@ -1551,12 +1592,12 @@ function Popup({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl"
+        className="bg-white border border-slate-200 rounded max-w-md w-full p-3 shadow-xl"
       >
         {children}
       </div>
@@ -1566,7 +1607,7 @@ function Popup({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2">
+    <div className="bg-white border border-slate-200 rounded p-2">
       <p className="text-[13px] font-medium text-slate-500">{label}</p>
       <p className="text-[13px] font-semibold text-slate-900 mt-0.5">
         {value}

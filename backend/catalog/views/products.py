@@ -29,6 +29,16 @@ def _attach_currency(response):
     return response
 
 
+def _safe_limit(raw, default=8, maximum=50) -> int:
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    if value < 1:
+        return default
+    return min(value, maximum)
+
+
 class ProductPagination(PageNumberPagination):
     page_size = 8
     page_size_query_param = "page_size"
@@ -42,6 +52,17 @@ class ProductListView(generics.ListAPIView):
 
     def get_queryset(self):
         p = self.request.query_params
+
+        if p.get("featured") in ("1", "true", "True"):
+            return services.get_featured_products(
+                limit=_safe_limit(p.get("page_size"))
+            )
+
+        if p.get("best_seller") in ("1", "true", "True"):
+            return services.get_best_sellers(
+                limit=_safe_limit(p.get("page_size"))
+            )
+
         return services.get_products(
             search=p.get("search"),
             category=p.get("category"),
@@ -53,6 +74,34 @@ class ProductListView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         return _attach_currency(super().list(request, *args, **kwargs))
+
+
+class FeaturedProductsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        limit = _safe_limit(request.query_params.get("limit"), default=8)
+        products = services.get_featured_products(limit=limit)
+        serializer = ProductListSerializer(
+            products,
+            many=True,
+            context={"request": request},
+        )
+        return _attach_currency(Response(serializer.data))
+
+
+class BestSellersView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        limit = _safe_limit(request.query_params.get("limit"), default=8)
+        products = services.get_best_sellers(limit=limit)
+        serializer = ProductListSerializer(
+            products,
+            many=True,
+            context={"request": request},
+        )
+        return _attach_currency(Response(serializer.data))
 
 
 class ProductDetailView(APIView):

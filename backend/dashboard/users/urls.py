@@ -30,17 +30,17 @@ urlpatterns = [
         name="user-list",
     ),
     path(
-        "<uuid:pk>/",
+        "<int:pk>/",
         views.UserDetailView.as_view(),
         name="user-detail",
     ),
     path(
-        "<uuid:pk>/suspend/",
+        "<int:pk>/suspend/",
         views.toggle_suspend,
         name="user-suspend",
     ),
     path(
-        "<uuid:pk>/reset-password/",
+        "<int:pk>/reset-password/",
         views.reset_password,
         name="user-reset-password",
     ),

@@ -488,11 +488,11 @@ export default function BulkUploadModal({
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm"
             onClick={onClose}
         >
             <div
-                className="bg-white border border-slate-200 rounded-md w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl"
+                className="bg-white border border-slate-200 rounded w-full max-w-5xl max-h-[92vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
@@ -513,13 +513,13 @@ export default function BulkUploadModal({
                         type="button"
                         onClick={onClose}
                         aria-label="Close"
-                        className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
+                        className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3">
+                <div className="flex-1 overflow-y-auto p-2">
                     {rows.length === 0 ? (
                         <div className="space-y-3">
                             <label
@@ -529,7 +529,7 @@ export default function BulkUploadModal({
                                 }}
                                 onDragLeave={() => setDragging(false)}
                                 onDrop={onDrop}
-                                className={`relative flex flex-col items-center justify-center rounded-md border-2 border-dashed transition-colors cursor-pointer min-h-[280px] px-6 text-center ${dragging
+                                className={`relative flex flex-col items-center justify-center rounded border-2 border-dashed transition-colors cursor-pointer min-h-[280px] px-6 text-center ${dragging
                                         ? "border-blue-950 bg-blue-50/40"
                                         : "border-slate-300 hover:border-slate-400 hover:bg-slate-50"
                                     }`}
@@ -546,7 +546,7 @@ export default function BulkUploadModal({
                                     }
                                 />
 
-                                <span className="h-14 w-14 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                                <span className="h-14 w-14 rounded-full bg-slate-100 flex items-center justify-center mb-2">
                                     {busy ? (
                                         <RefreshCw className="h-6 w-6 text-slate-400 animate-spin" />
                                     ) : (
@@ -564,7 +564,7 @@ export default function BulkUploadModal({
                                 </p>
 
                                 {parseError && (
-                                    <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-md px-3 py-2 text-left max-w-md">
+                                    <div className="mt-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded px-3 py-2 text-left max-w-md">
                                         <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                                         <p className="text-[13px] text-red-700">
                                             {parseError}
@@ -573,7 +573,7 @@ export default function BulkUploadModal({
                                 )}
                             </label>
 
-                            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-md px-3 py-2.5">
+                            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-3 py-2.5">
                                 <div className="flex items-start gap-2">
                                     <FileSpreadsheet className="h-4 w-4 text-slate-500 mt-0.5 shrink-0" />
                                     <div>
@@ -589,7 +589,7 @@ export default function BulkUploadModal({
                                 <button
                                     type="button"
                                     onClick={downloadTemplate}
-                                    className="shrink-0 inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-md text-[13px] transition-colors"
+                                    className="shrink-0 inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] transition-colors"
                                 >
                                     <Download className="h-3.5 w-3.5" />
                                     Template
@@ -598,7 +598,7 @@ export default function BulkUploadModal({
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-md px-3 py-2.5">
+                            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-3 py-2.5">
                                 <div className="flex items-center gap-2 min-w-0">
                                     <FileSpreadsheet className="h-4 w-4 text-blue-950 shrink-0" />
                                     <div className="min-w-0">
@@ -615,7 +615,7 @@ export default function BulkUploadModal({
                                     <button
                                         type="button"
                                         onClick={clearFile}
-                                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded-md text-[13px] transition-colors"
+                                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[13px] transition-colors"
                                     >
                                         <RefreshCw className="h-3.5 w-3.5" />
                                         Replace
@@ -624,7 +624,7 @@ export default function BulkUploadModal({
                                         type="button"
                                         onClick={clearFile}
                                         aria-label="Remove file"
-                                        className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-600 transition-colors"
+                                        className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-600 transition-colors"
                                     >
                                         <Trash2 className="h-4 w-4" />
                                     </button>
@@ -666,7 +666,7 @@ export default function BulkUploadModal({
                                     <button
                                         type="button"
                                         onClick={() => setOnlyErrors(false)}
-                                        className={`px-3 py-1.5 rounded-md text-[13px] font-medium border transition-colors ${!onlyErrors
+                                        className={`px-3 py-1.5 rounded text-[13px] font-medium border transition-colors ${!onlyErrors
                                                 ? "bg-blue-950 text-white border-blue-950"
                                                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                             }`}
@@ -676,7 +676,7 @@ export default function BulkUploadModal({
                                     <button
                                         type="button"
                                         onClick={() => setOnlyErrors(true)}
-                                        className={`px-3 py-1.5 rounded-md text-[13px] font-medium border transition-colors ${onlyErrors
+                                        className={`px-3 py-1.5 rounded text-[13px] font-medium border transition-colors ${onlyErrors
                                                 ? "bg-blue-950 text-white border-blue-950"
                                                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                             }`}
@@ -686,11 +686,11 @@ export default function BulkUploadModal({
                                 </div>
                             )}
 
-                            <div className="border border-slate-200 rounded-md overflow-hidden">
+                            <div className="border border-slate-200 rounded overflow-hidden">
                                 <div className="overflow-x-auto max-h-[360px]">
                                     <table className="w-full text-[13px]">
                                         <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-                                            <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+                                            <tr className="text-left text-[11px] uppercase  text-slate-500">
                                                 <th className="font-medium px-3 py-2 w-12">
                                                     Row
                                                 </th>
@@ -807,7 +807,7 @@ export default function BulkUploadModal({
                                                                     )
                                                                 }
                                                                 aria-label="Remove row"
-                                                                className="h-7 w-7 rounded-md hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-600 transition-colors"
+                                                                className="h-7 w-7 rounded hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-600 transition-colors"
                                                             >
                                                                 <X className="h-3.5 w-3.5" />
                                                             </button>
@@ -852,7 +852,7 @@ export default function BulkUploadModal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-md text-[13px] transition-colors"
+                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] transition-colors"
                         >
                             Cancel
                         </button>
@@ -860,7 +860,7 @@ export default function BulkUploadModal({
                             type="button"
                             onClick={handleImport}
                             disabled={!canImport}
-                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-md text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Import {stats.valid > 0 ? stats.valid : ""} product
                             {stats.valid === 1 ? "" : "s"}
@@ -893,7 +893,7 @@ function SummaryCard({
     }[tone];
 
     return (
-        <div className={`border rounded-md p-2.5 ${toneCls}`}>
+        <div className={`border rounded p-2.5 ${toneCls}`}>
             <p className="text-[13px] font-medium opacity-80">{label}</p>
             <p className="text-[18px] font-bold tabular-nums mt-0.5">
                 {value}

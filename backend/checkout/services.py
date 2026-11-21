@@ -951,7 +951,7 @@ def transition_payment(
         payment.raw_callback = raw_callback
 
     if new_status == Payment.Status.SUCCESS:
-        if payment.method == Payment.Method.MPESA:
+        if payment.method == Payment.Method.MPS:
             payment.fee = Decimal(
                 str(constants.mpesa_fee_for(int(payment.amount)))
             )
@@ -1454,7 +1454,7 @@ def retry_payment(
             f"Cannot retry a payment in status {payment.status}."
         )
 
-    if payment.method != Payment.Method.MPESA:
+    if payment.method != Payment.Method.MPS:
         raise CheckoutError(
             "Only M-Pesa payments can be retried through the gateway. "
             "Use reconcile to mark cash or account payments as settled."
@@ -1474,7 +1474,7 @@ def retry_payment(
         with transaction.atomic():
             new_payment = Payment.objects.create(
                 order=order,
-                method=Payment.Method.MPESA,
+                method=Payment.Method.MPS,
                 status=Payment.Status.PENDING,
                 amount=payment.amount,
                 phone_number=normalized_phone,

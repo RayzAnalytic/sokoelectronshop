@@ -215,7 +215,7 @@ class CustomerCartSerializer(serializers.ModelSerializer):
     price = serializers.SerializerMethodField()
     qty = serializers.IntegerField(source="quantity", read_only=True)
     addedDate = serializers.SerializerMethodField()
-    image = serializers.CharField(source="image", read_only=True)
+    image = serializers.CharField(read_only=True)
 
     class Meta:
         model = CartItem

@@ -50,7 +50,8 @@ export default function CategoryPage() {
 
   const [category, setCategory] = useState<CatalogCategory | null>(null);
   const [items, setItems] = useState<CatalogProduct[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cartAddingId, setCartAddingId] = useState<string | null>(null);
 
@@ -83,16 +84,22 @@ export default function CategoryPage() {
     catalogApi.categories
       .detail(slug, { q, stock, sort }, ctrl.signal)
       .then(({ category: cat, products }) => {
+        if (ctrl.signal.aborted) return;
         setCategory(cat);
         setItems(products);
       })
       .catch((err: unknown) => {
+        if (ctrl.signal.aborted) return;
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setCategory(null);
         setItems([]);
         setError('Category not found.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (ctrl.signal.aborted) return;
+        setLoading(false);
+        setHasLoadedOnce(true);
+      });
 
     return () => ctrl.abort();
   }, [slug, q, stock, sort]);
@@ -137,7 +144,7 @@ export default function CategoryPage() {
 
   return (
     <section className="w-full">
-      <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="flex items-start justify-between gap-2 mb-2">
         <div>
           <h1 className="text-base font-semibold text-slate-900">
             {categoryName}
@@ -151,8 +158,8 @@ export default function CategoryPage() {
       </div>
 
       {error && !loading && (
-        <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 py-16 px-6 text-center rounded-sm">
-          <AlertCircle className="w-8 h-8 text-slate-400 mb-2" />
+        <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 py-16 px-6 text-center rounded">
+          <AlertCircle className="w-8 h-8 text-blue-950 mb-2" />
           <h3 className="text-sm font-semibold text-slate-900">{error}</h3>
           <p className="mt-1 text-[11px] text-slate-500">
             Slug received: <code>{slug}</code>
@@ -165,7 +172,7 @@ export default function CategoryPage() {
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+              className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
             >
               <div className="aspect-square bg-slate-100" />
               <div className="p-2 space-y-2">
@@ -178,12 +185,12 @@ export default function CategoryPage() {
         </div>
       )}
 
-      {!loading && !error && items.length === 0 && (
-        <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 py-16 px-6 text-center rounded-sm">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-xl">
+      {!loading && hasLoadedOnce && !error && items.length === 0 && (
+        <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 py-16 px-6 text-center rounded">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-950/15 text-xl">
             🔍
           </div>
-          <h3 className="mt-3 text-sm font-semibold text-slate-900">
+          <h3 className="mt-2 text-sm font-semibold text-slate-900">
             No {categoryName.toLowerCase()} found
           </h3>
           <p className="mt-1 text-[11px] text-slate-500">
@@ -207,7 +214,7 @@ export default function CategoryPage() {
               <Link
                 key={product.id}
                 href={`/pages/products?open=${product.id}`}
-                className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-slate-300 hover:shadow-xs transition-all duration-150 flex flex-col justify-between"
+                className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-blue-950 hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
               >
                 <div>
                   <div className="aspect-square w-full bg-slate-50 overflow-hidden relative">
@@ -233,22 +240,22 @@ export default function CategoryPage() {
                     />
 
                     <span
-                      className={`absolute bottom-2 left-2 z-10 text-[10px] font-semibold px-2 py-0.5 rounded shadow-xs ${stockBadgeClasses(product.stock)}`}
+                      className={`absolute bottom-2 left-2 z-10 text-[10px] font-semibold px-2 py-0.5 rounded ${stockBadgeClasses(product.stock)}`}
                     >
                       {product.stock}
                     </span>
                   </div>
 
                   <div className="p-2">
-                    <p className="text-[11px] font-medium text-slate-500 uppercase truncate">
+                    <p className="text-[11px] font-medium text-slate-600 uppercase truncate">
                       {product.brand}
                     </p>
-                    <h3 className="text-sm font-semibold text-slate-900 group-hover:text-slate-950 transition-colors line-clamp-2 mt-0.5 mb-2">
+                    <h3 className="text-sm font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mt-0.5 mb-1">
                       {product.name}
                     </h3>
 
-                    <div className="flex items-center gap-1 text-[11px] text-slate-600 mb-2">
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    <div className="flex items-center gap-1 text-[11px] text-slate-500 mb-1">
+                      <Star className="w-3 h-3 fill-blue-950 text-blue-950" />
                       <span className="font-medium text-slate-900">
                         {toNum(product.rating).toFixed(1)}
                       </span>
@@ -262,7 +269,7 @@ export default function CategoryPage() {
                 <div className="p-2 pt-0">
                   <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-sm font-bold text-slate-900">
+                      <span className="text-sm font-bold text-blue-950">
                         {formatKES(price)}
                       </span>
                       {comparePrice !== null && (
@@ -276,7 +283,7 @@ export default function CategoryPage() {
                       onClick={(e) => handleAddToCart(product, e)}
                       disabled={isAdding || isOutOfStock}
                       aria-label="Add to cart"
-                      className="bg-slate-900 text-white p-2 rounded-sm hover:bg-slate-800 transition-colors disabled:opacity-50"
+                      className="bg-blue-950 text-white p-2 rounded hover:bg-blue-900 transition-colors disabled:opacity-50"
                     >
                       {isAdding ? (
                         <svg

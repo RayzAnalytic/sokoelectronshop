@@ -18,13 +18,13 @@ export default function AdminLayout({
   return (
     <SettingsSnapshotProvider>
       <AdminShellProvider>
-        <div className="min-h-screen flex bg-white text-slate-900">
+        <div className="admin-no-scrollbar h-screen overflow-hidden flex bg-white text-slate-900">
           <AdminSidebar />
 
           <div className="flex-1 flex flex-col min-w-0">
             <AdminHeader />
 
-            <main className="flex-1 overflow-y-auto bg-slate-50">
+            <main className="flex-1 min-h-0 overflow-y-auto bg-slate-50">
               <div className="max-w-[1700px] mx-auto px-1 sm:px-1 lg:px-1 py-1">
                 {children}
               </div>
@@ -34,9 +34,8 @@ export default function AdminLayout({
           <div
             aria-hidden="true"
             onClick={() => setAiOpen(false)}
-            className={`fixed inset-0 z-[125] bg-slate-900/30 backdrop-blur-sm transition-opacity duration-150 ${
-              aiOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
+            className={`fixed inset-0 z-[125] bg-slate-900/30 backdrop-blur-sm transition-opacity duration-150 ${aiOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
           />
 
           <AIAutomationCopilot

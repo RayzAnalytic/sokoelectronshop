@@ -31,7 +31,7 @@ def retry_payment(
     }:
         raise CheckoutError(f"Cannot retry a payment in status {payment.status}.")
 
-    if payment.method != Payment.Method.MPESA:
+    if payment.method != Payment.Method.MPS:
         raise CheckoutError(
             "Only M-Pesa payments can be retried through the gateway. "
             "Use reconcile to mark cash or account payments as settled."
@@ -49,7 +49,7 @@ def retry_payment(
 
     new_payment = Payment.objects.create(
         order=order,
-        method=Payment.Method.MPESA,
+        method=Payment.Method.MPS,
         status=Payment.Status.PENDING,
         amount=payment.amount,
         phone_number=normalized_phone,

@@ -6,16 +6,6 @@ from django.utils import timezone
 
 
 class ChatSession(models.Model):
-    """
-    One browser conversation. Persists across page reloads if the frontend
-    sends back the same session_id. Anonymous sessions have user=null.
-
-    A session is the top-level container for all turns between a single
-    user (or anonymous visitor) and the assistant. It carries lightweight
-    metadata so that admins can list, search, and audit conversations
-    without joining to the message table.
-    """
-
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -27,31 +17,20 @@ class ChatSession(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="ai_chat_sessions",
-        help_text="Null for anonymous visitors.",
     )
-
-    # Optional human-friendly label, e.g. derived from the first user message.
-    # Kept denormalized so the sessions list view doesn't need to join.
     title = models.CharField(
         max_length=120,
         blank=True,
         default="",
     )
-
-    # Free-form bag for IP, user agent, locale, experiment flags, etc.
-    # Using JSONField (not a schema) so we can evolve without migrations.
     metadata = models.JSONField(
         default=dict,
         blank=True,
     )
-
-    # Soft-delete / archival flag. Lets users "clear" a conversation
-    # without destroying the audit trail.
     is_active = models.BooleanField(
         default=True,
         db_index=True,
     )
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -70,10 +49,6 @@ class ChatSession(models.Model):
         return f"ChatSession {self.id} ({who})"
 
     def touch(self, *, save: bool = True) -> None:
-        """
-        Bump updated_at explicitly. Useful when a turn adds a message but
-        the session row wouldn't otherwise be written to.
-        """
         self.updated_at = timezone.now()
         if save:
             self.save(update_fields=["updated_at"])
@@ -84,16 +59,6 @@ class ChatSession(models.Model):
 
 
 class ChatMessage(models.Model):
-    """
-    Only user and final-assistant turns are persisted. Intermediate tool
-    calls are ephemeral — they live only inside one `run_chat_turn()` call.
-
-    Assistant rows may carry structured extras (product cards and quick
-    reply chips) that the frontend renders directly from the API response.
-    Those are stored here so that reloading a session reproduces the
-    original UI instead of falling back to plain text.
-    """
-
     ROLE_USER = "user"
     ROLE_ASSISTANT = "assistant"
     ROLE_SYSTEM = "system"
@@ -114,28 +79,18 @@ class ChatMessage(models.Model):
         db_index=True,
     )
     content = models.TextField(blank=True)
-
-    # Structured suggestions rendered as product cards. Shape matches the
-    # frontend `AIChatProduct` type:
-    #   {id, name, brand, price, stock, url, images: [..]}
     products = models.JSONField(
         default=list,
         blank=True,
     )
-
-    # Quick-reply chips shown under an assistant message.
     chips = models.JSONField(
         default=list,
         blank=True,
     )
-
-    # Per-message telemetry: model name, token counts, latency_ms,
-    # finish_reason, tool_call_count, etc. Never rendered to the customer.
     metadata = models.JSONField(
         default=dict,
         blank=True,
     )
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

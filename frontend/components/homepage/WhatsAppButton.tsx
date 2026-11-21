@@ -20,6 +20,12 @@ interface WhatsAppButtonProps {
     onOpenChange?: (open: boolean) => void;
 }
 
+const FALLBACK_PHONE = '254706479906';
+const FALLBACK_DISPLAY = '0706479906';
+const FALLBACK_SHOP = 'Havens Technologies';
+const FALLBACK_HOURS = 'We typically reply within minutes';
+const FALLBACK_MESSAGE = 'Hello! I would like to inquire about your products and services.';
+
 const ICON_MAP = {
     shopping_bag: LuShoppingBag,
     package: LuPackage,
@@ -35,16 +41,17 @@ function iconFor(name: string): React.ComponentType<{ className?: string }> {
     return ICON_MAP[name as IconName] ?? LuMessageCircle;
 }
 
+type QuickAction = { id: string; label: string; message: string; icon: string };
+
 export default function WhatsAppButton({
     hidden = false,
     className = '',
     onOpenChange,
 }: WhatsAppButtonProps) {
     const [open, setOpen] = useState(false);
-    const [config, setConfig] = useState<WhatsapfloatConfig | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [remote, setRemote] = useState<WhatsapfloatConfig | null>(null);
+    const [apiFailed, setApiFailed] = useState(false);
 
-    const panelRef = useRef<HTMLDivElement | null>(null);
     const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
     useEffect(() => {
@@ -52,12 +59,14 @@ export default function WhatsAppButton({
 
         whatsapfloatApi
             .config(ctrl.signal)
-            .then(setConfig)
+            .then((data) => {
+                setRemote(data);
+                setApiFailed(false);
+            })
             .catch((err: unknown) => {
                 if (err instanceof DOMException && err.name === 'AbortError') return;
-                setConfig(null);
-            })
-            .finally(() => setLoading(false));
+                setApiFailed(true);
+            });
 
         return () => ctrl.abort();
     }, []);
@@ -68,18 +77,14 @@ export default function WhatsAppButton({
 
     useEffect(() => {
         if (!open) return;
-
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setOpen(false);
         };
         window.addEventListener('keydown', onKey);
-
         const focusTimer = setTimeout(() => closeBtnRef.current?.focus(), 40);
-
         const isSmall = window.matchMedia('(max-width: 767px)').matches;
         const prevOverflow = document.body.style.overflow;
         if (isSmall) document.body.style.overflow = 'hidden';
-
         return () => {
             window.removeEventListener('keydown', onKey);
             clearTimeout(focusTimer);
@@ -87,18 +92,36 @@ export default function WhatsAppButton({
         };
     }, [open]);
 
-    // ── Derive quick actions from config ───────────────────────
-    // `config` may be present but without `quickActions` (optional field /
-    // partial payload), so guard the field itself and normalize to [].
-    const quickActions = useMemo(() => {
-        if (!config?.quickActions) return [];
-        return config.quickActions.map((a) => ({
-            ...a,
-            icon: iconFor(a.icon),
-        }));
-    }, [config]);
+    const config = useMemo(() => {
+        const enabled = remote?.enabled !== false;
+        const phoneNumber = remote?.phoneNumber || FALLBACK_PHONE;
+        const displayNumber = remote?.displayNumber || FALLBACK_DISPLAY;
+        const shopName = remote?.shopName || FALLBACK_SHOP;
+        const hoursLabel = remote?.hoursLabel || FALLBACK_HOURS;
+        const defaultMessage = remote?.defaultMessage || FALLBACK_MESSAGE;
 
-    if (loading || hidden || !config || !config.enabled) return null;
+        const rawActions: QuickAction[] = Array.isArray(remote?.quickActions)
+            ? remote!.quickActions.map((a, i) => ({
+                id: String(a.id ?? i),
+                label: a.label,
+                message: a.message,
+                icon: a.icon ?? 'message',
+            }))
+            : [];
+
+        return {
+            enabled,
+            phoneNumber,
+            displayNumber,
+            shopName,
+            hoursLabel,
+            defaultMessage,
+            quickActions: rawActions.map((a) => ({ ...a, iconComp: iconFor(a.icon) })),
+        };
+    }, [remote]);
+
+    if (hidden) return null;
+    if (remote && !remote.enabled) return null;
 
     const buildWaLink = (msg: string) =>
         `https://wa.me/${config.phoneNumber}?text=${encodeURIComponent(msg)}`;
@@ -109,18 +132,15 @@ export default function WhatsAppButton({
 
     return (
         <>
-            {/* ── Backdrop ────────────────────────────────────────────── */}
             {open && (
                 <div
                     aria-hidden="true"
                     onClick={() => setOpen(false)}
-                    className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm transition-opacity duration-150"
+                    className="fixed inset-0 z-40 bg-[#0B0D10]/50 backdrop-blur-sm transition-opacity duration-150"
                 />
             )}
 
-            {/* ── Panel (centered) ────────────────────────────────────── */}
             <div
-                ref={panelRef}
                 id="wa-panel"
                 role="dialog"
                 aria-modal="false"
@@ -132,71 +152,75 @@ export default function WhatsAppButton({
                     } ${className}`}
             >
                 <div
-                    className="bg-white border border-slate-200 rounded-md shadow-2xl overflow-hidden flex flex-col
+                    className="bg-white border border-slate-200 rounded overflow-hidden flex flex-col
                      w-[calc(100vw-1.5rem)] max-w-[520px]
                      md:w-[48vw] md:min-w-[500px] md:max-w-[600px]
                      h-auto min-h-[520px] md:min-h-[600px] md:max-h-[85vh]"
                 >
-                    {/* Header */}
-                    <div className="bg-[#25D366] text-white px-4 py-3 flex items-start gap-3 shrink-0">
-                        <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                            <FaWhatsapp className="h-5 w-5" />
+                    {/* Header — Matte Carbon Black with cyan accents */}
+                    <div className="bg-[#0B0D10] text-white px-4 py-3 flex items-start gap-3 shrink-0">
+                        <div className="h-9 w-9 rounded-full bg-[#00E5FF]/20 flex items-center justify-center shrink-0">
+                            <FaWhatsapp className="h-5 w-5 text-[#00E5FF]" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-semibold leading-tight truncate">
+                            <p className="text-[14px] font-semibold truncate">
                                 Chat with {config.shopName}
                             </p>
-                            <p className="text-[12px] text-white/85 leading-tight mt-0.5 flex items-center gap-1">
-                                <LuClock className="w-3 h-3" />
-                                {config.hoursLabel}
+                            <p className="text-[11px] text-[#00E5FF] mt-0.5 uppercase tracking-wide">
+                                Feel the Quality
                             </p>
+                            {config.hoursLabel && (
+                                <p className="text-[12px] text-white/85 mt-0.5 flex items-center gap-1">
+                                    <LuClock className="w-3 h-3" />
+                                    {config.hoursLabel}
+                                </p>
+                            )}
                         </div>
                         <button
                             ref={closeBtnRef}
                             type="button"
                             onClick={() => setOpen(false)}
                             aria-label="Close WhatsApp panel"
-                            className="h-7 w-7 -mr-1 flex items-center justify-center rounded-md text-white/80 hover:text-white hover:bg-white/15 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                            className="h-7 w-7 -mr-1 flex items-center justify-center rounded text-white/80 hover:text-[#00E5FF] hover:bg-white/15 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00E5FF]/70"
                         >
                             <LuX className="w-4 h-4" />
                         </button>
                     </div>
 
-                    {/* Body — flex-1 so it fills the panel's height */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-3">
                         <div className="flex items-start gap-2.5">
-                            <span className="h-7 w-7 rounded-full bg-[#25D366]/10 text-[#1faa52] flex items-center justify-center shrink-0">
+                            <span className="h-7 w-7 rounded-full bg-[#00E5FF]/10 text-[#00B8D4] flex items-center justify-center shrink-0">
                                 <LuMessageCircle className="w-3.5 h-3.5" />
                             </span>
-                            <div className="bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                                <p className="text-[13px] text-slate-700 leading-relaxed">
-                                    Hi there 👋 We&apos;re online. Pick a topic below or
-                                    send us a message directly on WhatsApp.
+                            <div className="bg-[#F3F6F9] border border-slate-200 rounded-md px-3 py-2">
+                                <p className="text-[13px] text-[#111827] leading-relaxed">
+                                    {apiFailed
+                                        ? 'Tap the button below to chat with us directly on WhatsApp.'
+                                        : "Hi there! 👋 Need expert help, looking for product reviews, or want to check stock? Send us a message directly on WhatsApp!"}
                                 </p>
                             </div>
                         </div>
 
-                        {quickActions.length > 0 && (
+                        {config.quickActions.length > 0 && (
                             <>
-                                <div className="text-[11px] uppercase tracking-wide text-slate-400 font-medium pt-1">
+                                <div className="text-[11px] uppercase text-[#6B7280] font-medium pt-1">
                                     Quick questions
                                 </div>
-
                                 <ul className="space-y-1.5">
-                                    {quickActions.map((a) => (
+                                    {config.quickActions.map((a) => (
                                         <li key={a.id}>
                                             <button
                                                 type="button"
                                                 onClick={() => openWhatsApp(a.message)}
-                                                className="w-full group flex items-center gap-2.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 px-3 py-2.5 text-left transition-colors"
+                                                className="w-full group flex items-center gap-2.5 rounded border border-slate-200 bg-white hover:bg-[#00E5FF]/5 hover:border-[#00B8D4] px-3 py-2.5 text-left transition-colors"
                                             >
-                                                <span className="h-7 w-7 rounded-md bg-slate-100 text-slate-600 group-hover:bg-[#25D366]/10 group-hover:text-[#1faa52] flex items-center justify-center shrink-0 transition-colors">
-                                                    <a.icon className="w-3.5 h-3.5" />
+                                                <span className="h-7 w-7 rounded bg-[#F3F6F9] text-[#111827] group-hover:bg-[#00E5FF] group-hover:text-[#0B0D10] flex items-center justify-center shrink-0 transition-colors">
+                                                    <a.iconComp className="w-3.5 h-3.5" />
                                                 </span>
-                                                <span className="flex-1 text-[13.5px] text-slate-800 font-medium">
+                                                <span className="flex-1 text-[13.5px] text-[#111827] font-medium">
                                                     {a.label}
                                                 </span>
-                                                <LuChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 shrink-0" />
+                                                <LuChevronRight className="w-3.5 h-3.5 text-[#6B7280] group-hover:text-[#00B8D4] shrink-0 transition-colors" />
                                             </button>
                                         </li>
                                     ))}
@@ -205,18 +229,17 @@ export default function WhatsAppButton({
                         )}
                     </div>
 
-                    {/* Footer */}
-                    <div className="border-t border-slate-200 p-3 bg-white shrink-0">
+                    <div className="border-t border-slate-200 p-2 bg-white shrink-0">
                         <button
                             type="button"
                             onClick={() => openWhatsApp(config.defaultMessage)}
-                            className="w-full inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1faa52] text-white font-medium px-4 py-3 rounded-sm text-[14px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/50"
+                            className="w-full inline-flex items-center justify-center gap-2 bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold px-4 py-3 rounded text-[14px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00B8D4]"
                         >
                             <FaWhatsapp className="w-4 h-4" />
                             Open WhatsApp
                         </button>
-                        <p className="text-[11px] text-slate-400 text-center mt-2">
-                            {config.displayNumber || config.phoneNumber}
+                        <p className="text-[11px] text-[#6B7280] text-center mt-1">
+                            {config.displayNumber}
                         </p>
                     </div>
                 </div>
@@ -230,16 +253,11 @@ export default function WhatsAppButton({
                     aria-label={open ? 'Close WhatsApp panel' : 'Open WhatsApp'}
                     aria-expanded={open}
                     aria-controls="wa-panel"
-                    className="group relative h-14 w-14 rounded-full bg-[#25D366] hover:bg-[#1faa52] text-white shadow-lg shadow-[#25D366]/25 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#25D366]/40"
+                    className="group relative h-14 w-14 rounded-full bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] shadow-[#00E5FF]/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#00B8D4]/40"
                 >
-                    {open ? (
-                        <LuX className="w-5 h-5" />
-                    ) : (
-                        <FaWhatsapp className="w-6 h-6" />
-                    )}
-
+                    {open ? <LuX className="w-5 h-5" /> : <FaWhatsapp className="w-6 h-6" />}
                     {!open && (
-                        <span className="absolute inset-0 rounded-full bg-[#25D366] opacity-60 animate-ping pointer-events-none" />
+                        <span className="absolute inset-0 rounded-full bg-[#00E5FF] opacity-60 animate-ping pointer-events-none" />
                     )}
                 </button>
             </div>

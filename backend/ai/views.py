@@ -1,34 +1,25 @@
 import logging
 
+from django.db.models import Count
+from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import services
-from .serializers import ChatRequestSerializer, ChatResponseSerializer
+from .models import ChatSession
+from .serializers import (
+    ChatRequestSerializer,
+    ChatResponseSerializer,
+    ChatSessionSerializer,
+    ChatSessionDetailSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ChatView(APIView):
-    """
-    POST /api/ai/chat/
-
-    Request:
-      { "message": "...", "session_id": "uuid (optional)" }
-
-    Response:
-      { "session_id", "message", "products", "chips", "requires_auth" }
-
-    Status codes:
-      200 — normal reply
-      400 — invalid request body
-      429 — provider rate limit / quota exceeded
-      503 — AI not configured (missing API key, unknown provider)
-      502 — provider unreachable or returned an error
-    """
-
     permission_classes = [AllowAny]
     throttle_scope = "ai_chat"
 
@@ -65,7 +56,7 @@ class ChatView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("AI chat failed unexpectedly: %s", exc)
             return Response(
                 {
@@ -88,3 +79,39 @@ class ChatView(APIView):
             ChatResponseSerializer(payload).data,
             status=status.HTTP_200_OK,
         )
+
+
+class ChatSessionListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = (
+            ChatSession.objects.filter(user=request.user, is_active=True)
+            .annotate(message_count=Count("messages"))
+            .order_by("-updated_at")[:50]
+        )
+        return Response(ChatSessionSerializer(qs, many=True).data)
+
+
+class ChatSessionDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(
+            ChatSession.objects.annotate(message_count=Count("messages")),
+            id=session_id,
+            user=request.user,
+        )
+        return Response(ChatSessionDetailSerializer(session).data)
+
+
+class ChatSessionArchiveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id):
+        session = get_object_or_404(
+            ChatSession, id=session_id, user=request.user,
+        )
+        session.is_active = False
+        session.save(update_fields=["is_active", "updated_at"])
+        return Response({"ok": True})

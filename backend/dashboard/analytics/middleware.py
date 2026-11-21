@@ -6,11 +6,18 @@ MOBILE_RE = re.compile(r"Android|iPhone|iPod|BlackBerry|IEMobile|Opera Mini", re
 TABLET_RE = re.compile(r"iPad|Tablet|Nexus 7|Nexus 10|KFAPWI", re.I)
 BOT_RE = re.compile(r"bot|crawler|spider|crawling|slurp|bingpreview", re.I)
 
-SKIP_PREFIXES = ("/admin", "/static", "/media", "/api", "/_next", "/favicon")
+SKIP_PREFIXES = (
+    "/admin",
+    "/dashboard",
+    "/static",
+    "/media",
+    "/api",
+    "/_next",
+    "/favicon",
+)
 
 
 class PageViewMiddleware(MiddlewareMixin):
-
     def process_request(self, request):
         try:
             path = request.path or "/"
@@ -34,8 +41,16 @@ class PageViewMiddleware(MiddlewareMixin):
                 path=path[:255],
                 device_type=device,
                 user_agent=ua[:2000],
-                user=request.user if getattr(request, "user", None) and request.user.is_authenticated else None,
-                session_key=(request.session.session_key or "")[:64] if hasattr(request, "session") else "",
+                user=(
+                    request.user
+                    if getattr(request, "user", None) and request.user.is_authenticated
+                    else None
+                ),
+                session_key=(
+                    (request.session.session_key or "")[:64]
+                    if hasattr(request, "session")
+                    else ""
+                ),
                 referrer=(request.META.get("HTTP_REFERER", "") or "")[:255],
             )
         except Exception:

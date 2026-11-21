@@ -153,11 +153,11 @@ export default function AddCategoryModal({
   return (
     <>
       <div
-        className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+        className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
         onClick={closeIfIdle}
       >
         <div
-          className="bg-white border border-slate-200 rounded-md max-w-lg w-full max-h-[90vh] flex flex-col shadow-xl"
+          className="bg-white border border-slate-200 rounded max-w-lg w-full max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
@@ -168,7 +168,7 @@ export default function AddCategoryModal({
               type="button"
               onClick={closeIfIdle}
               disabled={isSaving}
-              className="h-7 w-7 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-50"
+              className="h-7 w-7 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-50"
               aria-label="Close"
             >
               <X className="w-4 h-4" />
@@ -177,7 +177,7 @@ export default function AddCategoryModal({
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2.5 text-[12px]">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-2.5 py-2 rounded-md text-[12px] flex items-start gap-2">
+              <div className="bg-red-50 border border-red-200 text-red-700 px-2.5 py-2 rounded text-[12px] flex items-start gap-2">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -207,7 +207,7 @@ export default function AddCategoryModal({
                   onChange={(e) =>
                     setForm({ ...form, parentId: e.target.value })
                   }
-                  className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 >
                   <option value="">None (Root)</option>
                   {parentOptions.map((o) => (
@@ -236,7 +236,7 @@ export default function AddCategoryModal({
                   setForm({ ...form, description: e.target.value })
                 }
                 placeholder="Brief category summary for the storefront…"
-                className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[12px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[12px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </div>
 
@@ -245,7 +245,7 @@ export default function AddCategoryModal({
                 Category image
               </label>
               <div className="flex items-center gap-2.5">
-                <div className="w-16 h-16 rounded-md bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                <div className="w-16 h-16 rounded bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
                   {form.image ? (
                     <img
                       src={form.image}
@@ -261,7 +261,7 @@ export default function AddCategoryModal({
                     type="button"
                     onClick={() => setImagePickerOpen(true)}
                     disabled={isSaving}
-                    className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded-md text-[12px] disabled:opacity-60"
+                    className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[12px] disabled:opacity-60"
                   >
                     <Upload className="w-3 h-3" />
                     {form.image ? 'Change image' : 'Upload image'}
@@ -286,14 +286,14 @@ export default function AddCategoryModal({
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-100">
               <span className="font-medium text-slate-700 text-[12px]">Status</span>
-              <div className="inline-flex bg-slate-100 p-0.5 rounded-md">
+              <div className="inline-flex bg-slate-100 p-0.5 rounded">
                 {(['Active', 'Inactive'] as CategoryStatus[]).map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setForm({ ...form, status: s })}
                     disabled={isSaving}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition ${
+                    className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
                       form.status === s
                         ? s === 'Active'
                           ? 'bg-emerald-600 text-white'
@@ -313,7 +313,7 @@ export default function AddCategoryModal({
               type="button"
               onClick={closeIfIdle}
               disabled={isSaving}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded-md text-[12px] disabled:opacity-60"
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[12px] disabled:opacity-60"
             >
               Cancel
             </button>
@@ -321,7 +321,7 @@ export default function AddCategoryModal({
               type="button"
               onClick={handleSubmit}
               disabled={!canSave}
-              className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-md text-[12px] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[12px] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
             >
               {isSaving ? (
                 <>
@@ -406,11 +406,11 @@ function ImagePickerModal({
 
   return (
     <div
-      className="fixed inset-0 z-[110] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3"
+      className="fixed inset-0 z-[110] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2"
       onClick={onClose}
     >
       <div
-        className="bg-white border border-slate-200 rounded-md max-w-md w-full shadow-xl"
+        className="bg-white border border-slate-200 rounded max-w-md w-full shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
@@ -420,7 +420,7 @@ function ImagePickerModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-7 w-7 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500"
+            className="h-7 w-7 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -431,9 +431,9 @@ function ImagePickerModal({
           <button
             type="button"
             onClick={() => setMode('upload')}
-            className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[12px] font-medium transition ${
+            className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded text-[12px] font-medium transition ${
               mode === 'upload'
-                ? 'bg-white text-blue-950 shadow-sm border border-slate-200'
+                ? 'bg-white text-blue-950 border border-slate-200'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -443,9 +443,9 @@ function ImagePickerModal({
           <button
             type="button"
             onClick={() => setMode('url')}
-            className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-md text-[12px] font-medium transition ${
+            className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded text-[12px] font-medium transition ${
               mode === 'url'
-                ? 'bg-white text-blue-950 shadow-sm border border-slate-200'
+                ? 'bg-white text-blue-950 border border-slate-200'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -454,10 +454,10 @@ function ImagePickerModal({
           </button>
         </div>
 
-        <div className="p-3 space-y-2.5">
+        <div className="p-2 space-y-2">
           {mode === 'upload' ? (
             <label
-              className="block border-2 border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/20 rounded-md p-5 text-center cursor-pointer transition"
+              className="block border-2 border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/20 rounded p-3 text-center cursor-pointer transition"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
@@ -500,7 +500,7 @@ function ImagePickerModal({
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/image.jpg"
-                className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
               <p className="text-[11px] text-slate-400 mt-1">
                 Must start with <code>/</code>, <code>http://</code>, or{' '}
@@ -510,18 +510,18 @@ function ImagePickerModal({
           )}
 
           {localError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-2.5 py-2 rounded-md text-[12px] flex items-start gap-2">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-2.5 py-2 rounded text-[12px] flex items-start gap-2">
               <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>{localError}</span>
             </div>
           )}
 
           {selected && (
-            <div className="border border-slate-200 rounded-md p-2">
+            <div className="border border-slate-200 rounded p-2">
               <p className="text-[11px] font-medium text-slate-500 mb-1">
                 Preview
               </p>
-              <div className="aspect-square max-w-[160px] mx-auto rounded-md overflow-hidden bg-slate-50 border border-slate-200">
+              <div className="aspect-square max-w-[160px] mx-auto rounded overflow-hidden bg-slate-50 border border-slate-200">
                 <img
                   src={selected}
                   alt=""
@@ -539,7 +539,7 @@ function ImagePickerModal({
           <button
             type="button"
             onClick={onClose}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded-md text-[12px]"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1.5 rounded text-[12px]"
           >
             Cancel
           </button>
@@ -547,7 +547,7 @@ function ImagePickerModal({
             type="button"
             onClick={() => selected && onSelect(selected)}
             disabled={!selected || uploading}
-            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded-md text-[12px] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+            className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 py-1.5 rounded text-[12px] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
           >
             <Check className="w-3 h-3" />
             Use image
@@ -583,7 +583,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-blue-950 ${
+        className={`w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-blue-950 ${
           mono ? 'font-mono text-slate-600' : 'text-slate-900'
         }`}
       />

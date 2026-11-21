@@ -276,10 +276,6 @@ function DiscordIcon({ className, ...rest }: IconProps) {
     </svg>
   );
 }
-
-// ── Social brand map ───────────────────────────────────────────────
-// Only these seven platforms get a real glyph. Everything else
-// falls back to the letter tile.
 const SOCIAL_ICON_MAP: Record<string, React.ComponentType<IconProps>> = {
   whatsapp: WhatsAppIcon,
   'whats-app': WhatsAppIcon,
@@ -318,13 +314,6 @@ function resolveSocialIcon(
 
   return null;
 }
-
-// ============================================================
-// INTEGRATION FILTERS
-//
-// Twitter/X and Twilio are excluded client-side. SendGrid and
-// WhatsApp are the notification channels; no SMS gateway.
-// ============================================================
 const EXCLUDED_INTEGRATION_KEYS = new Set<string>([
   'twitter',
   'x',
@@ -349,10 +338,6 @@ function isExcludedIntegration(item: AdminIntegrationStatus): boolean {
   const name = (item.name || '').trim();
   return EXCLUDED_INTEGRATION_NAME_PATTERNS.some((re) => re.test(name));
 }
-
-// ============================================================
-// TABS
-// ============================================================
 const TABS: {
   id: SettingsTab;
   label: string;
@@ -368,10 +353,6 @@ const TABS: {
   { id: 'integrations', label: 'Integrations', saveLabel: 'Read-only', icon: Plug },
   { id: 'tax', label: 'Tax', saveLabel: 'Save tax', icon: Receipt },
 ];
-
-// ============================================================
-// MAIN PAGE COMPONENT
-// ============================================================
 export default function StoreSettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -517,10 +498,6 @@ export default function StoreSettingsPage() {
 
   const notify = (message: string, kind: ToastKind = 'success') =>
     setToast({ message, kind });
-
-  // ============================================================
-  // DATA LOADING
-  // ============================================================
 
   const hydrateGeneral = useCallback((g: Awaited<ReturnType<typeof adminApi.settings.general.get>>) => {
     setGeneral({
@@ -694,7 +671,6 @@ export default function StoreSettingsPage() {
           }),
         ),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrateGeneral]);
 
   const loadSecurityExtras = useCallback(async () => {
@@ -716,10 +692,6 @@ export default function StoreSettingsPage() {
   useEffect(() => {
     if (activeTab === 'security') void loadSecurityExtras();
   }, [activeTab, loadSecurityExtras]);
-
-  // ============================================================
-  // CHANGE HELPERS
-  // ============================================================
 
   const markDirty = () => setHasUnsavedChanges(true);
 
@@ -766,10 +738,6 @@ export default function StoreSettingsPage() {
     setTax((s) => ({ ...s, [k]: v }));
     markDirty();
   };
-
-  // ============================================================
-  // SAVE (per active tab)
-  // ============================================================
 
   const saveActiveTab = async () => {
     if (activeTab === 'integrations') return;
@@ -913,10 +881,6 @@ export default function StoreSettingsPage() {
       setRefreshingIntegrations(false);
     }
   };
-
-  // ============================================================
-  // ZONE CRUD
-  // ============================================================
 
   const openZoneModal = (z?: ZoneRow) => {
     if (z) {
@@ -1074,19 +1038,12 @@ export default function StoreSettingsPage() {
     }
   };
 
-  // ============================================================
-  // INTEGRATION GROUPING
-  // ============================================================
-
   const paymentIntegrations = integrations.filter((i) => i.category === 'Payments');
   const messagingIntegrations = integrations.filter((i) => i.category === 'Messaging');
   const socialAppIntegrations = integrations.filter((i) => i.category === 'Social app');
   const socialIntegrations = integrations.filter((i) => i.category === 'Social');
   const analyticsIntegrations = integrations.filter((i) => i.category === 'Analytics');
 
-  // ============================================================
-  // RENDER
-  // ============================================================
 
   if (loading) {
     return (
@@ -1107,7 +1064,7 @@ export default function StoreSettingsPage() {
       {/* TOAST */}
       {toast && (
         <div
-          className={`fixed bottom-3 right-3 z-[120] text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px] ${toast.kind === 'success'
+          className={`fixed bottom-2 right-2 z-[120] text-white px-3 py-2 rounded shadow flex items-center gap-2 text-[13px] ${toast.kind === 'success'
               ? 'bg-slate-900'
               : toast.kind === 'error'
                 ? 'bg-red-700'
@@ -1136,7 +1093,7 @@ export default function StoreSettingsPage() {
           </div>
           <div className="flex items-center gap-2">
             {hasUnsavedChanges && (
-              <span className="hidden sm:inline-block text-[13px] font-medium text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-sm">
+              <span className="hidden sm:inline-block text-[13px] font-medium text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded">
                 Unsaved changes
               </span>
             )}
@@ -1144,7 +1101,7 @@ export default function StoreSettingsPage() {
               <button
                 onClick={discardChanges}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-medium px-3 py-2 rounded text-[13px] transition"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Discard</span>
@@ -1153,7 +1110,7 @@ export default function StoreSettingsPage() {
             <button
               onClick={saveActiveTab}
               disabled={saving || !hasUnsavedChanges || isIntegrationsTab}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-3 py-2 rounded text-[13px] transition"
             >
               {saving ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1168,7 +1125,7 @@ export default function StoreSettingsPage() {
 
       {loadError && (
         <div className="max-w-[1700px] mx-auto px-2 pt-2">
-          <div className="bg-red-50 border border-red-200 rounded-sm p-2 flex items-start gap-2">
+          <div className="bg-red-50 border border-red-200 rounded p-2 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-medium text-red-900">Couldn&apos;t load settings</p>
@@ -1188,7 +1145,7 @@ export default function StoreSettingsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
           {/* SIDEBAR */}
           <aside className="lg:col-span-3">
-            <nav className="bg-white border border-slate-200 rounded-sm p-1.5 space-y-0.5 lg:sticky lg:top-20">
+            <nav className="bg-white border border-slate-200 rounded p-1.5 space-y-0.5 lg:sticky lg:top-20">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -1196,7 +1153,7 @@ export default function StoreSettingsPage() {
                   <button
                     key={tab.id}
                     onClick={() => handleTabClick(tab.id)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-sm text-[13px] font-medium transition ${
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded text-[13px] font-medium transition ${
                       isActive ? 'bg-blue-950 text-white' : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
@@ -1209,8 +1166,7 @@ export default function StoreSettingsPage() {
           </aside>
 
           {/* CONTENT */}
-          <div className="lg:col-span-9 space-y-2">
-            {/* ══════════════ GENERAL ══════════════ */}
+          <div className="lg:col-span-9 space-y-2"> 
             {activeTab === 'general' && (
               <Card
                 title="General information"
@@ -1307,9 +1263,7 @@ export default function StoreSettingsPage() {
                   </div>
                 </SubSection>
               </Card>
-            )}
-
-            {/* ══════════════ STORE ══════════════ */}
+            )} 
             {activeTab === 'store' && (
               <>
                 <Card title="Store status" subtitle="Control public visibility and availability">
@@ -1320,7 +1274,7 @@ export default function StoreSettingsPage() {
                           key={st}
                           onClick={() => changeStore('status', st)}
                           disabled={saving}
-                          className={`p-2 rounded-sm border text-left capitalize transition disabled:opacity-60 ${
+                          className={`p-2 rounded border text-left capitalize transition disabled:opacity-60 ${
                             store.status === st
                               ? 'border-blue-950 bg-blue-50/40 text-blue-950'
                               : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -1443,23 +1397,14 @@ export default function StoreSettingsPage() {
                   />
                 </Card>
               </>
-            )}
-
-            {/* ══════════════ PAYMENTS ══════════════ */}
+            )} 
             {activeTab === 'payments' && (
               <>
                 <Card
                   title="Payment gateway"
                   subtitle="M-Pesa Daraja is the only checkout method on this store"
                 >
-                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
-                    <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
-                    <p className="text-blue-800 text-[13px]">
-                      Daraja credentials (Consumer Key, Consumer Secret, Paybill / Till, Passkey,
-                      and Callback URL) are managed by your platform administrator. Contact support
-                      to rotate or update them.
-                    </p>
-                  </div>
+                 
 
                   <ToggleRow
                     label="M-Pesa (Safaricom Daraja)"
@@ -1470,19 +1415,19 @@ export default function StoreSettingsPage() {
                   />
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[13px]">
-                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
+                    <div className="bg-slate-50 border border-slate-200 rounded p-2">
                       <p className="font-medium text-slate-700">Environment</p>
                       <p className="text-slate-500 mt-0.5 capitalize">
                         {mpesaStatus?.environment ?? '—'}
                       </p>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
+                    <div className="bg-slate-50 border border-slate-200 rounded p-2">
                       <p className="font-medium text-slate-700">Shortcode</p>
                       <p className="text-slate-500 mt-0.5 font-mono">
                         {mpesaStatus?.shortcode || '—'}
                       </p>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
+                    <div className="bg-slate-50 border border-slate-200 rounded p-2">
                       <p className="font-medium text-slate-700">Last rotated</p>
                       <p className="text-slate-500 mt-0.5">
                         {mpesaStatus?.last_rotated_at
@@ -1494,10 +1439,10 @@ export default function StoreSettingsPage() {
                 </Card>
 
                 <Card title="Checkout method order" subtitle="Payment options shown at checkout">
-                  <ul className="border border-slate-200 rounded-sm divide-y divide-slate-100">
+                  <ul className="border border-slate-200 rounded divide-y divide-slate-100">
                     <li className="p-2 flex items-center justify-between gap-2 text-[13px]">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-6 h-6 rounded-sm bg-slate-100 text-slate-600 flex items-center justify-center font-mono text-[13px] shrink-0">
+                        <span className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center font-mono text-[13px] shrink-0">
                           1
                         </span>
                         <span className="font-medium text-slate-900 truncate inline-flex items-center gap-2">
@@ -1560,8 +1505,7 @@ export default function StoreSettingsPage() {
                 </Card>
               </>
             )}
-
-            {/* ══════════════ SHIPPING ══════════════ */}
+ 
             {activeTab === 'shipping' && (
               <>
                 <Card title="Shipping basics" subtitle="Enable delivery and set global defaults">
@@ -1619,14 +1563,14 @@ export default function StoreSettingsPage() {
                     <button
                       onClick={() => openZoneModal()}
                       disabled={saving}
-                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-2.5 py-2 rounded-sm text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-2.5 py-2 rounded text-[13px]"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Add zone
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-200 rounded-sm">
+                  <div className="overflow-x-auto border border-slate-200 rounded">
                     <table className="w-full text-left border-collapse text-[13px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
@@ -1664,7 +1608,7 @@ export default function StoreSettingsPage() {
                               <button
                                 onClick={() => void toggleZone(z.id)}
                                 disabled={z.id === null || saving}
-                                className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border disabled:opacity-60 ${
+                                className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border disabled:opacity-60 ${
                                   z.enabled
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                     : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -1679,7 +1623,7 @@ export default function StoreSettingsPage() {
                                   onClick={() => openZoneModal(z)}
                                   disabled={saving}
                                   title="Edit"
-                                  className="p-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 disabled:opacity-60"
+                                  className="p-2 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 disabled:opacity-60"
                                 >
                                   <Save className="w-3.5 h-3.5" />
                                 </button>
@@ -1687,7 +1631,7 @@ export default function StoreSettingsPage() {
                                   onClick={() => setPendingZoneDelete(z)}
                                   disabled={z.id === null || saving}
                                   title="Remove"
-                                  className="p-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-60"
+                                  className="p-2 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-60"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1700,9 +1644,7 @@ export default function StoreSettingsPage() {
                   </div>
                 </Card>
               </>
-            )}
-
-            {/* ══════════════ NOTIFICATIONS ══════════════ */}
+            )} 
             {activeTab === 'notifications' && (
               <>
                 <Card
@@ -1724,7 +1666,7 @@ export default function StoreSettingsPage() {
                     disabled={saving}
                   />
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2">
+                  <div className="bg-blue-50 border border-blue-200 rounded p-2 flex items-start gap-2">
                     <Mail className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <p className="text-blue-800 text-[13px]">
                       This store sends notifications by email (SendGrid) and WhatsApp only.
@@ -1782,7 +1724,7 @@ export default function StoreSettingsPage() {
                     type="email"
                     disabled={saving}
                   />
-                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-2 flex items-start gap-2 mt-1">
+                  <div className="bg-blue-50 border border-blue-200 rounded p-2 flex items-start gap-2 mt-1">
                     <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <p className="text-blue-800 text-[13px]">
                       SendGrid API key, WhatsApp Phone Number ID, WABA ID, and permanent access
@@ -1792,7 +1734,7 @@ export default function StoreSettingsPage() {
                   </div>
                   {whatsappStatus?.template_map &&
                     Object.keys(whatsappStatus.template_map).length > 0 && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-sm p-1 mt-1">
+                      <div className="bg-slate-50 border border-slate-200 rounded p-1 mt-1">
                         <p className="text-[12px] font-medium text-slate-700 mb-1">
                           Approved templates
                         </p>
@@ -1811,9 +1753,7 @@ export default function StoreSettingsPage() {
                     )}
                 </Card>
               </>
-            )}
-
-            {/* ══════════════ SECURITY ══════════════ */}
+            )} 
             {activeTab === 'security' && (
               <>
                 <Card title="Password" subtitle="Change your admin account password">
@@ -1847,7 +1787,7 @@ export default function StoreSettingsPage() {
                         newPassword !== confirmPassword ||
                         changingPassword
                       }
-                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-3 py-2 rounded text-[13px]"
                     >
                       {changingPassword ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1872,7 +1812,7 @@ export default function StoreSettingsPage() {
                   />
                   {security.require_2fa && (
                     <>
-                      <div className="p-2 rounded-sm border border-blue-950 bg-blue-50/40 text-blue-950 text-[13px]">
+                      <div className="p-2 rounded border border-blue-950 bg-blue-50/40 text-blue-950 text-[13px]">
                         <span className="text-[13px] font-medium inline-flex items-center gap-1.5">
                           <Smartphone className="w-3.5 h-3.5" />
                           Authenticator app (TOTP)
@@ -1911,7 +1851,7 @@ export default function StoreSettingsPage() {
                         No active sessions found.
                       </p>
                     ) : (
-                      <ul className="divide-y divide-slate-100 border border-slate-200 rounded-sm">
+                      <ul className="divide-y divide-slate-100 border border-slate-200 rounded">
                         {sessions.map((s) => (
                           <li
                             key={s.id}
@@ -1929,13 +1869,13 @@ export default function StoreSettingsPage() {
                               </div>
                             </div>
                             {s.current ? (
-                              <span className="inline-block px-2 py-0.5 rounded-sm text-[13px] bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
+                              <span className="inline-block px-2 py-0.5 rounded text-[13px] bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
                                 This device
                               </span>
                             ) : (
                               <button
                                 onClick={() => void revokeSession(s.id)}
-                                className="inline-flex items-center gap-1.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-medium px-2.5 py-1.5 rounded-sm text-[13px] shrink-0"
+                                className="inline-flex items-center gap-1.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-medium px-2.5 py-1.5 rounded text-[13px] shrink-0"
                               >
                                 <UserX className="w-3.5 h-3.5" />
                                 Revoke
@@ -1957,7 +1897,7 @@ export default function StoreSettingsPage() {
                       No login events recorded yet.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-slate-100 border border-slate-200 rounded-sm">
+                    <ul className="divide-y divide-slate-100 border border-slate-200 rounded">
                       {loginHistory.map((l) => (
                         <li
                           key={l.id}
@@ -1984,12 +1924,10 @@ export default function StoreSettingsPage() {
                   )}
                 </Card>
               </>
-            )}
-
-            {/* ══════════════ INTEGRATIONS ══════════════ */}
+            )} 
             {activeTab === 'integrations' && (
               <>
-                <div className="bg-blue-50 border border-blue-200 rounded-sm p-1 flex items-start justify-between gap-2">
+                <div className="bg-blue-50 border border-blue-200 rounded p-1 flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2 flex-1 min-w-0">
                     <Info className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <div className="text-[13px] flex-1 min-w-0">
@@ -2003,7 +1941,7 @@ export default function StoreSettingsPage() {
                   <button
                     onClick={() => void refreshIntegrations()}
                     disabled={refreshingIntegrations}
-                    className="inline-flex items-center gap-1.5 bg-white border border-blue-200 text-blue-950 hover:bg-blue-100 disabled:opacity-60 font-medium px-2.5 py-1.5 rounded-sm text-[13px] shrink-0"
+                    className="inline-flex items-center gap-1.5 bg-white border border-blue-200 text-blue-950 hover:bg-blue-100 disabled:opacity-60 font-medium px-2.5 py-1.5 rounded text-[13px] shrink-0"
                   >
                     {refreshingIntegrations ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -2032,7 +1970,7 @@ export default function StoreSettingsPage() {
                   title="Social app (TikTok only)"
                   subtitle="Your dedicated TikTok social shop — bio link, pixel, and LIVE selling"
                 >
-                  <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 flex items-start gap-2 mb-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded p-2 flex items-start gap-2 mb-2">
                     <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                     <div className="text-[13px] text-amber-900 space-y-0.5">
                       <p className="font-medium">TikTok Shop is not available in Kenya.</p>
@@ -2057,9 +1995,7 @@ export default function StoreSettingsPage() {
                   <IntegrationGrid items={analyticsIntegrations} />
                 </Card>
               </>
-            )}
-
-            {/* ══════════════ TAX ══════════════ */}
+            )} 
             {activeTab === 'tax' && (
               <Card title="Tax preferences" subtitle="VAT calculation and statutory invoicing">
                 <SubSection title="VAT">
@@ -2105,7 +2041,7 @@ export default function StoreSettingsPage() {
                     onChange={(v) => changeTax('etims_enabled', v)}
                     disabled={saving}
                   />
-                  <div className="bg-blue-50 border border-blue-200 rounded-sm p-1 flex items-start gap-1">
+                  <div className="bg-blue-50 border border-blue-200 rounded p-1 flex items-start gap-1">
                     <Lock className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                     <p className="text-blue-800 text-[13px]">
                       KRA PIN, control unit ID, and eTIMS API credentials are managed by your
@@ -2128,7 +2064,7 @@ export default function StoreSettingsPage() {
           }}
         >
           <div className="text-center space-y-2">
-            <div className="w-10 h-10 rounded-sm bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <div className="w-10 h-10 rounded bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
@@ -2143,13 +2079,13 @@ export default function StoreSettingsPage() {
                   setShowUnsavedPrompt(false);
                   setPendingTab(null);
                 }}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px]"
               >
                 Keep editing
               </button>
               <button
                 onClick={confirmTabSwitch}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded-sm text-[13px]"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded text-[13px]"
               >
                 Discard &amp; switch
               </button>
@@ -2168,7 +2104,7 @@ export default function StoreSettingsPage() {
               </h3>
               <button
                 onClick={() => setIsZoneModalOpen(false)}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+                className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2210,14 +2146,14 @@ export default function StoreSettingsPage() {
             <div className="flex justify-end gap-2 pt-1">
               <button
                 onClick={() => setIsZoneModalOpen(false)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
               >
                 Cancel
               </button>
               <button
                 onClick={saveZone}
                 disabled={saving || !zoneDraft.name.trim()}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px]"
               >
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Save zone
@@ -2231,7 +2167,7 @@ export default function StoreSettingsPage() {
       {pendingZoneDelete && (
         <Modal onClose={() => setPendingZoneDelete(null)}>
           <div className="text-center space-y-2">
-            <div className="w-10 h-10 rounded-sm bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+            <div className="w-10 h-10 rounded bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
@@ -2246,13 +2182,13 @@ export default function StoreSettingsPage() {
             <div className="flex justify-center gap-2 pt-1">
               <button
                 onClick={() => setPendingZoneDelete(null)}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px]"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDeleteZone}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded-sm text-[13px]"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded text-[13px]"
               >
                 Remove zone
               </button>
@@ -2262,11 +2198,7 @@ export default function StoreSettingsPage() {
       )}
     </div>
   );
-}
-
-// ============================================================
-// HELPER COMPONENTS
-// ============================================================
+} 
 function Card({
   title,
   subtitle,
@@ -2277,7 +2209,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+    <section className="bg-white border border-slate-200 rounded p-3 space-y-2">
       <header>
         <p className="text-[15px] font-semibold text-slate-900">{title}</p>
         {subtitle && <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>}
@@ -2309,7 +2241,7 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-2 shadow-xl text-[13px]"
+        className="bg-white border border-slate-200 rounded max-w-md w-full p-2 shadow-xl text-[13px]"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -2339,7 +2271,7 @@ function Field({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 disabled:cursor-not-allowed"
       />
     </label>
   );
@@ -2366,7 +2298,7 @@ function PasswordField({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 disabled:cursor-not-allowed"
       />
       {hint && <span className="block text-[13px] text-slate-400 mt-1">{hint}</span>}
     </label>
@@ -2393,7 +2325,7 @@ function SelectField({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {options.map((o) => (
           <option key={o.v} value={o.v}>
@@ -2420,7 +2352,7 @@ function ToggleRow({
 }) {
   return (
     <label
-      className={`flex items-center justify-between gap-3 border rounded-sm p-2 bg-slate-50 border-slate-200 ${
+      className={`flex items-center justify-between gap-2 border rounded p-2 bg-slate-50 border-slate-200 ${
         disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
       }`}
     >
@@ -2453,12 +2385,10 @@ function IntegrationGrid({
   }
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-      {items.map((item) => {
-        // Only social media platforms get a real glyph. Everything
-        // else (payments, email, analytics, infra) shows a letter.
+      {items.map((item) => { 
         const SocialIcon = resolveSocialIcon(item);
         return (
-          <div key={item.key} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+          <div key={item.key} className="bg-white border border-slate-200 rounded p-2 space-y-2">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
@@ -2486,7 +2416,7 @@ function IntegrationGrid({
                 </div>
               </div>
               <span
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[13px] font-medium border shrink-0 ${
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[13px] font-medium border shrink-0 ${
                   item.connected
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                     : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -2496,9 +2426,9 @@ function IntegrationGrid({
                 {item.connected ? 'Connected' : 'Not connected'}
               </span>
             </div>
-            <p className="text-[13px] text-slate-500 leading-relaxed">{item.description}</p>
+            <p className="text-[13px] text-slate-500">{item.description}</p>
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[13px] font-mono text-slate-400 uppercase tracking-wide">
+              <span className="text-[13px] font-mono text-slate-400 uppercase">
                 {item.category}
               </span>
               <span className="text-[13px] text-slate-400">Managed by admin</span>

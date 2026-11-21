@@ -350,6 +350,7 @@ class CustomerSerializer(serializers.ModelSerializer):
 class DirectOrderItemSerializer(serializers.ModelSerializer):
     productId = serializers.CharField(source="product_id", read_only=True)
     productName = serializers.CharField(source="name", read_only=True)
+    sku = serializers.SerializerMethodField()
     qty = serializers.IntegerField(source="quantity", read_only=True)
     price = serializers.DecimalField(
         source="unit_price", max_digits=12, decimal_places=2, read_only=True,
@@ -363,6 +364,12 @@ class DirectOrderItemSerializer(serializers.ModelSerializer):
             "productId", "productName", "sku",
             "qty", "price", "subtotal", "image",
         )
+
+    def get_sku(self, obj):
+        product = getattr(obj, "product", None)
+        if product is not None:
+            return getattr(product, "sku", "") or ""
+        return ""
 
     def get_subtotal(self, obj):
         try:

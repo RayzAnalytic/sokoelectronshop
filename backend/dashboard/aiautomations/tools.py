@@ -73,6 +73,10 @@ def _transaction_model():
     return _find_model(
         "checkout.Transaction",
         "payments.Transaction",
+        "transactions.Transaction",
+        "dashboard.transactions.Transaction",
+        "settings.MpesaTransaction",
+        "dashboard.settings.MpesaTransaction",
         "checkout.MpesaCallbackLog",
     )
 
@@ -110,7 +114,7 @@ def _customer_queryset():
     if "role" in names:
         try:
             qs = qs.filter(role__iexact="CUSTOMER")
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     return qs
 
@@ -230,7 +234,7 @@ def _masking_enabled() -> bool:
     try:
         from .models import AISettings
         return AISettings.get_solo().masking
-    except Exception:  # noqa: BLE001
+    except Exception:
         return True
 
 
@@ -274,7 +278,7 @@ def _audit(tool: str, args: dict | None, result: dict, user=None) -> None:
             result_size=len(result.get("items") or []),
             is_verified=True,
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 
@@ -283,12 +287,12 @@ def tool_diagnose_models() -> dict:
     model = "unknown"
     base_url = "unknown"
     try:
-        from . import services  # noqa: F401
+        from . import services
         cfg = services._provider_config(services._active_provider())
         provider = cfg.get("provider", "unknown")
         model = cfg.get("model", "unknown")
         base_url = cfg.get("base_url", "unknown")
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     rows: list[dict[str, Any]] = [
@@ -451,7 +455,11 @@ def tool_unpaid_orders(hours: int = 24, limit: int = 20) -> dict:
     if "created_at" in names:
         qs = qs.filter(created_at__lte=cutoff)
     if "payment_status" in names:
-        qs = qs.filter(payment_status__in=["unpaid", "pending", "failed"])
+        qs = qs.filter(
+            Q(payment_status__iexact="unpaid")
+            | Q(payment_status__iexact="pending")
+            | Q(payment_status__iexact="failed")
+        )
     elif "is_paid" in names:
         qs = qs.filter(is_paid=False)
 
@@ -576,7 +584,7 @@ def tool_order_detail(order_id: str) -> dict:
         order = Order.objects.get(pk=order_id)
     except Order.DoesNotExist:
         return _empty(f"Order {order_id} not found.")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return _empty(f"Could not load order: {exc}")
 
     names = _fields(Order)
@@ -849,7 +857,7 @@ def tool_brands_summary() -> dict:
         if Product is not None and "brand" in _fields(Product):
             try:
                 count = Product.objects.filter(brand=b).count()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 count = 0
         rows.append({"id": str(b.pk), "name": getattr(b, "name", str(b)), "products": count})
     rows.sort(key=lambda x: x["products"], reverse=True)
@@ -1018,7 +1026,7 @@ def tool_failed_payments(hours: int = 24) -> dict:
     names = _fields(Payment)
     qs = Payment.objects.all()
     if "status" in names:
-        qs = qs.filter(status__in=["failed", "declined", "timeout"])
+        qs = qs.filter(status__iexact="failed")
     if "created_at" in names:
         qs = qs.filter(created_at__gte=timezone.now() - timedelta(hours=hours))
 
@@ -1052,7 +1060,7 @@ def tool_payment_failure_rate(days: int = 7) -> dict:
     cutoff = timezone.now() - timedelta(days=days)
     qs = Payment.objects.filter(created_at__gte=cutoff) if "created_at" in names else Payment.objects.all()
     total = qs.count()
-    failed = qs.filter(status__in=["failed", "declined", "timeout"]).count()
+    failed = qs.filter(status__iexact="failed").count()
     rate = round((failed / total * 100), 2) if total else 0.0
     return {
         "items": [{"total": total, "failed": failed, "rate": rate}],
@@ -1076,7 +1084,11 @@ def tool_pending_returns(limit: int = 20) -> dict:
     names = _fields(Return)
     qs = Return.objects.all()
     if "status" in names:
-        qs = qs.filter(status__in=["pending", "requested", "awaiting"])
+        qs = qs.filter(
+            Q(status__iexact="pending")
+            | Q(status__iexact="requested")
+            | Q(status__iexact="awaiting")
+        )
     items = [
         {
             "id": str(r.pk),
@@ -1138,7 +1150,7 @@ def tool_supplier_breakdown(limit: int = 15) -> dict:
         if Product is not None and "supplier" in _fields(Product):
             try:
                 count = Product.objects.filter(supplier=s).count()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 count = 0
         rows.append({"id": str(s.pk), "name": getattr(s, "name", str(s)), "products": count})
 
@@ -1610,7 +1622,11 @@ def tool_attention_summary() -> dict:
         names = _fields(Order)
         unpaid = 0
         if "payment_status" in names:
-            unpaid = Order.objects.filter(payment_status__in=["unpaid", "pending", "failed"]).count()
+            unpaid = Order.objects.filter(
+                Q(payment_status__iexact="unpaid")
+                | Q(payment_status__iexact="pending")
+                | Q(payment_status__iexact="failed")
+            ).count()
         elif "is_paid" in names:
             unpaid = Order.objects.filter(is_paid=False).count()
         if unpaid:
@@ -1624,7 +1640,7 @@ def tool_attention_summary() -> dict:
             if field in names:
                 try:
                     failed = Payment.objects.filter(**{f"{field}__iexact": "failed"}).count()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
                 break
         if failed:
@@ -1654,7 +1670,11 @@ def tool_attention_summary() -> dict:
 
     Return = _return_model()
     if Return is not None and "status" in _fields(Return):
-        pending_returns = Return.objects.filter(status__in=["pending", "requested", "awaiting"]).count()
+        pending_returns = Return.objects.filter(
+            Q(status__iexact="pending")
+            | Q(status__iexact="requested")
+            | Q(status__iexact="awaiting")
+        ).count()
         if pending_returns:
             results.append({"item": "Pending returns", "count": pending_returns, "href": "/admin/returnsrefunds"})
 
@@ -1905,6 +1925,933 @@ def tool_preview_create_discount(code: str, percent: float, days: int = 7) -> di
     }
 
 
+def tool_search_products(query: str = "", limit: int = 20) -> dict:
+    Product = _product_model()
+    if Product is None:
+        return _empty("Product model not discoverable.")
+    names = _fields(Product)
+    qs = Product.objects.all()
+    if query and "name" in names:
+        qs = qs.filter(name__icontains=query)
+    price_field = _first_field(Product, ("price", "unit_price"))
+    stock_field = _first_field(Product, ("stock", "stock_quantity", "quantity"))
+    items = []
+    for p in qs[:limit]:
+        items.append({
+            "id": str(p.pk),
+            "name": getattr(p, "name", str(p.pk)),
+            "price": _safe_float(getattr(p, price_field, 0)) if price_field else 0.0,
+            "stock": _safe_int(getattr(p, stock_field, 0)) if stock_field else 0,
+        })
+    return {
+        "items": items,
+        "table": {
+            "headers": ["Product", "Price", "Stock"],
+            "rows": [[i["name"], f"KES {i['price']:,.0f}", str(i["stock"])] for i in items],
+        },
+        "link": {"label": "Open Products", "href": "/admin/products"},
+        "summary": f"{len(items)} products matched '{query or '*'}'.",
+    }
+
+
+def tool_category_performance(days: int = 30) -> dict:
+    OrderItem = _order_item_model()
+    Product = _product_model()
+    Category = _category_model()
+    if OrderItem is None or Product is None:
+        return _empty("OrderItem or Product not discoverable.")
+    item_names = _fields(OrderItem)
+    prod_names = _fields(Product)
+    qty_field = _first_field(OrderItem, ("quantity", "qty", "count"))
+    price_field = _first_field(OrderItem, ("unit_price", "price", "total"))
+    product_ref = _first_field(OrderItem, ("product_id", "product", "sku"))
+    cat_field = _first_field(Product, ("category", "category_id"))
+    if not qty_field or not price_field or not product_ref or not cat_field:
+        return _empty(
+            f"Cannot join order items to categories. "
+            f"OrderItem has: {', '.join(sorted(item_names))}. "
+            f"Product has: {', '.join(sorted(prod_names))}"
+        )
+
+    items_agg = (
+        OrderItem.objects
+        .values(product_ref)
+        .annotate(
+            _units=Sum(qty_field),
+            _revenue=Sum(F(qty_field) * F(price_field)),
+        )
+    )
+    product_ids = [r[product_ref] for r in items_agg if r[product_ref] not in (None, "")]
+    if not product_ids:
+        return _empty("No order items to aggregate.")
+
+    cat_by_product: dict[str, str] = {}
+    cat_name_map: dict = {}
+    product_lookup_field = _first_field(Product, ("product_id", "sku", "code", "id"))
+    for p in Product.objects.filter(**{f"{product_lookup_field}__in": product_ids}):
+        key = str(getattr(p, product_lookup_field, p.pk))
+        cat_id = getattr(p, cat_field, None)
+        cat_key = getattr(cat_id, "pk", cat_id) if cat_id is not None else None
+        cat_by_product[key] = cat_key
+
+    if Category is not None:
+        cat_name_map = {c.pk: getattr(c, "name", str(c.pk)) for c in Category.objects.all()[:500]}
+
+    agg: dict[str, dict[str, float]] = {}
+    for r in items_agg:
+        pid = str(r[product_ref])
+        cat_id = cat_by_product.get(pid)
+        label = cat_name_map.get(cat_id, "Uncategorised") if cat_id else "Uncategorised"
+        entry = agg.setdefault(label, {"units": 0.0, "revenue": 0.0})
+        entry["units"] += _safe_int(r["_units"])
+        entry["revenue"] += _safe_float(r["_revenue"])
+
+    rows = sorted(
+        (
+            {"category": k, "units": int(v["units"]), "revenue": round(v["revenue"], 2)}
+            for k, v in agg.items()
+        ),
+        key=lambda r: r["revenue"],
+        reverse=True,
+    )[:15]
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows,
+            "xKey": "category",
+            "series": [{"key": "revenue", "label": "Revenue", "color": "#8b5cf6"}],
+        },
+        "link": {"label": "Open Categories", "href": "/admin/categories"},
+        "summary": (
+            f"Revenue across {len(rows)} categories from order items."
+            if rows else "No categorised order-item revenue found yet."
+        ),
+    }
+
+
+def tool_brand_performance(days: int = 30) -> dict:
+    OrderItem = _order_item_model()
+    if OrderItem is None:
+        return _empty("OrderItem model not discoverable.")
+    names = _fields(OrderItem)
+    brand_field = _first_field(OrderItem, ("brand", "brand_id", "brand_name"))
+    qty_field = _first_field(OrderItem, ("quantity", "qty", "count"))
+    price_field = _first_field(OrderItem, ("unit_price", "price", "total"))
+    if not brand_field or not qty_field or not price_field:
+        return _empty(
+            f"{OrderItem.__name__} missing brand/quantity/price. "
+            f"Available: {', '.join(sorted(names))}"
+        )
+
+    field_obj = OrderItem._meta.get_field(brand_field)
+    is_fk = field_obj.is_relation
+
+    qs = OrderItem.objects.filter(**{f"{brand_field}__isnull": False})
+    agg = qs.values(brand_field).annotate(
+        _units=Sum(qty_field),
+        _revenue=Sum(F(qty_field) * F(price_field)),
+    )
+
+    name_map: dict = {}
+    if is_fk:
+        brand_ids = [r[brand_field] for r in agg if r[brand_field] is not None]
+        Brand = _brand_model()
+        if Brand is not None and brand_ids:
+            name_map = {
+                b.pk: getattr(b, "name", str(b.pk))
+                for b in Brand.objects.filter(pk__in=brand_ids)
+            }
+
+    rows = []
+    for r in agg:
+        bid = r[brand_field]
+        if is_fk:
+            label = name_map.get(bid, str(bid))
+        else:
+            label = str(bid) if bid else "Unknown"
+        rows.append({
+            "brand": label,
+            "units": _safe_int(r["_units"]),
+            "revenue": round(_safe_float(r["_revenue"]), 2),
+        })
+    rows.sort(key=lambda r: r["revenue"], reverse=True)
+    rows = rows[:15]
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows,
+            "xKey": "brand",
+            "series": [{"key": "revenue", "label": "Revenue", "color": "#0891b2"}],
+        },
+        "link": {"label": "Open Brands", "href": "/admin/brands"},
+        "summary": (
+            f"Top {len(rows)} brands by revenue across all order items."
+            if rows else "No brand-linked order items yet."
+        ),
+    }
+
+
+def tool_forecast_stockout(days: int = 14, limit: int = 15) -> dict:
+    Product = _product_model()
+    OrderItem = _order_item_model()
+    if Product is None:
+        return _empty("Product model not discoverable.")
+    stock_field = _first_field(Product, ("stock", "stock_quantity", "quantity"))
+    if not stock_field:
+        return _empty("Product has no stock field.")
+
+    sales: dict[str, int] = {}
+    if OrderItem is not None:
+        names = _fields(OrderItem)
+        prod_field = _first_field(OrderItem, ("product_id", "product", "sku"))
+        qty_field = _first_field(OrderItem, ("quantity", "qty", "count"))
+        if prod_field and qty_field:
+            for it in OrderItem.objects.all():
+                pid = str(getattr(it, prod_field, "") or "")
+                if pid:
+                    sales[pid] = sales.get(pid, 0) + _safe_int(getattr(it, qty_field, 0))
+
+    product_id_field = _first_field(Product, ("product_id", "sku", "code"))
+    rows = []
+    for p in Product.objects.all()[:2000]:
+        qty = _safe_int(getattr(p, stock_field, 0))
+        sold = sales.get(str(p.pk), 0)
+        if sold == 0 and product_id_field:
+            sold = sales.get(str(getattr(p, product_id_field, "")), 0)
+        daily = sold / 30 if sold else 0
+        runway = round(qty / daily, 1) if daily else None
+        if runway is not None and runway <= days:
+            rows.append({
+                "id": str(p.pk),
+                "name": getattr(p, "name", str(p.pk)),
+                "stock": qty,
+                "daily_rate": round(daily, 2),
+                "days_until_stockout": runway,
+            })
+    rows.sort(key=lambda r: r["days_until_stockout"])
+    rows = rows[:limit]
+    return {
+        "items": rows,
+        "table": {
+            "headers": ["Product", "Stock", "Daily rate", "Days left"],
+            "rows": [[r["name"], str(r["stock"]), f"{r['daily_rate']}", f"{r['days_until_stockout']}"] for r in rows],
+        },
+        "link": {"label": "Open Inventory", "href": "/admin/inventory"},
+        "summary": (
+            f"{len(rows)} products will stock out within {days} days at current rate."
+            if rows else f"No products are on pace to stock out within {days} days."
+        ),
+    }
+
+
+def tool_supplier_lead_times(limit: int = 15) -> dict:
+    Supplier = _supplier_model()
+    if Supplier is None:
+        return _empty("Supplier model not discoverable.")
+    names = _fields(Supplier)
+
+    lead_field = _first_field(Supplier, (
+        "lead_time_days", "lead_time", "avg_lead_time", "lead_days",
+        "delivery_days", "avg_delivery_days", "delivery_time_days",
+    ))
+    if lead_field:
+        is_hours = lead_field.endswith("_hours")
+        qs = Supplier.objects.all().order_by(f"-{lead_field}")[:limit]
+        rows = []
+        for s in qs:
+            raw = _safe_float(getattr(s, lead_field, 0))
+            days = round(raw / 24, 1) if is_hours else round(raw, 1)
+            rows.append({
+                "id": str(s.pk),
+                "name": getattr(s, "name", str(s.pk)),
+                "lead_time_days": days,
+            })
+        return {
+            "items": rows,
+            "chart": {
+                "type": "bar",
+                "data": rows,
+                "xKey": "name",
+                "series": [{"key": "lead_time_days", "label": "Lead time (days)", "color": "#0891b2"}],
+            },
+            "link": {"label": "Open Suppliers", "href": "/admin/suppliers"},
+            "summary": f"{len(rows)} suppliers ranked by lead time.",
+        }
+
+    try:
+        Purchase = Supplier._meta.get_field("purchases").related_model
+    except Exception:
+        Purchase = None
+    if Purchase is None:
+        return _empty(
+            f"{Supplier.__name__} has no lead_time field and no purchases relation. "
+            f"Available: {', '.join(sorted(names))}"
+        )
+
+    p_names = _fields(Purchase)
+    ordered_field = _first_field(Purchase, (
+        "ordered_at", "ordered_date", "created_at", "purchase_date",
+        "date_ordered", "order_date",
+    ))
+    received_field = _first_field(Purchase, (
+        "received_at", "received_date", "delivered_at", "delivery_date",
+        "completed_at", "completion_date", "date_received", "received_on",
+        "arrived_at", "fulfilled_at",
+    ))
+    supplier_fk = _first_field(Purchase, ("supplier", "supplier_id"))
+
+    if ordered_field and received_field and supplier_fk:
+        from django.db.models import DurationField, ExpressionWrapper
+        agg = (
+            Purchase.objects
+            .filter(**{f"{received_field}__isnull": False})
+            .exclude(**{f"{ordered_field}__isnull": True})
+            .values(supplier_fk)
+            .annotate(_avg=Avg(ExpressionWrapper(
+                F(received_field) - F(ordered_field),
+                output_field=DurationField(),
+            )))
+        )
+        suppliers_by_id = {
+            s.pk: getattr(s, "name", getattr(s, "company", str(s.pk)))
+            for s in Supplier.objects.all()[:500]
+        }
+        rows = []
+        for r in agg:
+            sid = r[supplier_fk]
+            dur = r["_avg"]
+            days = round(dur.total_seconds() / 86400, 1) if dur else 0.0
+            rows.append({
+                "id": str(sid),
+                "name": suppliers_by_id.get(sid, str(sid)),
+                "lead_time_days": days,
+            })
+        rows.sort(key=lambda r: r["lead_time_days"], reverse=True)
+        rows = rows[:limit]
+        return {
+            "items": rows,
+            "chart": {
+                "type": "bar",
+                "data": rows,
+                "xKey": "name",
+                "series": [{"key": "lead_time_days", "label": "Lead time (days)", "color": "#0891b2"}],
+            },
+            "link": {"label": "Open Suppliers", "href": "/admin/suppliers"},
+            "summary": f"{len(rows)} suppliers ranked by average purchase lead time.",
+        }
+
+    if supplier_fk:
+        counts = (
+            Purchase.objects
+            .filter(**{f"{supplier_fk}__isnull": False})
+            .values(supplier_fk)
+            .annotate(_c=Count("pk"))
+        )
+        suppliers_by_id = {
+            s.pk: getattr(s, "name", getattr(s, "company", str(s.pk)))
+            for s in Supplier.objects.all()[:500]
+        }
+        rows = []
+        for r in counts:
+            sid = r[supplier_fk]
+            rows.append({
+                "id": str(sid),
+                "name": suppliers_by_id.get(sid, str(sid)),
+                "purchase_count": _safe_int(r["_c"]),
+            })
+        rows.sort(key=lambda r: r["purchase_count"], reverse=True)
+        rows = rows[:limit]
+        return {
+            "items": rows,
+            "chart": {
+                "type": "bar",
+                "data": [{"name": r["name"][:20], "purchase_count": r["purchase_count"]} for r in rows],
+                "xKey": "name",
+                "series": [{"key": "purchase_count", "label": "Purchases", "color": "#0891b2"}],
+            },
+            "link": {"label": "Open Suppliers", "href": "/admin/suppliers"},
+            "summary": (
+                f"{len(rows)} suppliers ranked by purchase frequency "
+                f"(lead time unavailable — Purchase has no received timestamp; "
+                f"fields: {', '.join(sorted(p_names))})."
+            ),
+        }
+
+    return _empty(
+        f"Cannot compute lead times. Purchase fields: {', '.join(sorted(p_names))}. "
+        "Add a received/delivered timestamp on Purchase, or a lead_time field on Supplier."
+    )
+
+
+def tool_duplicate_transactions(days: int = 7) -> dict:
+    Txn = _transaction_model()
+    if Txn is None:
+        return _empty("Transaction model not discoverable.")
+    names = _fields(Txn)
+    amount_field = _first_field(Txn, (
+        "amount", "total", "value",
+        "amount_paid", "paid_amount", "transaction_amount", "trans_amount",
+    ))
+    ref_field = _first_field(Txn, (
+        "reference", "external_reference", "mpesa_reference",
+        "mpesa_receipt", "trans_id", "transaction_reference", "receipt_number",
+    ))
+    if not amount_field:
+        return _empty(
+            f"{Txn.__name__} has no amount field. Available: {', '.join(sorted(names))}"
+        )
+    qs = Txn.objects.all()
+    if "created_at" in names:
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=days))
+    elif "updated_at" in names:
+        qs = qs.filter(updated_at__gte=timezone.now() - timedelta(days=days))
+    seen: dict[tuple, list] = {}
+    for t in qs[:5000]:
+        amt = _safe_float(getattr(t, amount_field, 0))
+        ref = str(getattr(t, ref_field, "") or "") if ref_field else ""
+        key = (round(amt, 2), ref)
+        seen.setdefault(key, []).append(t)
+    rows = []
+    for key, group in seen.items():
+        if len(group) > 1:
+            rows.append({
+                "amount": key[0],
+                "reference": key[1] or "(none)",
+                "count": len(group),
+                "ids": [str(t.pk) for t in group],
+            })
+    rows = rows[:20]
+    return {
+        "items": rows,
+        "table": {
+            "headers": ["Amount", "Reference", "Occurrences"],
+            "rows": [[f"KES {r['amount']:,.0f}", r["reference"], str(r["count"])] for r in rows],
+        },
+        "link": {"label": "Open Transactions", "href": "/admin/transactions"},
+        "summary": (
+            f"{len(rows)} potential duplicate groups in the last {days} days."
+            if rows else f"No duplicates found across {qs.count()} transactions in {days} days."
+        ),
+    }
+
+
+def tool_payment_settlement() -> dict:
+    Payment = _payment_model()
+    if Payment is None:
+        return _empty("Payment model not discoverable.")
+    names = _fields(Payment)
+    status_field = _first_field(Payment, ("status", "state"))
+    amount_field = _first_field(Payment, ("amount", "total", "value"))
+    if not amount_field:
+        return _empty("Payment has no amount field.")
+    qs = Payment.objects.all()
+    pending = 0.0
+    pending_count = 0
+    if status_field:
+        for status_val in ("pending", "processing", "in_transit", "settling"):
+            grp = qs.filter(**{f"{status_field}__iexact": status_val})
+            pending_count += grp.count()
+            agg = grp.aggregate(s=Sum(amount_field))
+            pending += _safe_float(agg["s"])
+    return {
+        "items": [{"pending_amount": round(pending, 2), "pending_count": pending_count}],
+        "table": {
+            "headers": ["Metric", "Value"],
+            "rows": [
+                ["Pending payments", str(pending_count)],
+                ["Pending amount", f"KES {pending:,.0f}"],
+            ],
+        },
+        "link": {"label": "Open Payments", "href": "/admin/payments"},
+        "summary": f"KES {pending:,.0f} pending across {pending_count} payments.",
+    }
+
+
+def tool_customer_segments() -> dict:
+    Order = _order_model()
+    User = _customer_model()
+    if Order is None or User is None:
+        return _empty("Order or User model not discoverable.")
+    order_names = _fields(Order)
+    user_field = _first_field(Order, ("user", "customer", "customer_id"))
+    total_field = _first_field(Order, ("total", "grand_total", "amount"))
+    if not user_field or not total_field:
+        return _empty("Order is missing a user FK or total field.")
+
+    agg = (
+        Order.objects
+        .filter(**{f"{user_field}__isnull": False})
+        .values(user_field)
+        .annotate(_s=Sum(total_field))
+    )
+    tiers = {"VIP (KES 50k+)": 0, "High (10k-50k)": 0, "Mid (1k-10k)": 0, "Low (<1k)": 0}
+    for r in agg:
+        v = _safe_float(r["_s"])
+        if v >= 50000:
+            tiers["VIP (KES 50k+)"] += 1
+        elif v >= 10000:
+            tiers["High (10k-50k)"] += 1
+        elif v >= 1000:
+            tiers["Mid (1k-10k)"] += 1
+        else:
+            tiers["Low (<1k)"] += 1
+    rows = [{"tier": k, "customers": v} for k, v in tiers.items()]
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows,
+            "xKey": "tier",
+            "series": [{"key": "customers", "label": "Customers", "color": "#8b5cf6"}],
+        },
+        "link": {"label": "Open Customers", "href": "/admin/customers"},
+        "summary": f"LTV segments across {len(agg)} customers with orders.",
+    }
+
+
+def tool_risky_permissions() -> dict:
+    User = _customer_model()
+    if User is None:
+        return _empty("User model not discoverable.")
+    names = _fields(User)
+    staff = User.objects.filter(is_staff=True)
+    risky = staff.filter(is_superuser=True, is_active=True)
+    no_login_recent = 0
+    if "last_login" in names:
+        no_login_recent = staff.filter(last_login__lt=timezone.now() - timedelta(days=90)).count()
+    return {
+        "items": [
+            {
+                "staff_total": staff.count(),
+                "active_superusers": risky.count(),
+                "dormant_staff": no_login_recent,
+            },
+        ],
+        "table": {
+            "headers": ["Metric", "Value"],
+            "rows": [
+                ["Active superusers", str(risky.count())],
+                ["Staff with no 90-day login", str(no_login_recent)],
+            ],
+        },
+        "link": {"label": "Open Users", "href": "/admin/users"},
+        "summary": f"{risky.count()} active superusers, {no_login_recent} dormant staff accounts.",
+    }
+
+
+def tool_newsletter_opens(days: int = 30) -> dict:
+    Campaign = _campaign_model()
+    if Campaign is None:
+        return _empty("Campaign model not discoverable.")
+    names = _fields(Campaign)
+    sent_field = _first_field(Campaign, ("sent_count", "recipients", "total_sent"))
+    open_field = _first_field(Campaign, ("open_count", "opens", "unique_opens"))
+    if not sent_field or not open_field:
+        return _empty("Campaign missing sent/open fields.")
+    qs = Campaign.objects.all()
+    if "created_at" in names:
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=days))
+    rows = []
+    for c in qs[:20]:
+        sent = _safe_int(getattr(c, sent_field, 0))
+        opens = _safe_int(getattr(c, open_field, 0))
+        rate = round(opens / sent * 100, 1) if sent else 0.0
+        rows.append({
+            "id": str(c.pk),
+            "subject": str(getattr(c, "subject", getattr(c, "name", str(c.pk)))),
+            "sent": sent,
+            "opens": opens,
+            "open_rate": rate,
+        })
+    rows.sort(key=lambda r: r["open_rate"], reverse=True)
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows[:12],
+            "xKey": "subject",
+            "series": [{"key": "open_rate", "label": "Open rate %", "color": "#10b981"}],
+        },
+        "link": {"label": "Open Newsletter", "href": "/admin/newsletter"},
+        "summary": f"{len(rows)} campaigns in the last {days} days.",
+    }
+
+
+def tool_social_best_times() -> dict:
+    Post = _social_post_model()
+    if Post is None:
+        return _empty("Social post model not discoverable.")
+    names = _fields(Post)
+    when_field = _first_field(Post, ("scheduled_for", "published_at", "created_at"))
+    eng_field = _first_field(Post, ("engagement_count", "likes", "engagements"))
+    if not when_field:
+        return _empty("Post has no time field.")
+    buckets: dict[int, dict[str, float]] = {}
+    for p in Post.objects.all()[:2000]:
+        dt = getattr(p, when_field, None)
+        if not dt:
+            continue
+        hr = dt.hour
+        b = buckets.setdefault(hr, {"hour": hr, "posts": 0, "engagement": 0.0})
+        b["posts"] += 1
+        if eng_field:
+            b["engagement"] += _safe_float(getattr(p, eng_field, 0))
+    rows = sorted(buckets.values(), key=lambda r: r["engagement"], reverse=True)[:8]
+    return {
+        "items": rows,
+        "table": {
+            "headers": ["Hour", "Posts", "Engagement"],
+            "rows": [[f"{r['hour']:02d}:00", str(int(r["posts"])), f"{r['engagement']:.0f}"] for r in rows],
+        },
+        "link": {"label": "Open Social", "href": "/admin/social"},
+        "summary": "Best posting hours ranked by engagement.",
+    }
+
+
+def tool_banner_ctr(days: int = 30) -> dict:
+    Banner = _banner_model()
+    if Banner is None:
+        return _empty("Banner model not discoverable.")
+    names = _fields(Banner)
+    views_field = _first_field(Banner, ("views", "impressions", "view_count"))
+    clicks_field = _first_field(Banner, ("clicks", "click_count"))
+    if not views_field or not clicks_field:
+        return _empty("Banner missing views/clicks fields.")
+    rows = []
+    for b in Banner.objects.all()[:50]:
+        views = _safe_int(getattr(b, views_field, 0))
+        clicks = _safe_int(getattr(b, clicks_field, 0))
+        ctr = round(clicks / views * 100, 2) if views else 0.0
+        rows.append({
+            "id": str(b.pk),
+            "title": str(getattr(b, "title", getattr(b, "name", str(b.pk)))),
+            "views": views,
+            "clicks": clicks,
+            "ctr": ctr,
+        })
+    rows.sort(key=lambda r: r["ctr"], reverse=True)
+    return {
+        "items": rows[:15],
+        "chart": {
+            "type": "bar",
+            "data": rows[:12],
+            "xKey": "title",
+            "series": [{"key": "ctr", "label": "CTR %", "color": "#172554"}],
+        },
+        "link": {"label": "Open Banners", "href": "/admin/banner"},
+        "summary": f"CTR ranking across {len(rows)} banners.",
+    }
+
+
+def tool_campaign_roi(days: int = 30) -> dict:
+    Campaign = _find_model("campaigns.Campaign", "dashboard.campaigns.Campaign")
+    if Campaign is None:
+        Campaign = _campaign_model()
+    if Campaign is None:
+        return _empty("Campaign model not discoverable.")
+
+    names = _fields(Campaign)
+    qs = Campaign.objects.all()
+    if "created_at" in names:
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=days))
+
+    try:
+        Dispatch = Campaign._meta.get_field("dispatches").related_model
+    except Exception:
+        Dispatch = None
+
+    has_metric_fields = all(f in names for f in ("sent_count", "open_count", "click_count"))
+    rows = []
+    for c in qs[:20]:
+        if has_metric_fields:
+            sent = _safe_int(getattr(c, "sent_count", 0))
+            recipients = _safe_int(getattr(c, "recipient_count", 0))
+            opens = _safe_int(getattr(c, "open_count", 0))
+            clicks = _safe_int(getattr(c, "click_count", 0))
+            bounces = _safe_int(getattr(c, "bounce_count", 0))
+            unsub = _safe_int(getattr(c, "unsubscribe_count", 0))
+            rows.append({
+                "id": str(c.pk),
+                "name": getattr(c, "name", getattr(c, "subject", str(c.pk))),
+                "recipients": recipients,
+                "sent": sent,
+                "open_rate": round(opens / sent * 100, 1) if sent else 0.0,
+                "click_rate": round(clicks / sent * 100, 2) if sent else 0.0,
+                "bounce_rate": round(bounces / sent * 100, 2) if sent else 0.0,
+                "unsubscribes": unsub,
+            })
+        else:
+            audience = _safe_int(getattr(c, "audience_size_cached", 0))
+            dispatched = 0
+            if Dispatch is not None:
+                try:
+                    dispatched = Dispatch.objects.filter(campaign=c).count()
+                except Exception:
+                    dispatched = 0
+            rows.append({
+                "id": str(c.pk),
+                "name": getattr(c, "name", str(c.pk)),
+                "recipients": audience,
+                "sent": dispatched,
+                "open_rate": 0.0,
+                "click_rate": 0.0,
+                "bounce_rate": 0.0,
+                "unsubscribes": 0,
+                "reach_pct": round(dispatched / audience * 100, 1) if audience else 0.0,
+            })
+
+    key = "click_rate" if has_metric_fields else "reach_pct"
+    rows.sort(key=lambda r: r.get(key, 0), reverse=True)
+    series = (
+        [{"key": "open_rate", "label": "Open rate %", "color": "#10b981"},
+         {"key": "click_rate", "label": "Click rate %", "color": "#172554"}]
+        if has_metric_fields else
+        [{"key": "reach_pct", "label": "Dispatch rate %", "color": "#10b981"}]
+    )
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows[:12],
+            "xKey": "name",
+            "series": series,
+        },
+        "link": {"label": "Open Campaigns", "href": "/admin/campaigns"},
+        "summary": (
+            f"{len(rows)} campaigns ranked by {key}. "
+            "Monetary spend/revenue are not tracked on either campaign model."
+            if rows else "No campaigns in window."
+        ),
+    }
+
+
+def tool_review_complaint_themes(days: int = 30) -> dict:
+    Review = _review_model()
+    if Review is None:
+        return _empty("Review model not discoverable.")
+    names = _fields(Review)
+    text_field = _first_field(Review, ("body", "comment", "text", "review_text"))
+    if not text_field:
+        return _empty("Review has no text field.")
+    keyword_map = {
+        "Delivery": ["delivery", "shipping", "late", "arrived"],
+        "Quality": ["quality", "broken", "defect", "damaged"],
+        "Size": ["size", "fit", "small", "large", "too big"],
+        "Price": ["price", "expensive", "value", "cheap"],
+        "Service": ["support", "service", "staff", "response"],
+        "Packaging": ["packaging", "box", "wrapped"],
+    }
+    counts = {k: 0 for k in keyword_map}
+    qs = Review.objects.all()
+    if "created_at" in names:
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=days))
+    total_reviews = qs.count()
+    for r in qs[:1000]:
+        text = str(getattr(r, text_field, "") or "").lower()
+        for label, kws in keyword_map.items():
+            if any(k in text for k in kws):
+                counts[label] += 1
+    rows = sorted(
+        ({"theme": k, "mentions": v} for k, v in counts.items() if v),
+        key=lambda r: r["mentions"],
+        reverse=True,
+    )
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows,
+            "xKey": "theme",
+            "series": [{"key": "mentions", "label": "Mentions", "color": "#ef4444"}],
+        },
+        "link": {"label": "Open Reviews", "href": "/admin/reviews"},
+        "summary": (
+            f"Top complaint themes across {total_reviews} reviews."
+            if total_reviews else f"No reviews in the last {days} days to analyse."
+        ),
+    }
+
+
+def tool_whatsapp_unanswered(limit: int = 20) -> dict:
+    Conversation = _whatsapp_conversation_model()
+    if Conversation is None:
+        return _empty("WhatsApp Conversation model not discoverable.")
+    names = _fields(Conversation)
+    unread_field = _first_field(Conversation, ("unread_count", "unread_messages"))
+    if not unread_field:
+        return _empty("Conversation has no unread field.")
+    qs = Conversation.objects.filter(**{f"{unread_field}__gt": 0}).order_by(f"-{unread_field}")
+    mask = _masking_enabled()
+    items = []
+    for c in qs[:limit]:
+        name = getattr(c, "contact_name", getattr(c, "phone", str(c.pk)))
+        items.append({
+            "id": str(c.pk),
+            "contact": _mask(str(name), mask) if mask else str(name),
+            "unread": _safe_int(getattr(c, unread_field, 0)),
+        })
+    return {
+        "items": items,
+        "table": {
+            "headers": ["Contact", "Unread"],
+            "rows": [[i["contact"], str(i["unread"])] for i in items],
+        },
+        "link": {"label": "Open WhatsApp", "href": "/admin/whatsapp"},
+        "summary": f"{len(items)} conversations with unread messages.",
+    }
+
+
+def tool_zone_performance(days: int = 30) -> dict:
+    Order = _order_model()
+    if Order is None:
+        return _empty("Order model not discoverable.")
+    names = _fields(Order)
+
+    direct_field = _first_field(Order, (
+        "address_county", "delivery_zone", "zone", "shipping_zone",
+        "county", "region", "city", "address_town",
+    ))
+    if not direct_field:
+        return _empty(
+            f"{Order.__name__} has no zone-like field. "
+            f"Available: {', '.join(sorted(names))}"
+        )
+
+    qs = Order.objects.all()
+    if "created_at" in names:
+        qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=days))
+    total_field = _first_field(Order, ("total", "grand_total", "amount"))
+
+    agg: dict[str, dict[str, float]] = {}
+    for o in qs:
+        z = str(getattr(o, direct_field, "") or "unknown")
+        entry = agg.setdefault(z, {"orders": 0, "revenue": 0.0})
+        entry["orders"] += 1
+        if total_field:
+            entry["revenue"] += _safe_float(getattr(o, total_field, 0))
+
+    rows = sorted(
+        (
+            {"zone": k, "orders": int(v["orders"]), "revenue": round(v["revenue"], 2)}
+            for k, v in agg.items()
+        ),
+        key=lambda r: r["orders"],
+        reverse=True,
+    )[:15]
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows,
+            "xKey": "zone",
+            "series": [{"key": "orders", "label": "Orders", "color": "#8b5cf6"}],
+        },
+        "link": {"label": "Open Shipping", "href": "/admin/shipping"},
+        "summary": f"Zone breakdown by {direct_field} across {sum(r['orders'] for r in rows)} orders.",
+    }
+
+
+def tool_recent_reports(limit: int = 15) -> dict:
+    try:
+        from dashboard.reports.models import ReportExportLog
+    except Exception:
+        return _empty("Report export model not discoverable.")
+    names = _fields(ReportExportLog)
+    qs = ReportExportLog.objects.all()
+    if "created_at" in names:
+        qs = qs.order_by("-created_at")
+    items = []
+    for r in qs[:limit]:
+        created = getattr(r, "created_at", None)
+        items.append({
+            "id": str(r.pk),
+            "tab": str(getattr(r, "tab", "")),
+            "format": str(getattr(r, "fmt", "")),
+            "range": str(getattr(r, "range_key", "")),
+            "created": created.isoformat() if created else "",
+        })
+    return {
+        "items": items,
+        "table": {
+            "headers": ["Tab", "Format", "Range", "Created"],
+            "rows": [[i["tab"], i["format"], i["range"], i["created"][:16]] for i in items],
+        },
+        "link": {"label": "Open Reports", "href": "/admin/reports"},
+        "summary": (
+            f"{len(items)} recent exports." if items else "No exports recorded yet."
+        ),
+    }
+
+
+def tool_explain_last_export() -> dict:
+    try:
+        from dashboard.reports.models import ReportExportLog
+    except Exception:
+        return _empty("Report export model not discoverable.")
+    names = _fields(ReportExportLog)
+    qs = ReportExportLog.objects.all()
+    if "created_at" in names:
+        qs = qs.order_by("-created_at")
+    last = qs.first()
+    if last is None:
+        return _empty("No exports recorded yet.")
+    created = getattr(last, "created_at", None)
+    rows = [
+        {"field": "tab", "value": str(getattr(last, "tab", ""))},
+        {"field": "format", "value": str(getattr(last, "fmt", ""))},
+        {"field": "range", "value": str(getattr(last, "range_key", ""))},
+        {"field": "created", "value": created.isoformat() if created else ""},
+    ]
+    user = getattr(last, "user", None)
+    if user is not None:
+        rows.append({"field": "user", "value": str(getattr(user, "email", user))})
+    return {
+        "items": rows,
+        "table": {
+            "headers": ["Field", "Value"],
+            "rows": [[r["field"], r["value"]] for r in rows],
+        },
+        "link": {"label": "Open Reports", "href": "/admin/reports"},
+        "summary": f"Last export was {getattr(last, 'tab', 'a report')} ({getattr(last, 'fmt', 'unknown format')}).",
+    }
+
+
+def tool_compare_periods(days: int = 7) -> dict:
+    Order = _order_model()
+    if Order is None:
+        return _empty("Order model not discoverable.")
+    names = _fields(Order)
+    total_field = _first_field(Order, ("total", "grand_total", "amount"))
+    if "created_at" not in names or not total_field:
+        return _empty("Order missing created_at or total.")
+    now = timezone.now()
+    current = Order.objects.filter(created_at__gte=now - timedelta(days=days))
+    previous = Order.objects.filter(
+        created_at__gte=now - timedelta(days=days * 2),
+        created_at__lt=now - timedelta(days=days),
+    )
+    cur_rev = _safe_float(current.aggregate(s=Sum(total_field))["s"])
+    prev_rev = _safe_float(previous.aggregate(s=Sum(total_field))["s"])
+    delta = round(((cur_rev - prev_rev) / prev_rev * 100), 1) if prev_rev else 0.0
+    rows = [
+        {"period": f"Last {days}d", "revenue": cur_rev, "orders": current.count()},
+        {"period": f"Previous {days}d", "revenue": prev_rev, "orders": previous.count()},
+    ]
+    return {
+        "items": rows,
+        "chart": {
+            "type": "bar",
+            "data": rows,
+            "xKey": "period",
+            "series": [{"key": "revenue", "label": "Revenue", "color": "#172554"}],
+        },
+        "link": {"label": "Open Analytics", "href": "/admin/analytics"},
+        "summary": f"Revenue {delta:+.1f}% vs previous {days}-day window.",
+    }
+
+
 TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
     "diagnose_models": tool_diagnose_models,
     "get_daily_digest": tool_daily_digest,
@@ -1954,6 +2901,25 @@ TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
     "preview_refund": tool_preview_refund,
     "preview_order_status_change": tool_preview_order_status_change,
     "preview_create_discount": tool_preview_create_discount,
+    "search_products": tool_search_products,
+    "get_category_performance": tool_category_performance,
+    "get_brand_performance": tool_brand_performance,
+    "forecast_stockout": tool_forecast_stockout,
+    "get_supplier_lead_times": tool_supplier_lead_times,
+    "find_duplicate_transactions": tool_duplicate_transactions,
+    "get_payment_settlement": tool_payment_settlement,
+    "get_customer_segments": tool_customer_segments,
+    "get_risky_permissions": tool_risky_permissions,
+    "get_newsletter_opens": tool_newsletter_opens,
+    "get_social_best_times": tool_social_best_times,
+    "get_banner_ctr": tool_banner_ctr,
+    "get_campaign_roi": tool_campaign_roi,
+    "get_review_complaint_themes": tool_review_complaint_themes,
+    "get_whatsapp_unanswered": tool_whatsapp_unanswered,
+    "get_zone_performance": tool_zone_performance,
+    "list_recent_reports": tool_recent_reports,
+    "explain_last_export": tool_explain_last_export,
+    "compare_periods": tool_compare_periods,
 }
 
 
@@ -2283,6 +3249,131 @@ TOOL_SCHEMAS: list[dict] = [
             "days": {"type": "integer", "default": 7},
         }, "required": ["code", "percent"]},
     }},
+    {"type": "function", "function": {
+        "name": "search_products",
+        "description": "Full-text search for products by name.",
+        "parameters": {"type": "object", "properties": {
+            "query": {"type": "string"},
+            "limit": {"type": "integer", "default": 20},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_category_performance",
+        "description": "Revenue and units grouped by category.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 30},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_brand_performance",
+        "description": "Brand-level revenue and units sold.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 30},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "forecast_stockout",
+        "description": "Products that will stock out within N days at current sales rate.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 14},
+            "limit": {"type": "integer", "default": 15},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_supplier_lead_times",
+        "description": "Suppliers ranked by average lead time in days.",
+        "parameters": {"type": "object", "properties": {
+            "limit": {"type": "integer", "default": 15},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "find_duplicate_transactions",
+        "description": "Find likely duplicate transactions by amount and reference.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 7},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_payment_settlement",
+        "description": "Pending settlement totals and count.",
+        "parameters": {"type": "object", "properties": {}},
+    }},
+    {"type": "function", "function": {
+        "name": "get_customer_segments",
+        "description": "LTV segments across the customer base.",
+        "parameters": {"type": "object", "properties": {}},
+    }},
+    {"type": "function", "function": {
+        "name": "get_risky_permissions",
+        "description": "Active superusers and dormant staff accounts.",
+        "parameters": {"type": "object", "properties": {}},
+    }},
+    {"type": "function", "function": {
+        "name": "get_newsletter_opens",
+        "description": "Campaign open rates over the last N days.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 30},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_social_best_times",
+        "description": "Best-performing posting hours by engagement.",
+        "parameters": {"type": "object", "properties": {}},
+    }},
+    {"type": "function", "function": {
+        "name": "get_banner_ctr",
+        "description": "Banner click-through rate ranking.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 30},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_campaign_roi",
+        "description": "Campaign ROI comparison.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 30},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_review_complaint_themes",
+        "description": "Top complaint themes extracted from review text.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 30},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_whatsapp_unanswered",
+        "description": "WhatsApp conversations with unread messages.",
+        "parameters": {"type": "object", "properties": {
+            "limit": {"type": "integer", "default": 20},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "get_zone_performance",
+        "description": "Order volume and revenue per delivery zone.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 30},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "list_recent_reports",
+        "description": "Recent generated report exports.",
+        "parameters": {"type": "object", "properties": {
+            "limit": {"type": "integer", "default": 15},
+        }},
+    }},
+    {"type": "function", "function": {
+        "name": "explain_last_export",
+        "description": "Explain the last report export the user generated.",
+        "parameters": {"type": "object", "properties": {}},
+    }},
+    {"type": "function", "function": {
+        "name": "compare_periods",
+        "description": "Compare revenue and order count vs the previous N-day window.",
+        "parameters": {"type": "object", "properties": {
+            "days": {"type": "integer", "default": 7},
+        }},
+    }},
 ]
 
 
@@ -2296,7 +3387,7 @@ def execute_tool(name: str, args: dict | None = None, user=None) -> dict:
         result = fn(**(args or {}))
         _audit(name, args, result, user=user)
         return result
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Tool %s failed", name)
         result = {"items": [], "note": f"tool error: {exc}"}
         _audit(name, args, result, user=user)

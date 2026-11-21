@@ -51,6 +51,21 @@ const DEFAULT_SEO: AdminSEO = {
   canonicalUrl: '',
 };
 
+const API_ORIGIN =
+  (typeof process !== 'undefined' &&
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '')) ||
+  'http://localhost:8000';
+
+function readCsrfToken(): string {
+  if (typeof document === 'undefined') return '';
+  return (
+    document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('csrftoken='))
+      ?.split('=')[1] ?? ''
+  );
+}
+
 function apiToCategory(api: AdminCategory): Category {
   return {
     id: String(api.id),
@@ -248,10 +263,73 @@ export default function CategoriesPage() {
     }
   };
 
+  const reassignAndDelete = async (
+    id: string,
+    targetId: string,
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch(
+        `${API_ORIGIN}/api/v1/admin/categories/${id}/?reassign_to=${encodeURIComponent(
+          targetId,
+        )}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'X-CSRFToken': readCsrfToken() },
+        },
+      );
+
+      if (res.ok || res.status === 204) return true;
+
+      let detail = `Request failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.detail) detail = body.detail;
+      } catch {
+        /* ignore */
+      }
+      flash(detail);
+      return false;
+    } catch {
+      flash('Could not reassign and delete.');
+      return false;
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteCategoryId) return;
     const id = deleteCategoryId;
     setDeleteCategoryId(null);
+
+    const node = findNode(categories, id);
+    const hasProducts = (node?.productsCount ?? 0) > 0;
+
+    if (hasProducts) {
+      const target = window.prompt(
+        `"${node?.name ?? 'This category'}" has ${node?.productsCount} product(s) attached.\n\nEnter the ID of the category to move them to, or leave blank to cancel.`,
+        '',
+      );
+      if (!target) return;
+
+      const targetId = target.trim();
+      if (!/^\d+$/.test(targetId)) {
+        window.alert('Invalid category ID.');
+        return;
+      }
+      if (targetId === id) {
+        window.alert('Cannot reassign to the same category.');
+        return;
+      }
+
+      setSaving(true);
+      const ok = await reassignAndDelete(id, targetId);
+      if (ok) {
+        await refresh();
+        flash('Category deleted and products reassigned.');
+      }
+      setSaving(false);
+      return;
+    }
 
     const previous = categories;
     const strip = (list: Category[]): Category[] =>
@@ -268,11 +346,61 @@ export default function CategoriesPage() {
       flash('Category deleted.');
     } catch (err) {
       setCategories(previous);
-      flash(
-        err instanceof ApiError
-          ? err.message || 'Could not delete category.'
-          : 'Could not delete category.',
-      );
+
+      let detail = 'Could not delete category.';
+      let productCount = 0;
+      let products: { id: number; name: string }[] = [];
+
+      if (err instanceof ApiError) {
+        detail = err.message || detail;
+        const raw: any = (err as any).data ?? (err as any).body ?? null;
+        if (raw && typeof raw === 'object') {
+          if (raw.detail) detail = raw.detail;
+          if (typeof raw.product_count === 'number') {
+            productCount = raw.product_count;
+          }
+          if (Array.isArray(raw.products)) products = raw.products;
+        } else if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed?.detail) detail = parsed.detail;
+            if (typeof parsed?.product_count === 'number') {
+              productCount = parsed.product_count;
+            }
+            if (Array.isArray(parsed?.products)) products = parsed.products;
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      if (productCount > 0) {
+        const target = window.prompt(
+          `${detail}\n\nEnter the category ID to reassign ${productCount} product(s) to, or leave blank to cancel.`,
+          '',
+        );
+        if (target && /^\d+$/.test(target.trim()) && target.trim() !== id) {
+          setSaving(true);
+          const ok = await reassignAndDelete(id, target.trim());
+          if (ok) {
+            await refresh();
+            flash('Category deleted and products reassigned.');
+          }
+          setSaving(false);
+          return;
+        }
+      } else if (products.length > 0) {
+        const preview = products
+          .slice(0, 5)
+          .map((p) => `• ${p.name}`)
+          .join('\n');
+        window.alert(
+          `${detail}\n\n${preview}${products.length > 5 ? `\n…and ${products.length - 5} more` : ''
+          }`,
+        );
+      } else {
+        flash(detail);
+      }
     }
   };
 
@@ -579,11 +707,10 @@ export default function CategoriesPage() {
               <button
                 key={opt}
                 onClick={() => setSortBy(opt)}
-                className={`px-2 py-2.5 rounded text-[13px] font-medium transition whitespace-nowrap ${
-                  sortBy === opt
+                className={`px-2 py-2.5 rounded text-[13px] font-medium transition whitespace-nowrap ${sortBy === opt
                     ? 'bg-blue-50 border border-blue-950 text-blue-950'
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 {opt === 'displayOrder'
                   ? 'Order'
@@ -688,7 +815,7 @@ export default function CategoriesPage() {
                                 type="checkbox"
                                 checked={selectedIds.includes(cat.id)}
                                 onChange={() => toggleSelectRow(cat.id)}
-                                className=" border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
+                                className="border-slate-300 text-blue-950 focus:ring-blue-950 cursor-pointer"
                               />
                             </td>
                             <td className="py-1.5 px-2">
@@ -743,11 +870,10 @@ export default function CategoriesPage() {
                             <td className="py-1.5 px-2">
                               <button
                                 onClick={() => toggleStatus(cat.id)}
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                                  cat.status === 'Active'
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${cat.status === 'Active'
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                                     : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                                }`}
+                                  }`}
                               >
                                 {cat.status === 'Active' ? (
                                   <Eye className="w-3 h-3" />
@@ -760,11 +886,10 @@ export default function CategoriesPage() {
                             <td className="py-1.5 px-2 text-center">
                               <button
                                 onClick={() => setSeoDrawer(cat)}
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                                  seoFilled
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${seoFilled
                                     ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
                                     : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
-                                }`}
+                                  }`}
                                 title={
                                   seoFilled ? 'SEO complete' : 'SEO missing'
                                 }
@@ -860,11 +985,10 @@ export default function CategoriesPage() {
                                   <td className="py-1.5 px-2">
                                     <button
                                       onClick={() => toggleStatus(child.id)}
-                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                                        child.status === 'Active'
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${child.status === 'Active'
                                           ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                                           : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                                      }`}
+                                        }`}
                                     >
                                       {child.status === 'Active' ? (
                                         <Eye className="w-3 h-3" />
@@ -877,11 +1001,10 @@ export default function CategoriesPage() {
                                   <td className="py-1.5 px-2 text-center">
                                     <button
                                       onClick={() => setSeoDrawer(child)}
-                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${
-                                        childSeoFilled
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border transition ${childSeoFilled
                                           ? 'bg-blue-50 text-blue-950 border-blue-100 hover:bg-blue-100'
                                           : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
-                                      }`}
+                                        }`}
                                     >
                                       <Globe className="w-3 h-3" />
                                       {childSeoFilled ? 'Ready' : 'Missing'}
@@ -975,8 +1098,14 @@ export default function CategoriesPage() {
               </h3>
             </div>
             <p className="text-[12px] text-slate-500 mt-2">
-              Products in this category will become uncategorized. Subcategories
-              will also be removed. This cannot be undone.
+              {(() => {
+                const node = findNode(categories, deleteCategoryId);
+                const count = node?.productsCount ?? 0;
+                if (count > 0) {
+                  return `This category has ${count} product(s). You will be asked to pick a category to move them to before deletion. Subcategories will also be removed. This cannot be undone.`;
+                }
+                return 'Subcategories will also be removed. This cannot be undone.';
+              })()}
             </p>
             <div className="flex justify-end gap-1.5 mt-3">
               <button
@@ -997,7 +1126,7 @@ export default function CategoriesPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[12px] px-3 py-2 rounded shadow-lg">
+        <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[12px] px-2 py-2 rounded">
           {toast}
         </div>
       )}
@@ -1034,7 +1163,7 @@ function SEODrawer({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto shadow-xl flex flex-col"
+        className="bg-white border-l border-slate-200 w-full max-w-xl h-full overflow-y-auto flex flex-col"
       >
         <div className="px-3 py-2.5 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -1058,16 +1187,15 @@ function SEODrawer({
           </button>
         </div>
 
-        <div className="p-3 space-y-2.5">
+        <div className="p-2 space-y-2">
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[12px] font-medium text-slate-700">
                 Meta Title
               </label>
               <span
-                className={`text-[11px] font-mono ${
-                  titleOk ? 'text-emerald-600' : 'text-amber-600'
-                }`}
+                className={`text-[11px] font-mono ${titleOk ? 'text-emerald-600' : 'text-amber-600'
+                  }`}
               >
                 {titleLength}/60
               </span>
@@ -1077,7 +1205,7 @@ function SEODrawer({
               value={seo.metaTitle}
               onChange={(e) => setSeo({ ...seo, metaTitle: e.target.value })}
               placeholder={`${category.name} — Your Store`}
-              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
             <p className="text-[11px] text-slate-400 mt-1">
               Recommended: 30–60 characters. Shown in search results.
@@ -1090,9 +1218,8 @@ function SEODrawer({
                 Meta Description
               </label>
               <span
-                className={`text-[13px] font-mono ${
-                  descOk ? 'text-emerald-600' : 'text-amber-600'
-                }`}
+                className={`text-[13px] font-mono ${descOk ? 'text-emerald-600' : 'text-amber-600'
+                  }`}
               >
                 {descLength}/160
               </span>
@@ -1104,7 +1231,7 @@ function SEODrawer({
               }
               rows={3}
               placeholder={`Browse our selection of ${category.name.toLowerCase()} products.`}
-              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 resize-none"
+              className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 resize-none"
             />
             <p className="text-[13px] text-slate-400 mt-1">
               Recommended: 120–160 characters. The snippet shown under the
@@ -1123,7 +1250,7 @@ function SEODrawer({
                 setSeo({ ...seo, metaKeywords: e.target.value })
               }
               placeholder="comma, separated, keywords"
-              className="w-full bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
             <p className="text-[13px] text-slate-400 mt-1">
               Comma-separated. Low SEO impact but useful for internal search.
@@ -1201,7 +1328,7 @@ function KebabMenu({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="absolute top-full mt-1 right-0 w-44 bg-white border border-slate-200 rounded shadow-lg z-50 py-1"
+      className="absolute top-full mt-1 right-0 w-44 bg-white border border-slate-200 rounded z-50 py-1"
     >
       <button
         onClick={onEdit}

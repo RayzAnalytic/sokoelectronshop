@@ -1,11 +1,3 @@
-"""
-dashboard/overview/views.py
-
-Endpoints:
-  GET   /api/v1/admin/overview/?range=today|7d|30d|90d|custom&start=&end=
-  POST  /api/v1/admin/overview/refresh/
-"""
-
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -18,9 +10,9 @@ from django.views.decorators.http import require_GET, require_POST
 from .models import OverviewCache
 
 
-LIVE_ORDER_STATUSES = ("Confirmed", "Processing", "Shipped", "Delivered")
-REFUND_STATUSES = ("Returned", "Cancelled", "Failed")
-PENDING_STATUSES = ("Pending",)
+LIVE_ORDER_STATUSES = ("CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED")
+REFUND_STATUSES = ("RETURNED", "CANCELLED", "FAILED")
+PENDING_STATUSES = ("PENDING",)
 FAILED_PAYMENT_STATUSES = ("FAILED", "CANCELLED", "TIMEOUT")
 
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
@@ -169,7 +161,7 @@ def _cached_or_build(request, builder, empty: dict) -> dict:
 
     try:
         payload = builder(request)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         import logging
 
         logging.getLogger(__name__).warning(
@@ -273,7 +265,7 @@ def overview(request):
 
         pending_orders = Order.objects.filter(status__in=PENDING_STATUSES)
         failed_payments = Order.objects.filter(
-            payment_status__in=("failed",),
+            payment_status__in=("FAILED", "PENDING", "UNPAID"),
         )
 
         def agg(qs):
@@ -318,16 +310,21 @@ def overview(request):
         ord_delta, ord_pos = _pct_delta(orders_count_now, orders_count_prev)
 
         daily_rev = _group_daily(orders_now, "total", start, end)
-        daily_ord = [
-            r["n"]
+
+        ord_by_day = {
+            r["day"]: r["n"]
             for r in (
                 orders_now
                 .annotate(day=TruncDate("created_at"))
                 .values("day")
                 .annotate(n=Count("id"))
-                .order_by("day")
             )
-        ]
+        }
+        daily_ord = []
+        cur = start
+        while cur <= end:
+            daily_ord.append(ord_by_day.get(cur, 0))
+            cur += timedelta(days=1)
 
         kpis = [
             {
@@ -381,7 +378,7 @@ def overview(request):
             {
                 "id": "completed",
                 "title": "Completed Orders",
-                "value": orders_now.filter(status="Delivered").count(),
+                "value": orders_now.filter(status="DELIVERED").count(),
                 "prefix": "",
                 "suffix": "",
                 "decimals": 0,
@@ -461,16 +458,19 @@ def overview(request):
                     revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
                     orders=Count("id"),
                 )
-                .order_by("day")
             )
-            return [
-                {
-                    "date": r["day"].strftime("%b %d"),
-                    "revenue": _to_int(r["revenue"]),
-                    "orders": r["orders"] or 0,
-                }
-                for r in rows
-            ]
+            by_day = {r["day"]: r for r in rows}
+            out = []
+            cur = start
+            while cur <= end:
+                r = by_day.get(cur)
+                out.append({
+                    "date": cur.strftime("%b %d"),
+                    "revenue": _to_int(r["revenue"]) if r else 0,
+                    "orders": (r["orders"] or 0) if r else 0,
+                })
+                cur += timedelta(days=1)
+            return out
 
         def bucket_hourly():
             from django.db.models.functions import ExtractHour
@@ -505,16 +505,20 @@ def overview(request):
                     revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
                     orders=Count("id"),
                 )
-                .order_by("week")
             )
-            return [
-                {
+            by_week = {r["week"]: r for r in rows}
+            n_weeks = max(1, (days + 6) // 7)
+            first_monday = start - timedelta(days=start.weekday())
+            out = []
+            for i in range(n_weeks):
+                wk = first_monday + timedelta(days=7 * i)
+                r = by_week.get(wk)
+                out.append({
                     "date": f"W{i + 1}",
-                    "revenue": _to_int(r["revenue"]),
-                    "orders": r["orders"] or 0,
-                }
-                for i, r in enumerate(rows)
-            ]
+                    "revenue": _to_int(r["revenue"]) if r else 0,
+                    "orders": (r["orders"] or 0) if r else 0,
+                })
+            return out
 
         def bucket_monthly():
             from django.db.models.functions import TruncMonth
@@ -526,16 +530,22 @@ def overview(request):
                     revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
                     orders=Count("id"),
                 )
-                .order_by("month")
             )
-            return [
-                {
-                    "date": r["month"].strftime("%b"),
-                    "revenue": _to_int(r["revenue"]),
-                    "orders": r["orders"] or 0,
-                }
-                for r in rows
-            ]
+            by_month = {r["month"]: r for r in rows}
+            out = []
+            cur = start.replace(day=1)
+            while cur <= end:
+                r = by_month.get(cur)
+                out.append({
+                    "date": cur.strftime("%b"),
+                    "revenue": _to_int(r["revenue"]) if r else 0,
+                    "orders": (r["orders"] or 0) if r else 0,
+                })
+                if cur.month == 12:
+                    cur = cur.replace(year=cur.year + 1, month=1)
+                else:
+                    cur = cur.replace(month=cur.month + 1)
+            return out
 
         if days <= 1:
             revenue_chart = bucket_hourly()
@@ -553,35 +563,58 @@ def overview(request):
             .annotate(n=Count("id"))
         )
         status_color = {
-            "Pending": AMBER,
-            "Confirmed": BLUE,
-            "Processing": BLUE,
-            "Shipped": INDIGO,
-            "Delivered": GREEN,
-            "Returned": AMBER,
-            "Cancelled": RED,
-            "Failed": RED,
+            "PENDING": AMBER,
+            "CONFIRMED": BLUE,
+            "PROCESSING": INDIGO,
+            "SHIPPED": VIOLET,
+            "DELIVERED": GREEN,
+            "RETURNED": AMBER,
+            "CANCELLED": RED,
+            "FAILED": RED,
         }
         status_label = {
-            "Pending": "Pending",
-            "Confirmed": "Confirmed",
-            "Processing": "Processing",
-            "Shipped": "Shipped",
-            "Delivered": "Delivered",
-            "Returned": "Returned",
-            "Cancelled": "Cancelled",
-            "Failed": "Failed",
+            "PENDING": "Pending",
+            "CONFIRMED": "Confirmed",
+            "PROCESSING": "Processing",
+            "SHIPPED": "Shipped",
+            "DELIVERED": "Delivered",
+            "RETURNED": "Returned",
+            "CANCELLED": "Cancelled",
+            "FAILED": "Failed",
         }
         order_status = [
             {
-                "name": status_label.get(r["status"], r["status"] or "Unknown"),
+                "name": status_label.get(r["status"], (r["status"] or "Unknown").title()),
                 "value": r["n"] or 0,
                 "color": status_color.get(r["status"], CYAN),
             }
             for r in status_qs
         ]
 
-        def period_rows(trunc):
+        def period_rows_day():
+            rows = (
+                orders_now
+                .annotate(bucket=TruncDate("created_at"))
+                .values("bucket")
+                .annotate(
+                    revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
+                    orders=Count("id"),
+                )
+            )
+            by_day = {r["bucket"]: r for r in rows}
+            out = []
+            cur = start
+            while cur <= end:
+                r = by_day.get(cur)
+                out.append({
+                    "label": cur.strftime("%a"),
+                    "revenue": _to_int(r["revenue"]) if r else 0,
+                    "orders": (r["orders"] or 0) if r else 0,
+                })
+                cur += timedelta(days=1)
+            return out
+
+        def period_rows_bucket(trunc, fmt):
             rows = (
                 orders_now
                 .annotate(bucket=trunc("created_at"))
@@ -594,13 +627,7 @@ def overview(request):
             )
             return [
                 {
-                    "label": (
-                        r["bucket"].strftime("%a")
-                        if trunc.__name__ == "TruncDate"
-                        else r["bucket"].strftime("W%V")
-                        if trunc.__name__ == "TruncWeek"
-                        else r["bucket"].strftime("%b")
-                    ),
+                    "label": r["bucket"].strftime(fmt),
                     "revenue": _to_int(r["revenue"]),
                     "orders": r["orders"] or 0,
                 }
@@ -608,14 +635,13 @@ def overview(request):
             ]
 
         from django.db.models.functions import (
-            TruncDate as TD,
             TruncWeek as TW,
             TruncMonth as TM,
         )
         sales_by_period = {
-            "Day": period_rows(TD),
-            "Week": period_rows(TW),
-            "Month": period_rows(TM),
+            "Day": period_rows_day(),
+            "Week": period_rows_bucket(TW, "W%V"),
+            "Month": period_rows_bucket(TM, "%b"),
         }
 
         cat_totals = (
@@ -740,6 +766,13 @@ def overview(request):
                 "avatar": initials,
             })
 
+        def payment_method_label(method: str) -> str:
+            if method in ("MPS", "MPESA"):
+                return "M-Pesa"
+            if method == "COD":
+                return "Cash on Delivery"
+            return "Cash on Delivery"
+
         recent_transactions = []
         for p in (
             Payment.objects
@@ -765,7 +798,7 @@ def overview(request):
                 "id": str(p.pk),
                 "ref": f"TXN-{str(p.pk)[:6].upper()}",
                 "customer": name,
-                "method": "M-Pesa" if p.method == "MPESA" else "Cash on Delivery",
+                "method": payment_method_label(p.method),
                 "amount": _to_int(p.amount),
                 "status": label_map.get(p.status, "Pending"),
                 "time": p.created_at.strftime("%b %d, %H:%M"),
@@ -802,17 +835,23 @@ def overview(request):
                 n=Count("id"),
             )
         )
-        total_pm = sum(_to_float(r["total"]) for r in pm_qs) or 1
-        payment_methods = []
+        grouped_pm: dict = defaultdict(lambda: {"amount": 0.0, "count": 0})
         for r in pm_qs:
-            label = "M-Pesa" if r["method"] == "MPESA" else "Cash on Delivery"
-            amount = _to_float(r["total"])
-            payment_methods.append({
+            label = payment_method_label(r["method"])
+            grouped_pm[label]["amount"] += _to_float(r["total"])
+            grouped_pm[label]["count"] += r["n"] or 0
+
+        total_pm = sum(v["amount"] for v in grouped_pm.values()) or 1
+        payment_methods = [
+            {
                 "name": label,
-                "amount": _to_int(amount),
-                "percentage": round(amount / total_pm * 100),
+                "amount": _to_int(v["amount"]),
+                "percentage": round(v["amount"] / total_pm * 100),
                 "color": PAYMENT_COLORS.get(label, CYAN),
-            })
+            }
+            for label, v in grouped_pm.items()
+            if v["amount"] > 0 or v["count"] > 0
+        ]
 
         return {
             "kpis": kpis,

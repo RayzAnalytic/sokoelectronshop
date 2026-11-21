@@ -123,22 +123,9 @@ class DiscountReadSerializer(serializers.ModelSerializer):
         return [p.id for p in obj.linked_products.all()]
 
 
-class DiscountListSerializer(serializers.ModelSerializer):
-    dealTitle = serializers.CharField(source="deal_title", allow_blank=True)
-    usageCount = serializers.IntegerField(source="usage_count")
-    status = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Discount
-        fields = [
-            "id", "code", "dealTitle", "description",
-            "type", "value", "usageCount", "status",
-            "priority", "is_clearance",
-            "image",
-        ]
-
-    def get_status(self, obj):
-        return obj.status
+class DiscountListSerializer(DiscountReadSerializer):
+    class Meta(DiscountReadSerializer.Meta):
+        fields = DiscountReadSerializer.Meta.fields
 
 
 class DiscountWriteSerializer(serializers.ModelSerializer):

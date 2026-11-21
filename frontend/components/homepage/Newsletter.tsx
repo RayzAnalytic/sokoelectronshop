@@ -1,4 +1,3 @@
-// components/newslettersection/NewsletterSection.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -6,11 +5,8 @@ import { Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { newsletterApi } from '@/lib/api';
 
 interface NewsletterSectionProps {
-    /** Where the signup originated. Defaults to 'Footer Popup'. */
     source?: 'Footer Popup' | 'Checkout' | 'WhatsApp Opt-in';
-    /** Optional heading override. */
     heading?: string;
-    /** Optional supporting copy override. */
     subheading?: string;
 }
 
@@ -61,12 +57,8 @@ export default function NewsletterSection({
             });
 
             if (res.status === 'already_subscribed') {
-                // Treat as a soft warning, not an error banner that
-                // implies something broke — the address is fine, it's
-                // just already on the list.
                 setError(res.detail);
             } else {
-                // 'subscribed' | 'reactivated'
                 setSuccess(res.detail);
                 setEmail('');
             }
@@ -85,52 +77,52 @@ export default function NewsletterSection({
     const fieldErrorId = 'newsletter-email-error';
 
     return (
-        <section className="bg-slate-50 py-6 lg:py-6 border-b border-slate-200">
-            <div className="max-w-7xl mx-auto px-4 sm:px-4 lg:px-4">
-                <div className="bg-white border border-slate-200 rounded-sm p-4 sm:p-5 shadow-sm max-w-3xl mx-auto text-center">
+        <section className="bg-[#F3F6F9] py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-slate-200">
+            <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 lg:px-6">
+                <div className="bg-white border border-slate-200 rounded p-3 xs:p-4 sm:p-5 max-w-3xl mx-auto text-center">
 
-                    <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-50 text-blue-950 rounded-lg mb-2">
-                        <Mail className="w-5 h-5" />
+                    {/* Icon badge — Matte Carbon Black with Electric Neon Cyan icon */}
+                    <div className="inline-flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 bg-[#0B0D10] text-[#00E5FF] rounded mb-1.5 xs:mb-2">
+                        <Mail className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5" />
                     </div>
 
-                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                    <h2 className="text-base xs:text-lg sm:text-xl font-bold text-[#111827]">
                         {heading}
                     </h2>
-                    <p className="text-[13px] text-slate-600 mt-1 max-w-md mx-auto mb-4">
+                    <p className="text-[11px] xs:text-[12px] sm:text-[13px] text-[#6B7280] mt-1 max-w-md mx-auto mb-3 xs:mb-4">
                         {subheading}
                     </p>
 
-                    {/* Success State */}
+                    {/* Success — cyan tinted confirmation */}
                     {success && (
                         <div
                             role="status"
                             aria-live="polite"
-                            className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded text-[13px] text-emerald-700 flex items-center justify-center space-x-2"
+                            className="mb-3 xs:mb-4 p-2 xs:p-3 bg-[#00E5FF]/10 border border-[#00E5FF] rounded text-[11px] xs:text-[12px] sm:text-[13px] text-[#0B0D10] flex items-center justify-center space-x-2"
                         >
-                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                            <span>{success}</span>
+                            <CheckCircle className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-[#00B8D4] shrink-0" />
+                            <span className="text-left">{success}</span>
                         </div>
                     )}
 
-                    {/* Error State */}
+                    {/* Error — cool gray emphasis (no red in palette) */}
                     {error && (
                         <div
                             role="alert"
                             aria-live="assertive"
-                            className="mb-6 p-3 bg-red-50 border border-red-200 rounded text-[13px] text-red-700 flex items-center justify-center space-x-2"
+                            className="mb-4 xs:mb-5 sm:mb-6 p-2 xs:p-3 bg-[#F3F6F9] border border-[#6B7280] rounded text-[11px] xs:text-[12px] sm:text-[13px] text-[#111827] flex items-center justify-center space-x-2"
                         >
-                            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                            <span>{error}</span>
+                            <AlertCircle className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-[#6B7280] shrink-0" />
+                            <span className="text-left">{error}</span>
                         </div>
                     )}
 
-                    {/* Subscription Form */}
                     <form
                         onSubmit={handleSubscribe}
                         className="max-w-md mx-auto"
                         noValidate
                     >
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 xs:space-y-3 sm:space-y-0 sm:space-x-2">
                             <div className="flex-1">
                                 <label htmlFor={inputId} className="sr-only">
                                     Email address
@@ -146,21 +138,21 @@ export default function NewsletterSection({
                                     placeholder="Enter your email address"
                                     aria-invalid={fieldError ? true : undefined}
                                     aria-describedby={fieldError ? fieldErrorId : undefined}
-                                    className={`w-full px-3 py-2 text-[13px] bg-white border ${fieldError
-                                            ? 'border-red-500 focus:ring-red-500'
-                                            : 'border-slate-300 focus:border-blue-950 focus:ring-blue-950'
-                                        } rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 disabled:bg-slate-100 disabled:text-slate-500`}
+                                    className={`w-full px-2.5 xs:px-3 py-1.5 xs:py-2 text-[12px] xs:text-[13px] bg-white border ${fieldError
+                                            ? 'border-[#6B7280] focus:ring-[#6B7280]'
+                                            : 'border-slate-300 focus:border-[#00B8D4] focus:ring-[#00B8D4]'
+                                        } rounded text-[#111827] placeholder-[#6B7280] focus:outline-none focus:ring-1 disabled:bg-[#F3F6F9] disabled:text-[#6B7280]`}
                                 />
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-5 rounded text-[14px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
+                                className="bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-1.5 xs:py-2 px-4 xs:px-5 rounded text-[12px] xs:text-[13px] sm:text-[14px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
                             >
                                 {loading ? (
                                     <>
-                                        <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                                        Subscribing...
+                                        <Loader2 className="animate-spin -ml-1 mr-2 h-3.5 w-3.5 xs:h-4 xs:w-4" />
+                                        <span className="truncate">Subscribing...</span>
                                     </>
                                 ) : (
                                     'Subscribe'
@@ -171,7 +163,7 @@ export default function NewsletterSection({
                             <p
                                 id={fieldErrorId}
                                 role="alert"
-                                className="text-[13px] text-red-600 mt-1.5 text-left"
+                                className="text-[11px] xs:text-[12px] sm:text-[13px] text-[#6B7280] mt-1.5 text-left"
                             >
                                 {fieldError}
                             </p>

@@ -223,7 +223,11 @@ class AIMessageSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data["timestamp"] = instance.created_at.strftime("%H:%M")
+        created_at = instance.created_at
+        if created_at:
+            data["timestamp"] = timezone.localtime(created_at).strftime("%I:%M %p")
+        else:
+            data["timestamp"] = ""
         data["quickReplies"] = data.pop("quick_replies", None)
         data["toolName"] = data.pop("tool_name", None)
         data["toolArgs"] = data.pop("tool_args", None)
@@ -236,7 +240,7 @@ class AIMessageSerializer(serializers.ModelSerializer):
         data["tokensOut"] = data.pop("tokens_out", None)
         data["streaming"] = instance.status == "streaming"
         data["provenance"] = self._build_provenance(data.get("dataSources"))
-        tool_calls = data.get("tool_calls") or []
+        tool_calls = data.pop("tool_calls", None) or []
         data["toolCalls"] = tool_calls
         if instance.error_message:
             data["error"] = "stream_error" if instance.status == "error" else "network"
@@ -244,7 +248,7 @@ class AIMessageSerializer(serializers.ModelSerializer):
 
 
 class AIMessageCreateSerializer(serializers.Serializer):
-    content = serializers.CharField(allow_blank=False)
+    content = serializers.CharField(allow_blank=False, max_length=8000)
     context = serializers.DictField(required=False)
     attachments = serializers.ListField(
         child=serializers.DictField(),
@@ -276,16 +280,25 @@ class AIConversationSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def _resolve_last_message(self, instance):
+        cache = getattr(instance, "_prefetched_objects_cache", {})
+        if "messages" in cache:
+            messages = cache["messages"]
+            if not messages:
+                return None
+            return max(messages, key=lambda m: m.created_at)
+        for attr in ("last_message", "prefetched_last_message"):
+            msg = getattr(instance, attr, None)
+            if msg is not None:
+                return msg
+        return instance.messages.order_by("-created_at").first()
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
-
-        # FIX #2 — frontend does `new Date(c.updatedAt)`, so updatedAt must be ISO.
-        # Keep the relative string under `updatedAtRelative` for anyone who needs it.
         data["updatedAt"] = instance.updated_at.isoformat() if instance.updated_at else None
         data["updatedAtRelative"] = relative_time(instance.updated_at)
-        data["updatedAtIso"] = data["updatedAt"]  # back-compat with earlier frontend code
+        data["updatedAtIso"] = data["updatedAt"]
         data["group"] = day_group(instance.updated_at)
-
         data["messageCount"] = data.pop("message_count", None)
         data["isPinned"] = data.pop("is_pinned", None)
         data["originPath"] = data.pop("origin_path", None)
@@ -295,7 +308,7 @@ class AIConversationSerializer(serializers.ModelSerializer):
         data["totalCostKes"] = data.pop("total_cost_kes", None)
         data["createdAt"] = data.pop("created_at", None)
         data["updatedAtRaw"] = data.pop("updated_at", None)
-        last = instance.messages.order_by("-created_at").first() if hasattr(instance, "messages") else None
+        last = self._resolve_last_message(instance)
         data["preview"] = (last.content or "")[:80] if last else ""
         data["pinned"] = data["isPinned"]
         return data
@@ -347,9 +360,20 @@ class AIAlertSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = [
+            "severity",
+            "category",
+            "source",
+            "title",
+            "description",
+            "href",
+            "action_label",
+            "count",
+            "automation",
             "is_dismissed",
             "dismissed_at",
             "acknowledged_at",
+            "snoozed_until",
+            "expires_at",
             "created_at",
             "updated_at",
         ]
@@ -399,10 +423,19 @@ class AIInsightSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = [
+            "category",
+            "priority",
+            "text",
+            "action_label",
+            "href",
+            "action",
+            "evidence",
+            "automation",
             "is_dismissed",
             "dismissed_at",
             "viewed_at",
             "executed_at",
+            "expires_at",
             "created_at",
             "updated_at",
         ]
@@ -522,9 +555,9 @@ class AIAutomationSerializer(serializers.ModelSerializer):
         return relative_time(obj.last_run_at)
 
     def get_recentRuns(self, obj: AIAutomation):
-        # FIX #1 — list endpoint sets _prefetched_runs via Prefetch(); detail endpoint does not.
-        # Fall back to a live query so /automations/<pk>/ also returns recent runs.
-        qs = getattr(obj, "_prefetched_runs", None)
+        qs = getattr(obj, "prefetched_runs", None)
+        if qs is None:
+            qs = getattr(obj, "_prefetched_runs", None)
         if qs is None:
             qs = obj.executions.order_by("-started_at")[:5]
         return AIAutomationRunSerializer(qs, many=True).data
@@ -709,8 +742,11 @@ class AIAuditLogSerializer(serializers.ModelSerializer):
         return obj.user.get_username()
 
     def _normalise_status(self, obj: AIAuditLog) -> str:
-        if obj.action in ("destructive", "write") and not obj.was_confirmed:
-            return "cancelled"
+        if obj.action in ("destructive", "write"):
+            if obj.was_confirmed is False:
+                return "cancelled"
+            if obj.was_confirmed is None:
+                return "pending"
         if obj.is_verified is False:
             return "failed"
         return "success"
@@ -727,7 +763,7 @@ class AIAuditLogSerializer(serializers.ModelSerializer):
         data["isVerified"] = data.pop("is_verified", None)
         data["createdAt"] = data.pop("created_at", None)
         data["timestamp"] = relative_time(instance.created_at)
-        data["timestampIso"] = instance.created_at.isoformat()
+        data["timestampIso"] = instance.created_at.isoformat() if instance.created_at else None
         data["actor"] = data["userDisplay"] or "system"
         data["target"] = instance.tool or ""
         data["params"] = data.pop("args", None)
@@ -772,7 +808,7 @@ class AIActionPreviewSerializer(serializers.Serializer):
         data = super().to_representation(instance)
         data["confirmLabel"] = data.pop("confirm_label", None)
         data["cancelLabel"] = data.pop("cancel_label", None)
-        data["id"] = data.get("id") or f"pending-{data.get('tool', 'action')}"
+        data["id"] = f"pending-{data.get('tool', 'action')}"
         return data
 
 

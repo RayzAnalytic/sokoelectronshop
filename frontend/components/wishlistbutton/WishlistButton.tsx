@@ -96,7 +96,7 @@ export function WishlistButton({
       title={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
       className={`${sizes.btn} rounded-full flex items-center justify-center transition-all duration-150 disabled:opacity-60 disabled:cursor-wait ${isWishlisted
         ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-        : 'bg-white/90 backdrop-blur-sm text-slate-500 hover:text-rose-600 hover:bg-white shadow-sm border border-slate-200'
+        : 'bg-white/90 backdrop-blur-sm text-slate-500 hover:text-rose-600 hover:bg-white border border-slate-200'
         } ${className}`}
     >
       <Heart

@@ -142,12 +142,14 @@ class PaymentSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
     payment_method = serializers.SerializerMethodField()
     paid_at = serializers.SerializerMethodField()
+    source = serializers.CharField(read_only=True)
 
     class Meta:
         model = Payment
         fields = (
             "id",
             "status",
+            "source",
             "amount",
             "phone_number",
             "order_reference",
@@ -200,6 +202,9 @@ class OrderReadSerializer(serializers.ModelSerializer):
     is_guest_order = serializers.BooleanField(read_only=True)
     is_paid = serializers.BooleanField(read_only=True)
     snapshot = serializers.SerializerMethodField()
+    tax_rate = serializers.SerializerMethodField()
+    prices_include_tax = serializers.SerializerMethodField()
+    tax_enabled = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -214,6 +219,10 @@ class OrderReadSerializer(serializers.ModelSerializer):
             "is_guest_order",
             "delivery_method",
             "estimated_delivery",
+            "address_street",
+            "address_town",
+            "address_county",
+            "address_postal_code",
             "notes",
             "coupon_code",
             "contact_email",
@@ -225,6 +234,10 @@ class OrderReadSerializer(serializers.ModelSerializer):
             "shipping",
             "tax",
             "total",
+            "client_total",
+            "tax_rate",
+            "tax_enabled",
+            "prices_include_tax",
             "snapshot",
             "items",
             "created_at",
@@ -236,6 +249,46 @@ class OrderReadSerializer(serializers.ModelSerializer):
         if not raw:
             return None
         return {k: v for k, v in raw.items() if not k.startswith("_")}
+
+    def get_prices_include_tax(self, obj):
+        s = _settings()
+        if s and "checkout" in s:
+            cfg = s["checkout"]
+            if hasattr(cfg, "prices_include_tax"):
+                return bool(cfg.prices_include_tax)
+        return True
+
+    def get_tax_enabled(self, obj):
+        s = _settings()
+        if s and "checkout" in s:
+            cfg = s["checkout"]
+            if hasattr(cfg, "tax_enabled"):
+                return bool(cfg.tax_enabled)
+        return True
+
+    def get_tax_rate(self, obj):
+        sub = float(obj.subtotal or 0)
+        tax = float(obj.tax or 0)
+        if sub > 0 and tax > 0:
+            inclusive = self.get_prices_include_tax(obj)
+            if inclusive and sub > tax:
+                rate = tax / (sub - tax) * 100
+                if 0 < rate < 100:
+                    return round(rate)
+            elif not inclusive:
+                rate = tax / sub * 100
+                if 0 < rate < 100:
+                    return round(rate)
+        s = _settings()
+        if s and "checkout" in s:
+            cfg = s["checkout"]
+            if hasattr(cfg, "tax_rate"):
+                try:
+                    r = float(cfg.tax_rate)
+                    return round(r * 100) if r <= 1 else round(r)
+                except (TypeError, ValueError):
+                    pass
+        return 16
 
 
 class OrderCreateResponseSerializer(serializers.ModelSerializer):
@@ -460,7 +513,7 @@ class PaymentEventSerializer(serializers.ModelSerializer):
 
 class TransactionSerializer(serializers.ModelSerializer):
     ref               = serializers.CharField(source="mpesa_receipt_number", read_only=True)
-    orderNumber       = serializers.CharField(source="order.reference", read_only=True)
+    orderNumber       = serializers.SerializerMethodField()
 
     amount            = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True,
@@ -470,6 +523,7 @@ class TransactionSerializer(serializers.ModelSerializer):
     )
 
     phoneNumber       = serializers.CharField(source="masked_phone", read_only=True)
+    source            = serializers.CharField(read_only=True)
 
     status            = serializers.CharField(source="display_status", read_only=True)
     responseCode      = serializers.SerializerMethodField()
@@ -499,6 +553,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "amount",
             "fee",
             "phoneNumber",
+            "source",
             "status",
             "responseCode",
             "responseDesc",
@@ -513,6 +568,9 @@ class TransactionSerializer(serializers.ModelSerializer):
             "settledAt",
             "reversals",
         )
+
+    def get_orderNumber(self, obj):
+        return obj.order.reference if obj.order_id else None
 
     def get_responseCode(self, obj) -> str:
         if obj.result_code is None:
@@ -592,3 +650,52 @@ class BulkExportSerializer(serializers.Serializer):
         child=serializers.UUIDField(),
         allow_empty=False,
     )
+
+
+class C2BConfirmationSerializer(serializers.Serializer):
+    TransID = serializers.CharField(max_length=32)
+    TransAmount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    MSISDN = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
+    FirstName = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+    MiddleName = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+    LastName = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+    BusinessShortCode = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
+    BillRefNumber = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
+    TransTime = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
+    TransactionType = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
+    OrgAccountBalance = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
+    ThirdPartyTransID = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
+    InvoiceNumber = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
+
+
+class CompleteOrderItemSerializer(serializers.Serializer):
+    product_id = serializers.CharField(required=False, allow_blank=True, default="")
+    name = serializers.CharField()
+    brand = serializers.CharField(required=False, allow_blank=True, default="")
+    unit_price = serializers.DecimalField(max_digits=12, decimal_places=2)
+    quantity = serializers.IntegerField(min_value=1, default=1)
+    image_url = serializers.CharField(required=False, allow_blank=True, default="")
+    serial_number = serializers.CharField(required=False, allow_blank=True, default="")
+    imei = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class CompleteOrderSerializer(serializers.Serializer):
+    items = CompleteOrderItemSerializer(many=True)
+    customer_name = serializers.CharField(required=False, allow_blank=True)
+    customer_phone = serializers.CharField(required=False, allow_blank=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+
+
+class StickerDataSerializer(serializers.Serializer):
+    order_reference = serializers.CharField()
+    item_id = serializers.IntegerField()
+    name = serializers.CharField()
+    brand = serializers.CharField(required=False, allow_blank=True)
+    quantity = serializers.IntegerField()
+    unit_price = serializers.CharField()
+    serial_number = serializers.CharField(required=False, allow_blank=True)
+    imei = serializers.CharField(required=False, allow_blank=True)
+    customer_name = serializers.CharField(required=False, allow_blank=True)
+    customer_phone_last4 = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField()
+    qr_payload = serializers.CharField()

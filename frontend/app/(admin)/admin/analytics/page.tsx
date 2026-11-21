@@ -4,7 +4,6 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
-  useMemo,
   useState,
 } from 'react';
 import {
@@ -12,16 +11,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   MessageSquare,
-  ExternalLink,
   X,
   CheckCircle2,
   ShoppingBag,
   Send,
   Download,
-  Smartphone,
-  Monitor,
-  Tablet,
-  MapPin,
   DollarSign,
   Package,
   ShoppingCart,
@@ -75,15 +69,11 @@ import type {
   AnalyticsDevice,
   AnalyticsCounty,
   AnalyticsAbandonedCart,
-  AnalyticsSalesBreakdownRow,
-  AnalyticsCustomerMetric,
   AnalyticsProductPerfRow,
   AnalyticsProductStatus,
-  AnalyticsChannelRow,
-  AnalyticsTopCustomer,
 } from '@/lib/admin-types';
-type AreaMetric = 'sessions' | 'visitors' | 'pageviews';
 
+type AreaMetric = 'sessions' | 'visitors' | 'pageviews';
 type PageTab = AnalyticsTab;
 
 interface AnalyticsDataMap {
@@ -107,6 +97,7 @@ const PRODUCT_STATUS_LABELS: Record<AnalyticsProductStatus, string> = {
   out: 'Out of Stock',
   abandoned: 'Abandoned',
 };
+
 const CHANNEL_ICON_MAP: Record<
   string,
   React.ComponentType<{ className?: string }>
@@ -131,7 +122,7 @@ export default function AnalyticsPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-50 flex items-center justify-center text-[13px] text-slate-500">
-          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          <Loader2 className="w-4 h-4 animate-spin mr-1" />
           Loading analytics…
         </div>
       }
@@ -143,36 +134,23 @@ export default function AnalyticsPage() {
 
 function AnalyticsPageInner() {
   const [dateRange, setDateRange] = useState<AnalyticsRange>('7days');
-  const [comparePrevious, setComparePrevious] = useState(true);
   const [areaMetric, setAreaMetric] = useState<AreaMetric>('sessions');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PageTab>('traffic');
 
-  // Data + async state
   const [reportData, setReportData] = useState<AnalyticsDataMap>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Modals
-  const [selectedKpi, setSelectedKpi] = useState<AnalyticsKpi | null>(null);
-  const [selectedSource, setSelectedSource] = useState<AnalyticsSource | null>(null);
-  const [selectedStage, setSelectedStage] = useState<AnalyticsFunnelStage | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<AnalyticsDevice | null>(null);
-  const [selectedCounty, setSelectedCounty] = useState<AnalyticsCounty | null>(null);
   const [selectedCartDay, setSelectedCartDay] = useState<string | null>(null);
   const [cartModalOpen, setCartModalOpen] = useState(false);
-
-  const [selectedSalesRow, setSelectedSalesRow] = useState<AnalyticsSalesBreakdownRow | null>(null);
-  const [selectedCustomerMetric, setSelectedCustomerMetric] = useState<AnalyticsCustomerMetric | null>(null);
   const [selectedProductPerf, setSelectedProductPerf] = useState<AnalyticsProductPerfRow | null>(null);
-  const [selectedChannel, setSelectedChannel] = useState<AnalyticsChannelRow | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
-  // ── Fetch on tab or range change ─────────────────────────
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
@@ -228,21 +206,18 @@ function AnalyticsPageInner() {
     try {
       await adminApi.analytics.refreshCache({ tab: activeTab });
       showToast(`Refreshed ${activeTab.toUpperCase()} analytics`);
-      // re-trigger fetch
       setReportData((p) => ({ ...p }));
     } catch {
       showToast(`Refresh failed for ${activeTab.toUpperCase()}`);
     }
   };
 
-  // ── Read current tab data ────────────────────────────────
   const traffic = reportData.traffic;
   const sales = reportData.sales;
   const customers = reportData.customers;
   const products = reportData.products;
   const channels = reportData.channels;
 
-  // Fallbacks so the UI can render safely while loading
   const kpis: AnalyticsKpi[] = traffic?.kpis ?? [];
   const sessionsTimeline: AnalyticsSessionsPoint[] = traffic?.sessions_timeline ?? [];
   const trafficSources: AnalyticsSource[] = traffic?.sources ?? [];
@@ -257,11 +232,9 @@ function AnalyticsPageInner() {
     : abandonedCarts;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-
-      {/* TOAST */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10 relative">
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
@@ -269,334 +242,80 @@ function AnalyticsPageInner() {
           </button>
         </div>
       )}
-      {selectedKpi && (
-        <Modal onClose={() => setSelectedKpi(null)}>
-          <div className="space-y-2">
-            <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase">{selectedKpi.label}</p>
-              <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedKpi.value}</h3>
-              <p className="text-[13px] text-slate-500 mt-1">{selectedKpi.detail}</p>
-            </div>
 
-            <div className="h-40 bg-white border border-slate-200 rounded-sm p-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={selectedKpi.spark.map((v, i) => ({
-                    date: sessionsTimeline[i]?.date ?? `D${i + 1}`,
-                    value: v,
-                  }))}
-                >
-                  <defs>
-                    <linearGradient id="kpiFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#172554" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#172554" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} />
-                  <YAxis stroke="#172554" fontSize={13} />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="value" stroke="#172554" strokeWidth={2} fill="url(#kpiFill)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="space-y-2 text-[13px]">
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Change vs previous</span>
-                <span className={`font-medium ${selectedKpi.positive ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {selectedKpi.delta}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Date range</span>
-                <span className="font-medium text-slate-900">{dateRange}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-slate-500">Comparison</span>
-                <span className="font-medium text-slate-900">{comparePrevious ? 'Enabled' : 'Disabled'}</span>
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-      {selectedSource && (
-        <Modal onClose={() => setSelectedSource(null)}>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedSource.color }} />
-              <div>
-                <h3 className="text-[15px] font-bold text-slate-900">{selectedSource.name}</h3>
-                <p className="text-[13px] text-slate-500">{selectedSource.value}% of all traffic</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Stat label="Visits" value={selectedSource.visits.toLocaleString()} />
-              <Stat label="Orders" value={selectedSource.orders.toString()} />
-              <Stat label="Revenue" value={selectedSource.revenue} />
-            </div>
-
-            <div className="h-32 bg-white border border-slate-200 rounded-sm p-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={sessionsTimeline.map((s) => ({
-                    date: s.date,
-                    visits: Math.round((selectedSource.visits / Math.max(sessionsTimeline.length, 1)) * 0.9),
-                  }))}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} />
-                  <YAxis stroke="#172554" fontSize={13} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="visits" stroke={selectedSource.color} strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ============ FUNNEL STAGE MODAL ============ */}
-      {selectedStage && (
-        <Modal onClose={() => setSelectedStage(null)}>
-          <div className="space-y-2">
-            <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase">Funnel Stage</p>
-              <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedStage.stage}</h3>
-              <p className="text-[13px] text-slate-500 mt-0.5">
-                {selectedStage.count.toLocaleString()} users reached this stage
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-[13px] font-medium text-slate-500 uppercase">By source</p>
-              {selectedStage.breakdown.map((b) => {
-                const pct = selectedStage.count ? Math.round((b.users / selectedStage.count) * 100) : 0;
-                return (
-                  <div key={b.source} className="space-y-1">
-                    <div className="flex items-center justify-between text-[13px]">
-                      <span className="font-medium text-slate-700">{b.source}</span>
-                      <span className="font-mono text-slate-600">{b.users.toLocaleString()} ({pct}%)</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-sm overflow-hidden">
-                      <div className="bg-blue-950 h-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ============ DEVICE MODAL ============ */}
-      {selectedDevice && (
-        <Modal onClose={() => setSelectedDevice(null)}>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span
-                className="w-9 h-9 rounded-sm flex items-center justify-center"
-                style={{ backgroundColor: `${selectedDevice.fill}20`, color: selectedDevice.fill }}
-              >
-                {selectedDevice.device.startsWith('Mobile') ? (
-                  <Smartphone className="w-4 h-4" />
-                ) : selectedDevice.device.startsWith('Desktop') ? (
-                  <Monitor className="w-4 h-4" />
-                ) : (
-                  <Tablet className="w-4 h-4" />
-                )}
-              </span>
-              <div>
-                <h3 className="text-[15px] font-bold text-slate-900">{selectedDevice.device}</h3>
-                <p className="text-[13px] text-slate-500">{selectedDevice.users.toLocaleString()} users</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Stat label="Sessions" value={selectedDevice.sessions.toLocaleString()} />
-              <Stat label="Conv. rate" value={selectedDevice.convRate} />
-              <Stat label="Bounce" value={selectedDevice.bounce} />
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ============ COUNTY MODAL ============ */}
-      {selectedCounty && (
-        <Modal onClose={() => setSelectedCounty(null)}>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
-                <MapPin className="w-4 h-4" />
-              </span>
-              <div>
-                <h3 className="text-[15px] font-bold text-slate-900">{selectedCounty.county}</h3>
-                <p className="text-[13px] text-slate-500">{selectedCounty.share}% of all visitors</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Stat label="Visitors" value={selectedCounty.visitors.toLocaleString()} />
-              <Stat label="Orders" value={selectedCounty.orders.toString()} />
-              <Stat label="Revenue" value={selectedCounty.revenue} />
-            </div>
-          </div>
-        </Modal>
-      )}
-      {selectedSalesRow && (
-        <Modal onClose={() => setSelectedSalesRow(null)}>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              {selectedSalesRow.image ? (
-                <img
-                  src={selectedSalesRow.image}
-                  alt={selectedSalesRow.name}
-                  className="w-10 h-10 rounded-sm object-cover border border-slate-200"
-                />
-              ) : (
-                <span
-                  className="w-10 h-10 rounded-sm flex items-center justify-center"
-                  style={{
-                    backgroundColor: `${selectedSalesRow.color ?? '#172554'}20`,
-                    color: selectedSalesRow.color ?? '#172554',
-                  }}
-                >
-                  <Package className="w-4 h-4" />
-                </span>
-              )}
-              <div>
-                <h3 className="text-[15px] font-bold text-slate-900">{selectedSalesRow.name}</h3>
-                <p className="text-[13px] text-slate-500">{formatKES(selectedSalesRow.revenue)} revenue</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Stat label="Orders" value={selectedSalesRow.orders.toString()} />
-              <Stat label="Units" value={selectedSalesRow.units.toString()} />
-              <Stat
-                label="Growth"
-                value={`${selectedSalesRow.growth > 0 ? '+' : ''}${selectedSalesRow.growth}%`}
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
-      {selectedCustomerMetric && (
-        <Modal onClose={() => setSelectedCustomerMetric(null)}>
-          <div className="space-y-2">
-            <div>
-              <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedCustomerMetric.label}</p>
-              <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedCustomerMetric.value}</h3>
-              <p className="text-[13px] text-slate-500 mt-1">{selectedCustomerMetric.detail}</p>
-            </div>
-            <div className="flex justify-between py-2 border-b border-slate-100 text-[13px]">
-              <span className="text-slate-500">Change vs previous</span>
-              <span className={`font-medium ${selectedCustomerMetric.positive ? 'text-emerald-600' : 'text-red-600'}`}>
-                {selectedCustomerMetric.delta}
-              </span>
-            </div>
-          </div>
-        </Modal>
-      )}
       {selectedProductPerf && (
-        <Drawer onClose={() => setSelectedProductPerf(null)}>
-          <div className="space-y-2 text-[13px]">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium text-blue-950 uppercase tracking-wide">{selectedProductPerf.category}</p>
-                <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedProductPerf.name}</h3>
-                <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedProductPerf.sku}</p>
+        <div
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex justify-end"
+          onClick={() => setSelectedProductPerf(null)}
+        >
+          <div
+            className="bg-white border-l border-slate-200 w-full max-w-md h-full p-2 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-2 text-[13px]">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-blue-950 uppercase">{selectedProductPerf.category}</p>
+                  <h3 className="text-[15px] font-bold text-slate-900 mt-0.5">{selectedProductPerf.name}</h3>
+                  <p className="text-[13px] text-slate-500 font-mono mt-0.5">SKU: {selectedProductPerf.sku}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedProductPerf(null)}
+                  className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
+
+              <div className="w-full h-40 rounded bg-slate-100 border border-slate-200 overflow-hidden">
+                {selectedProductPerf.image ? (
+                  <img src={selectedProductPerf.image} alt={selectedProductPerf.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="w-full h-full flex items-center justify-center text-slate-400">
+                    <Package className="w-8 h-8" />
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Stat label="Views" value={selectedProductPerf.views.toLocaleString()} />
+                <Stat label="Purchases" value={selectedProductPerf.purchases.toString()} />
+                <Stat label="Revenue" value={formatKES(selectedProductPerf.revenue)} />
+                <Stat label="Conversion" value={selectedProductPerf.conversion} />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Stock</span>
+                  <span className={`font-semibold ${selectedProductPerf.stock === 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {selectedProductPerf.stock === 0 ? 'Out of stock' : `${selectedProductPerf.stock} units`}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-100">
+                  <span className="text-slate-500">Status</span>
+                  <span className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border ${PRODUCT_STATUS_STYLES[selectedProductPerf.status]}`}>
+                    {PRODUCT_STATUS_LABELS[selectedProductPerf.status]}
+                  </span>
+                </div>
+              </div>
+
               <button
-                onClick={() => setSelectedProductPerf(null)}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+                onClick={() => showToast(`Opening ${selectedProductPerf.name} in Products`)}
+                className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded text-[13px]"
               >
-                <X className="h-4 w-4" />
+                View in Products
               </button>
             </div>
-
-            <div className="w-full h-40 rounded-sm bg-slate-100 border border-slate-200 overflow-hidden">
-              {selectedProductPerf.image ? (
-                <img src={selectedProductPerf.image} alt={selectedProductPerf.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="w-full h-full flex items-center justify-center text-slate-400">
-                  <Package className="w-8 h-8" />
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <Stat label="Views" value={selectedProductPerf.views.toLocaleString()} />
-              <Stat label="Purchases" value={selectedProductPerf.purchases.toString()} />
-              <Stat label="Revenue" value={formatKES(selectedProductPerf.revenue)} />
-              <Stat label="Conversion" value={selectedProductPerf.conversion} />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Stock</span>
-                <span className={`font-semibold ${selectedProductPerf.stock === 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {selectedProductPerf.stock === 0 ? 'Out of stock' : `${selectedProductPerf.stock} units`}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">Status</span>
-                <span className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${PRODUCT_STATUS_STYLES[selectedProductPerf.status]}`}>
-                  {PRODUCT_STATUS_LABELS[selectedProductPerf.status]}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => showToast(`Opening ${selectedProductPerf.name} in Products`)}
-              className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded-sm text-[13px]"
-            >
-              View in Products
-            </button>
           </div>
-        </Drawer>
+        </div>
       )}
 
-      {/* ============ CHANNEL MODAL ============ */}
-      {selectedChannel && (
-        <Modal onClose={() => setSelectedChannel(null)}>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              {(() => {
-                const Icon = CHANNEL_ICON_MAP[selectedChannel.icon] ?? Target;
-                return (
-                  <span
-                    className="w-10 h-10 rounded flex items-center justify-center"
-                    style={{ backgroundColor: `${selectedChannel.color}20`, color: selectedChannel.color }}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </span>
-                );
-              })()}
-              <div>
-                <h3 className="text-[15px] font-bold text-slate-900">{selectedChannel.name}</h3>
-                <p className="text-[13px] text-slate-500">{selectedChannel.share}% of all channel traffic</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <Stat label="Visitors" value={selectedChannel.visitors.toLocaleString()} />
-              <Stat label="Orders" value={selectedChannel.orders.toString()} />
-              <Stat label="Revenue" value={selectedChannel.revenue} />
-              <Stat label="Conv. rate" value={selectedChannel.convRate} />
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ============ ABANDONED CARTS MODAL ============ */}
       {cartModalOpen && (
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2">
-          <div className="bg-white border border-slate-200 rounded-sm max-w-2xl w-full p-2 shadow-xl space-y-2 text-[13px]">
+          <div className="bg-white border border-slate-200 rounded max-w-2xl w-full p-2  space-y-2 text-[13px]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <ShoppingBag className="w-4 h-4" />
                 </div>
                 <div>
@@ -604,7 +323,7 @@ function AnalyticsPageInner() {
                   <p className="text-slate-500 text-[13px]">
                     {selectedCartDay
                       ? `Showing carts from ${selectedCartDay}`
-                      : 'Instantly ping leads via WhatsApp Cloud API'}
+                      : 'Send a WhatsApp reminder to bring them back'}
                   </p>
                 </div>
               </div>
@@ -613,7 +332,7 @@ function AnalyticsPageInner() {
                   setCartModalOpen(false);
                   setSelectedCartDay(null);
                 }}
-                className="w-8 h-8 rounded-sm bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
+                className="w-8 h-8 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -626,12 +345,12 @@ function AnalyticsPageInner() {
                 filteredCarts.map((cart) => (
                   <div
                     key={cart.id}
-                    className="p-2 bg-slate-50 border border-slate-200 rounded-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
+                    className="p-2 bg-slate-50 border border-slate-200 rounded flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-900">{cart.customer}</span>
-                        <span className="text-[13px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-sm font-mono">
+                        <span className="text-[13px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono">
                           {cart.phone}
                         </span>
                       </div>
@@ -645,7 +364,7 @@ function AnalyticsPageInner() {
 
                     <button
                       onClick={() => showToast(`WhatsApp reminder sent to ${cart.customer} (${cart.phone})`)}
-                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded-sm transition shrink-0 text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded transition shrink-0 text-[13px]"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>Send WhatsApp</span>
@@ -661,7 +380,7 @@ function AnalyticsPageInner() {
                   setCartModalOpen(false);
                   setSelectedCartDay(null);
                 }}
-                className="px-2 py-2 bg-slate-900 text-white font-medium rounded-sm hover:bg-slate-800 transition text-[13px]"
+                className="px-2 py-2 bg-slate-900 text-white font-medium rounded hover:bg-slate-800 transition text-[13px]"
               >
                 Close
               </button>
@@ -670,35 +389,19 @@ function AnalyticsPageInner() {
         </div>
       )}
 
-      {/* PAGE HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-2 py-2 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-[15px] font-semibold text-slate-900">Analytics</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">
-              Deep dive into traffic, sales, customers, products, and channels
-            </p>
-          </div>
+        <div className="max-w-[1700px] mx-auto px-2 py-2 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-[15px] font-semibold text-slate-900">Analytics</h1>
 
           <div className="flex items-center gap-2">
             <button
               onClick={handleRefresh}
               disabled={isLoading}
-              className="bg-white border border-slate-200 rounded-sm p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="bg-white border border-slate-200 rounded p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               title="Refresh this tab"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
-
-            <label className="flex items-center gap-2 bg-white border border-slate-200 rounded px-2 py-2 text-[13px] font-medium text-slate-700 cursor-pointer hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={comparePrevious}
-                onChange={(e) => setComparePrevious(e.target.checked)}
-                className="accent-blue-950"
-              />
-              <span>Compare previous</span>
-            </label>
 
             <div className="bg-white border border-slate-200 rounded px-2 py-2 flex items-center gap-2 text-[13px] font-medium text-slate-700">
               <Calendar className="w-3.5 h-3.5 text-blue-950" />
@@ -716,7 +419,7 @@ function AnalyticsPageInner() {
 
             <button
               onClick={() => showToast('Exporting analytics report as CSV…')}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-2 py-2 rounded-sm transition"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-2 py-2 rounded transition"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Export</span>
@@ -724,9 +427,8 @@ function AnalyticsPageInner() {
           </div>
         </div>
 
-        {/* SECTION TABS */}
         <div className="max-w-[1600px] mx-auto px-2 pb-2">
-          <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200 overflow-x-auto max-w-full">
+          <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200 overflow-x-auto max-w-full">
             {([
               { id: 'traffic', label: 'Traffic' },
               { id: 'sales', label: 'Sales' },
@@ -737,7 +439,9 @@ function AnalyticsPageInner() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-2 py-1.5 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                className={`px-2 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id
+                    ? 'bg-white text-blue-950'
+                    : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
                 {tab.label}
@@ -747,12 +451,9 @@ function AnalyticsPageInner() {
         </div>
       </header>
 
-      {/* MAIN */}
       <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
-
-        {/* ERROR */}
         {error && !isLoading && (
-          <div className="bg-red-50 border border-red-100 rounded-sm p-2 flex items-start gap-2 text-[13px]">
+          <div className="bg-red-50 border border-red-100 rounded p-2 flex items-start gap-2 text-[13px]">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium text-red-700">Couldn&apos;t load this report</p>
@@ -760,66 +461,60 @@ function AnalyticsPageInner() {
             </div>
             <button
               onClick={handleRefresh}
-              className="bg-white border border-red-200 hover:bg-red-100 text-red-700 font-medium px-2 py-1 rounded-sm text-[13px]"
+              className="bg-white border border-red-200 hover:bg-red-100 text-red-700 font-medium px-2 py-1 rounded text-[13px]"
             >
               Retry
             </button>
           </div>
         )}
 
-        {/* LOADING */}
         {isLoading ? (
           <div className="space-y-2">
-            <div className="h-20 bg-slate-100 rounded-sm w-full animate-pulse" />
-            <div className="h-64 bg-slate-100 rounded-sm w-full animate-pulse" />
-            <div className="h-56 bg-slate-100 rounded-sm w-full animate-pulse" />
+            <div className="h-20 bg-slate-100 rounded w-full animate-pulse" />
+            <div className="h-64 bg-slate-100 rounded w-full animate-pulse" />
+            <div className="h-56 bg-slate-100 rounded w-full animate-pulse" />
           </div>
         ) : (
           <>
-            {/* ═════════ TRAFFIC TAB ═════════ */}
             {activeTab === 'traffic' && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                   {kpis.map((kpi) => (
-                    <button
+                    <div
                       key={kpi.id}
-                      onClick={() => setSelectedKpi(kpi)}
-                      className="text-left bg-white border border-slate-200 rounded-sm p-2 space-y-2 hover:border-blue-950 transition-all"
+                      className="bg-white border border-slate-200 rounded p-2 space-y-1"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[13px] font-medium text-slate-500 truncate">{kpi.label}</span>
-                        <span
-                          className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded-sm shrink-0 ${kpi.positive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
-                            }`}
-                        >
-                          {kpi.positive ? (
-                            <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                          ) : (
-                            <ArrowDownRight className="w-3 h-3 mr-0.5" />
-                          )}
-                          {kpi.delta}
-                        </span>
-                      </div>
+                      <div className="text-[13px] font-medium text-slate-500 truncate">{kpi.label}</div>
                       <div className="text-[15px] font-bold text-slate-900">{kpi.value}</div>
-                      {comparePrevious && <div className="text-[13px] text-slate-400">vs prev. period</div>}
-                    </button>
+                      <span
+                        className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded ${kpi.positive
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-red-50 text-red-600'
+                          }`}
+                      >
+                        {kpi.positive ? (
+                          <ArrowUpRight className="w-3 h-3 mr-0.5" />
+                        ) : (
+                          <ArrowDownRight className="w-3 h-3 mr-0.5" />
+                        )}
+                        {kpi.delta}
+                      </span>
+                    </div>
                   ))}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
                   <div className="lg:col-span-8 bg-white border border-slate-200 rounded p-2 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <h3 className="text-[13px] font-semibold text-slate-900">Traffic Overview</h3>
-                        <p className="text-[13px] text-slate-500">Real-time engagement over selected range</p>
-                      </div>
-
+                      <h3 className="text-[13px] font-semibold text-slate-900">Traffic Overview</h3>
                       <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded">
                         {(['sessions', 'visitors', 'pageviews'] as AreaMetric[]).map((m) => (
                           <button
                             key={m}
                             onClick={() => setAreaMetric(m)}
-                            className={`px-0.5 py-1.5 rounded text-[13px] font-medium transition capitalize ${areaMetric === m ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                            className={`px-2 py-1.5 rounded text-[13px] font-medium transition capitalize ${areaMetric === m
+                                ? 'bg-white text-blue-950'
+                                : 'text-slate-600 hover:text-slate-900'
                               }`}
                           >
                             {m}
@@ -828,7 +523,7 @@ function AnalyticsPageInner() {
                       </div>
                     </div>
 
-                    <div className="h-70 w-full pt-1">
+                    <div className="h-72 w-full pt-1">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={sessionsTimeline}>
                           <defs>
@@ -855,10 +550,7 @@ function AnalyticsPageInner() {
                   </div>
 
                   <div className="lg:col-span-4 bg-white border border-slate-200 rounded p-2 space-y-2">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-slate-900">Traffic Sources</h3>
-                      <p className="text-[13px] text-slate-500">Click a slice for details</p>
-                    </div>
+                    <h3 className="text-[13px] font-semibold text-slate-900">Traffic Sources</h3>
 
                     <div className="h-48 w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -871,15 +563,9 @@ function AnalyticsPageInner() {
                             outerRadius={65}
                             paddingAngle={3}
                             dataKey="value"
-                            onClick={(entry: unknown) => setSelectedSource(entry as AnalyticsSource)}
-                            className="cursor-pointer"
                           >
                             {trafficSources.map((entry, index) => (
-                              <Cell
-                                key={index}
-                                fill={entry.color}
-                                className="hover:opacity-80 transition-opacity cursor-pointer"
-                              />
+                              <Cell key={index} fill={entry.color} />
                             ))}
                           </Pie>
                           <Tooltip />
@@ -889,52 +575,44 @@ function AnalyticsPageInner() {
 
                     <div className="space-y-0.5 text-[13px]">
                       {trafficSources.map((src) => (
-                        <button
+                        <div
                           key={src.name}
-                          onClick={() => setSelectedSource(src)}
-                          className="w-full flex items-center justify-between hover:bg-slate-50 rounded px-2 py-2 transition"
+                          className="flex items-center justify-between rounded px-2 py-1.5"
                         >
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: src.color }} />
                             <span className="text-slate-700 truncate">{src.name}</span>
                           </div>
                           <span className="font-medium text-slate-900">{src.value}%</span>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-slate-900">Conversion Funnel</h3>
-                    <p className="text-[13px] text-slate-500">Click a stage for source breakdown</p>
-                  </div>
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <h3 className="text-[13px] font-semibold text-slate-900">Conversion Funnel</h3>
 
                   <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
                     {funnelStages.map((stage, idx) => (
-                      <button
+                      <div
                         key={stage.stage}
-                        onClick={() => setSelectedStage(stage)}
-                        className="text-left bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1 hover:border-blue-950 hover:bg-blue-50/30 transition-all"
+                        className="bg-slate-50 border border-slate-200 rounded p-2 space-y-1"
                       >
                         <div className="text-[13px] text-slate-400">Step {idx + 1}</div>
                         <div className="font-medium text-slate-900 text-[13px]">{stage.stage}</div>
                         <div className="text-[15px] font-bold text-blue-950">{stage.count.toLocaleString()}</div>
-                        <div className="text-[13px] text-red-600 bg-red-50 px-2 py-0.5 rounded-sm inline-block">
+                        <div className="text-[13px] text-red-600 bg-red-50 px-2 py-0.5 rounded inline-block">
                           {stage.dropoff}
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-slate-900">Device Breakdown</h3>
-                      <p className="text-[13px] text-slate-500">Click a bar for stats</p>
-                    </div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
+                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2">
+                    <h3 className="text-[13px] font-semibold text-slate-900">Device Breakdown</h3>
 
                     <div className="h-60 w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -943,13 +621,7 @@ function AnalyticsPageInner() {
                           <XAxis type="number" stroke="#94a3b8" fontSize={13} />
                           <YAxis dataKey="device" type="category" width={140} stroke="#172554" fontSize={13} />
                           <Tooltip />
-                          <Bar
-                            dataKey="users"
-                            radius={[0, 2, 2, 0]}
-                            barSize={20}
-                            onClick={(entry: unknown) => setSelectedDevice(entry as AnalyticsDevice)}
-                            className="cursor-pointer"
-                          >
+                          <Bar dataKey="users" radius={[0, 2, 2, 0]} barSize={20}>
                             {devicesData.map((d, i) => (
                               <Cell key={i} fill={d.fill} />
                             ))}
@@ -960,37 +632,29 @@ function AnalyticsPageInner() {
 
                     <div className="space-y-0.5">
                       {devicesData.map((d) => (
-                        <button
+                        <div
                           key={d.device}
-                          onClick={() => setSelectedDevice(d)}
-                          className="w-full flex items-center justify-between hover:bg-slate-50 rounded-sm px-2 py-2 text-[13px] transition"
+                          className="flex items-center justify-between rounded px-2 py-1.5 text-[13px]"
                         >
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.fill }} />
                             <span className="text-slate-700 truncate">{d.device}</span>
                           </div>
                           <span className="font-medium text-slate-900">{d.users.toLocaleString()}</span>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
 
                   <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-slate-900">Top Locations</h3>
-                      <p className="text-[13px] text-slate-500">Click a county for order details</p>
-                    </div>
+                    <h3 className="text-[13px] font-semibold text-slate-900">Top Locations</h3>
 
                     <div className="space-y-2 pt-1">
                       {counties.length === 0 ? (
                         <p className="text-[13px] text-slate-400 italic py-6 text-center">No address data yet.</p>
                       ) : (
                         counties.map((loc) => (
-                          <button
-                            key={loc.county}
-                            onClick={() => setSelectedCounty(loc)}
-                            className="w-full space-y-1 text-[13px] text-left hover:bg-slate-50 rounded px-2 py-2 transition"
-                          >
+                          <div key={loc.county} className="space-y-1 text-[13px]">
                             <div className="flex items-center justify-between">
                               <span className="font-medium text-slate-800">{loc.county}</span>
                               <span className="font-mono text-slate-600">
@@ -1000,7 +664,7 @@ function AnalyticsPageInner() {
                             <div className="w-full bg-slate-100 h-2 rounded overflow-hidden">
                               <div className="bg-blue-950 h-full rounded" style={{ width: `${loc.share}%` }} />
                             </div>
-                          </button>
+                          </div>
                         ))
                       )}
                     </div>
@@ -1022,14 +686,14 @@ function AnalyticsPageInner() {
                         setSelectedCartDay(null);
                         setCartModalOpen(true);
                       }}
-                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2 py-2 rounded-sm transition text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2 py-2 rounded transition text-[13px]"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>Recover ({abandonedCarts.length})</span>
                     </button>
                   </div>
 
-                  <div className="h-50 w-full">
+                  <div className="h-52 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={abandonedTrend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1069,15 +733,10 @@ function AnalyticsPageInner() {
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
-
-                  <p className="text-[13px] text-slate-400 text-center">
-                    Click a point to view that day&apos;s carts
-                  </p>
                 </div>
               </>
             )}
 
-            {/* ═════════ SALES TAB ═════════ */}
             {activeTab === 'sales' && sales && (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -1089,16 +748,16 @@ function AnalyticsPageInner() {
                     { label: 'Avg. Order Value', value: formatKES(sales.summary.aov), delta: '+3.4%', positive: true, icon: TrendingUp },
                     { label: 'Revenue Growth', value: `${sales.summary.revenueGrowth}%`, delta: '+1.2%', positive: true, icon: ArrowUpRight },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <s.icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
-                        </div>
+                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <s.icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
                       </div>
                       <div className="text-[15px] font-bold text-slate-900">{s.value}</div>
                       <span
-                        className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded-sm ${s.positive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                        className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded ${s.positive
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-red-50 text-red-600'
                           }`}
                       >
                         {s.positive ? (
@@ -1112,12 +771,9 @@ function AnalyticsPageInner() {
                   ))}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-slate-900">Sales Trend — Gross vs Net</h3>
-                    <p className="text-[13px] text-slate-500">Daily revenue after refunds and discounts</p>
-                  </div>
-                  <div className="h-60 w-full">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <h3 className="text-[13px] font-semibold text-slate-900">Sales Trend — Gross vs Net</h3>
+                  <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={sales.trend}>
                         <defs>
@@ -1139,7 +795,7 @@ function AnalyticsPageInner() {
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex items-center gap-4 text-[13px] text-slate-600 pt-1">
+                  <div className="flex items-center gap-2 text-[13px] text-slate-600 pt-1">
                     <span className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-950" />
                       Gross
@@ -1151,28 +807,24 @@ function AnalyticsPageInner() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                   {[
                     { title: 'Sales by Product', data: sales.by_product },
                     { title: 'Sales by Category', data: sales.by_category },
                     { title: 'Sales by Brand', data: sales.by_brand },
                   ].map((block) => (
                     <div key={block.title} className="bg-white border border-slate-200 rounded p-2 space-y-2">
-                      <div>
-                        <h3 className="text-[13px] font-semibold text-slate-900">{block.title}</h3>
-                        <p className="text-[13px] text-slate-500">Click any row for details</p>
-                      </div>
+                      <h3 className="text-[13px] font-semibold text-slate-900">{block.title}</h3>
                       <div className="space-y-1">
                         {block.data.length === 0 ? (
                           <p className="text-[13px] text-slate-400 italic py-6 text-center">
                             No data for this range.
                           </p>
                         ) : (
-                          block.data.map((row) => (
-                            <button
-                              key={row.name}
-                              onClick={() => setSelectedSalesRow(row)}
-                              className="w-full text-left hover:bg-slate-50 rounded-sm px-2 py-2 transition"
+                          block.data.map((row, idx) => (
+                            <div
+                              key={`${row.name || 'row'}-${idx}`}
+                              className="px-2 py-1.5"
                             >
                               <div className="flex items-center justify-between gap-2 text-[13px]">
                                 <span className="font-medium text-slate-800 truncate">{row.name}</span>
@@ -1189,7 +841,7 @@ function AnalyticsPageInner() {
                                   {row.growth}%
                                 </span>
                               </div>
-                            </button>
+                            </div>
                           ))
                         )}
                       </div>
@@ -1198,19 +850,21 @@ function AnalyticsPageInner() {
                 </div>
               </>
             )}
+
             {activeTab === 'customers' && customers && (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                   {customers.metrics.map((m) => (
-                    <button
+                    <div
                       key={m.id}
-                      onClick={() => setSelectedCustomerMetric(m)}
-                      className="text-left bg-white border border-slate-200 rounded-sm p-2 space-y-2 hover:border-blue-950 transition-all"
+                      className="bg-white border border-slate-200 rounded p-2 space-y-1"
                     >
                       <div className="text-[13px] font-medium text-slate-500 truncate">{m.label}</div>
                       <div className="text-[15px] font-bold text-slate-900">{m.value}</div>
                       <span
-                        className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded-sm ${m.positive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                        className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded ${m.positive
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-red-50 text-red-600'
                           }`}
                       >
                         {m.positive ? (
@@ -1220,23 +874,20 @@ function AnalyticsPageInner() {
                         )}
                         {m.delta}
                       </span>
-                    </button>
+                    </div>
                   ))}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-slate-900">New vs Returning Customers</h3>
-                    <p className="text-[13px] text-slate-500">Daily split of first-time vs repeat buyers</p>
-                  </div>
-                  <div className="h-60 w-full">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <h3 className="text-[13px] font-semibold text-slate-900">New vs Returning Customers</h3>
+                  <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={customers.new_vs_returning}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} />
                         <YAxis stroke="#172554" fontSize={13} />
                         <Tooltip />
-                        <Bar dataKey="new" name="New" stackId="a" fill="#172554" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="new" name="New" stackId="a" fill="#172554" />
                         <Bar dataKey="returning" name="Returning" stackId="a" fill="#10b981" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -1253,13 +904,13 @@ function AnalyticsPageInner() {
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                <div className="bg-white border border-slate-200 rounded overflow-hidden">
                   <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">
                       Top Customers by Lifetime Value
                     </span>
                     <span className="text-[13px] text-blue-950 font-medium">
-                      Showing top {customers.top_customers.length}
+                      Top {customers.top_customers.length}
                     </span>
                   </div>
                   <div className="overflow-x-auto">
@@ -1280,7 +931,7 @@ function AnalyticsPageInner() {
                             </td>
                           </tr>
                         ) : (
-                          customers.top_customers.map((c: AnalyticsTopCustomer) => (
+                          customers.top_customers.map((c) => (
                             <tr key={c.id} className="hover:bg-slate-50 transition">
                               <td className="py-2 px-2 flex items-center gap-2">
                                 <div className="h-8 w-8 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
@@ -1293,7 +944,7 @@ function AnalyticsPageInner() {
                               </td>
                               <td className="py-2 px-2">
                                 <span
-                                  className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${c.tier === 'VIP'
+                                  className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border ${c.tier === 'VIP'
                                       ? 'bg-violet-50 text-violet-700 border-violet-100'
                                       : c.tier === 'Gold'
                                         ? 'bg-amber-50 text-amber-700 border-amber-100'
@@ -1317,7 +968,6 @@ function AnalyticsPageInner() {
               </>
             )}
 
-            {/* ═════════ PRODUCTS TAB ═════════ */}
             {activeTab === 'products' && products && (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -1341,10 +991,10 @@ function AnalyticsPageInner() {
                   ))}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                <div className="bg-white border border-slate-200 rounded overflow-hidden">
                   <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <span className="text-[13px] font-medium text-slate-700">Product Performance</span>
-                    <span className="text-[13px] text-blue-950 font-medium">Click a row for details</span>
+                    <span className="text-[13px] text-blue-950 font-medium">Tap a row for details</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-[13px]">
@@ -1367,9 +1017,9 @@ function AnalyticsPageInner() {
                             </td>
                           </tr>
                         ) : (
-                          products.rows.map((p) => (
+                          products.rows.map((p, idx) => (
                             <tr
-                              key={p.id}
+                              key={`${p.id || 'no-id'}-${p.sku || 'no-sku'}-${idx}`}
                               onClick={() => setSelectedProductPerf(p)}
                               className="hover:bg-slate-50 cursor-pointer transition"
                             >
@@ -1379,7 +1029,7 @@ function AnalyticsPageInner() {
                                     <img
                                       src={p.image}
                                       alt={p.name}
-                                      className="w-8 h-8 rounded-sm object-cover border border-slate-200 shrink-0"
+                                      className="w-8 h-8 rounded object-cover border border-slate-200 shrink-0"
                                     />
                                   ) : (
                                     <span className="w-8 h-8 rounded-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-slate-400">
@@ -1406,7 +1056,7 @@ function AnalyticsPageInner() {
                               <td className="py-2 px-2 text-right font-mono text-slate-600">{p.conversion}</td>
                               <td className="py-2 px-2 text-right">
                                 <span
-                                  className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border ${PRODUCT_STATUS_STYLES[p.status]}`}
+                                  className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border ${PRODUCT_STATUS_STYLES[p.status]}`}
                                 >
                                   {PRODUCT_STATUS_LABELS[p.status]}
                                 </span>
@@ -1421,22 +1071,20 @@ function AnalyticsPageInner() {
               </>
             )}
 
-            {/* ═════════ CHANNELS TAB ═════════ */}
             {activeTab === 'channels' && channels && (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {channels.channels.map((ch) => {
                     const Icon = CHANNEL_ICON_MAP[ch.icon] ?? Target;
                     return (
-                      <button
+                      <div
                         key={ch.name}
-                        onClick={() => setSelectedChannel(ch)}
-                        className="text-left bg-white border border-slate-200 rounded-sm p-2 space-y-2 hover:border-blue-950 transition-all"
+                        className="bg-white border border-slate-200 rounded p-2 space-y-2"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <span
-                              className="w-9 h-9 rounded-sm flex items-center justify-center shrink-0"
+                              className="w-9 h-9 rounded flex items-center justify-center shrink-0"
                               style={{ backgroundColor: `${ch.color}20`, color: ch.color }}
                             >
                               <Icon className="w-4 h-4" />
@@ -1454,9 +1102,9 @@ function AnalyticsPageInner() {
                           </div>
                         </div>
 
-                        <div className="w-full bg-slate-100 h-2 rounded-sm overflow-hidden">
+                        <div className="w-full bg-slate-100 h-2 rounded overflow-hidden">
                           <div
-                            className="h-full rounded-sm"
+                            className="h-full rounded"
                             style={{ width: `${ch.share}%`, backgroundColor: ch.color }}
                           />
                         </div>
@@ -1477,17 +1125,14 @@ function AnalyticsPageInner() {
                             <p className="text-[13px] font-semibold text-emerald-600 mt-0.5">{ch.convRate}</p>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-slate-900">Channel Traffic Trend</h3>
-                    <p className="text-[13px] text-slate-500">Daily visitors per channel over the selected range</p>
-                  </div>
-                  <div className="h-56 w-full">
+                  <h3 className="text-[13px] font-semibold text-slate-900">Channel Traffic Trend</h3>
+                  <div className="h-60 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={channels.trend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1504,21 +1149,18 @@ function AnalyticsPageInner() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                   <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-slate-900">Social Activity</h3>
-                      <p className="text-[13px] text-slate-500">Connected platforms feeding the storefront</p>
-                    </div>
+                    <h3 className="text-[13px] font-semibold text-slate-900">Social Activity</h3>
                     <div className="space-y-1">
                       {channels.social_activity.length === 0 ? (
                         <p className="text-[13px] text-slate-400 italic py-4 text-center">
                           No social posts published yet.
                         </p>
                       ) : (
-                        channels.social_activity.map((s) => (
+                        channels.social_activity.map((s, idx) => (
                           <div
-                            key={s.platform}
+                            key={`${s.platform || 'platform'}-${idx}`}
                             className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded"
                           >
                             <div className="flex items-center gap-2 min-w-0">
@@ -1540,15 +1182,12 @@ function AnalyticsPageInner() {
                     </div>
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-                    <div>
-                      <h3 className="text-[13px] font-semibold text-slate-900">Platform Attribution</h3>
-                      <p className="text-[13px] text-slate-500">Marketing activity connected to store conversions</p>
-                    </div>
+                  <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                    <h3 className="text-[13px] font-semibold text-slate-900">Platform Attribution</h3>
                     <div className="space-y-2">
-                      {channels.attribution.map((p) => (
+                      {channels.attribution.map((p, idx) => (
                         <div
-                          key={p.platform}
+                          key={`${p.platform || 'platform'}-${idx}`}
                           className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded"
                         >
                           <div className="min-w-0">
@@ -1568,48 +1207,7 @@ function AnalyticsPageInner() {
             )}
           </>
         )}
-
       </main>
-    </div>
-  );
-}
-
-/* ─── Reusable bits ─── */
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-2 shadow-xl relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
-          aria-label="Close"
-        >
-          <X className="w-4 h-4" />
-        </button>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Drawer({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex justify-end"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white border-l border-slate-200 w-full max-w-md h-full p-2 overflow-y-auto shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
     </div>
   );
 }

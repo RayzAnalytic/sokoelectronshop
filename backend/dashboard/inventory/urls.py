@@ -14,6 +14,11 @@ urlpatterns = [
         name="inventory-adjust",
     ),
     path(
+        "adjust",
+        InventoryViewSet.as_view({"post": "adjust"}),
+        name="inventory-adjust-noslash",
+    ),
+    path(
         "movements/",
         MovementListView.as_view(),
         name="inventory-movements",

@@ -20,13 +20,14 @@ class PaymentEventSerializer(serializers.ModelSerializer):
 
 
 class TransactionSerializer(serializers.ModelSerializer):
-    ref         = serializers.CharField(source="mpesa_receipt_number", read_only=True)
-    orderNumber = serializers.CharField(source="order.reference", read_only=True)
+    ref = serializers.CharField(source="mpesa_receipt_number", read_only=True)
+    orderNumber = serializers.SerializerMethodField()
 
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     fee    = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     phoneNumber = serializers.CharField(source="masked_phone", read_only=True)
+    source      = serializers.CharField(read_only=True)
 
     status       = serializers.CharField(source="display_status", read_only=True)
     responseCode = serializers.SerializerMethodField()
@@ -56,6 +57,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "amount",
             "fee",
             "phoneNumber",
+            "source",
             "status",
             "responseCode",
             "responseDesc",
@@ -70,6 +72,9 @@ class TransactionSerializer(serializers.ModelSerializer):
             "settledAt",
             "reversals",
         )
+
+    def get_orderNumber(self, obj):
+        return obj.order.reference if obj.order_id else None
 
     def get_responseCode(self, obj) -> str:
         if obj.result_code is None:

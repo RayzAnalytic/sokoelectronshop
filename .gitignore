@@ -12,3 +12,6 @@ dist/
 
 # System files
 .DS_Store
+backend/.env.bak
+backend/.env.save
+*.sql

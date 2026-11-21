@@ -1,4 +1,4 @@
-// components/admin/QRScannerModal.tsx
+
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -85,8 +85,7 @@ const extractToken = (raw: string): string | null => {
         obj.order_reference ||
         null
       );
-    } catch {
-      /* fall through */
+    } catch { 
     }
   }
 
@@ -139,8 +138,7 @@ export function QRScannerModal() {
         await scanner.stop();
       }
       scanner.clear();
-    } catch {
-      /* no-op */
+    } catch { 
     } finally {
       scannerRef.current = null;
     }
@@ -260,10 +258,7 @@ export function QRScannerModal() {
   const handleFulfill = useCallback(async () => {
     if (state.kind !== 'result') return;
     setFulfilling(true);
-    try {
-      // Dedicated scanner endpoint — records the timeline note as
-      // "Fulfilled via QR scan." and is idempotent for orders that
-      // are already delivered.
+    try { 
       const updated: AdminQRVerifyResponse =
         await adminApi.orders.fulfillQr(state.order.reference);
       setToast(`Order #${state.order.reference} marked as fulfilled`);
@@ -283,7 +278,7 @@ export function QRScannerModal() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-18 right-6 z-50 inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-3 rounded-sm text-[13px] shadow-lg transition no-print"
+        className="fixed bottom-18 right-6 z-50 inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-3 rounded text-[13px] transition no-print"
         aria-label="Scan QR receipt"
       >
         <Camera className="w-4 h-4" />
@@ -292,7 +287,7 @@ export function QRScannerModal() {
       </button>
 
       {toast && (
-        <div className="fixed bottom-3 right-3 z-[120] bg-slate-900 text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px] no-print">
+        <div className="fixed bottom-3 right-3 z-[120] bg-slate-900 text-white px-3 py-2 rounded flex items-center gap-2 text-[13px] no-print">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toast}</span>
           <button
@@ -306,16 +301,16 @@ export function QRScannerModal() {
 
       {open && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 no-print"
+          className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 no-print"
           onClick={() => !fulfilling && handleClose()}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm w-full max-w-lg shadow-xl overflow-hidden text-[13px]"
+            className="bg-white border border-slate-200 rounded w-full max-w-lg  overflow-hidden text-[13px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+                <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                   <Camera className="w-4 h-4" />
                 </span>
                 <div className="min-w-0">
@@ -330,7 +325,7 @@ export function QRScannerModal() {
               <button
                 onClick={handleClose}
                 disabled={fulfilling}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-50"
+                className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -339,17 +334,17 @@ export function QRScannerModal() {
             <div className="p-2 space-y-2 max-h-[85vh] overflow-y-auto">
               {state.kind === 'scanning' && (
                 <>
-                  <div className="relative bg-black rounded-sm overflow-hidden border border-slate-200">
+                  <div className="relative bg-black rounded overflow-hidden border border-slate-200">
                     <div
                       id={regionId}
                       className="w-full aspect-square [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
                     />
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="w-4/5 aspect-square border-2 border-white/80 rounded-sm relative">
-                        <span className="absolute -top-px -left-px w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-sm" />
-                        <span className="absolute -top-px -right-px w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-sm" />
-                        <span className="absolute -bottom-px -left-px w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-sm" />
-                        <span className="absolute -bottom-px -right-px w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-sm" />
+                      <div className="w-4/5 aspect-square border-2 border-white/80 rounded relative">
+                        <span className="absolute -top-px -left-px w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded " />
+                        <span className="absolute -top-px -right-px w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded " />
+                        <span className="absolute -bottom-px -left-px w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded " />
+                        <span className="absolute -bottom-px -right-px w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded " />
                       </div>
                     </div>
                   </div>
@@ -371,8 +366,8 @@ export function QRScannerModal() {
               )}
 
               {state.kind === 'error' && (
-                <div className="space-y-3">
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-start gap-2">
+                <div className="space-y-2">
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <p className="font-medium">Scan failed</p>
@@ -381,7 +376,7 @@ export function QRScannerModal() {
                   </div>
                   <button
                     onClick={handleRescan}
-                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm"
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded "
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     Try again
@@ -423,7 +418,7 @@ function VerifiedOrderView({
 
   return (
     <div className="space-y-2">
-      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-2 rounded-sm flex items-center gap-2">
+      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-2 rounded flex items-center gap-2">
         <Check className="w-4 h-4 shrink-0" />
         <div className="min-w-0">
           <p className="font-medium">Receipt verified</p>
@@ -433,7 +428,7 @@ function VerifiedOrderView({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+      <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
         <h4 className="text-[13px] font-semibold text-slate-900">Customer</h4>
         <div className="pt-2 border-t border-slate-100 space-y-1">
           <p className="font-medium text-slate-900">
@@ -454,18 +449,18 @@ function VerifiedOrderView({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+      <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-[13px] font-semibold text-slate-900">Payment</h4>
           <span
-            className={`inline-block px-2 py-0.5 rounded-sm font-medium text-[13px] border ${paymentStatusColor(
+            className={`inline-block px-2 py-0.5 rounded font-medium text-[13px] border ${paymentStatusColor(
               order.payment_status,
             )}`}
           >
             {order.payment_status_label}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded-sm p-2">
+        <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded p-2">
           <div>
             <p className="text-slate-500 text-[12px]">Method</p>
             <p className="font-medium text-slate-900 mt-0.5">
@@ -490,7 +485,7 @@ function VerifiedOrderView({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+      <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
         <h4 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <Package className="w-3.5 h-3.5" />
           Items ({order.items.length})
@@ -498,15 +493,14 @@ function VerifiedOrderView({
         <ul className="divide-y divide-slate-100">
           {order.items.map((item: AdminQRVerifyItem) => (
             <li key={item.id} className="py-2 flex items-start gap-2">
-              {item.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
+              {item.image ? ( 
                 <img
                   src={item.image}
                   alt=""
                   className="w-9 h-9 rounded object-cover border border-slate-200 shrink-0"
                 />
               ) : (
-                <span className="w-9 h-9 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
+                <span className="w-9 h-9 rounded bg-slate-100 border border-slate-200 shrink-0" />
               )}
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-900 truncate">
@@ -520,13 +514,13 @@ function VerifiedOrderView({
                 {(item.serial_number || item.imei) && (
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {item.serial_number && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-slate-100 border border-slate-200 text-[13px] font-mono text-slate-700">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[13px] font-mono text-slate-700">
                         <Hash className="w-2.5 h-2.5" />
                         S/N {item.serial_number}
                       </span>
                     )}
                     {item.imei && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-slate-100 border border-slate-200 text-[13px] font-mono text-slate-700">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[13px] font-mono text-slate-700">
                         <Hash className="w-2.5 h-2.5" />
                         IMEI {item.imei}
                       </span>
@@ -549,7 +543,7 @@ function VerifiedOrderView({
         <button
           onClick={onRescan}
           disabled={fulfilling}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm disabled:opacity-50"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded disabled:opacity-50"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           Scan another
@@ -557,7 +551,7 @@ function VerifiedOrderView({
         <button
           onClick={onFulfill}
           disabled={fulfilling || alreadyFulfilled}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm disabled:opacity-60"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded disabled:opacity-60"
         >
           {fulfilling ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />

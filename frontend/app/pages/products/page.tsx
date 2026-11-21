@@ -8,6 +8,7 @@ import {
     Star,
     ShoppingCart,
     ChevronRight,
+    ChevronLeft,
     Home,
     X,
     ArrowUpDown,
@@ -65,11 +66,14 @@ function normalizeStock(raw: string | undefined): StockKind {
 }
 
 const STOCK_STYLES: Record<StockKind, { bg: string; label: string }> = {
-    in:      { bg: 'bg-green-600 text-white',   label: 'In Stock' },
-    low:     { bg: 'bg-orange-500 text-white',  label: 'Low Stock' },
-    out:     { bg: 'bg-red-600 text-white',     label: 'Out of Stock' },
-    unknown: { bg: 'bg-slate-500 text-white',   label: 'Unknown' },
+    in: { bg: 'bg-green-600 text-white', label: 'In Stock' },
+    low: { bg: 'bg-orange-500 text-white', label: 'Low Stock' },
+    out: { bg: 'bg-red-600 text-white', label: 'Out of Stock' },
+    unknown: { bg: 'bg-slate-600 text-white', label: 'Unknown' },
 };
+
+const SCROLLBAR_HIDE =
+    'scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 export default function ProductsPage() {
     return (
@@ -99,7 +103,8 @@ function ProductsPageInner() {
 
     const [products, setProducts] = useState<CatalogProduct[]>([]);
     const [totalCount, setTotalCount] = useState(0);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [categories, setCategories] = useState<string[]>(['All']);
@@ -110,6 +115,8 @@ function ProductsPageInner() {
     const [detailLoading, setDetailLoading] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [cartAddingId, setCartAddingId] = useState<string | null>(null);
+    const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
+    const [isZoomed, setIsZoomed] = useState(false);
 
     const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
     const [reviews, setReviews] = useState<CatalogReview[]>([]);
@@ -145,10 +152,11 @@ function ProductsPageInner() {
             catalogApi.brands.list(ctrl.signal),
         ])
             .then(([cats, brs]) => {
+                if (ctrl.signal.aborted) return;
                 setCategories(['All', ...cats.map((c) => c.name)]);
                 setBrands(['All', ...brs.map((b) => b.name)]);
             })
-            .catch(() => {});
+            .catch(() => { });
         return () => ctrl.abort();
     }, []);
 
@@ -177,16 +185,22 @@ function ProductsPageInner() {
         catalogApi.products
             .list(query, ctrl.signal)
             .then((page) => {
+                if (ctrl.signal.aborted) return;
                 setProducts(page.results);
                 setTotalCount(page.count);
             })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setProducts([]);
                 setTotalCount(0);
                 setLoadError('Failed to load products. Please try again.');
             })
-            .finally(() => setLoading(false));
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setLoading(false);
+                setHasLoadedOnce(true);
+            });
 
         return () => ctrl.abort();
     }, [
@@ -211,15 +225,20 @@ function ProductsPageInner() {
         catalogApi.products
             .detail(openId, ctrl.signal)
             .then((detail) => {
+                if (ctrl.signal.aborted) return;
                 setActiveProductDetail(detail);
                 setSelectedImageIndex(0);
             })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setActiveProductDetail(null);
                 router.replace(pathname, { scroll: false });
             })
-            .finally(() => setDetailLoading(false));
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setDetailLoading(false);
+            });
 
         return () => ctrl.abort();
     }, [openId, router, pathname]);
@@ -231,9 +250,18 @@ function ProductsPageInner() {
 
         catalogApi.products.reviews
             .list(activeProductDetail.id, ctrl.signal)
-            .then(setReviews)
-            .catch(() => setReviews([]))
-            .finally(() => setReviewsLoading(false));
+            .then((data) => {
+                if (ctrl.signal.aborted) return;
+                setReviews(data);
+            })
+            .catch(() => {
+                if (ctrl.signal.aborted) return;
+                setReviews([]);
+            })
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setReviewsLoading(false);
+            });
 
         return () => ctrl.abort();
     }, [reviewsModalOpen, activeProductDetail]);
@@ -303,6 +331,8 @@ function ProductsPageInner() {
 
     const handleCloseDetails = () => {
         closeProductInUrl();
+        setIsZoomed(false);
+        setZoomOrigin({ x: 50, y: 50 });
         setReviewsModalOpen(false);
         setReviewSubmitted(false);
         setReviewError(null);
@@ -312,6 +342,8 @@ function ProductsPageInner() {
     const handleSelectRelated = (productId: string) => {
         replaceProductInUrl(productId);
         setSelectedImageIndex(0);
+        setIsZoomed(false);
+        setZoomOrigin({ x: 50, y: 50 });
         setReviewsModalOpen(false);
     };
 
@@ -340,7 +372,7 @@ function ProductsPageInner() {
             catalogApi.products
                 .detail(activeProductDetail.id)
                 .then(setActiveProductDetail)
-                .catch(() => {});
+                .catch(() => { });
         } catch {
             setReviewError('Could not submit review. Please try again.');
         } finally {
@@ -366,17 +398,51 @@ function ProductsPageInner() {
         selectedStock !== 'All' ||
         searchQuery.trim() !== '';
 
+    const galleryImages =
+        activeProductDetail && activeProductDetail.images.length > 0
+            ? activeProductDetail.images
+            : ['/placeholder.jpeg'];
+
+    const currentImageIndex = Math.min(
+        Math.max(0, selectedImageIndex),
+        Math.max(0, galleryImages.length - 1),
+    );
+
+    const goPrevImage = () => {
+        if (galleryImages.length <= 1) return;
+        setSelectedImageIndex(
+            currentImageIndex === 0 ? galleryImages.length - 1 : currentImageIndex - 1,
+        );
+        setZoomOrigin({ x: 50, y: 50 });
+    };
+
+    const goNextImage = () => {
+        if (galleryImages.length <= 1) return;
+        setSelectedImageIndex(
+            currentImageIndex === galleryImages.length - 1 ? 0 : currentImageIndex + 1,
+        );
+        setZoomOrigin({ x: 50, y: 50 });
+    };
+
+    const handleImageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setZoomOrigin({
+            x: ((e.clientX - rect.left) / rect.width) * 100,
+            y: ((e.clientY - rect.top) / rect.height) * 100,
+        });
+    };
+
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans relative">
             <div
                 className={`transition-all duration-300 ${activeProductDetail
-                        ? 'filter blur-sm brightness-50 pointer-events-none select-none'
-                        : ''
+                    ? 'filter blur-sm brightness-50 pointer-events-none select-none'
+                    : ''
                     }`}
             >
                 <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-6 py-4 sm:py-6">
-                    <nav className="flex items-center space-x-1.5 sm:space-x-2 text-[12px] sm:text-[13px] text-slate-500 mb-3 sm:mb-3">
-                        <Link href="/" className="hover:text-slate-900 flex items-center space-x-1">
+                    <nav className="flex items-center space-x-1.5 sm:space-x-2 text-[12px] sm:text-[13px] text-slate-500 mb-2 sm:mb-2">
+                        <Link href="/" className="hover:text-blue-950 flex items-center space-x-1">
                             <Home className="w-3.5 h-3.5" />
                             <span>Home</span>
                         </Link>
@@ -386,18 +452,18 @@ function ProductsPageInner() {
                         </span>
                     </nav>
 
-                    <div className="mb-4 sm:mb-4 border-b border-slate-200 pb-4 sm:pb-4">
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">
+                    <div className="mb-2 sm:mb-2 border-b border-slate-200 pb-2 sm:pb-2">
+                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900">
                             Electronics &amp; Hardware Catalog
                         </h1>
-                        <p className="text-[12px] sm:text-[13px] text-slate-600 mt-0.5 leading-relaxed">
+                        <p className="text-[12px] sm:text-[13px] text-slate-600 mt-0.5">
                             Browse our complete inventory of certified electronics,
                             high-performance workstations, and smart accessories.
                         </p>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 mb-3 space-y-2">
-                        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded p-2 mb-2 space-y-2">
+                        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-3">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
@@ -408,7 +474,7 @@ function ProductsPageInner() {
                                         setCurrentPage(1);
                                     }}
                                     placeholder="Search products by name, brand, or category..."
-                                    className="w-full pl-10 pr-12 py-2.5 bg-white border border-slate-300 rounded text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-200 focus:ring-1 focus:ring-blue-200"
+                                    className="w-full pl-10 pr-12 py-2.5 bg-white border border-slate-300 rounded text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-950 focus:ring-1 focus:ring-blue-950/30"
                                 />
                                 {searchQuery && (
                                     <button
@@ -417,7 +483,7 @@ function ProductsPageInner() {
                                             setSearchQuery('');
                                             setCurrentPage(1);
                                         }}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-950 text-xs transition-colors"
                                     >
                                         Clear
                                     </button>
@@ -436,7 +502,7 @@ function ProductsPageInner() {
                                         setSortBy(e.target.value as ProductsQuery['sort_by']);
                                         setCurrentPage(1);
                                     }}
-                                    className="flex-1 md:flex-initial bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="flex-1 md:flex-initial bg-white border border-slate-300 rounded px-3 py-2 text-[13px] text-slate-900 focus:outline-none focus:border-blue-950"
                                 >
                                     <option value="featured">Featured</option>
                                     <option value="price-low">Price: Low to High</option>
@@ -447,9 +513,9 @@ function ProductsPageInner() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 pt-3 sm:pt-3 border-t border-slate-200">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 pt-2 sm:pt-2 border-t border-slate-200">
                             <div>
-                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 uppercase mb-1">
                                     Category
                                 </label>
                                 <select
@@ -458,7 +524,7 @@ function ProductsPageInner() {
                                         setSelectedCategory(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-950"
                                 >
                                     {categories.map((cat) => (
                                         <option key={cat} value={cat}>
@@ -468,7 +534,7 @@ function ProductsPageInner() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 uppercase mb-1">
                                     Brand
                                 </label>
                                 <select
@@ -477,7 +543,7 @@ function ProductsPageInner() {
                                         setSelectedBrand(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-950"
                                 >
                                     {brands.map((brand) => (
                                         <option key={brand} value={brand}>
@@ -487,7 +553,7 @@ function ProductsPageInner() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 uppercase mb-1">
                                     Price
                                 </label>
                                 <select
@@ -496,7 +562,7 @@ function ProductsPageInner() {
                                         setSelectedPriceRange(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-950"
                                 >
                                     {PRICE_RANGES.map((range) => (
                                         <option key={range.value} value={range.value}>
@@ -506,7 +572,7 @@ function ProductsPageInner() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[12px] sm:text-[12px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                <label className="block text-[12px] sm:text-[12px] font-semibold text-slate-600 uppercase mb-1">
                                     Stock
                                 </label>
                                 <select
@@ -515,7 +581,7 @@ function ProductsPageInner() {
                                         setSelectedStock(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-200"
+                                    className="w-full bg-white border border-slate-300 rounded px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:border-blue-950"
                                 >
                                     {STOCK_OPTIONS.map((stock) => (
                                         <option key={stock} value={stock}>
@@ -531,27 +597,27 @@ function ProductsPageInner() {
                                 <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 text-slate-600">
                                     <span className="font-medium">Active:</span>
                                     {selectedCategory !== 'All' && (
-                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                        <span className="bg-white border border-blue-950/30 px-2 py-0.5 rounded text-slate-900">
                                             Category: {selectedCategory}
                                         </span>
                                     )}
                                     {selectedBrand !== 'All' && (
-                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                        <span className="bg-white border border-blue-950/30 px-2 py-0.5 rounded text-slate-900">
                                             Brand: {selectedBrand}
                                         </span>
                                     )}
                                     {selectedPriceRange !== 'All' && (
-                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                        <span className="bg-white border border-blue-950/30 px-2 py-0.5 rounded text-slate-900">
                                             Price: {selectedPriceRange}
                                         </span>
                                     )}
                                     {selectedStock !== 'All' && (
-                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800">
+                                        <span className="bg-white border border-blue-950/30 px-2 py-0.5 rounded text-slate-900">
                                             Stock: {selectedStock}
                                         </span>
                                     )}
                                     {searchQuery && (
-                                        <span className="bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-800 max-w-[200px] truncate">
+                                        <span className="bg-white border border-blue-950/30 px-2 py-0.5 rounded text-slate-900 max-w-[200px] truncate">
                                             &ldquo;{searchQuery}&rdquo;
                                         </span>
                                     )}
@@ -559,7 +625,7 @@ function ProductsPageInner() {
                                 <button
                                     type="button"
                                     onClick={clearAllFilters}
-                                    className="text-blue-950 font-medium hover:underline text-[12px] sm:text-[13px] self-start sm:self-auto whitespace-nowrap"
+                                    className="text-blue-950 font-medium hover:underline text-[12px] sm:text-[13px] self-start sm:self-auto whitespace-nowrap transition-colors"
                                 >
                                     Reset All Filters
                                 </button>
@@ -582,13 +648,13 @@ function ProductsPageInner() {
                     </div>
 
                     {loadError && !loading && (
-                        <div className="text-center py-12 bg-red-50 border border-red-200 rounded-sm mb-8">
+                        <div className="text-center py-12 bg-red-50 border border-red-200 rounded mb-4">
                             <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
                             <p className="text-[13px] text-red-700 mb-3">{loadError}</p>
                             <button
                                 type="button"
                                 onClick={() => setReloadKey((k) => k + 1)}
-                                className="bg-blue-950 text-white px-4 py-2 rounded text-[13px] font-medium hover:bg-blue-900"
+                                className="bg-blue-950 hover:bg-blue-900 text-white px-4 py-2 rounded text-[13px] font-semibold transition-colors"
                             >
                                 Retry
                             </button>
@@ -596,17 +662,17 @@ function ProductsPageInner() {
                     )}
 
                     {loading && products.length === 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-8">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-4">
                             {Array.from({ length: ITEMS_PER_PAGE }).map((_, i) => (
                                 <div
                                     key={i}
-                                    className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+                                    className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                                 >
-                                    <div className="aspect-[20/16] bg-slate-100" />
+                                    <div className="aspect-[20/16] bg-slate-200" />
                                     <div className="p-2 sm:p-3 space-y-2">
-                                        <div className="h-3 bg-slate-100 rounded w-1/3" />
-                                        <div className="h-4 bg-slate-100 rounded w-3/4" />
-                                        <div className="h-3 bg-slate-100 rounded w-1/2" />
+                                        <div className="h-3 bg-slate-200 rounded w-1/3" />
+                                        <div className="h-4 bg-slate-200 rounded w-3/4" />
+                                        <div className="h-3 bg-slate-200 rounded w-1/2" />
                                     </div>
                                 </div>
                             ))}
@@ -614,7 +680,7 @@ function ProductsPageInner() {
                     )}
 
                     {!loading && products.length > 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-8">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-4">
                             {products.map((product) => {
                                 const isAdding = cartAddingId === product.id;
                                 const price = toNum(product.price);
@@ -632,17 +698,17 @@ function ProductsPageInner() {
                                 return (
                                     <div
                                         key={product.id}
-                                        className="group bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all duration-150 flex flex-col justify-between"
+                                        className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-blue-950 hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
                                     >
                                         <div>
-                                            <div className="aspect-[20/16] w-full bg-slate-100 overflow-hidden relative">
+                                            <div className="aspect-[20/16] w-full bg-slate-50 overflow-hidden relative">
                                                 <img
                                                     src={product.images[0] ?? '/placeholder.jpeg'}
                                                     alt={product.name}
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                 />
                                                 {discountPercentage && (
-                                                    <span className="absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-10 bg-red-600 text-white font-semibold text-[11px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded shadow-sm">
+                                                    <span className="absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-10 bg-blue-950 text-white font-bold text-[11px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded">
                                                         -{discountPercentage}%
                                                     </span>
                                                 )}
@@ -661,7 +727,7 @@ function ProductsPageInner() {
                                                     className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 z-10"
                                                 />
                                                 <span
-                                                    className={`absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 z-10 text-[11px] sm:text-[12px] font-semibold px-1.5 sm:px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
+                                                    className={`absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 z-10 text-[11px] sm:text-[12px] font-semibold px-1.5 sm:px-2 py-0.5 rounded ${stock.bg}`}
                                                 >
                                                     {stock.label}
                                                 </span>
@@ -669,22 +735,22 @@ function ProductsPageInner() {
 
                                             <div className="p-2 sm:p-2 pb-1 sm:pb-2">
                                                 <div className="flex items-center justify-between gap-1">
-                                                    <p className="text-[12px] sm:text-[11px] font-medium text-slate-500 uppercase tracking-wide truncate">
+                                                    <p className="text-[12px] sm:text-[11px] font-medium text-slate-600 uppercase truncate">
                                                         {product.brand}
                                                     </p>
-                                                    <p className="text-[12px] sm:text-[11px] text-slate-400 truncate">
+                                                    <p className="text-[12px] sm:text-[11px] text-slate-500 truncate">
                                                         {product.category}
                                                     </p>
                                                 </div>
-                                                <h3 className="text-[12px] sm:text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mt-0.5 mb-1 leading-tight">
+                                                <h3 className="text-[12px] sm:text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mt-0.5 mb-1">
                                                     {product.name}
                                                 </h3>
                                                 {Number(product.rating) > 0 && (
                                                     <div className="flex items-center space-x-1 mb-1">
-                                                        <div className="flex items-center text-amber-500">
+                                                        <div className="flex items-center text-blue-950">
                                                             <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-current" />
                                                         </div>
-                                                        <span className="text-[11px] sm:text-[12px] font-medium text-slate-800">
+                                                        <span className="text-[11px] sm:text-[12px] font-medium text-slate-900">
                                                             {toNum(product.rating).toFixed(1)}
                                                         </span>
                                                         <span className="text-[12px] sm:text-[11px] text-slate-500">
@@ -697,11 +763,11 @@ function ProductsPageInner() {
 
                                         <div className="p-2 sm:p-2 pt-0 mt-auto">
                                             <div className="flex items-baseline flex-wrap gap-x-1.5 mb-1">
-                                                <span className="text-[13px] sm:text-sm font-bold text-slate-900">
+                                                <span className="text-[13px] sm:text-sm font-bold text-blue-950">
                                                     {formatKES(price)}
                                                 </span>
                                                 {comparePrice !== null && (
-                                                    <span className="text-[10px] sm:text-[11px] text-slate-500 line-through">
+                                                    <span className="text-[10px] sm:text-[11px] text-slate-400 line-through">
                                                         {formatKES(comparePrice)}
                                                     </span>
                                                 )}
@@ -711,7 +777,7 @@ function ProductsPageInner() {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleOpenDetails(product)}
-                                                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-1.5 sm:py-2 px-1 rounded text-[11px] sm:text-[13px] transition duration-150 flex items-center justify-center space-x-1"
+                                                    className="bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium py-1.5 sm:py-2 px-1 rounded text-[11px] sm:text-[13px] transition duration-150 flex items-center justify-center space-x-1"
                                                     aria-label="View details"
                                                 >
                                                     <Eye className="w-3.5 h-3.5" />
@@ -722,7 +788,7 @@ function ProductsPageInner() {
                                                     type="button"
                                                     onClick={(e) => handleAddToCart(product, e)}
                                                     disabled={isAdding || isOutOfStock}
-                                                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-1.5 sm:py-2 px-1 rounded text-[11px] sm:text-[13px] transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
+                                                    className="bg-blue-950 hover:bg-blue-900 text-white font-semibold py-1.5 sm:py-2 px-1 rounded text-[11px] sm:text-[13px] transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
                                                     aria-label="Add to cart"
                                                 >
                                                     {isAdding ? (
@@ -764,19 +830,19 @@ function ProductsPageInner() {
                         </div>
                     )}
 
-                    {!loading && !loadError && products.length === 0 && (
-                        <div className="text-center py-16 bg-slate-50 border border-slate-200 rounded-sm mb-12">
+                    {!loading && hasLoadedOnce && !loadError && products.length === 0 && (
+                        <div className="text-center py-16 bg-slate-50 border border-slate-200 rounded mb-12">
                             <h3 className="text-lg font-bold text-slate-900 mb-1">
                                 No products found
                             </h3>
-                            <p className="text-[13px] text-slate-600 mb-4 px-4">
+                            <p className="text-[13px] text-slate-600 mb-3 px-4">
                                 We couldn&apos;t find any items matching your selected filters
                                 or search criteria.
                             </p>
                             <button
                                 type="button"
                                 onClick={clearAllFilters}
-                                className="bg-blue-950 text-white px-4 py-2 rounded text-[13px] font-medium hover:bg-blue-900 transition"
+                                className="bg-blue-950 hover:bg-blue-900 text-white px-4 py-2 rounded text-[13px] font-semibold transition-colors"
                             >
                                 Clear Filters
                             </button>
@@ -789,7 +855,7 @@ function ProductsPageInner() {
                                 type="button"
                                 onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 <span className="hidden sm:inline">Previous</span>
                                 <span className="sm:hidden">Prev</span>
@@ -803,8 +869,8 @@ function ProductsPageInner() {
                                         type="button"
                                         onClick={() => setCurrentPage(pageNumber)}
                                         className={`w-8 h-8 sm:w-9 sm:h-9 text-[12px] sm:text-[13px] rounded font-medium transition ${currentPage === pageNumber
-                                                ? 'bg-blue-950 text-white'
-                                                : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                                            ? 'bg-blue-950 text-white'
+                                            : 'border border-slate-300 text-slate-700 hover:bg-slate-100'
                                             }`}
                                     >
                                         {pageNumber}
@@ -818,7 +884,7 @@ function ProductsPageInner() {
                                     setCurrentPage((p) => Math.min(p + 1, totalPages))
                                 }
                                 disabled={currentPage === totalPages}
-                                className="px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 sm:px-3 py-2 text-[12px] sm:text-[13px] border border-slate-300 rounded font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 Next
                             </button>
@@ -828,8 +894,8 @@ function ProductsPageInner() {
             </div>
 
             {activeProductDetail && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/70 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-6xl rounded-sm shadow-2xl border border-slate-200 overflow-hidden relative max-h-[95vh] sm:max-h-[95vh] flex flex-col">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-6xl rounded border border-slate-200 overflow-hidden relative max-h-[95vh] sm:max-h-[95vh] flex flex-col">
                         <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-slate-200 bg-slate-50 shrink-0">
                             <div className="min-w-0">
                                 <span className="text-[10px] sm:text-xs font-semibold text-blue-950 uppercase truncate block">
@@ -842,30 +908,39 @@ function ProductsPageInner() {
                             <button
                                 type="button"
                                 onClick={handleCloseDetails}
-                                className="p-1.5 sm:p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition shrink-0"
+                                className="p-1.5 sm:p-2 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition shrink-0"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto flex-1">
-                            <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
+                        <div className={`overflow-y-auto flex-1 ${SCROLLBAR_HIDE}`}>
+                            <div className="p-3 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-4">
                                 <div className="space-y-3">
-                                    <div className="relative aspect-[4/3] w-full rounded-sm bg-slate-100 overflow-hidden border border-slate-200">
+                                    <div
+                                        className="relative aspect-[4/3] w-full rounded bg-slate-50 overflow-hidden border border-slate-200 cursor-zoom-in"
+                                        onMouseEnter={() => setIsZoomed(true)}
+                                        onMouseLeave={() => {
+                                            setIsZoomed(false);
+                                            setZoomOrigin({ x: 50, y: 50 });
+                                        }}
+                                        onMouseMove={handleImageMouseMove}
+                                    >
                                         <img
-                                            src={
-                                                activeProductDetail.images[selectedImageIndex] ??
-                                                '/placeholder.jpeg'
-                                            }
+                                            src={galleryImages[currentImageIndex]}
                                             alt={activeProductDetail.name}
-                                            className="w-full h-full object-cover"
+                                            className="w-full h-full object-cover transition-transform duration-200 ease-out will-change-transform"
+                                            style={{
+                                                transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                                                transform: isZoomed ? 'scale(1.8)' : 'scale(1)',
+                                            }}
                                         />
                                         <WishlistButton
                                             variantId={activeProductDetail.id}
                                             productId={activeProductDetail.id}
                                             name={activeProductDetail.name}
                                             brand={activeProductDetail.brand}
-                                            image={activeProductDetail.images[0] ?? ''}
+                                            image={galleryImages[0] ?? ''}
                                             unitPrice={toNum(activeProductDetail.price)}
                                             compareAtPrice={
                                                 activeProductDetail.compareAtPrice !== null
@@ -876,46 +951,79 @@ function ProductsPageInner() {
                                             stockCount={activeProductDetail.stockQuantity}
                                             stock={activeProductDetail.stock}
                                             size="md"
-                                            className="absolute top-3 right-3 z-10"
+                                            className="absolute top-3 right-3 z-20"
                                         />
+
+                                        {galleryImages.length > 1 && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={goPrevImage}
+                                                    className="absolute left-2 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full bg-white/90 hover:bg-white border border-slate-300 shadow-sm flex items-center justify-center transition"
+                                                    aria-label="Previous image"
+                                                >
+                                                    <ChevronLeft className="w-4 h-4 text-slate-900" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={goNextImage}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full bg-white/90 hover:bg-white border border-slate-300 shadow-sm flex items-center justify-center transition"
+                                                    aria-label="Next image"
+                                                >
+                                                    <ChevronRight className="w-4 h-4 text-slate-900" />
+                                                </button>
+                                                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 text-[11px] font-medium bg-slate-900/70 text-white px-2 py-0.5 rounded-full">
+                                                    {currentImageIndex + 1} / {galleryImages.length}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
-                                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-                                        {activeProductDetail.images.map((imgUrl, imgIdx) => (
-                                            <button
-                                                key={imgIdx}
-                                                type="button"
-                                                onClick={() => setSelectedImageIndex(imgIdx)}
-                                                className={`aspect-[4/3] rounded-sm bg-slate-100 overflow-hidden border transition ${selectedImageIndex === imgIdx
-                                                        ? 'border-blue-300 ring-1 ring-blue-300'
-                                                        : 'border-transparent opacity-70 hover:opacity-100'
-                                                    }`}
-                                            >
-                                                <img
-                                                    src={imgUrl}
-                                                    alt={`Thumbnail ${imgIdx + 1}`}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </button>
-                                        ))}
-                                    </div>
+
+                                    {galleryImages.length > 1 && (
+                                        <div
+                                            className={`grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2`}
+                                        >
+                                            {galleryImages.map((imgUrl, imgIdx) => (
+                                                <button
+                                                    key={imgIdx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedImageIndex(imgIdx);
+                                                        setZoomOrigin({ x: 50, y: 50 });
+                                                    }}
+                                                    className={`aspect-square rounded bg-slate-50 overflow-hidden border transition ${currentImageIndex === imgIdx
+                                                        ? 'border-blue-950 ring-2 ring-blue-950'
+                                                        : 'border-slate-200 opacity-70 hover:opacity-100'
+                                                        }`}
+                                                    aria-label={`View image ${imgIdx + 1}`}
+                                                >
+                                                    <img
+                                                        src={imgUrl}
+                                                        alt={`Thumbnail ${imgIdx + 1}`}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex flex-col justify-between">
                                     <div>
-                                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">
+                                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-1">
                                             {activeProductDetail.name}
                                         </h3>
 
                                         <button
                                             type="button"
                                             onClick={() => setReviewsModalOpen(true)}
-                                            className="flex items-center space-x-1.5 mb-4 group/rating hover:opacity-80 transition flex-wrap"
+                                            className="flex items-center space-x-1.5 mb-2 group/rating hover:opacity-80 transition flex-wrap"
                                             aria-label="View all reviews"
                                         >
-                                            <div className="flex items-center text-amber-500">
+                                            <div className="flex items-center text-blue-950">
                                                 <Star className="w-4 h-4 fill-current" />
                                             </div>
-                                            <span className="text-sm font-semibold text-slate-800 underline-offset-2 group-hover/rating:underline">
+                                            <span className="text-sm font-semibold text-slate-900 underline-offset-2 group-hover/rating:underline">
                                                 {toNum(activeProductDetail.rating).toFixed(1)}
                                             </span>
                                             <span className="text-[12px] text-slate-500">
@@ -924,8 +1032,8 @@ function ProductsPageInner() {
                                             <MessageSquare className="w-3.5 h-3.5 text-slate-400 ml-1" />
                                         </button>
 
-                                        <div className="flex items-baseline flex-wrap gap-2 sm:gap-3 mb-4">
-                                            <span className="text-xl sm:text-2xl font-bold text-slate-900">
+                                        <div className="flex items-baseline flex-wrap gap-2 sm:gap-2 mb-2">
+                                            <span className="text-xl sm:text-2xl font-bold text-blue-950">
                                                 {formatKES(toNum(activeProductDetail.price))}
                                             </span>
                                             {activeProductDetail.compareAtPrice !== null && (
@@ -942,13 +1050,13 @@ function ProductsPageInner() {
                                             </span>
                                         </div>
 
-                                        <p className="text-[13px] sm:text-sm text-slate-600 mb-6 leading-relaxed whitespace-pre-line">
+                                        <p className="text-[13px] sm:text-sm text-slate-600 mb-4 whitespace-pre-line">
                                             {activeProductDetail.description}
                                         </p>
 
                                         {activeProductDetail.features.length > 0 && (
-                                            <div className="mb-4">
-                                                <h4 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
+                                            <div className="mb-2">
+                                                <h4 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase mb-1.5">
                                                     Key Highlights
                                                 </h4>
                                                 <ul className="space-y-1">
@@ -966,8 +1074,8 @@ function ProductsPageInner() {
                                         )}
 
                                         {Object.keys(activeProductDetail.specs).length > 0 && (
-                                            <div className="mb-6">
-                                                <h4 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase tracking-wide mb-1.5">
+                                            <div className="mb-3">
+                                                <h4 className="text-[11px] sm:text-xs font-bold text-slate-900 uppercase mb-1.5">
                                                     Specifications
                                                 </h4>
                                                 <div className="grid grid-cols-2 gap-1.5 text-[12px] sm:text-xs">
@@ -978,10 +1086,10 @@ function ProductsPageInner() {
                                                             key={k}
                                                             className="bg-slate-50 p-1.5 rounded border border-slate-200"
                                                         >
-                                                            <span className="text-slate-400 block text-[10px] sm:text-[11px]">
+                                                            <span className="text-slate-500 block text-[10px] sm:text-[11px]">
                                                                 {k}
                                                             </span>
-                                                            <span className="font-semibold text-slate-800">
+                                                            <span className="font-semibold text-slate-900">
                                                                 {v}
                                                             </span>
                                                         </div>
@@ -990,7 +1098,7 @@ function ProductsPageInner() {
                                             </div>
                                         )}
 
-                                        <div className="space-y-2 mb-6 text-[12px] sm:text-xs text-slate-600 border-t border-b border-slate-100 py-3">
+                                        <div className="space-y-2 mb-3 text-[12px] sm:text-xs text-slate-600 border-t border-b border-slate-100 py-3">
                                             <div className="flex items-center space-x-2">
                                                 <ShieldCheck className="w-4 h-4 text-blue-950 shrink-0" />
                                                 <span>1 Year Manufacturer Warranty Included</span>
@@ -1006,7 +1114,7 @@ function ProductsPageInner() {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-2 sm:gap-3 pt-4 border-t border-slate-200">
+                                    <div className="flex items-center gap-2 sm:gap-2 pt-2 border-t border-slate-200">
                                         <button
                                             type="button"
                                             onClick={async () => {
@@ -1016,7 +1124,7 @@ function ProductsPageInner() {
                                             disabled={
                                                 normalizeStock(activeProductDetail.stock) === 'out'
                                             }
-                                            className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-[13px] sm:text-sm transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                                            className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-semibold py-2.5 px-4 rounded text-[13px] sm:text-sm transition flex items-center justify-center space-x-2 disabled:opacity-50"
                                         >
                                             <ShoppingCart className="w-4 h-4" />
                                             <span>Add to Cart</span>
@@ -1024,7 +1132,7 @@ function ProductsPageInner() {
                                         <button
                                             type="button"
                                             onClick={handleCloseDetails}
-                                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2.5 px-3 sm:px-4 rounded text-[13px] sm:text-sm transition"
+                                            className="bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium py-2.5 px-3 sm:px-4 rounded text-[13px] sm:text-sm transition"
                                         >
                                             Close
                                         </button>
@@ -1033,17 +1141,19 @@ function ProductsPageInner() {
                             </div>
 
                             {activeProductDetail.relatedProducts.length > 0 && (
-                                <div className="px-3 sm:px-6 pb-6 border-t border-slate-100 pt-4 sm:pt-6">
-                                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                                        <h4 className="text-[13px] sm:text-sm font-bold text-slate-900 uppercase tracking-wide">
+                                <div className="px-3 sm:px-6 pb-3 border-t border-slate-100 pt-2 sm:pt-3">
+                                    <div className="flex items-center justify-between mb-2 sm:mb-2">
+                                        <h4 className="text-[13px] sm:text-sm font-bold text-slate-900 uppercase">
                                             You may also like
                                         </h4>
-                                        <span className="text-[10px] sm:text-[11px] text-slate-400">
+                                        <span className="text-[10px] sm:text-[11px] text-slate-500">
                                             {activeProductDetail.relatedProducts.length} related
                                         </span>
                                     </div>
 
-                                    <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                                    <div
+                                        className={`flex gap-2 sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1 ${SCROLLBAR_HIDE}`}
+                                    >
                                         {activeProductDetail.relatedProducts.map((rp) => {
                                             const rpPrice = toNum(rp.price);
                                             const rpCompare =
@@ -1065,25 +1175,25 @@ function ProductsPageInner() {
                                                     onClick={() => handleSelectRelated(rp.id)}
                                                     className="shrink-0 w-32 sm:w-40 text-left group/rel"
                                                 >
-                                                    <div className="aspect-[20/16] rounded-sm bg-slate-100 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-300 transition-colors">
+                                                    <div className="aspect-[20/16] rounded-sm bg-slate-50 overflow-hidden relative border border-slate-200 group-hover/rel:border-blue-950 transition-colors">
                                                         <img
                                                             src={rp.images[0] ?? '/placeholder.jpeg'}
                                                             alt={rp.name}
                                                             className="w-full h-full object-cover group-hover/rel:scale-105 transition-transform duration-300"
                                                         />
                                                         {rpDiscount && (
-                                                            <span className="absolute top-1 left-1 bg-red-600 text-white font-semibold text-[9px] px-1.5 py-0.5 rounded">
+                                                            <span className="absolute top-1 left-1 bg-blue-950 text-white font-bold text-[11px] px-1.5 py-0.5 rounded">
                                                                 -{rpDiscount}%
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-[10px] sm:text-[11px] font-medium text-slate-500 uppercase mt-1.5 truncate">
+                                                    <p className="text-[10px] sm:text-[11px] font-medium text-slate-600 uppercase mt-1.5 truncate">
                                                         {rp.brand}
                                                     </p>
                                                     <p className="text-[11px] sm:text-[12px] font-semibold text-slate-900 truncate group-hover/rel:text-blue-950">
                                                         {rp.name}
                                                     </p>
-                                                    <p className="text-[11px] sm:text-[12px] font-bold text-slate-900 mt-0.5">
+                                                    <p className="text-[11px] sm:text-[12px] font-bold text-blue-950 mt-0.5">
                                                         {formatKES(rpPrice)}
                                                     </p>
                                                 </button>
@@ -1098,11 +1208,11 @@ function ProductsPageInner() {
             )}
 
             {activeProductDetail && reviewsModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-6 bg-black/70 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-3xl rounded-sm shadow-2xl border border-slate-200 overflow-hidden relative max-h-[90vh] flex flex-col">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-3xl rounded border border-slate-200 overflow-hidden relative max-h-[90vh] flex flex-col">
                         <div className="flex items-start justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
                             <div className="min-w-0">
-                                <p className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+                                <p className="text-[10px] sm:text-[11px] uppercase font-semibold text-slate-600">
                                     Reviews for
                                 </p>
                                 <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
@@ -1112,25 +1222,27 @@ function ProductsPageInner() {
                             <button
                                 type="button"
                                 onClick={() => setReviewsModalOpen(false)}
-                                className="p-1.5 sm:p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition shrink-0"
+                                className="p-1.5 sm:p-2 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition shrink-0"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto flex-1 p-3 sm:p-5 space-y-4 sm:space-y-5">
-                            <div className="flex items-center gap-3 sm:gap-4 bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-4">
+                        <div
+                            className={`overflow-y-auto flex-1 p-3 sm:p-5 space-y-2 sm:space-y-3 ${SCROLLBAR_HIDE}`}
+                        >
+                            <div className="flex items-center gap-2 sm:gap-2 bg-slate-50 border border-slate-200 rounded p-3 sm:p-4">
                                 <div className="text-center shrink-0">
                                     <p className="text-2xl sm:text-3xl font-bold text-slate-900">
                                         {averageReviewRating.toFixed(1)}
                                     </p>
-                                    <div className="flex justify-center text-amber-500 mt-1">
+                                    <div className="flex justify-center text-blue-950 mt-1">
                                         {Array.from({ length: 5 }).map((_, i) => (
                                             <Star
                                                 key={i}
                                                 className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${i < Math.round(averageReviewRating)
-                                                        ? 'fill-current'
-                                                        : 'text-slate-300'
+                                                    ? 'fill-current'
+                                                    : 'text-slate-300'
                                                     }`}
                                             />
                                         ))}
@@ -1140,7 +1252,7 @@ function ProductsPageInner() {
                                     </p>
                                 </div>
                                 <div className="flex-1 border-l border-slate-200 pl-3 sm:pl-4 min-w-0">
-                                    <p className="text-[12px] text-slate-600 leading-relaxed">
+                                    <p className="text-[12px] text-slate-600">
                                         Based on verified purchases and community submissions.
                                     </p>
                                     <p className="text-[11px] text-slate-500 mt-1">
@@ -1151,14 +1263,14 @@ function ProductsPageInner() {
 
                             <form
                                 onSubmit={handleSubmitReview}
-                                className="bg-white border border-slate-200 rounded-sm p-3 sm:p-4 space-y-3"
+                                className="bg-white border border-slate-200 rounded p-3 sm:p-4 space-y-2"
                             >
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-[13px] sm:text-sm font-bold text-slate-900">
                                         Write a review
                                     </h3>
                                     {reviewSubmitted && (
-                                        <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                        <span className="inline-flex items-center gap-1 text-[11px] sm:text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
                                             <CheckCircle2 className="w-3 h-3" />
                                             Submitted
                                         </span>
@@ -1173,7 +1285,7 @@ function ProductsPageInner() {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        <label className="block text-[10px] sm:text-[11px] font-semibold uppercase text-slate-600 mb-1">
                                             Your name
                                         </label>
                                         <input
@@ -1188,11 +1300,11 @@ function ProductsPageInner() {
                                             placeholder="e.g. Jane W."
                                             required
                                             maxLength={120}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[12px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-[12px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 focus:border-blue-950"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                        <label className="block text-[10px] sm:text-[11px] font-semibold uppercase text-slate-600 mb-1">
                                             Rating
                                         </label>
                                         <div className="flex items-center gap-1">
@@ -1211,8 +1323,8 @@ function ProductsPageInner() {
                                                 >
                                                     <Star
                                                         className={`w-5 h-5 transition ${n <= reviewForm.rating
-                                                                ? 'text-amber-500 fill-current'
-                                                                : 'text-slate-300'
+                                                            ? 'text-blue-950 fill-current'
+                                                            : 'text-slate-300'
                                                             }`}
                                                     />
                                                 </button>
@@ -1222,7 +1334,7 @@ function ProductsPageInner() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <label className="block text-[11px] sm:text-[11px] font-semibold uppercase text-slate-600 mb-1">
                                         Title (optional)
                                     </label>
                                     <input
@@ -1236,12 +1348,12 @@ function ProductsPageInner() {
                                         }
                                         placeholder="Summarize your experience"
                                         maxLength={200}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[12px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-[12px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 focus:border-blue-950"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                    <label className="block text-[11px] sm:text-[11px] font-semibold uppercase text-slate-600 mb-1">
                                         Your review
                                     </label>
                                     <textarea
@@ -1255,7 +1367,7 @@ function ProductsPageInner() {
                                         }
                                         placeholder="Tell others what you think…"
                                         required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-2 text-[12px] sm:text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-[12px] sm:text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-950 focus:border-blue-950"
                                     />
                                 </div>
 
@@ -1263,7 +1375,7 @@ function ProductsPageInner() {
                                     <button
                                         type="submit"
                                         disabled={reviewSubmitting}
-                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-[12px] sm:text-xs transition disabled:opacity-50"
+                                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-sm text-[12px] sm:text-xs transition disabled:opacity-50"
                                     >
                                         <Send className="w-3.5 h-3.5" />
                                         {reviewSubmitting ? 'Posting…' : 'Post review'}
@@ -1271,7 +1383,7 @@ function ProductsPageInner() {
                                 </div>
                             </form>
 
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                                 <h3 className="text-[13px] sm:text-sm font-bold text-slate-900">
                                     All reviews ({reviews.length})
                                 </h3>
@@ -1289,7 +1401,7 @@ function ProductsPageInner() {
                                 {reviews.map((review) => (
                                     <div
                                         key={review.id}
-                                        className="border border-slate-200 rounded-sm p-3 space-y-1.5"
+                                        className="border border-slate-200 rounded p-2 space-y-1.5"
                                     >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
@@ -1307,8 +1419,8 @@ function ProductsPageInner() {
                                                         <Star
                                                             key={i}
                                                             className={`w-3 h-3 ${i < review.rating
-                                                                    ? 'text-amber-500 fill-current'
-                                                                    : 'text-slate-300'
+                                                                ? 'text-blue-950 fill-current'
+                                                                : 'text-slate-300'
                                                                 }`}
                                                         />
                                                     ))}
@@ -1318,10 +1430,10 @@ function ProductsPageInner() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-[12px] font-semibold text-slate-800">
+                                        <p className="text-[12px] font-semibold text-slate-900">
                                             {review.title}
                                         </p>
-                                        <p className="text-[12px] text-slate-600 leading-relaxed">
+                                        <p className="text-[12px] text-slate-600">
                                             {review.body}
                                         </p>
                                     </div>

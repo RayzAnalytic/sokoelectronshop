@@ -1,4 +1,4 @@
-import { request, uploadRequest } from './api';
+import { API_BASE, getAccessToken, request, uploadRequest } from './api';
 import type {
     AdminBrand,
     AdminBrandRef,
@@ -8,6 +8,12 @@ import type {
     AdminCategoryWrite,
     AdminProduct,
     AdminProductWrite,
+    AdminProductVariant,
+    AdminProductVariantWrite,
+    AdminPoster,
+    AdminPosterWrite,
+    AdminPosterFilters,
+    AdminPosterStatus,
     AdminSubscriber,
     AdminSubscriberStats,
     AdminSubscriberWrite,
@@ -23,21 +29,15 @@ import type {
     AdminGrowthPoint,
     AdminCampaignPerformance,
     AdminAnalyticsSummary,
+    AdminCampaignFull,
+    AdminCampaignFullWrite,
+
+    AdminCompleteOrderPayload,
+    AdminCompleteOrderResult,
+    AdminStickerData,
     AdminMetaCampaign,
     AdminMetaCampaignWrite,
     AdminMetaCampaignAnalytics,
-    AdminCustomerListResponse,
-    AdminCustomerStats,
-    AdminCustomerDetail,
-    AdminCustomerNote,
-    AdminCustomerAddress,
-    AdminBlockWrite,
-    AdminConsentWrite,
-    AdminNoteWrite,
-    AdminWhatsAppWrite,
-    AdminEmailWrite,
-    AdminAddressWrite,
-    AdminCustomerFilters,
     AdminOrderListResponse,
     AdminOrderStats,
     AdminOrderTabCounts,
@@ -50,6 +50,23 @@ import type {
     AdminOrderWhatsAppWrite,
     AdminOrderExportWrite,
     AdminOrderExportResponse,
+
+    AdminCustomerListResponse,
+    AdminCustomerStats,
+    AdminCustomerDetail,
+    AdminCustomerNote,
+    AdminCustomerAddress,
+    AdminBlockWrite,
+    AdminConsentWrite,
+    AdminNoteWrite,
+    AdminWhatsAppWrite,
+    AdminEmailWrite,
+    AdminAddressWrite,
+    AdminCustomerFilters,
+    AdminCustomerFull,
+    AdminCustomerFullWrite,
+    AdminCustomerStatsFull,
+
     AdminSupplier,
     AdminSupplierWrite,
     AdminSupplierProductInput,
@@ -57,6 +74,16 @@ import type {
     AdminInventoryItem,
     AdminStockMovement,
     AdminInventoryAdjustInput,
+    AdminSupplierFull,
+    AdminSupplierFullWrite,
+    AdminPurchaseOrder,
+    AdminPurchaseOrderWrite,
+    AdminLocation,
+    AdminLocationWrite,
+    AdminInventoryMovement,
+    AdminInventoryMovementWrite,
+    AdminInventorySummary,
+
     AdminReview,
     AdminReviewReply,
     AdminReviewStats,
@@ -65,6 +92,9 @@ import type {
     AdminRejectReviewWrite,
     AdminFlagReviewWrite,
     AdminReplyReviewWrite,
+    AdminReviewFull,
+    AdminReviewFullWrite,
+
     AdminDiscount,
     AdminDiscountWrite,
     AdminDiscountFilters,
@@ -73,12 +103,16 @@ import type {
     AdminDiscountAnalytics,
     AdminDiscountAnalyticsSummary,
     AdminDiscountRules,
+    AdminCoupon,
+    AdminCouponWrite,
+
     AdminTransaction,
     AdminTransactionSummary,
     AdminTransactionFilters,
     AdminReconcileWrite,
     AdminRetryWrite,
     AdminBulkExportWrite,
+
     AdminKenyaRegions,
     AdminShippingZone,
     AdminShippingZoneWrite,
@@ -90,6 +124,11 @@ import type {
     AdminShipmentStatusWrite,
     AdminCourierConfig,
     AdminCourierTestResult,
+    AdminDeliveryZone,
+    AdminDeliveryZoneWrite,
+    AdminDeliveryZoneFull,
+    AdminDeliveryZoneFullWrite,
+
     AdminWhatsAppAccount,
     AdminWhatsAppAccountWrite,
     AdminWhatsAppContact,
@@ -128,15 +167,63 @@ import type {
     AdminWhatsAppQuickReplyWrite,
     AdminWhatsAppOrder,
     AdminWhatsAppOrderUpdate,
-    AdminSocialAccount,
+    AdminWhatsAppStatus,
+
     AdminSocialPlatform,
+    AdminSocialAccount,
+    AdminSocialAccountDetail,
+    AdminSocialAccountCapabilities,
+    AdminSocialPaginated,
     AdminSocialScheduledPost,
     AdminSocialPublishedPost,
+    AdminSocialMediaFolder,
     AdminSocialMedia,
+    AdminSocialQueueSlot,
+    AdminSocialQueueSlotWrite,
+    AdminSocialEvergreenPost,
+    AdminSocialEvergreenPostWrite,
+    AdminSocialDraftStatus,
+    AdminSocialDraftComment,
+    AdminSocialDraft,
+    AdminSocialDraftWrite,
+    AdminSocialDraftCommentWrite,
+    AdminSocialInboxItemType,
+    AdminSocialInboxStatus,
+    AdminSocialSentiment,
+    AdminSocialInboxReply,
+    AdminSocialInboxItem,
+    AdminSocialInboxFilters,
+    AdminSocialTemplate,
+    AdminSocialTemplateWrite,
+    AdminSocialLink,
+    AdminSocialLinkWrite,
+    AdminSocialNotificationType,
+    AdminSocialNotification,
+    AdminSocialNotificationList,
+    AdminSocialTeamRole,
+    AdminSocialTeamMember,
+    AdminSocialTeamMemberWrite,
+    AdminSocialTeamMemberPatch,
+    AdminSocialAuditLog,
+    AdminSocialReport,
+    AdminSocialReportWrite,
+    AdminSocialKpis,
+    AdminSocialOverview,
+    AdminSocialDemographicSnapshot,
+    AdminSocialBestTimeRow,
+    AdminSocialKpiAnalytics,
     AdminSocialPostWrite,
     AdminSocialPostCreated,
+    AdminSocialPostPatch,
+    AdminSocialBulkIds,
+    AdminSocialBulkReschedule,
+    AdminSocialBoostWrite,
+    AdminSocialBoostResult,
+    AdminSocialEditCaptionWrite,
     AdminSocialFollowerPoint,
     AdminSocialEngagementPoint,
+    InboxReplyCreateBody,
+
     AdminDirectOrder,
     AdminDirectOrderStatus,
     AdminDirectOrderSource,
@@ -153,6 +240,7 @@ import type {
     AdminDirectProductStatus,
     AdminDirectCreateOrderWrite,
     AdminDirectSendCheckoutLinkWrite,
+
     AdminAIOverview,
     AdminAIConversation,
     AdminAIMessage,
@@ -175,6 +263,8 @@ import type {
     AdminAISettingsWrite,
     AdminAIUsage,
     AdminAIChartSpec,
+    AdminAIAlert,
+
     AdminRuntimeSettings,
     AdminGeneralSettings,
     AdminGeneralSettingsWrite,
@@ -186,23 +276,30 @@ import type {
     AdminInventorySettingsWrite,
     AdminReviewSettings,
     AdminReviewSettingsWrite,
+
     AdminPaymentSettings,
     AdminPaymentSettingsWrite,
+    AdminPaymentConfig,
+    AdminPaymentConfigWrite,
+    AdminPaymentTestResult,
+    AdminPaymentSummary,
+    AdminPaymentTransactionFilters,
     AdminMpesaStatus,
     AdminMpesaTransaction,
     AdminMpesaTransactionFilters,
+
     AdminShippingSettings,
     AdminShippingSettingsWrite,
     AdminShippingProvider,
     AdminShippingProviderWrite,
     AdminShippingProviderKey,
-    AdminDeliveryZone,
-    AdminDeliveryZoneWrite,
+
     AdminNotificationSettings,
     AdminNotificationSettingsWrite,
-    AdminWhatsAppStatus,
     AdminNotificationLog,
     AdminNotificationLogFilters,
+    AdminNotification,
+
     AdminSecuritySettings,
     AdminSecuritySettingsWrite,
     AdminLoginEvent,
@@ -210,6 +307,7 @@ import type {
     AdminChangePasswordInput,
     AdminTwoFASetup,
     AdminTwoFAVerifyInput,
+
     AdminIntegrationStatus,
     AdminIntegrationFilters,
     AdminTaxSettings,
@@ -219,6 +317,7 @@ import type {
     AdminEtimsStatus,
     AdminSettingsAuditLog,
     AdminSettingsAuditLogFilters,
+
     AdminStaffUser,
     AdminStaffUserWrite,
     AdminStaffUserStatus,
@@ -229,6 +328,7 @@ import type {
     AdminPermissionRow,
     AdminPermissionMatrixWrite,
     AdminInviteAcceptWrite,
+
     ReportRange,
     ReportQuery,
     ReportSalesResponse,
@@ -245,6 +345,7 @@ import type {
     ReportExportResponse,
     ReportRefreshWrite,
     ReportRefreshResponse,
+
     AnalyticsRange,
     AnalyticsTab,
     AnalyticsQuery,
@@ -255,6 +356,7 @@ import type {
     AnalyticsChannelsResponse,
     AnalyticsRefreshWrite,
     AnalyticsRefreshResponse,
+
     OverviewRange,
     OverviewQuery,
     OverviewKpi,
@@ -271,20 +373,7 @@ import type {
     OverviewResponse,
     OverviewRefreshWrite,
     OverviewRefreshResponse,
-    AdminProductVariant,
-    AdminProductVariantWrite,
-    AdminSupplierFull,
-    AdminSupplierFullWrite,
-    AdminPurchaseOrder,
-    AdminPurchaseOrderWrite,
-    AdminLocation,
-    AdminLocationWrite,
-    AdminInventoryMovement,
-    AdminInventoryMovementWrite,
-    AdminInventorySummary,
-    AdminCustomerFull,
-    AdminCustomerFullWrite,
-    AdminCustomerStatsFull,
+
     AdminInboxConversation,
     AdminInboxConversationWrite,
     AdminInboxMessage,
@@ -292,23 +381,30 @@ import type {
     AdminInboxConvertWrite,
     AdminTeamMember,
     AdminTeamMemberWrite,
+
     AdminReturnRequest,
     AdminReturnRequestWrite,
+    AdminReturnFilters,
+    AdminReturnCreateWrite,
+    AdminReturnPatchWrite,
+    AdminReturnRejectWrite,
+    AdminReturnRefundWrite,
+    AdminRefundMethod,
+    AdminReturnRefundMethodWrite,
+    AdminReturnStats,
+    AdminReturnHistoryPoint,
+    AdminRefundRecord,
+    AdminReturnReason,
+    AdminReturnReasonWrite,
+    AdminReturnSettings,
+    AdminReturnSettingsWrite,
+
     AdminExpense,
     AdminExpenseWrite,
     AdminAutomation,
     AdminAutomationWrite,
-    AdminNotification,
     AdminAuditLog,
     AdminAuditLogFilters,
-    AdminReviewFull,
-    AdminReviewFullWrite,
-    AdminDeliveryZoneFull,
-    AdminDeliveryZoneFullWrite,
-    AdminCoupon,
-    AdminCouponWrite,
-    AdminCampaignFull,
-    AdminCampaignFullWrite,
     AdminAttributionLink,
     AdminAttributionLinkWrite,
     AdminPayoutBatch,
@@ -316,7 +412,6 @@ import type {
     AdminAnalyticsSummaryResponse,
     AdminFinanceSummaryResponse,
 } from './admin-types';
-
 import type {
     Banner,
     BannerWriteInput,
@@ -931,427 +1026,6 @@ export interface AdminAIUsageLogRow {
     timestamp: string;
 }
 
-export interface AdminSocialPaginated<T> {
-    results: T[];
-    page: number;
-    page_size: number;
-    total: number;
-    has_more: boolean;
-}
-
-export interface AdminSocialAccountCapabilities {
-    supports_comments: boolean;
-    supports_direct_messages: boolean;
-    supports_mentions: boolean;
-    supports_demographics: boolean;
-    supports_best_times: boolean;
-    supports_boost: boolean;
-    supports_delete_post: boolean;
-    supports_edit_caption: boolean;
-    supports_first_comment: boolean;
-    supports_stories: boolean;
-    supports_reels: boolean;
-    supports_shorts: boolean;
-    supports_carousel: boolean;
-    max_caption_length: number;
-    max_media_count: number;
-    max_video_duration_sec: number;
-    requires_video: boolean;
-}
-
-export interface AdminSocialAccountDetail {
-    id: string;
-    platform: string;
-    handle: string;
-    display_name: string;
-    platform_user_id: string;
-    is_connected: boolean;
-    is_token_expired: boolean;
-    is_token_expiring_soon: boolean;
-    connected_at: string | null;
-    token_expires_at: string | null;
-    last_synced_at: string | null;
-    scopes: string[];
-    followers: number;
-    avatar_url: string;
-    last_error: string;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface AdminSocialMediaFolder {
-    id: number;
-    name: string;
-    slug: string;
-    parent_id: number | null;
-    created_at: string;
-}
-
-export interface AdminSocialQueueSlot {
-    id: number;
-    name: string;
-    kind: 'STANDARD' | 'EVERGREEN';
-    days: string[];
-    timeOfDay: string;
-    timezone: string;
-    platforms: string[];
-    isActive: boolean;
-    created_at: string;
-}
-
-export interface AdminSocialQueueSlotWrite {
-    name: string;
-    kind?: 'STANDARD' | 'EVERGREEN';
-    days: string[];
-    timeOfDay: string;
-    timezone?: string;
-    platforms: string[];
-    isActive?: boolean;
-}
-
-export interface AdminSocialEvergreenPost {
-    id: number;
-    caption: string;
-    platforms: string[];
-    productTag: string;
-    lastUsedAt: string | null;
-    useCount: number;
-    isActive: boolean;
-    created_at: string;
-}
-
-export interface AdminSocialEvergreenPostWrite {
-    caption: string;
-    platforms?: string[];
-    productTag?: string;
-    isActive?: boolean;
-}
-
-export type AdminSocialDraftStatus =
-    | 'DRAFT'
-    | 'PENDING'
-    | 'APPROVED'
-    | 'REJECTED'
-    | 'SCHEDULED';
-
-export interface AdminSocialDraftComment {
-    id: number;
-    authorId: number | null;
-    authorName: string;
-    body: string;
-    decision: string;
-    created_at: string;
-}
-
-export interface AdminSocialDraft {
-    id: number;
-    title: string;
-    caption: string;
-    platforms: string[];
-    fields: Record<string, unknown>;
-    status: AdminSocialDraftStatus;
-    authorId: number | null;
-    authorName: string;
-    reviewerId: number | null;
-    reviewerName: string;
-    source_post_id: number | null;
-    comments: AdminSocialDraftComment[];
-    last_edited_at: string;
-    created_at: string;
-}
-
-export interface AdminSocialDraftWrite {
-    title?: string;
-    caption?: string;
-    platforms?: string[];
-    fields?: Record<string, unknown>;
-}
-
-export interface AdminSocialDraftCommentWrite {
-    body: string;
-    decision?: 'APPROVED' | 'REJECTED' | 'CHANGES' | '';
-}
-
-export type AdminSocialInboxItemType = 'COMMENT' | 'DM' | 'MENTION';
-export type AdminSocialInboxStatus = 'OPEN' | 'RESOLVED' | 'SNOOZED' | 'SPAM';
-export type AdminSocialSentiment = 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
-
-export interface AdminSocialInboxReply {
-    id: number;
-    authorId: number | null;
-    authorName: string;
-    body: string;
-    isOutbound: boolean;
-    created_at: string;
-}
-
-export interface AdminSocialInboxItem {
-    id: number;
-    itemType: AdminSocialInboxItemType;
-    status: AdminSocialInboxStatus;
-    sentiment: AdminSocialSentiment;
-    platform: string;
-    authorName: string;
-    authorHandle: string;
-    authorAvatar: string;
-    body: string;
-    permalink: string;
-    assignedTo: number | null;
-    assignedName: string;
-    targetId: number | null;
-    postCaption: string;
-    replies: AdminSocialInboxReply[];
-    receivedAt: string;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface AdminSocialInboxFilters {
-    item_type?: AdminSocialInboxItemType;
-    status?: AdminSocialInboxStatus;
-    platform?: AdminSocialPlatform;
-    sentiment?: AdminSocialSentiment;
-    assigned_to?: 'me' | 'unassigned';
-    search?: string;
-    page?: number;
-    page_size?: number;
-}
-
-export interface AdminSocialTemplate {
-    id: number;
-    name: string;
-    category: string;
-    caption: string;
-    platforms: string[];
-    fields: Record<string, unknown>;
-    isShared: boolean;
-    createdById: number | null;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface AdminSocialTemplateWrite {
-    name: string;
-    category?: string;
-    caption?: string;
-    platforms?: string[];
-    fields?: Record<string, unknown>;
-    isShared?: boolean;
-}
-
-export interface AdminSocialLink {
-    id: number;
-    shortCode: string;
-    destination: string;
-    utm: Record<string, string>;
-    clicks: number;
-    createdById: number | null;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface AdminSocialLinkWrite {
-    destination: string;
-    utm?: Record<string, string>;
-}
-
-export type AdminSocialNotificationType =
-    | 'POST_PUBLISHED'
-    | 'POST_FAILED'
-    | 'TOKEN_EXPIRING'
-    | 'TOKEN_EXPIRED'
-    | 'APPROVAL_NEEDED'
-    | 'APPROVAL_GIVEN'
-    | 'NEW_COMMENT'
-    | 'NEW_DM'
-    | 'NEW_MENTION'
-    | 'REPORT_READY';
-
-export interface AdminSocialNotification {
-    id: number;
-    notificationType: AdminSocialNotificationType;
-    title: string;
-    message: string;
-    link: string;
-    isRead: boolean;
-    createdAt: string;
-}
-
-export interface AdminSocialNotificationList extends AdminSocialPaginated<AdminSocialNotification> {
-    unread_count: number;
-}
-
-export type AdminSocialTeamRole = 'OWNER' | 'ADMIN' | 'EDITOR' | 'APPROVER' | 'VIEWER';
-
-export interface AdminSocialTeamMember {
-    id: number;
-    userId: number;
-    email: string;
-    fullName: string;
-    role: AdminSocialTeamRole;
-    isActive: boolean;
-    invited_at: string | null;
-    joined_at: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface AdminSocialTeamMemberWrite {
-    email: string;
-    role: AdminSocialTeamRole;
-}
-
-export interface AdminSocialTeamMemberPatch {
-    role?: AdminSocialTeamRole;
-    isActive?: boolean;
-}
-
-export interface AdminSocialAuditLog {
-    id: number;
-    actorId: number | null;
-    actorName: string;
-    action: string;
-    targetType: string;
-    targetId: string;
-    details: Record<string, unknown>;
-    createdAt: string;
-}
-
-export interface AdminSocialReport {
-    id: number;
-    name: string;
-    dateFrom: string;
-    dateTo: string;
-    platforms: string[];
-    metrics: string[];
-    branding: Record<string, unknown>;
-    format: 'PDF' | 'CSV' | 'PNG';
-    fileUrl: string | null;
-    createdById: number | null;
-    generatedAt: string | null;
-    created_at: string;
-}
-
-export interface AdminSocialReportWrite {
-    name: string;
-    dateFrom: string;
-    dateTo: string;
-    platforms?: string[];
-    metrics?: string[];
-    branding?: Record<string, unknown>;
-    format?: 'PDF' | 'CSV' | 'PNG';
-}
-
-export interface AdminSocialKpis {
-    total_followers: number;
-    reach: number;
-    engagement_rate: number;
-    posts_published: number;
-    unread_inbox: number;
-    scheduled_this_week: number;
-    failed_posts: number;
-}
-
-export interface AdminSocialOverview {
-    kpis: AdminSocialKpis;
-    expiring_tokens: { platform: string; expires_at: string | null }[];
-    upcoming: AdminSocialScheduledPost[];
-    recent_activity: AdminSocialAuditLog[];
-    top_posts: AdminSocialPublishedPost[];
-}
-
-export interface AdminSocialDemographicSnapshot {
-    id: number;
-    platform: string;
-    date: string;
-    ageBuckets: Record<string, number>;
-    gender: Record<string, number>;
-    topCities: { name: string; count: number }[];
-    topCountries: { code: string; name: string; count: number }[];
-    updated_at: string;
-}
-
-export interface AdminSocialBestTimeRow {
-    id: number;
-    platform: string;
-    dayOfWeek: number;
-    hour: number;
-    score: number;
-    sampleSize: number;
-    updated_at: string;
-}
-
-export interface AdminSocialKpiAnalytics {
-    current: {
-        reach: number;
-        impressions: number;
-        likes: number;
-        comments: number;
-        shares: number;
-        link_clicks: number;
-        posts: number;
-        engagement: number;
-        engagement_rate: number;
-    };
-    previous: {
-        reach: number;
-        impressions: number;
-        likes: number;
-        comments: number;
-        shares: number;
-        link_clicks: number;
-        posts: number;
-        engagement: number;
-        engagement_rate: number;
-    };
-    deltas: {
-        reach: number;
-        engagement: number;
-        engagement_rate: number;
-        link_clicks: number;
-        posts: number;
-    };
-}
-
-export interface AdminSocialPostPatch {
-    caption?: string;
-    first_comment?: string;
-    firstComment?: string;
-    product_tag?: string;
-    productTag?: string;
-    scheduled_for?: string;
-    scheduleAt?: string;
-}
-
-export interface AdminSocialBulkIds {
-    ids: (number | string)[];
-}
-
-export interface AdminSocialBulkReschedule {
-    ids: (number | string)[];
-    scheduleAt: string;
-}
-
-export interface AdminSocialBoostWrite {
-    budget_cents: number;
-    duration_days: number;
-    audience?: Record<string, unknown>;
-}
-
-export interface AdminSocialBoostResult {
-    boost_id: string;
-    status: string;
-    estimated_reach: number;
-}
-
-export interface AdminSocialEditCaptionWrite {
-    caption: string;
-}
-
-export interface InboxReplyCreateBody {
-    body: string;
-}
-
 export interface AdminWhatsAppWebhookEvent {
     id: number;
     type: string;
@@ -1665,15 +1339,18 @@ async function streamAssistantReply(
 ): Promise<void> {
     let res: Response;
     try {
+        const access = getAccessToken();
+        const csrf = readCsrfToken();
         res = await fetch(
-            `/api/admin/ai/assistant/conversations/${encodeURIComponent(conversationId)}/stream/`,
+            `${API_BASE}/api/admin/ai/assistant/conversations/${encodeURIComponent(conversationId)}/stream/`,
             {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': readCsrfToken(),
-                    Accept: 'text/event-stream',
+                    Accept: 'application/json',
+                    ...(access ? { Authorization: `Bearer ${access}` } : {}),
+                    ...(csrf ? { 'X-CSRFToken': csrf } : {}),
                 },
                 body: JSON.stringify({
                     content,
@@ -1798,7 +1475,7 @@ async function streamAssistantReply(
     }
 }
 
-function qsOf(filters: Record<string, unknown> | undefined): string {
+function qsOf(filters: object | undefined): string {
     if (!filters) return '';
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries(filters)) {
@@ -1837,10 +1514,34 @@ function overviewQs(query: OverviewQuery = {}): string {
 
 export const adminApi = {
     products: {
-        list: async (signal?: AbortSignal): Promise<AdminProduct[]> => {
+        list: async (
+            queryOrSignal?: Record<string, string | number | boolean> | AbortSignal,
+            signal?: AbortSignal,
+        ): Promise<AdminProduct[]> => {
+            let query: Record<string, string | number | boolean> = {};
+            let actualSignal: AbortSignal | undefined = signal;
+
+            if (queryOrSignal && typeof queryOrSignal === 'object') {
+                const looksLikeSignal =
+                    'aborted' in queryOrSignal || 'addEventListener' in queryOrSignal;
+                if (looksLikeSignal) {
+                    actualSignal = queryOrSignal as AbortSignal;
+                } else {
+                    query = queryOrSignal as Record<string, string | number | boolean>;
+                }
+            }
+
+            const params = new URLSearchParams();
+            Object.entries(query).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== '') {
+                    params.set(key, String(value));
+                }
+            });
+            const suffix = params.toString() ? `?${params.toString()}` : '';
+
             const res = await request<
                 AdminProduct[] | { results: AdminProduct[] }
-            >('/api/v1/admin/products/', { signal });
+            >(`/api/v1/admin/products/${suffix}`, { signal: actualSignal });
             return unwrapList(res);
         },
 
@@ -1886,7 +1587,6 @@ export const adminApi = {
                 { method: 'POST' },
             ),
     },
-
     categories: {
         list: async (signal?: AbortSignal): Promise<AdminCategory[]> => {
             const res = await request<
@@ -1943,16 +1643,16 @@ export const adminApi = {
                 { signal },
             ),
 
-        create: (payload: AdminBrandWrite) =>
+        create: (payload: AdminBrandWrite | FormData) =>
             request<AdminBrand>('/api/v1/admin/brands/', {
                 method: 'POST',
-                body: payload,
+                body: payload as any,
             }),
 
-        update: (id: string, payload: Partial<AdminBrandWrite>) =>
+        update: (id: string, payload: Partial<AdminBrandWrite> | FormData) =>
             request<AdminBrand>(
                 `/api/v1/admin/brands/${encodeURIComponent(id)}/`,
-                { method: 'PATCH', body: payload },
+                { method: 'PATCH', body: payload as any },
             ),
 
         remove: (id: string) =>
@@ -2575,6 +2275,12 @@ export const adminApi = {
                     signal,
                 },
             ),
+
+        sticker: (reference: string, itemId: number, signal?: AbortSignal) =>
+            request<AdminStickerData>(
+                `/api/v1/admin/orders/${encodeURIComponent(reference)}/sticker/${itemId}/`,
+                { signal },
+            ),
     },
 
     reviews: {
@@ -2795,6 +2501,7 @@ export const adminApi = {
             if (filters.q) sp.set('q', filters.q);
             if (filters.status) sp.set('status', filters.status);
             if (filters.method) sp.set('method', filters.method);
+            if (filters.source) sp.set('source', filters.source);
             if (filters.dateRange) sp.set('dateRange', filters.dateRange);
             if (filters.minAmount) sp.set('minAmount', filters.minAmount);
             if (filters.maxAmount) sp.set('maxAmount', filters.maxAmount);
@@ -2816,6 +2523,7 @@ export const adminApi = {
             if (filters.q) sp.set('q', filters.q);
             if (filters.status) sp.set('status', filters.status);
             if (filters.method) sp.set('method', filters.method);
+            if (filters.source) sp.set('source', filters.source);
             if (filters.dateRange) sp.set('dateRange', filters.dateRange);
             if (filters.minAmount) sp.set('minAmount', filters.minAmount);
             if (filters.maxAmount) sp.set('maxAmount', filters.maxAmount);
@@ -2840,6 +2548,7 @@ export const adminApi = {
             if (filters.q) sp.set('q', filters.q);
             if (filters.status) sp.set('status', filters.status);
             if (filters.method) sp.set('method', filters.method);
+            if (filters.source) sp.set('source', filters.source);
             if (filters.dateRange) sp.set('dateRange', filters.dateRange);
             if (filters.minAmount) sp.set('minAmount', filters.minAmount);
             if (filters.maxAmount) sp.set('maxAmount', filters.maxAmount);
@@ -2965,6 +2674,15 @@ export const adminApi = {
                         method: 'POST',
                         body: payload satisfies AdminReconcileWrite,
                     },
+                ),
+
+            completeOrder: (
+                id: string,
+                payload: AdminCompleteOrderPayload,
+            ) =>
+                request<AdminCompleteOrderResult>(
+                    `/api/v1/dashboard/payments/transactions/${encodeURIComponent(id)}/complete-order/`,
+                    { method: 'POST', body: payload },
                 ),
         },
     },
@@ -5827,7 +5545,7 @@ export const adminApi = {
 
         tools: {
             schemas: (signal?: AbortSignal) =>
-                request<{ schemas: AdminAIToolSchema[]; count: number; names: string[] }>(
+                request<{ tools: AdminAIToolSchema[]; count: number; names: string[] }>(
                     '/api/admin/ai/tools/',
                     { signal },
                 ),
@@ -5840,10 +5558,31 @@ export const adminApi = {
         },
 
         actions: {
-            preview: (payload: Omit<AdminAIPendingAction, 'id'> & { id?: string }) =>
+            preview: (payload: {
+                tool: string;
+                title: string;
+                description?: string;
+                params?: Record<string, unknown>;
+                confirmLabel?: string;
+                cancelLabel?: string;
+                destructive?: boolean;
+                preview?: Array<{ label: string; value: string }>;
+            }) =>
                 request<AdminAIPendingAction>(
                     '/api/admin/ai/actions/preview/',
-                    { method: 'POST', body: payload },
+                    {
+                        method: 'POST',
+                        body: {
+                            tool: payload.tool,
+                            title: payload.title,
+                            description: payload.description ?? '',
+                            params: payload.params,
+                            confirm_label: payload.confirmLabel,
+                            cancel_label: payload.cancelLabel,
+                            destructive: payload.destructive,
+                            preview: payload.preview,
+                        },
+                    },
                 ),
 
             execute: (payload: AdminAIActionExecuteWrite) =>
@@ -5875,7 +5614,7 @@ export const adminApi = {
                 ),
 
             updateConfig: (payload: Partial<AdminAISearchConfigWrite>) =>
-                request<AdminAISearchConfig>(
+                request<{ detail: string }>(
                     '/api/admin/ai/search/config/',
                     { method: 'PATCH', body: payload },
                 ),
@@ -5995,7 +5734,7 @@ export const adminApi = {
             list: async (
                 filters: AdminAIAlertFilters = {},
                 signal?: AbortSignal,
-            ) => {
+            ): Promise<AdminAIAlert[]> => {
                 const sp = new URLSearchParams();
                 if (filters.severity && filters.severity !== 'all') {
                     sp.set('severity', filters.severity);
@@ -6005,26 +5744,12 @@ export const adminApi = {
                 }
                 const qs = sp.toString();
                 const res = await request<
-                    | Array<{
-                        id: number;
-                        severity: AdminAIAlertSeverity;
-                        category: AdminAIAlertCategory;
-                        title: string;
-                        description: string;
-                        href: string;
-                        actionLabel: string;
-                        count: number;
-                        timestamp: string;
-                        isActive: boolean;
-                    }>
-                    | { results: Array<unknown> }
+                    AdminAIAlert[] | { results: AdminAIAlert[] }
                 >(
                     `/api/admin/ai/alerts/${qs ? `?${qs}` : ''}`,
                     { signal },
                 );
-                return Array.isArray(res)
-                    ? res
-                    : (res as { results: unknown[] }).results;
+                return unwrapList(res);
             },
 
             dismiss: (
@@ -6725,7 +6450,55 @@ export const adminApi = {
                 { method: 'POST', body: payload },
             ),
     },
+    posters: {
+        list: async (
+            query: AdminPosterFilters = {},
+            signal?: AbortSignal,
+        ): Promise<AdminPoster[]> => {
+            const sp = new URLSearchParams();
+            if (query.placement) sp.set('placement', query.placement);
+            if (query.status && query.status !== 'ALL') {
+                sp.set('status', query.status);
+            }
+            if (query.search) sp.set('search', query.search);
+            const qs = sp.toString();
+            const res = await request<AdminPoster[] | { results: AdminPoster[] }>(
+                `/api/v1/admin/posters/${qs ? `?${qs}` : ''}`,
+                { signal },
+            );
+            return unwrapList(res);
+        },
 
+        detail: (id: number, signal?: AbortSignal) =>
+            request<AdminPoster>(`/api/v1/admin/posters/${id}/`, { signal }),
+
+        create: (payload: AdminPosterWrite | FormData) =>
+            request<AdminPoster>('/api/v1/admin/posters/', {
+                method: 'POST',
+                body: payload as any,
+            }),
+
+        update: (id: number, payload: Partial<AdminPosterWrite> | FormData) =>
+            request<AdminPoster>(`/api/v1/admin/posters/${id}/`, {
+                method: 'PATCH',
+                body: payload as any,
+            }),
+
+        remove: (id: number) =>
+            request<void>(`/api/v1/admin/posters/${id}/`, {
+                method: 'DELETE',
+            }),
+
+        reorder: (rows: { id: number; order: number }[]) =>
+            Promise.all(
+                rows.map((row) =>
+                    request<AdminPoster>(`/api/v1/admin/posters/${row.id}/`, {
+                        method: 'PATCH',
+                        body: { order: row.order } as Partial<AdminPosterWrite>,
+                    }),
+                ),
+            ),
+    },
     campaigns: {
         list: async (signal?: AbortSignal): Promise<AdminMetaCampaign[]> => {
             const res = await request<

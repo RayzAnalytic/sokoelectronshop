@@ -7,7 +7,6 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import Link from 'next/link';
 import {
     ArrowRight,
     Copy,
@@ -33,6 +32,19 @@ import {
 } from '@/lib/api';
 import { adminApi } from '@/lib/admin-api';
 
+const MAX_HERO_SLIDES = 10;
+
+const API_ORIGIN =
+    (typeof process !== 'undefined' &&
+        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '')) ||
+    'http://localhost:8000';
+
+function resolveImageUrl(url: string): string {
+    if (!url) return '';
+    if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:')) return url;
+    return `${API_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 function fmt(n: number): string {
     return n.toLocaleString('en-KE');
 }
@@ -57,30 +69,22 @@ function isoToLocalInput(iso: string | null): string {
     );
 }
 
-/** `YYYY-MM-DDTHH:mm` (local) → ISO string, or null if empty. */
 function localInputToIso(local: string): string | null {
     if (!local) return null;
     const d = new Date(local);
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-/** Strip read-only fields before hitting the API. */
 function toWriteInput(b: Banner | BannerWriteInput): BannerWriteInput {
     if (!('impressions' in b)) return b as BannerWriteInput;
     const {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         impressions, clicks, conversions, ctr, cvr,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         created_at, updated_at,
         ...write
     } = b as Banner;
-    // Only forward `id` when it's a real persisted id.
     return write.id ? write : (({ id: _ignored, ...rest }) => rest)(write);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Banner image upload — multipart to /api/v1/admin/banners/uploads/
-// ─────────────────────────────────────────────────────────────────────────────
 async function uploadBannerImage(
     file: File,
     kind: 'desktop' | 'tablet' | 'mobile',
@@ -95,7 +99,7 @@ async function uploadBannerImage(
         .find((c) => c.startsWith('csrftoken='))
         ?.split('=')[1] ?? '';
 
-    const res = await fetch('/api/v1/admin/banners/uploads/', {
+    const res = await fetch(`${API_ORIGIN}/api/v1/admin/banners/uploads/`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'X-CSRFToken': csrf },
@@ -108,7 +112,7 @@ async function uploadBannerImage(
         try {
             const data = (await res.json()) as { detail?: string };
             if (data?.detail) detail = data.detail;
-        } catch { /* not JSON */ }
+        } catch { }
         throw new Error(detail);
     }
 
@@ -116,9 +120,6 @@ async function uploadBannerImage(
     return data.url;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<Status, string> = {
     ACTIVE: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     SCHEDULED: 'bg-blue-50 text-blue-800 border-blue-100',
@@ -133,14 +134,11 @@ const PLACEMENT_LABEL: Record<Placement, string> = {
 };
 
 const inputCls =
-    'w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950';
+    'w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950';
 
 const selectCls =
-    'bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950';
+    'bg-white border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function BannersPage() {
     const [banners, setBanners] = useState<Banner[]>([]);
     const [stats, setStats] = useState<BannerStats | null>(null);
@@ -158,9 +156,7 @@ export default function BannersPage() {
     const [confirmDelete, setConfirmDelete] = useState<Banner | null>(null);
     const [toast, setToast] = useState('');
     const [saving, setSaving] = useState(false);
-    const [resetting, setResetting] = useState(false);
 
-    // ── Load ──────────────────────────────────────────────────────────────
     useEffect(() => {
         const ctrl = new AbortController();
         let cancelled = false;
@@ -193,7 +189,16 @@ export default function BannersPage() {
         };
     }, []);
 
-    // ── Derived list ──────────────────────────────────────────────────────
+    const heroActive = useMemo(
+        () =>
+            banners.filter(
+                (b) =>
+                    b.placement === 'HOME_HERO' &&
+                    (b.status === 'ACTIVE' || b.status === 'SCHEDULED'),
+            ).length,
+        [banners],
+    );
+
     const filtered = useMemo(() => {
         let list = [...banners];
         if (query.trim()) {
@@ -234,21 +239,27 @@ export default function BannersPage() {
             const s = await adminApi.banners.stats();
             setStats(s);
         } catch {
-            /* swallow — the list is still valid */
         }
     }
 
-    async function refreshAll() {
-        const [list, s] = await Promise.all([
-            adminApi.banners.list(),
-            adminApi.banners.stats(),
-        ]);
-        setBanners(list);
-        setStats(s);
-    }
-
-    // ── Mutations ─────────────────────────────────────────────────────────
     async function save(draft: Banner) {
+        if (draft.placement === 'HOME_HERO') {
+            const others = banners.filter(
+                (b) =>
+                    b.placement === 'HOME_HERO' &&
+                    b.id !== draft.id &&
+                    (b.status === 'ACTIVE' || b.status === 'SCHEDULED'),
+            ).length;
+            const willBeLive =
+                draft.status === 'ACTIVE' || draft.status === 'SCHEDULED';
+            if (willBeLive && others >= MAX_HERO_SLIDES) {
+                alert(
+                    `Maximum ${MAX_HERO_SLIDES} hero slides. Deactivate or delete one first.`,
+                );
+                return;
+            }
+        }
+
         setSaving(true);
         try {
             const payload = toWriteInput(draft);
@@ -292,11 +303,7 @@ export default function BannersPage() {
         try {
             const updated = await adminApi.banners.toggle(b.id);
             setBanners((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-            flash(
-                b.status === 'ACTIVE'
-                    ? 'Deactivated'
-                    : 'Activated',
-            );
+            flash(b.status === 'ACTIVE' ? 'Deactivated' : 'Activated');
             void refreshStats();
         } catch (err) {
             alert(err instanceof Error ? err.message : 'Could not toggle banner.');
@@ -315,34 +322,17 @@ export default function BannersPage() {
         }
     }
 
-    async function handleReset() {
-        if (
-            !confirm(
-                'Reset all banners to the demo seed? Your uploads will be lost.',
-            )
-        ) {
-            return;
-        }
-        setResetting(true);
-        try {
-            await adminApi.banners.reset();
-            await refreshAll();
-            flash('Reset to seed');
-        } catch (err) {
-            alert(err instanceof Error ? err.message : 'Reset failed.');
-        } finally {
-            setResetting(false);
-        }
-    }
-
-    // ── Blank new-banner draft ────────────────────────────────────────────
     function blank(): Banner {
         const now = new Date().toISOString();
+        const hero = banners.filter((b) => b.placement === 'HOME_HERO');
+        const nextOrder = hero.length
+            ? Math.max(...hero.map((b) => b.order)) + 1
+            : 1;
         return {
-            id: 0, // sentinel — 0 means "not yet persisted"
+            id: 0,
             name: '',
             placement: 'HOME_HERO',
-            order: banners.length + 1,
+            order: Math.min(nextOrder, MAX_HERO_SLIDES),
             badge: '',
             headline: '',
             description: '',
@@ -356,7 +346,7 @@ export default function BannersPage() {
             text_alignment: 'LEFT',
             overlay_style: 'GRADIENT',
             overlay_opacity: 80,
-            status: 'DRAFT',
+            status: 'ACTIVE',
             start_at: null,
             end_at: null,
             impressions: 0,
@@ -369,7 +359,6 @@ export default function BannersPage() {
         };
     }
 
-    // ── Loading / error ───────────────────────────────────────────────────
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -399,8 +388,8 @@ export default function BannersPage() {
     if (error) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-                <div className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-6 text-center">
-                    <div className="w-12 h-12 mx-auto rounded-sm bg-rose-50 text-rose-600 flex items-center justify-center">
+                <div className="bg-white border border-slate-200 rounded max-w-md w-full p-6 text-center">
+                    <div className="w-12 h-12 mx-auto rounded bg-rose-50 text-rose-600 flex items-center justify-center">
                         <X className="w-6 h-6" />
                     </div>
                     <h3 className="text-[15px] font-semibold text-slate-900 mt-3">
@@ -409,7 +398,7 @@ export default function BannersPage() {
                     <p className="text-[13px] text-slate-500 mt-1">{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="mt-4 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                        className="mt-2 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
                     >
                         Retry
                     </button>
@@ -419,36 +408,27 @@ export default function BannersPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
-
-            {/* ── Header ─────────────────────────────────────────────────── */}
+        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10 relative">
             <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-3">
+                <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-2">
                     <div>
                         <h1 className="text-[15px] font-semibold text-slate-900">Banners</h1>
                         <p className="text-[13px] text-slate-500 mt-0.5">
-                            Manage homepage hero slides and promotional banners · {banners.length} banners
+                            Manage homepage hero slides · {heroActive}/{MAX_HERO_SLIDES} active · {banners.length} total
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleReset}
-                            disabled={resetting}
-                            className="text-[13px] text-slate-500 hover:text-slate-800 px-2 py-2 hidden sm:inline disabled:opacity-50"
-                        >
-                            {resetting ? 'Resetting…' : 'Reset demo'}
-                        </button>
-                        <div className="inline-flex bg-slate-100 p-0.5 rounded-sm border border-slate-200">
+                        <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200">
                             <button
                                 onClick={() => setView('grid')}
-                                className={`p-1.5 rounded-sm transition ${view === 'grid' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                                className={`p-1.5 rounded transition ${view === 'grid' ? 'bg-white text-blue-950 ' : 'text-slate-500 hover:text-slate-900'}`}
                                 title="Grid view"
                             >
                                 <LayoutGrid className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => setView('table')}
-                                className={`p-1.5 rounded-sm transition ${view === 'table' ? 'bg-white text-blue-950 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                                className={`p-1.5 rounded transition ${view === 'table' ? 'bg-white text-blue-950 ' : 'text-slate-500 hover:text-slate-900'}`}
                                 title="Table view"
                             >
                                 <List className="w-4 h-4" />
@@ -456,7 +436,7 @@ export default function BannersPage() {
                         </div>
                         <button
                             onClick={() => setEditing(blank())}
-                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
                         >
                             <Plus className="w-3.5 h-3.5" />
                             <span>New banner</span>
@@ -466,8 +446,6 @@ export default function BannersPage() {
             </header>
 
             <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
-
-                {/* ── Summary cards ──────────────────────────────────────── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                         { label: 'Active banners', value: (stats?.active ?? 0).toString(), icon: Power, color: 'text-emerald-700 bg-emerald-50' },
@@ -475,9 +453,9 @@ export default function BannersPage() {
                         { label: 'Clicks', value: fmt(stats?.clicks ?? 0), icon: ArrowRight, color: 'text-indigo-700 bg-indigo-50' },
                         { label: 'Conversions', value: fmt(stats?.conversions ?? 0), icon: Copy, color: 'text-amber-700 bg-amber-50' },
                     ].map((s) => (
-                        <div key={s.label} className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
+                        <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
                             <div className="flex items-center gap-1.5">
-                                <span className={`w-6 h-6 rounded-sm flex items-center justify-center ${s.color}`}>
+                                <span className={`w-6 h-6 rounded flex items-center justify-center ${s.color}`}>
                                     <s.icon className="w-3.5 h-3.5" />
                                 </span>
                                 <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
@@ -487,15 +465,14 @@ export default function BannersPage() {
                     ))}
                 </div>
 
-                {/* ── Toolbar ────────────────────────────────────────────── */}
-                <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+                <div className="bg-white border border-slate-200 rounded p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
                     <div className="relative flex-1 min-w-0">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                         <input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Search banners by name, headline, or badge…"
-                            className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
+                            className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
                     </div>
 
@@ -536,11 +513,10 @@ export default function BannersPage() {
                     </div>
                 </div>
 
-                {/* ── Content ────────────────────────────────────────────── */}
                 {filtered.length === 0 ? (
                     <EmptyState onCreate={() => setEditing(blank())} />
                 ) : view === 'grid' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                         {filtered.map((b) => (
                             <BannerCard
                                 key={b.id}
@@ -565,9 +541,8 @@ export default function BannersPage() {
                 )}
             </main>
 
-            {/* ── Editor ───────────────────────────────────────────────── */}
             {editing && (
-                <BannerEditor
+                <BannerWizard
                     initial={editing}
                     saving={saving}
                     onSave={save}
@@ -575,31 +550,29 @@ export default function BannersPage() {
                 />
             )}
 
-            {/* ── Preview ─────────────────────────────────────────────── */}
             {previewing && (
                 <PreviewModal banner={previewing} onClose={() => setPreviewing(null)} />
             )}
 
-            {/* ── Delete confirm ──────────────────────────────────────── */}
             {confirmDelete && (
                 <div
-                    className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+                    className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
                     onClick={() => setConfirmDelete(null)}
                 >
                     <div
-                        className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-2 shadow-xl"
+                        className="bg-white border border-slate-200 rounded max-w-md w-full p-2  "
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-2">
-                            <span className="w-9 h-9 rounded-sm bg-red-50 text-red-600 flex items-center justify-center">
+                            <span className="w-9 h-9 rounded bg-red-50 text-red-600 flex items-center justify-center">
                                 <Trash2 className="w-4 h-4" />
                             </span>
                             <h3 className="text-[15px] font-semibold text-slate-900">Delete banner?</h3>
                         </div>
-                        <p className="text-[13px] text-slate-500 mt-2">
+                        <p className="text-[13px] text-slate-500 mt-1">
                             &ldquo;{confirmDelete.name}&rdquo; will be permanently removed. This cannot be undone.
                         </p>
-                        <div className="flex justify-end gap-2 mt-2">
+                        <div className="flex justify-end gap-2 mt-1">
                             <button
                                 onClick={() => setConfirmDelete(null)}
                                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -617,9 +590,8 @@ export default function BannersPage() {
                 </div>
             )}
 
-            {/* ── Toast ──────────────────────────────────────────────── */}
             {toast && (
-                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-2 py-2.5 rounded-sm shadow-lg">
+                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-2 py-2.5 rounded">
                     {toast}
                 </div>
             )}
@@ -627,9 +599,6 @@ export default function BannersPage() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Grid card
-// ─────────────────────────────────────────────────────────────────────────────
 function BannerCard({
     banner,
     onEdit,
@@ -646,20 +615,20 @@ function BannerCard({
     onDelete: () => void;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-0.5 space-y-1 relative">
-            <div className="relative aspect-[4/3] rounded-sm overflow-hidden bg-slate-950 border border-slate-200">
+        <div className="bg-white border border-slate-200 rounded p-0.5 space-y-1 relative">
+            <div className="relative aspect-[4/3] rounded overflow-hidden bg-slate-950 border border-slate-200">
                 <SlideArt banner={banner} />
-                <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded-sm">
+                <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded">
                     {banner.status}
                 </span>
-                <span className="absolute top-2 left-2 bg-white/90 text-slate-700 font-medium text-[13px] px-2 py-0.5 rounded-sm border border-slate-200">
+                <span className="absolute top-2 left-2 bg-white/90 text-slate-700 font-medium text-[13px] px-2 py-0.5 rounded border border-slate-200">
                     #{banner.order}
                 </span>
             </div>
 
             <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-medium text-blue-950 uppercase tracking-wide truncate">
+                    <span className="text-[13px] font-medium text-blue-950 uppercase truncate">
                         {PLACEMENT_LABEL[banner.placement]}
                     </span>
                 </div>
@@ -672,14 +641,12 @@ function BannerCard({
                 <p className="text-[13px] text-slate-400">Updated {fmtDate(banner.updated_at)}</p>
             </div>
 
-            {/* Mini stats */}
             <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-100">
                 <MiniStat label="Impr." value={fmt(banner.impressions)} />
                 <MiniStat label="CTR" value={`${banner.ctr.toFixed(1)}%`} />
                 <MiniStat label="Conv." value={fmt(banner.conversions)} />
             </div>
 
-            {/* Actions */}
             <div className="flex items-center gap-0.5 pt-1 border-t border-slate-100">
                 <IconButton title="Edit" onClick={onEdit}>
                     <Pencil className="w-3.5 h-3.5" />
@@ -709,7 +676,7 @@ function BannerCard({
 function MiniStat({ label, value }: { label: string; value: string }) {
     return (
         <div className="text-center">
-            <div className="text-[13px] uppercase tracking-wide text-slate-400 font-medium">
+            <div className="text-[13px] uppercase text-slate-400 font-medium">
                 {label}
             </div>
             <div className="text-[13px] font-semibold text-slate-800 mt-0.5">
@@ -745,9 +712,6 @@ function IconButton({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Table
-// ─────────────────────────────────────────────────────────────────────────────
 function BannerTable({
     banners,
     onEdit,
@@ -764,7 +728,7 @@ function BannerTable({
     onDelete: (b: Banner) => void;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-[13px]">
                     <thead>
@@ -786,7 +750,7 @@ function BannerTable({
                                 <td className="py-2 px-2 text-slate-500">#{b.order}</td>
                                 <td className="py-2 px-2">
                                     <div className="flex items-center gap-2">
-                                        <div className="relative w-14 h-9 rounded-sm overflow-hidden bg-slate-950 border border-slate-200 shrink-0">
+                                        <div className="relative w-14 h-9 rounded overflow-hidden bg-slate-950 border border-slate-200 shrink-0">
                                             <SlideArt banner={b} />
                                         </div>
                                         <div className="min-w-0">
@@ -804,7 +768,7 @@ function BannerTable({
                                 </td>
                                 <td className="py-2 px-2">
                                     <span
-                                        className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-sm border ${STATUS_STYLES[b.status]}`}
+                                        className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded border ${STATUS_STYLES[b.status]}`}
                                     >
                                         {b.status}
                                     </span>
@@ -855,8 +819,8 @@ function BannerTable({
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm py-16 text-center">
-            <div className="w-12 h-12 mx-auto rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
+        <div className="bg-white border border-slate-200 rounded py-16 text-center">
+            <div className="w-12 h-12 mx-auto rounded bg-blue-50 text-blue-950 flex items-center justify-center">
                 <svg
                     className="w-6 h-6"
                     viewBox="0 0 24 24"
@@ -870,7 +834,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
                     <path d="m21 15-5-5L5 21" />
                 </svg>
             </div>
-            <h3 className="text-[15px] font-semibold text-slate-900 mt-3">
+            <h3 className="text-[15px] font-semibold text-slate-900 mt-2">
                 No banners yet
             </h3>
             <p className="text-[13px] text-slate-500 mt-1">
@@ -878,7 +842,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
             </p>
             <button
                 onClick={onCreate}
-                className="mt-2 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+                className="mt-1 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
             >
                 <Plus className="w-3.5 h-3.5" />
                 New banner
@@ -887,9 +851,6 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Slide art
-// ─────────────────────────────────────────────────────────────────────────────
 function SlideArt({ banner }: { banner: Banner }) {
     const overlayBg = (() => {
         const o = banner.overlay_opacity / 100;
@@ -910,9 +871,12 @@ function SlideArt({ banner }: { banner: Banner }) {
             {banner.desktop_image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                    src={banner.desktop_image}
+                    src={resolveImageUrl(banner.desktop_image)}
                     alt=""
                     className="absolute inset-0 w-full h-full object-cover"
+                    onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
                 />
             ) : (
                 <div className="absolute inset-0 bg-slate-950" />
@@ -941,14 +905,14 @@ function SlideArtFull({ banner }: { banner: Banner }) {
             >
                 {banner.badge && (
                     <span
-                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-sm ${isLight ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
+                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded  ${isLight ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
                             }`}
                     >
                         {banner.badge}
                     </span>
                 )}
                 <h3
-                    className={`mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight leading-[1.15] ${textColor}`}
+                    className={`mt-1 text-2xl sm:text-3xl font-extrabold ${textColor}`}
                 >
                     {banner.headline || 'Your headline here'}
                 </h3>
@@ -956,15 +920,15 @@ function SlideArtFull({ banner }: { banner: Banner }) {
                     {banner.description}
                 </p>
                 {(banner.primary_cta_text || banner.secondary_cta_text) && (
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
                         {banner.primary_cta_text && (
-                            <span className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 font-semibold py-2 px-4 rounded-sm text-[13px]">
+                            <span className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 font-semibold py-2 px-4 rounded text-[13px]">
                                 {banner.primary_cta_text}
                                 <ArrowRight className="w-3.5 h-3.5" />
                             </span>
                         )}
                         {banner.secondary_cta_text && (
-                            <span className="inline-flex items-center justify-center bg-transparent text-white font-medium py-2 px-2 rounded-sm text-[13px] border border-white/30">
+                            <span className="inline-flex items-center justify-center bg-transparent text-white font-medium py-2 px-2 rounded text-[13px] border border-white/30">
                                 {banner.secondary_cta_text}
                             </span>
                         )}
@@ -975,9 +939,6 @@ function SlideArtFull({ banner }: { banner: Banner }) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Preview modal
-// ─────────────────────────────────────────────────────────────────────────────
 function PreviewModal({
     banner,
     onClose,
@@ -997,7 +958,7 @@ function PreviewModal({
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2">
             <div
-                className={`w-full ${widths[device]} bg-white rounded-sm border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] transition-all duration-200`}
+                className={`w-full ${widths[device]} bg-white rounded border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] transition-all duration-200`}
             >
                 <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 shrink-0">
                     <div className="min-w-0">
@@ -1009,13 +970,13 @@ function PreviewModal({
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="inline-flex bg-slate-100 border border-slate-200 rounded-sm p-0.5">
+                        <div className="inline-flex bg-slate-100 border border-slate-200 rounded p-0.5">
                             {(['desktop', 'tablet', 'mobile'] as const).map((d) => (
                                 <button
                                     key={d}
                                     onClick={() => setDevice(d)}
-                                    className={`px-2.5 py-1.5 text-[12px] rounded-sm capitalize transition ${device === d
-                                        ? 'bg-white text-slate-900 shadow-sm'
+                                    className={`px-2.5 py-1.5 text-[12px] rounded capitalize transition ${device === d
+                                        ? 'bg-white text-slate-900'
                                         : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
@@ -1025,7 +986,7 @@ function PreviewModal({
                         </div>
                         <button
                             onClick={onClose}
-                            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+                            className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -1034,7 +995,7 @@ function PreviewModal({
 
                 <div className="flex-1 overflow-auto bg-slate-100 p-2 flex justify-center">
                     <div className="w-full">
-                        <div className="relative bg-slate-950 overflow-hidden rounded-sm border border-slate-200">
+                        <div className="relative bg-slate-950 overflow-hidden rounded border border-slate-200">
                             <div className="relative aspect-[16/9] sm:aspect-[16/7]">
                                 <SlideArtFull banner={banner} />
                             </div>
@@ -1058,7 +1019,7 @@ function PreviewModal({
 function PreviewStat({ label, value }: { label: string; value: string }) {
     return (
         <div className="p-2 text-center">
-            <div className="text-[13px] uppercase tracking-wide text-slate-400">
+            <div className="text-[13px] uppercase text-slate-400">
                 {label}
             </div>
             <div className="text-[14px] font-semibold text-slate-900 mt-0.5">
@@ -1068,10 +1029,7 @@ function PreviewStat({ label, value }: { label: string; value: string }) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Editor drawer
-// ─────────────────────────────────────────────────────────────────────────────
-function BannerEditor({
+function BannerWizard({
     initial,
     saving,
     onSave,
@@ -1083,68 +1041,110 @@ function BannerEditor({
     onClose: () => void;
 }) {
     const [draft, setDraft] = useState<Banner>(initial);
-    const [tab, setTab] = useState<'content' | 'media' | 'design' | 'schedule'>(
-        'content',
-    );
+    const [step, setStep] = useState(0);
+
+    const steps = ['Content', 'Media', 'Design', 'Schedule', 'Review'] as const;
+    const total = steps.length;
 
     function update<K extends keyof Banner>(key: K, value: Banner[K]) {
         setDraft((d) => ({ ...d, [key]: value }));
     }
 
-    function submit() {
-        if (!draft.headline.trim()) {
-            alert('Headline is required.');
+    function validate(s: number): string | null {
+        if (s === 0) {
+            if (!draft.headline.trim()) return 'Headline is required.';
+        }
+        if (s === 1) {
+            if (!draft.desktop_image) return 'Please upload a desktop image.';
+        }
+        return null;
+    }
+
+    function next() {
+        const err = validate(step);
+        if (err) {
+            alert(err);
             return;
         }
-        if (!draft.desktop_image) {
-            alert('Please upload a desktop image.');
+        setStep((s) => Math.min(s + 1, total - 1));
+    }
+
+    function back() {
+        setStep((s) => Math.max(s - 1, 0));
+    }
+
+    function saveDraft() {
+        if (!draft.headline.trim() && !draft.name.trim()) {
+            alert('Add a name or headline before saving as draft.');
             return;
+        }
+        void onSave({ ...draft, status: 'DRAFT', updated_at: new Date().toISOString() });
+    }
+
+    function submit() {
+        for (let i = 0; i < total - 1; i++) {
+            const err = validate(i);
+            if (err) {
+                setStep(i);
+                alert(err);
+                return;
+            }
         }
         void onSave({ ...draft, updated_at: new Date().toISOString() });
     }
 
+    const progress = ((step + 1) / total) * 100;
+
     return (
         <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-slate-900/60 backdrop-blur-sm">
-            <div className="w-full max-w-3xl bg-white flex flex-col shadow-xl">
-                {/* Header */}
+            <div className="w-full max-w-3xl bg-white flex flex-col">
                 <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 shrink-0">
                     <div>
                         <h2 className="text-[15px] font-semibold text-slate-900">
                             {initial.id ? 'Edit banner' : 'New banner'}
                         </h2>
                         <p className="text-[13px] text-slate-500 mt-0.5">
-                            Configure content, media, design, and schedule.
+                            Step {step + 1} of {total} · {steps[step]}
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+                        className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
                     >
                         <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                {/* Tabs */}
-                <div className="px-2 border-b border-slate-200 shrink-0">
-                    <div className="flex gap-1 -mb-px">
-                        {(['content', 'media', 'design', 'schedule'] as const).map((t) => (
+                <div className="px-2 pt-2 shrink-0">
+                    <div className="h-1 bg-slate-100 rounded overflow-hidden">
+                        <div
+                            className="h-full bg-blue-950 transition-all"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                    <div className="flex items-center gap-1 pt-2 overflow-x-auto">
+                        {steps.map((label, i) => (
                             <button
-                                key={t}
-                                onClick={() => setTab(t)}
-                                className={`px-3 py-2 text-[13px] capitalize border-b-2 transition ${tab === t
-                                    ? 'border-blue-950 text-blue-950 font-medium'
-                                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                                key={label}
+                                type="button"
+                                onClick={() => {
+                                    if (i <= step) setStep(i);
+                                }}
+                                className={`text-[12px] px-2 py-1 rounded-sm whitespace-nowrap transition ${i === step
+                                    ? 'bg-blue-950 text-white'
+                                    : i < step
+                                        ? 'text-blue-950 bg-blue-50'
+                                        : 'text-slate-400'
                                     }`}
                             >
-                                {t}
+                                {i + 1}. {label}
                             </button>
                         ))}
                     </div>
                 </div>
 
-                {/* Body */}
-                <div className="flex-1 overflow-auto p-3 space-y-2 text-[13px]">
-                    {tab === 'content' && (
+                <div className="flex-1 overflow-auto p-2 space-y-2 text-[13px]">
+                    {step === 0 && (
                         <>
                             <Field label="Banner name (internal)">
                                 <input
@@ -1155,7 +1155,7 @@ function BannerEditor({
                                 />
                             </Field>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-2">
                                 <Field label="Placement">
                                     <select
                                         value={draft.placement}
@@ -1173,6 +1173,7 @@ function BannerEditor({
                                     <input
                                         type="number"
                                         min={1}
+                                        max={MAX_HERO_SLIDES}
                                         value={draft.order}
                                         onChange={(e) =>
                                             update('order', parseInt(e.target.value) || 1)
@@ -1210,7 +1211,7 @@ function BannerEditor({
                                 />
                             </Field>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-2">
                                 <Field label="Primary CTA text">
                                     <input
                                         value={draft.primary_cta_text}
@@ -1251,7 +1252,7 @@ function BannerEditor({
                         </>
                     )}
 
-                    {tab === 'media' && (
+                    {step === 1 && (
                         <>
                             <ImageDrop
                                 label="Desktop image (required)"
@@ -1284,14 +1285,14 @@ function BannerEditor({
                                 <div className="text-[13px] font-medium text-slate-700 mb-1">
                                     Live preview
                                 </div>
-                                <div className="relative bg-slate-950 rounded-sm overflow-hidden border border-slate-200 aspect-[16/7]">
+                                <div className="relative bg-slate-950 rounded overflow-hidden border border-slate-200 aspect-[16/7]">
                                     <SlideArtFull banner={draft} />
                                 </div>
                             </div>
                         </>
                     )}
 
-                    {tab === 'design' && (
+                    {step === 2 && (
                         <>
                             <div className="grid grid-cols-2 gap-2">
                                 <Field label="Text alignment">
@@ -1340,14 +1341,14 @@ function BannerEditor({
                                 <div className="text-[13px] font-medium text-slate-700 mb-1">
                                     Live preview
                                 </div>
-                                <div className="relative bg-slate-950 rounded-sm overflow-hidden border border-slate-200 aspect-[16/7]">
+                                <div className="relative bg-slate-950 rounded overflow-hidden border border-slate-200 aspect-[16/7]">
                                     <SlideArtFull banner={draft} />
                                 </div>
                             </div>
                         </>
                     )}
 
-                    {tab === 'schedule' && (
+                    {step === 3 && (
                         <>
                             <Field label="Status">
                                 <select
@@ -1391,9 +1392,46 @@ function BannerEditor({
                             </p>
                         </>
                     )}
+
+                    {step === 4 && (
+                        <>
+                            {draft.status === 'DRAFT' && (
+                                <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[12px] px-2 py-1.5 rounded">
+                                    This banner will be saved as a <strong>draft</strong> and will not
+                                    appear on the storefront. Go back to <strong>4. Schedule</strong> and
+                                    set the status to <strong>Active</strong> to publish it.
+                                </div>
+                            )}
+
+                            {draft.status === 'SCHEDULED' && (
+                                <div className="bg-blue-50 border border-blue-200 text-blue-800 text-[12px] px-2 py-1.5 rounded">
+                                    This banner is <strong>scheduled</strong>. It will appear on the
+                                    storefront once the start date is reached.
+                                </div>
+                            )}
+
+                            <div className="relative bg-slate-950 rounded overflow-hidden border border-slate-200 aspect-[16/7]">
+                                <SlideArtFull banner={draft} />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <ReviewRow label="Name" value={draft.name || '—'} />
+                                <ReviewRow label="Placement" value={PLACEMENT_LABEL[draft.placement]} />
+                                <ReviewRow label="Slide order" value={`#${draft.order}`} />
+                                <ReviewRow label="Status" value={draft.status} />
+                                <ReviewRow label="Headline" value={draft.headline || '—'} />
+                                <ReviewRow label="Badge" value={draft.badge || '—'} />
+                                <ReviewRow label="Primary CTA" value={draft.primary_cta_text || '—'} />
+                                <ReviewRow label="Secondary CTA" value={draft.secondary_cta_text || '—'} />
+                                <ReviewRow label="Starts" value={draft.start_at ? fmtDate(draft.start_at) : '—'} />
+                                <ReviewRow label="Ends" value={draft.end_at ? fmtDate(draft.end_at) : '—'} />
+                                <ReviewRow label="Overlay" value={`${draft.overlay_style} · ${draft.overlay_opacity}%`} />
+                                <ReviewRow label="Alignment" value={draft.text_alignment} />
+                            </div>
+                        </>
+                    )}
                 </div>
 
-                {/* Footer */}
                 <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-slate-200 bg-white shrink-0">
                     <button
                         onClick={onClose}
@@ -1402,26 +1440,39 @@ function BannerEditor({
                         Cancel
                     </button>
                     <div className="flex items-center gap-2">
-                        <button
-                            disabled={saving}
-                            onClick={() =>
-                                void onSave({
-                                    ...draft,
-                                    status: 'DRAFT',
-                                    updated_at: new Date().toISOString(),
-                                })
-                            }
-                            className="text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-sm transition disabled:opacity-50"
-                        >
-                            Save as draft
-                        </button>
-                        <button
-                            disabled={saving}
-                            onClick={submit}
-                            className="text-[13px] font-medium text-white bg-blue-950 hover:bg-blue-900 px-3 py-2 rounded-sm transition disabled:opacity-50"
-                        >
-                            {saving ? 'Saving…' : 'Save banner'}
-                        </button>
+                        {step > 0 && (
+                            <button
+                                onClick={back}
+                                className="text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded transition"
+                            >
+                                Back
+                            </button>
+                        )}
+                        {step < total - 1 ? (
+                            <button
+                                onClick={next}
+                                className="text-[13px] font-medium text-white bg-blue-950 hover:bg-blue-900 px-3 py-2 rounded transition"
+                            >
+                                Next
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    disabled={saving}
+                                    onClick={saveDraft}
+                                    className="text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded transition disabled:opacity-50"
+                                >
+                                    Save as draft
+                                </button>
+                                <button
+                                    disabled={saving}
+                                    onClick={submit}
+                                    className="text-[13px] font-medium text-white bg-blue-950 hover:bg-blue-900 px-3 py-2 rounded transition disabled:opacity-50"
+                                >
+                                    {saving ? 'Saving…' : 'Save banner'}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1429,9 +1480,6 @@ function BannerEditor({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Image drop
-// ─────────────────────────────────────────────────────────────────────────────
 function ImageDrop({
     label,
     hint,
@@ -1509,18 +1557,22 @@ function ImageDrop({
                     void handleFiles(e.dataTransfer.files);
                 }}
                 onClick={() => inputRef.current?.click()}
-                className={`group relative cursor-pointer rounded-sm border-2 border-dashed transition ${dragging
+                className={`group relative cursor-pointer rounded border-2 border-dashed transition ${dragging
                     ? 'border-blue-950 bg-blue-50/40'
                     : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
                     }`}
             >
                 {value ? (
                     <div
-                        className="relative w-full overflow-hidden rounded-sm"
+                        className="relative w-full overflow-hidden rounded"
                         style={aspect ? { aspectRatio: aspect } : undefined}
                     >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={value} alt="" className="w-full h-full object-cover" />
+                        <img
+                            src={resolveImageUrl(value)}
+                            alt=""
+                            className="w-full h-full object-cover"
+                        />
                         <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition flex items-center justify-center">
                             <span className="text-white text-[13px] font-medium opacity-0 group-hover:opacity-100 transition">
                                 Click to replace
@@ -1528,10 +1580,10 @@ function ImageDrop({
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-4 px-3 text-center">
+                    <div className="flex flex-col items-center justify-center py-3 px-3 text-center">
                         {busy ? (
                             <svg
-                                className="animate-spin w-5 h-5 text-slate-400 mb-2"
+                                className="animate-spin w-5 h-5 text-slate-400 mb-1"
                                 fill="none"
                                 viewBox="0 0 24 24"
                             >
@@ -1585,9 +1637,6 @@ function ImageDrop({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Field wrapper
-// ─────────────────────────────────────────────────────────────────────────────
 function Field({
     label,
     children,
@@ -1602,5 +1651,14 @@ function Field({
             </span>
             {children}
         </label>
+    );
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="bg-slate-50 border border-slate-100 rounded px-2 py-1.5 min-w-0">
+            <div className="text-[11px] uppercase text-slate-400 font-medium">{label}</div>
+            <div className="text-[13px] text-slate-900 truncate mt-0.5">{value}</div>
+        </div>
     );
 }

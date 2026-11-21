@@ -15,6 +15,7 @@ import {
   X,
   Bell,
   Loader2,
+  ShoppingBag,
 } from "lucide-react";
 
 import { api, type Me } from "@/lib/api";
@@ -126,7 +127,6 @@ export default function AccountLayout({
     return name || user.email;
   })();
 
-  /* Email with the middle characters hidden: j•••••n@example.com */
   const maskedEmail = (() => {
     const email = user?.email;
     if (!email) return "";
@@ -150,14 +150,11 @@ export default function AccountLayout({
 
   if (!user) return null;
 
-  /* Shared sidebar markup: desktop rail + mobile drawer */
   const sidebarContent = (
     <>
-      {/* Brand row */}
       <div className="h-14 sm:h-16 shrink-0 flex items-center gap-2 px-3 border-b border-slate-200">
         <Link href="/" className="flex items-center gap-1 min-w-0 group">
-          {/* Logo Container */}
-          <div className="relative w-8 h-8 shrink-0 overflow-hidden rounded-sm">
+          <div className="relative w-8 h-8 shrink-0 overflow-hidden rounded">
             <img
               src="/logo.jpeg"
               alt="Store Logo"
@@ -166,22 +163,20 @@ export default function AccountLayout({
             />
           </div>
 
-          {/* Store Text */}
-          <span className="text-base font-bold text-slate-900 tracking-tight truncate group-hover:text-blue-900 transition-colors">
+          <span className="text-base font-bold text-slate-900 truncate group-hover:text-blue-900 transition-colors">
             RazeStore
           </span>
         </Link>
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
-          className="lg:hidden ml-auto p-2 rounded-md text-slate-500 hover:bg-slate-50"
+          className="lg:hidden ml-auto p-2 rounded text-slate-500 hover:bg-slate-50"
           aria-label="Close menu"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Navigation */}
       <ul className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
         {navItems.map((item) => {
           const isActive =
@@ -196,11 +191,10 @@ export default function AccountLayout({
               <Link
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive
+                className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors ${isActive
                     ? "bg-blue-50 text-blue-950 font-semibold border-l-2 border-blue-950"
                     : "text-slate-700 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <Icon
                   className={`h-4 w-4 ${isActive ? "text-blue-950" : "text-slate-500"}`}
@@ -220,10 +214,9 @@ export default function AccountLayout({
         })}
       </ul>
 
-      {/* Bottom block: profile + sign out */}
       <div className="shrink-0 border-t border-slate-200">
-        <div className="p-3 bg-slate-50 border-b border-slate-100">
-          <div className="flex items-center gap-3">
+        <div className="p-2 bg-slate-50 border-b border-slate-100">
+          <div className="flex items-center gap-2">
             <div className="w-10 h-10 shrink-0 rounded-full bg-blue-950 text-white flex items-center justify-center font-bold text-sm">
               {initials}
             </div>
@@ -246,7 +239,7 @@ export default function AccountLayout({
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex w-full items-center gap-2.5 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex w-full items-center gap-2.5 px-3 py-2 rounded text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {signingOut ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -262,32 +255,28 @@ export default function AccountLayout({
 
   return (
     <div className="h-screen flex overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      {/* Desktop sidebar — full screen height */}
       <aside className="hidden lg:flex w-64 shrink-0 h-full flex-col bg-white border-r border-slate-200">
         {sidebarContent}
       </aside>
 
-      {/* Mobile sidebar drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
             className="absolute inset-0 bg-slate-900/40"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="relative h-full w-64 max-w-[80%] bg-white border-r border-slate-200 flex flex-col shadow-xl">
+          <aside className="relative h-full w-64 max-w-[80%] bg-white border-r border-slate-200 flex flex-col">
             {sidebarContent}
           </aside>
         </div>
       )}
 
-      {/* Right column: header + content */}
       <div className="flex-1 min-w-0 flex flex-col h-full">
-        {/* Minimal top bar */}
         <header className="shrink-0 h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center gap-2 px-3">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden p-2 -ml-1 rounded-md text-slate-700 hover:bg-slate-50"
+            className="lg:hidden p-2 -ml-1 rounded text-slate-700 hover:bg-slate-50"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
@@ -301,11 +290,19 @@ export default function AccountLayout({
             My Account
           </span>
 
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-1.5">
+            <Link
+              href="/pages/products"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium text-blue-950 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors"
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span>Shop</span>
+            </Link>
+
             <Link
               href="/pages/account/notifications"
               aria-label="Notifications"
-              className="relative p-2 rounded-md text-slate-600 hover:text-blue-950 hover:bg-slate-50 transition-colors"
+              className="relative p-2 rounded text-slate-600 hover:text-blue-950 hover:bg-slate-50 transition-colors"
             >
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
@@ -317,7 +314,6 @@ export default function AccountLayout({
           </div>
         </header>
 
-        {/* Content */}
         <main className="flex-1 overflow-y-auto p-1">{children}</main>
       </div>
     </div>

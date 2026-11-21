@@ -5,12 +5,10 @@ from . import views
 app_name = "checkout"
 
 urlpatterns = [
-    # ── Config + payment methods ──────────────────────────────────
     path("config/", views.CheckoutConfigView.as_view(), name="config"),
     path("payment-methods/", views.PaymentMethodsView.as_view(), name="payment-methods"),
     path("validate-coupon/", views.CouponValidateView.as_view(), name="validate-coupon"),
 
-    # ── Orders ────────────────────────────────────────────────────
     path("orders/", views.OrderCreateView.as_view(), name="order-create"),
     path(
         "orders/<str:reference>/status/",
@@ -24,7 +22,6 @@ urlpatterns = [
         name="order-claim-guest",
     ),
 
-    # ── Payments ──────────────────────────────────────────────────
     path("payments/stk-push/", views.StkPushView.as_view(), name="stk-push"),
     path(
         "payments/by-reference/<str:reference>/",
@@ -42,7 +39,6 @@ urlpatterns = [
         name="payment-cancel",
     ),
 
-    # ── Cart ──────────────────────────────────────────────────────
     path("cart/", views.CartView.as_view(), name="cart"),
     path("cart/items/", views.CartItemAddView.as_view(), name="cart-item-add"),
     path(
@@ -54,7 +50,16 @@ urlpatterns = [
     path("cart/snapshot/", views.CartSnapshotView.as_view(), name="cart-snapshot"),
     path("cart/restore/", views.CartRestoreView.as_view(), name="cart-restore"),
 
-    # ── M-Pesa webhooks ───────────────────────────────────────────
     path("mpesa/callback/", views.MpesaCallbackView.as_view(), name="mpesa-callback"),
     path("mpesa/timeout/", views.MpesaTimeoutView.as_view(), name="mpesa-timeout"),
+    path(
+        "mpesa/c2b/validation/",
+        views.C2BValidationView.as_view(),
+        name="mpesa-c2b-validation",
+    ),
+    path(
+        "mpesa/c2b/confirmation/",
+        views.C2BConfirmationView.as_view(),
+        name="mpesa-c2b-confirmation",
+    ),
 ]

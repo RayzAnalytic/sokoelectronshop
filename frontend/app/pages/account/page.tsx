@@ -166,24 +166,24 @@ export default function AccountOverview() {
     if (isLoading) {
         return (
             <div className="space-y-2">
-                <div className="bg-white border border-slate-200 rounded-sm p-3">
+                <div className="bg-white border border-slate-200 rounded p-2">
                     <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-6 w-48 bg-slate-200 rounded mt-2 animate-pulse" />
+                    <div className="h-6 w-48 bg-slate-200 rounded mt-1 animate-pulse" />
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                     {[0, 1, 2, 3].map((i) => (
                         <div
                             key={i}
-                            className="bg-white border border-slate-200 rounded-sm p-3 space-y-2 animate-pulse"
+                            className="bg-white border border-slate-200 rounded p-2 space-y-2 animate-pulse"
                         >
-                            <div className="w-9 h-9 rounded-sm bg-slate-200" />
+                            <div className="w-9 h-9 rounded bg-slate-200" />
                             <div className="h-5 w-12 bg-slate-200 rounded" />
                             <div className="h-3 w-20 bg-slate-200 rounded" />
                         </div>
                     ))}
                 </div>
-                <div className="bg-white border border-slate-200 rounded-sm p-8 text-center text-xs text-slate-400">
-                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                <div className="bg-white border border-slate-200 rounded p-8 text-center text-xs text-slate-400">
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
                     Loading your account…
                 </div>
             </div>
@@ -193,7 +193,7 @@ export default function AccountOverview() {
     return (
         <div className="space-y-2">
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
@@ -202,9 +202,9 @@ export default function AccountOverview() {
             {pendingReviews > 0 && (
                 <Link
                     href="/pages/account/reviews"
-                    className="block bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 rounded-sm p-3 transition-colors group"
+                    className="block bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 rounded p-2 transition-colors group"
                 >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2">
                         <span className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                             <Sparkles className="h-4 w-4" />
                         </span>
@@ -223,7 +223,7 @@ export default function AccountOverview() {
                 </Link>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-sm p-3">
+            <div className="bg-white border border-slate-200 rounded p-2">
                 <p className="text-sm text-slate-500">Welcome back,</p>
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
                     Hi, {displayName} 👋
@@ -235,16 +235,16 @@ export default function AccountOverview() {
                 )}
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                 {statCards.map(({ label, value, icon: Icon, tint, href }) => (
                     <Link
                         key={label}
                         href={href}
-                        className="bg-white border border-slate-200 rounded-sm p-3 hover:border-blue-200 hover:shadow-sm transition-all"
+                        className="bg-white border border-slate-200 rounded p-2 hover:border-blue-200 hover:shadow transition-all"
                     >
                         <div className="flex items-center justify-between mb-1">
                             <span
-                                className={`w-9 h-9 rounded-sm flex items-center justify-center ${tint}`}
+                                className={`w-9 h-9 rounded flex items-center justify-center ${tint}`}
                             >
                                 <Icon className="h-4 w-4" />
                             </span>
@@ -257,8 +257,8 @@ export default function AccountOverview() {
                 ))}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-sm">
-                <div className="flex items-center justify-between p-3 border-b border-slate-100">
+            <div className="bg-white border border-slate-200 rounded">
+                <div className="flex items-center justify-between p-2 border-b border-slate-100">
                     <h2 className="text-sm font-semibold text-slate-900">
                         Recent Orders
                     </h2>
@@ -278,7 +278,7 @@ export default function AccountOverview() {
                         </p>
                         <Link
                             href="/pages/products"
-                            className="mt-2 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                            className="mt-1 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
                         >
                             Browse Products
                         </Link>
@@ -288,7 +288,7 @@ export default function AccountOverview() {
                         {recentOrders.map((order) => (
                             <li
                                 key={order.id}
-                                className="p-4 flex items-center justify-between gap-3"
+                                className="p-3 flex items-center justify-between gap-2"
                             >
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
@@ -333,9 +333,9 @@ export default function AccountOverview() {
                 )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="bg-white border border-slate-200 rounded-sm p-3">
-                    <div className="flex items-center justify-between mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="bg-white border border-slate-200 rounded p-2">
+                    <div className="flex items-center justify-between mb-2">
                         <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-slate-500" /> Default
                             Address
@@ -365,7 +365,7 @@ export default function AccountOverview() {
                                     ? ` ${defaultAddress.postal_code}`
                                     : ''}
                             </p>
-                            <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
+                            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
                                 <Phone className="h-3 w-3" /> {defaultAddress.phone}
                             </p>
                         </>
@@ -382,8 +382,8 @@ export default function AccountOverview() {
                     )}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-3">
-                    <div className="flex items-center justify-between mb-3">
+                <div className="bg-white border border-slate-200 rounded p-2">
+                    <div className="flex items-center justify-between mb-2">
                         <h2 className="text-sm font-semibold text-slate-900">
                             Account Details
                         </h2>

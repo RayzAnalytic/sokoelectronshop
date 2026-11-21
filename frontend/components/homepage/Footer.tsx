@@ -1,13 +1,13 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { categories } from '@/data/categories';
 
 export default function Footer() {
     const currentYear = new Date().getFullYear();
 
-    // Pull the first 6 categories from the shared data file
     const categoriesLinks = categories.slice(0, 6).map((cat) => ({
         name: cat.name,
         href: cat.href,
@@ -40,43 +40,55 @@ export default function Footer() {
     ];
 
     return (
-        <footer className="bg-blue-950 text-slate-300 text-[13px]">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
+        <footer className="bg-[#0B0D10] text-white/70 text-[11px] xs:text-[12px] sm:text-[13px]">
+            {/* Top accent bar — Electric Neon Cyan */}
+            <div className="h-0.5 bg-[#00E5FF]" />
 
-                {/* Top: Brand + Link Columns */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12">
+            <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 py-6 xs:py-7 sm:py-8 lg:py-10">
 
-                    {/* Brand */}
-                    <div className="col-span-2 md:col-span-1 space-y-3">
-                        <Link href="/" className="flex items-center space-x-0.5">
-              <img
-                src="/logo.jpeg"
-                alt="RazeStore"
-                className="w-8 h-8 object-contain rounded-sm"
-              />
-              <span className="font-bold text-slate-100 text-base tracking-tight hidden sm:inline-block">
-                RazeStore
-              </span>
-            </Link>
-                        <p className="text-slate-300 leading-relaxed max-w-xs text-[12px]">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xs:gap-6 sm:gap-8 lg:gap-12">
+
+                    <div className="col-span-2 md:col-span-1 space-y-2 xs:space-y-3">
+                        <Link
+                            href="/"
+                            className="flex flex-col items-start shrink-0"
+                            aria-label="Havens Technologies — Feel the Quality"
+                        >
+                            <Image
+                                src="/Pasted image (3).png"
+                                alt="Havens Technologies"
+                                width={400}
+                                height={100}
+                                className="h-9 sm:h-10 w-auto object-contain"
+                            />
+                            <span className="mt-1.5 text-[10px] xs:text-[11px] tracking-[0.18em] uppercase text-[#00E5FF] font-semibold">
+                                Feel the Quality
+                            </span>
+                        </Link>
+                        <p className="text-white/70 max-w-xs text-[11px] xs:text-[12px] pt-1">
                             Premium electronics and certified hardware, backed by comprehensive warranties.
                         </p>
-                        <p className="text-[12px] text-slate-400 pt-1">
-                            support@nordicstore.example
+                        <p className="text-[11px] xs:text-[12px] text-white pt-1 truncate">
+                            support@havenstechnologies.co.ke
                         </p>
+                        <a
+                            href="tel:+254705479906"
+                            className="block text-[11px] xs:text-[12px] text-white hover:text-[#00E5FF] transition-colors truncate"
+                        >
+                            0705 479 906
+                        </a>
                     </div>
 
-                    {/* Shop */}
                     <div>
-                        <h3 className="font-semibold text-white uppercase tracking-wider mb-3 text-[11px]">
+                        <h3 className="font-semibold text-white uppercase mb-2 xs:mb-3 text-[10px] xs:text-[11px]">
                             Shop
                         </h3>
-                        <ul className="space-y-2">
+                        <ul className="space-y-1.5 xs:space-y-2">
                             {categoriesLinks.map((link) => (
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="text-slate-300 hover:text-white transition-colors"
+                                        className="text-white/70 hover:text-[#00E5FF] transition-colors inline-block truncate max-w-full"
                                     >
                                         {link.name}
                                     </Link>
@@ -85,17 +97,16 @@ export default function Footer() {
                         </ul>
                     </div>
 
-                    {/* Support */}
                     <div>
-                        <h3 className="font-semibold text-white uppercase tracking-wider mb-3 text-[11px]">
+                        <h3 className="font-semibold text-white uppercase mb-2 xs:mb-3 text-[10px] xs:text-[11px]">
                             Support
                         </h3>
-                        <ul className="space-y-2">
+                        <ul className="space-y-1.5 xs:space-y-2">
                             {supportLinks.map((link) => (
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="text-slate-300 hover:text-white transition-colors"
+                                        className="text-white/70 hover:text-[#00E5FF] transition-colors inline-block truncate max-w-full"
                                     >
                                         {link.name}
                                     </Link>
@@ -104,17 +115,16 @@ export default function Footer() {
                         </ul>
                     </div>
 
-                    {/* Account */}
                     <div>
-                        <h3 className="font-semibold text-white uppercase tracking-wider mb-3 text-[11px]">
+                        <h3 className="font-semibold text-white uppercase mb-2 xs:mb-3 text-[10px] xs:text-[11px]">
                             Account
                         </h3>
-                        <ul className="space-y-2">
+                        <ul className="space-y-1.5 xs:space-y-2">
                             {accountLinks.map((link) => (
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="text-slate-300 hover:text-white transition-colors"
+                                        className="text-white/70 hover:text-[#00E5FF] transition-colors inline-block truncate max-w-full"
                                     >
                                         {link.name}
                                     </Link>
@@ -125,31 +135,30 @@ export default function Footer() {
 
                 </div>
 
-                {/* Bottom Bar */}
-                <div className="mt-8 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="mt-6 xs:mt-7 sm:mt-8 pt-4 xs:pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 xs:gap-3">
 
-                    <p className="text-slate-400 text-[12px] order-2 sm:order-1">
-                        &copy; {currentYear} NordicStore Inc.
+                    <p className="text-[#6B7280] text-[10px] xs:text-[11px] sm:text-[12px] order-2 sm:order-1 text-center sm:text-left">
+                        &copy; {currentYear} Havens Technologies. All rights reserved.
                     </p>
 
-                    <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px] order-1 sm:order-2">
+                    <div className="flex flex-wrap items-center justify-center gap-x-3 xs:gap-x-4 sm:gap-x-5 gap-y-1.5 xs:gap-y-2 text-[10px] xs:text-[11px] sm:text-[12px] order-1 sm:order-2">
                         {legalLinks.map((link) => (
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className="text-slate-300 hover:text-white transition-colors"
+                                className="text-white/70 hover:text-[#00E5FF] transition-colors whitespace-nowrap"
                             >
                                 {link.name}
                             </Link>
                         ))}
-                        <span className="hidden sm:inline text-white/20">|</span>
+                        <span className="hidden sm:inline text-[#6B7280]">|</span>
                         {socialLinks.map((social) => (
                             <a
                                 key={social.name}
                                 href={social.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-slate-300 hover:text-white transition-colors"
+                                className="text-white/70 hover:text-[#00E5FF] transition-colors whitespace-nowrap"
                             >
                                 {social.name}
                             </a>

@@ -1,5 +1,7 @@
 from django.urls import path
 
+from checkout.views import CompleteOrderFromPaymentView
+
 from . import views
 
 app_name = 'payments'
@@ -44,5 +46,10 @@ urlpatterns = [
         'transactions/<uuid:pk>/reconcile/',
         views.PaymentTransactionReconcileView.as_view(),
         name='transaction-reconcile',
+    ),
+    path(
+        'transactions/<uuid:pk>/complete-order/',
+        CompleteOrderFromPaymentView.as_view(),
+        name='transaction-complete-order',
     ),
 ]

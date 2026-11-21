@@ -1,4 +1,4 @@
-// app/auth/login/page.tsx
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -55,13 +55,7 @@ export default function CustomerLoginPage() {
     }>({});
 
     const isBusy = loading || googleLoading || loggingOut;
-
-    // ──────────────────────────────────────────────────────────────────────
-    // ✅ FIX #1: Handle Google OAuth fragment FIRST and cleanly.
-    //            Uses api.handleGoogleCallback() from lib/api.ts — it
-    //            stores tokens, scrubs the URL, and returns the parsed
-    //            payload (including the user object from the fragment).
-    // ──────────────────────────────────────────────────────────────────────
+ 
     useEffect(() => {
         const hasFragment =
             typeof window !== 'undefined' &&
@@ -71,44 +65,31 @@ export default function CustomerLoginPage() {
 
         const result = api.handleGoogleCallback();
 
-        if (!result) {
-            // Fragment existed but was malformed — clean up and show error.
+        if (!result) { 
             try {
                 window.history.replaceState(
                     {},
                     '',
                     window.location.pathname + window.location.search,
                 );
-            } catch {
-                /* ignore */
+            } catch { 
             }
             setError('Could not complete sign-in. Please try again.');
             setChecking(false);
             return;
-        }
-
-        // Immediately seed the signed-in user from the fragment so we don't
-        // have to hit /me before redirecting.
+        } 
         if (result.user && result.user.email) {
             setSignedInUser(result.user);
         }
 
         const target = nextPath || result.redirect_to || result.next || '/pages/account';
-        router.replace(target);
-        // Do not setChecking(false) — we're navigating away.
+        router.replace(target); 
     }, [router, nextPath]);
-
-    // ──────────────────────────────────────────────────────────────────────
-    // ✅ FIX #2: Only check /me if there's no fragment to process.
-    //            Also unblocks `checking` on every path so the spinner
-    //            never gets stuck.
-    // ──────────────────────────────────────────────────────────────────────
+ 
     useEffect(() => {
         const hasFragment =
             typeof window !== 'undefined' &&
-            window.location.hash.length > 1;
-
-        // If we just handled a Google fragment, skip /me entirely.
+            window.location.hash.length > 1; 
         if (hasFragment) return;
 
         let cancelled = false;
@@ -118,8 +99,7 @@ export default function CustomerLoginPage() {
                 if (cancelled) return;
                 if (u) setSignedInUser(u);
             })
-            .catch(() => {
-                /* /me failed — user is anonymous; nothing to do. */
+            .catch(() => { 
             })
             .finally(() => {
                 if (!cancelled) setChecking(false);
@@ -180,11 +160,7 @@ export default function CustomerLoginPage() {
             setLoading(false);
         }
     };
-
-    // ──────────────────────────────────────────────────────────────────────
-    // ✅ FIX #3: Single helper does everything — Google URL + next.
-    //            api.googleLoginUrl(next) already URL-encodes.
-    // ──────────────────────────────────────────────────────────────────────
+ 
     const handleGoogleSignIn = () => {
         setError('');
         setFieldErrors({});
@@ -196,8 +172,7 @@ export default function CustomerLoginPage() {
         setLoggingOut(true);
         try {
             await api.logout();
-        } catch {
-            /* swallow */
+        } catch { 
         } finally {
             setSignedInUser(null);
             setLoggingOut(false);
@@ -236,7 +211,7 @@ export default function CustomerLoginPage() {
 
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-                <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
+                <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-3 sm:p-5 space-y-3">
                     <header className="text-center space-y-2 pt-2">
                         <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
                             <CheckCircle2 className="w-6 h-6" />
@@ -255,7 +230,7 @@ export default function CustomerLoginPage() {
                     <div className="space-y-2 pt-1">
                         <Link
                             href={continueHref}
-                            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded-sm text-[13px] transition"
+                            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded text-[13px] transition"
                         >
                             Continue
                         </Link>
@@ -263,7 +238,7 @@ export default function CustomerLoginPage() {
                             type="button"
                             onClick={handleSwitchAccount}
                             disabled={loggingOut}
-                            className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {loggingOut ? (
                                 <>
@@ -291,7 +266,7 @@ export default function CustomerLoginPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3 sm:p-6">
-            <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-sm p-3 sm:p-5 space-y-4">
+            <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded p-3 sm:p-5 space-y-3">
                 <header className="text-center space-y-2 pt-2">
                     <h1 className="text-[18px] font-semibold text-slate-900">
                         Welcome back
@@ -302,7 +277,7 @@ export default function CustomerLoginPage() {
                 </header>
 
                 {error && (
-                    <div className="bg-rose-50 border border-rose-200 rounded-sm px-3 py-2 text-[12px] text-rose-700">
+                    <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[12px] text-rose-700">
                         {error}
                     </div>
                 )}
@@ -311,7 +286,7 @@ export default function CustomerLoginPage() {
                     type="button"
                     onClick={handleGoogleSignIn}
                     disabled={isBusy}
-                    className="w-full inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium px-4 py-2.5 rounded-sm text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium px-4 py-2.5 rounded text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {googleLoading ? (
                         <>
@@ -344,7 +319,7 @@ export default function CustomerLoginPage() {
                     )}
                 </button>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     <span className="flex-1 h-px bg-slate-200" />
                     <span className="text-[12px] text-slate-400 font-medium">
                         or sign in with email
@@ -352,7 +327,7 @@ export default function CustomerLoginPage() {
                     <span className="flex-1 h-px bg-slate-200" />
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+                <form onSubmit={handleSubmit} className="space-y-2" noValidate>
                     <Field
                         label="Email address"
                         type="email"
@@ -507,7 +482,7 @@ function Field({
                 placeholder={placeholder}
                 autoComplete={autoComplete}
                 disabled={disabled}
-                className={`w-full bg-white border rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
+                className={`w-full bg-white border rounded px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
                     error
                         ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                         : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'

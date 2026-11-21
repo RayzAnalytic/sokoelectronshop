@@ -15,8 +15,12 @@ type Props = {
     onSave?: (data: any) => Promise<void> | void;
 };
 
-const MAX_IMAGES = 3;
-const MAX_FILE_MB = 2;
+const MAX_IMAGES = 10;
+const MAX_FILE_MB = 5;
+const COMPRESS_MAX_DIM = 1600;
+const COMPRESS_QUALITY = 0.82;
+const WARN_PAYLOAD_MB = 15;
+const LIMIT_PAYLOAD_MB = 40;
 
 const EMPTY = {
     name: "",
@@ -42,12 +46,90 @@ function fileToDataUrl(file: File): Promise<string> {
     });
 }
 
+function compressImage(
+    file: File,
+    maxDim = COMPRESS_MAX_DIM,
+    quality = COMPRESS_QUALITY,
+): Promise<File> {
+    return new Promise((resolve) => {
+        if (!file.type.startsWith("image/")) {
+            resolve(file);
+            return;
+        }
+        if (file.size < 200 * 1024) {
+            resolve(file);
+            return;
+        }
+
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const { width, height } = img;
+            const scale = Math.min(1, maxDim / Math.max(width, height));
+            const w = Math.max(1, Math.round(width * scale));
+            const h = Math.max(1, Math.round(height * scale));
+
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+                resolve(file);
+                return;
+            }
+
+            ctx.drawImage(img, 0, 0, w, h);
+
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob) {
+                        resolve(file);
+                        return;
+                    }
+                    const baseName = file.name.replace(/\.[^.]+$/, "") || "image";
+                    resolve(
+                        new File([blob], `${baseName}.jpg`, {
+                            type: "image/jpeg",
+                            lastModified: Date.now(),
+                        }),
+                    );
+                },
+                "image/jpeg",
+                quality,
+            );
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(file);
+        };
+
+        img.src = url;
+    });
+}
+
+function dataUrlBytes(url: string): number {
+    if (!url || !url.startsWith("data:")) return 0;
+    const comma = url.indexOf(",");
+    if (comma < 0) return 0;
+    const payload = url.slice(comma + 1);
+    return Math.floor((payload.length * 3) / 4);
+}
+
+function formatMB(bytes: number): string {
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function AddProductModal({ open, onClose, onSave }: Props) {
     const [form, setForm] = useState(EMPTY);
     const [brands, setBrands] = useState<AdminBrandRef[]>([]);
     const [categories, setCategories] = useState<AdminCategoryRef[]>([]);
     const [loadingOptions, setLoadingOptions] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [processingImages, setProcessingImages] = useState(false);
     const [error, setError] = useState("");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -63,11 +145,11 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && !saving) onClose();
+            if (e.key === "Escape" && !saving && !processingImages) onClose();
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [open, onClose, saving]);
+    }, [open, onClose, saving, processingImages]);
 
     useEffect(() => {
         if (!open) return;
@@ -100,6 +182,14 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
 
     if (!open) return null;
 
+    const totalPayloadBytes = form.images.reduce(
+        (sum, url) => sum + dataUrlBytes(url),
+        0,
+    );
+    const totalPayloadMB = totalPayloadBytes / (1024 * 1024);
+    const overLimit = totalPayloadMB >= LIMIT_PAYLOAD_MB;
+    const nearLimit = totalPayloadMB >= WARN_PAYLOAD_MB;
+
     const addImages = async (files: FileList | null) => {
         if (!files) return;
 
@@ -113,21 +203,29 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
         const accepted: string[] = [];
         const rejected: string[] = [];
 
-        for (const file of incoming) {
-            if (!file.type.startsWith("image/")) {
-                rejected.push(`${file.name}: not an image`);
-                continue;
+        setProcessingImages(true);
+        setError("");
+
+        try {
+            for (const file of incoming) {
+                if (!file.type.startsWith("image/")) {
+                    rejected.push(`${file.name}: not an image`);
+                    continue;
+                }
+                if (file.size > MAX_FILE_MB * 1024 * 1024) {
+                    rejected.push(`${file.name}: over ${MAX_FILE_MB}MB`);
+                    continue;
+                }
+                try {
+                    const compressed = await compressImage(file);
+                    const url = await fileToDataUrl(compressed);
+                    accepted.push(url);
+                } catch {
+                    rejected.push(`${file.name}: could not read`);
+                }
             }
-            if (file.size > MAX_FILE_MB * 1024 * 1024) {
-                rejected.push(`${file.name}: over ${MAX_FILE_MB}MB`);
-                continue;
-            }
-            try {
-                const url = await fileToDataUrl(file);
-                accepted.push(url);
-            } catch {
-                rejected.push(`${file.name}: could not read`);
-            }
+        } finally {
+            setProcessingImages(false);
         }
 
         if (accepted.length > 0) {
@@ -152,12 +250,22 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
             images: prev.images.filter((_, i) => i !== idx),
         }));
 
+    const makePrimary = (idx: number) =>
+        setForm((prev) => {
+            if (idx <= 0 || idx >= prev.images.length) return prev;
+            const next = [...prev.images];
+            const [picked] = next.splice(idx, 1);
+            return { ...prev, images: [picked, ...next] };
+        });
+
     const canSave =
         form.name.trim().length > 0 &&
         form.price.trim().length > 0 &&
         form.stock.trim().length > 0 &&
         form.brand.length > 0 &&
-        form.category.length > 0;
+        form.category.length > 0 &&
+        !processingImages &&
+        !overLimit;
 
     const handleSave = async () => {
         if (!canSave || saving) return;
@@ -184,11 +292,11 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm"
-            onClick={() => !saving && onClose()}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => !saving && !processingImages && onClose()}
         >
             <div
-                className="bg-white border border-slate-200 rounded-md w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl"
+                className="bg-white border border-slate-200 rounded w-full max-w-4xl max-h-[92vh] flex flex-col "
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
@@ -207,24 +315,33 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                     </div>
                     <button
                         type="button"
-                        onClick={() => !saving && onClose()}
-                        disabled={saving}
+                        onClick={() => !saving && !processingImages && onClose()}
+                        disabled={saving || processingImages}
                         aria-label="Close"
-                        className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors disabled:opacity-50"
+                        className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors disabled:opacity-50"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3">
+                <div className="flex-1 overflow-y-auto p-2">
                     {error && (
-                        <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-md text-[13px] flex items-start gap-2">
+                        <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-[13px] flex items-start gap-2">
                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                             <span>{error}</span>
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    {overLimit && (
+                        <div className="mb-3 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-[13px] flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span>
+                                Image payload is {formatMB(totalPayloadBytes)}. Server limit is ~{LIMIT_PAYLOAD_MB} MB. Remove some images or use smaller ones.
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                         <div className="lg:col-span-2 space-y-3">
                             <Field
                                 label="Product name *"
@@ -233,7 +350,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                 placeholder="e.g. Apex Ultra X1 Pro 5G"
                             />
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <FloatingSelect
                                     label="Category *"
                                     value={form.category}
@@ -254,7 +371,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <Field
                                     label="List price (KES) *"
                                     value={form.price}
@@ -273,7 +390,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <Field
                                     label="Stock quantity *"
                                     value={form.stock}
@@ -306,8 +423,8 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                     Description
                                 </label>
                                 <textarea
-                                    rows={3}
-                                    maxLength={400}
+                                    rows={8}
+                                    maxLength={2000}
                                     value={form.shortDescription}
                                     onChange={(e) =>
                                         setForm({
@@ -316,10 +433,10 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                         })
                                     }
                                     placeholder="A short summary that appears on product cards and the detail page."
-                                    className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
                                 />
                                 <p className="text-[11px] text-slate-400 text-right mt-0.5">
-                                    {form.shortDescription.length}/400
+                                    {form.shortDescription.length}/2000
                                 </p>
                             </div>
 
@@ -330,24 +447,49 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                     </label>
                                     <span className="text-[13px] text-slate-400">
                                         {form.images.length} of {MAX_IMAGES}
+                                        {form.images.length > 0 && (
+                                            <>
+                                                {" · "}
+                                                <span
+                                                    className={
+                                                        overLimit
+                                                            ? "text-red-600 font-medium"
+                                                            : nearLimit
+                                                                ? "text-amber-600 font-medium"
+                                                                : ""
+                                                    }
+                                                >
+                                                    {formatMB(totalPayloadBytes)}
+                                                </span>
+                                            </>
+                                        )}
                                     </span>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                                     {form.images.map((img, idx) => (
                                         <div
                                             key={idx}
-                                            className="relative aspect-square rounded-md overflow-hidden border border-slate-200 bg-white"
+                                            className="relative aspect-square rounded overflow-hidden border border-slate-200 bg-white group"
                                         >
                                             <img
                                                 src={img}
                                                 alt={`Image ${idx + 1}`}
                                                 className="w-full h-full object-cover"
                                             />
-                                            {idx === 0 && (
+                                            {idx === 0 ? (
                                                 <span className="absolute bottom-1 left-1 text-[11px] font-semibold bg-blue-950 text-white px-2 py-0.5 rounded">
                                                     Primary
                                                 </span>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => makePrimary(idx)}
+                                                    disabled={saving}
+                                                    className="absolute bottom-1 left-1 text-[11px] font-medium bg-white/90 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition disabled:opacity-50"
+                                                >
+                                                    Set primary
+                                                </button>
                                             )}
                                             <button
                                                 type="button"
@@ -361,53 +503,62 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                         </div>
                                     ))}
 
-                                    {Array.from({
-                                        length: MAX_IMAGES - form.images.length,
-                                    }).map((_, idx) => (
+                                    {form.images.length < MAX_IMAGES && (
                                         <label
-                                            key={`slot-${idx}`}
-                                            className="aspect-square rounded-md border border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
+                                            className={`aspect-square rounded border border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors ${processingImages ? "opacity-60 pointer-events-none" : ""
+                                                }`}
                                         >
                                             <input
-                                                ref={idx === 0 ? fileInputRef : undefined}
+                                                ref={fileInputRef}
                                                 type="file"
                                                 accept="image/*"
                                                 multiple
                                                 className="hidden"
                                                 onChange={(e) => addImages(e.target.files)}
-                                                disabled={saving}
+                                                disabled={saving || processingImages}
                                             />
-                                            <ImageIcon className="h-5 w-5 text-slate-400" />
-                                            <span className="text-[13px] text-slate-500 mt-1">
-                                                {idx === 0 && form.images.length === 0
-                                                    ? "Add image"
-                                                    : "Add"}
-                                            </span>
+                                            {processingImages ? (
+                                                <>
+                                                    <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
+                                                    <span className="text-[13px] text-slate-500 mt-1">
+                                                        Processing…
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ImageIcon className="h-5 w-5 text-slate-400" />
+                                                    <span className="text-[13px] text-slate-500 mt-1">
+                                                        {form.images.length === 0 ? "Add image" : "Add"}
+                                                    </span>
+                                                </>
+                                            )}
                                         </label>
-                                    ))}
+                                    )}
                                 </div>
 
-                                <p className="text-[11px] text-slate-500 mt-2">
+                                <p className="text-[11px] text-slate-500 mt-1">
                                     Up to {MAX_IMAGES} images · max {MAX_FILE_MB}MB each ·
-                                    first image becomes the primary thumbnail
+                                    auto-compressed to {COMPRESS_MAX_DIM}px ·
+                                    first image is the primary thumbnail · hover an
+                                    image to change the primary
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-[13px] font-medium text-slate-700 mb-1">
                                         Status
                                     </label>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1">
                                         <button
                                             type="button"
                                             onClick={() =>
                                                 setForm({ ...form, status: "published" })
                                             }
                                             disabled={saving}
-                                            className={`px-3 py-2 rounded-md text-[13px] font-medium border transition-colors ${form.status === "published"
-                                                    ? "bg-blue-950 text-white border-blue-950"
-                                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                            className={`px-3 py-2 rounded text-[13px] font-medium border transition-colors ${form.status === "published"
+                                                ? "bg-blue-950 text-white border-blue-950"
+                                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                                 }`}
                                         >
                                             Published
@@ -418,9 +569,9 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                                 setForm({ ...form, status: "draft" })
                                             }
                                             disabled={saving}
-                                            className={`px-3 py-2 rounded-md text-[13px] font-medium border transition-colors ${form.status === "draft"
-                                                    ? "bg-blue-950 text-white border-blue-950"
-                                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                            className={`px-3 py-2 rounded text-[13px] font-medium border transition-colors ${form.status === "draft"
+                                                ? "bg-blue-950 text-white border-blue-950"
+                                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                                 }`}
                                         >
                                             Draft
@@ -431,7 +582,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                     <label className="block text-[13px] font-medium text-slate-700 mb-1">
                                         Storefront
                                     </label>
-                                    <label className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-md cursor-pointer">
+                                    <label className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded cursor-pointer">
                                         <input
                                             type="checkbox"
                                             checked={form.featured}
@@ -456,7 +607,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                             <p className="text-[13px] font-medium text-slate-700 mb-1">
                                 Live preview
                             </p>
-                            <div className="bg-white border border-slate-200 rounded-md overflow-hidden sticky top-0">
+                            <div className="bg-white border border-slate-200 rounded overflow-hidden sticky top-0">
                                 <div className="aspect-square bg-white border-b border-slate-200 flex items-center justify-center overflow-hidden relative">
                                     {form.images[0] ? (
                                         <img
@@ -470,11 +621,11 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                 </div>
 
                                 {form.images.length > 1 && (
-                                    <div className="flex gap-1 p-2 border-b border-slate-100">
+                                    <div className="flex flex-wrap gap-1 p-2 border-b border-slate-100 max-h-20 overflow-y-auto">
                                         {form.images.slice(1).map((img, i) => (
                                             <div
                                                 key={i}
-                                                className="w-8 h-8 rounded overflow-hidden border border-slate-200"
+                                                className="w-8 h-8 rounded overflow-hidden border border-slate-200 shrink-0"
                                             >
                                                 <img
                                                     src={img}
@@ -487,7 +638,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                 )}
 
                                 <div className="p-2 space-y-1">
-                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                                    <p className="text-[11px] uppercase text-slate-500">
                                         {form.brand || "Brand"}
                                     </p>
                                     <p className="text-[13px] font-semibold text-slate-900 line-clamp-2">
@@ -510,8 +661,8 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                                     </div>
                                     <span
                                         className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded mt-1 ${form.status === "published"
-                                                ? "bg-emerald-50 text-emerald-700"
-                                                : "bg-amber-50 text-amber-700"
+                                            ? "bg-emerald-50 text-emerald-700"
+                                            : "bg-amber-50 text-amber-700"
                                             }`}
                                     >
                                         {form.status === "published"
@@ -533,7 +684,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                             type="button"
                             onClick={onClose}
                             disabled={saving}
-                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-md text-[13px] transition-colors disabled:opacity-60"
+                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] transition-colors disabled:opacity-60"
                         >
                             Cancel
                         </button>
@@ -541,7 +692,7 @@ export default function AddProductModal({ open, onClose, onSave }: Props) {
                             type="button"
                             onClick={handleSave}
                             disabled={!canSave || saving}
-                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-md text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving ? (
                                 <>
@@ -587,7 +738,7 @@ function Field({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
-                className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
             {hint && (
                 <p className="text-[11px] text-slate-400 mt-1">{hint}</p>
@@ -725,7 +876,7 @@ function FloatingSelect({
                 type="button"
                 onClick={() => !disabled && !loading && setOpen((v) => !v)}
                 disabled={disabled || loading}
-                className={`w-full flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 text-[13px] text-left transition-colors focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 ${open ? "border-blue-950 ring-1 ring-blue-950" : ""
+                className={`w-full flex items-center justify-between gap-1 bg-white border border-slate-200 rounded px-3 py-2 text-[13px] text-left transition-colors focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60 ${open ? "border-blue-950 ring-1 ring-blue-950" : ""
                     }`}
             >
                 <span
@@ -760,7 +911,7 @@ function FloatingSelect({
                             width: coords.width,
                             zIndex: 9999,
                         }}
-                        className="bg-white border border-slate-200 rounded-md shadow-xl overflow-hidden flex flex-col"
+                        className="bg-white border border-slate-200 rounded overflow-hidden flex flex-col"
                     >
                         {searchable && options.length > 6 && (
                             <div className="relative border-b border-slate-100 shrink-0">
@@ -789,8 +940,8 @@ function FloatingSelect({
                                             type="button"
                                             onClick={() => handleSelect(opt.value)}
                                             className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-[13px] text-left transition-colors ${isSelected
-                                                    ? "bg-blue-50 text-blue-950 font-medium"
-                                                    : "text-slate-700 hover:bg-slate-50"
+                                                ? "bg-blue-50 text-blue-950 font-medium"
+                                                : "text-slate-700 hover:bg-slate-50"
                                                 }`}
                                         >
                                             <span className="truncate">

@@ -1,3 +1,5 @@
+import logging
+import os
 from datetime import timedelta
 from decimal import Decimal
 
@@ -16,6 +18,8 @@ from .models import (
 )
 
 from account.models import Review as AccountReview
+
+logger = logging.getLogger(__name__)
 
 
 def _settings():
@@ -49,11 +53,6 @@ def _apply_storefront_filters(qs):
 
 def _with_image(qs):
     return qs.filter(images__isnull=False).distinct()
-
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 def _fire_event(event_name: str, payload: dict) -> None:
@@ -212,6 +211,14 @@ def get_products(
     return qs.order_by(*PRODUCT_SORT_MAP.get(sort_by, PRODUCT_SORT_MAP["featured"]))
 
 
+def get_featured_products(*, limit: int = 8):
+    qs = Product.objects.active().with_relations()
+    qs = _apply_storefront_filters(qs)
+    qs = _with_image(qs)
+    qs = qs.filter(featured=True)
+    return qs.order_by("-created_at")[:limit]
+
+
 def get_products_by_tag(tag: str):
     return (
         Product.objects.active()
@@ -328,6 +335,7 @@ def get_best_sellers(*, limit=BEST_SELLERS_LIMIT):
     qs = Product.objects.active().with_relations()
     qs = _apply_storefront_filters(qs)
     qs = _with_image(qs)
+    qs = qs.filter(best_seller=True)
     return qs.order_by("-sales_count", "-review_count", "-created_at")[:limit]
 
 
@@ -344,6 +352,7 @@ def filter_best_sellers(
     qs = Product.objects.active().with_relations()
     qs = _apply_storefront_filters(qs)
     qs = _with_image(qs)
+    qs = qs.filter(best_seller=True)
 
     if search:
         qs = qs.filter(
@@ -565,6 +574,8 @@ SORT_PRICE_LOW_HIGH   = "Price: Low to High"
 SORT_PRICE_HIGH_LOW   = "Price: High to Low"
 SORT_ENDING_SOON      = "Ending Soon"
 
+DEALS_MIN_AGE_DAYS = int(os.getenv('DEALS_MIN_AGE_DAYS', '0'))
+
 
 def compute_status(discount: Discount) -> str:
     return discount.status
@@ -686,9 +697,24 @@ def get_active_discounts():
 def build_all_active_deal_cards(request=None) -> list[dict]:
     raw: list[dict] = []
     backorders = _allow_backorders()
+    now = timezone.now()
+    min_age_cutoff = (
+        now - timedelta(days=DEALS_MIN_AGE_DAYS)
+        if DEALS_MIN_AGE_DAYS > 0
+        else None
+    )
 
     for discount in get_active_discounts():
+        if discount.end_date and discount.end_date <= now:
+            continue
         for product in resolve_applicable_products(discount):
+            if (
+                min_age_cutoff is not None
+                and discount.applies_to == AppliesTo.ALL_PRODUCTS
+                and product.created_at
+                and product.created_at > min_age_cutoff
+            ):
+                continue
             if (
                 discount.expires_when_sold_out
                 and product.stock_quantity == 0
@@ -809,9 +835,12 @@ def get_deal_card_for_product(product_id: str, request=None) -> dict | None:
         return None
 
     backorders = _allow_backorders()
+    now = timezone.now()
     best_card: dict | None = None
 
     for discount in get_active_discounts():
+        if discount.end_date and discount.end_date <= now:
+            continue
         if not product_matches_discount(product, discount):
             continue
         if (

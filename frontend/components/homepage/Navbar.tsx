@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/store/cart";
 import { useWishlist } from "@/lib/store/wishlist";
@@ -24,7 +25,7 @@ export default function Navbar() {
     { name: "Shop All", href: "/pages/products" },
     { name: "New Arrivals", href: "/pages/products/newarrivals" },
     { name: "Best Sellers", href: "/pages/products/bestsellingproducts" },
-    { name: "Special Deals", href: "/pages/products/specialdeals" },
+    { name: "Special Deals", href: "/pages/products/specialdeals", hot: true },
     { name: "Categories", href: "/pages/categories" },
   ];
 
@@ -38,15 +39,16 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
-      <div className="bg-slate-900 text-slate-300 text-[11px] sm:text-[12px] py-1.5 px-3 sm:px-6 lg:px-6">
+    <header className="sticky top-0 z-50 bg-white border-b border-slate-200 w-full">
+      {/* Top Bar — Matte Carbon Black only */}
+      <div className="bg-[#0B0D10] text-white text-[11px] sm:text-[12px] py-1.5 px-2 sm:px-4 lg:px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           <Link
             href="/stores"
-            className="flex items-center gap-1.5 hover:text-white transition-colors shrink-0 min-w-0"
+            className="flex items-center gap-1.5 hover:text-[#00E5FF] transition-colors shrink min-w-0"
           >
             <svg
-              className="w-3.5 h-3.5 text-slate-400 shrink-0"
+              className="w-3.5 h-3.5 text-white shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -64,16 +66,19 @@ export default function Navbar() {
                 d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
               />
             </svg>
-            <span className="truncate">Nairobi, Kenya</span>
+            <span className="truncate">
+              Havens Technologies
+              <span className="hidden sm:inline text-white/70"> | Feel the Quality</span>
+            </span>
           </Link>
 
-          <div className="flex items-center gap-3 sm:gap-x-5 shrink-0">
+          <div className="flex items-center gap-2 xs:gap-3 sm:gap-x-5 shrink-0">
             <a
-              href="tel:+254116103872"
-              className="flex items-center gap-1.5 hover:text-white transition-colors"
+              href="tel:+254705479906"
+              className="flex items-center gap-1.5 hover:text-[#00E5FF] transition-colors"
             >
               <svg
-                className="w-3.5 h-3.5 text-slate-400 shrink-0"
+                className="w-3.5 h-3.5 text-white shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -85,15 +90,15 @@ export default function Navbar() {
                   d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
                 />
               </svg>
-              <span className="hidden sm:inline">+254 116 103 872</span>
+              <span className="hidden sm:inline">0705 479 906</span>
               <span className="sm:hidden">Call</span>
             </a>
 
-            <span className="w-px h-3 bg-slate-700" />
+            <span className="w-px h-3 bg-white/30 shrink-0" />
 
             <Link
               href="/pages/account/orders"
-              className="hover:text-white transition-colors whitespace-nowrap"
+              className="hover:text-[#00E5FF] transition-colors whitespace-nowrap text-[10px] xs:text-[11px] sm:text-[12px]"
             >
               Track Order
             </Link>
@@ -101,58 +106,43 @@ export default function Navbar() {
         </div>
       </div>
 
-      <nav className="max-w-7xl mx-auto px-3 sm:px-5 lg:px-5" aria-label="Top">
-        <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+      {/* Main Nav — clean white */}
+      <nav className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-4 w-full bg-white" aria-label="Top">
+        <div className="flex items-center justify-between h-14 sm:h-16 gap-1 sm:gap-2">
           <div className="flex items-center lg:hidden shrink-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 -ml-1 rounded-sm text-slate-700 hover:text-slate-900 hover:bg-slate-100 focus:outline-none"
+              className="p-2 -ml-0.5 rounded text-[#111827] hover:text-[#00B8D4] hover:bg-[#00B8D4]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00B8D4]"
               aria-label="Toggle mobile menu"
               aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? (
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               ) : (
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               )}
             </button>
           </div>
 
-          <div className="flex items-center space-x-4 md:space-x-6 lg:space-x-8 min-w-0">
-            <Link href="/" className="flex items-center space-x-0.5 shrink-0">
-              <img
-                src="/logo.jpeg"
-                alt="RazeStore"
-                className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded-sm"
+          <div className="flex items-center space-x-2 sm:space-x-4 md:space-x-6 lg:space-x-6 min-w-0">
+            <Link
+              href="/"
+              className="flex items-center shrink-0"
+              aria-label="Havens Technologies — Feel the Quality"
+            >
+              <Image
+                src="/Pasted image (3).png"
+                alt="Havens Technologies"
+                width={400}
+                height={100}
+                priority
+                className="h-8 sm:h-10 mr-10 w-auto object-contain"
               />
-              <span className="font-bold text-slate-900 text-base hidden sm:inline-block">
-                RazeStore
-              </span>
             </Link>
 
             <div className="hidden lg:flex lg:space-x-6">
@@ -160,28 +150,29 @@ export default function Navbar() {
                 <Link
                   key={cat.name}
                   href={cat.href}
-                  className="text-[14px] font-medium text-slate-700 hover:text-blue-950 transition-colors whitespace-nowrap"
+                  className={`flex items-center gap-1.5 text-[14px] font-medium transition-colors whitespace-nowrap ${cat.hot
+                      ? "text-[#00B8D4] hover:text-[#00E5FF]"
+                      : "text-[#111827] hover:text-[#00B8D4]"
+                    }`}
                 >
+                  {cat.hot && <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF]" />}
                   {cat.name}
                 </Link>
               ))}
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 shrink-0">
-            <form
-              onSubmit={handleSearch}
-              className="hidden md:flex items-center relative"
-            >
+          <div className="flex items-center gap-0.5 xs:gap-1 sm:gap-2 lg:gap-3 shrink-0">
+            <form onSubmit={handleSearch} className="hidden md:flex items-center relative">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products..."
-                className="w-[240px] lg:w-[320px] xl:w-[380px] pl-8 pr-3 py-2 text-[13px] bg-slate-50 border border-slate-300 rounded-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-950 focus:ring-1 focus:ring-blue-950"
+                className="w-[180px] lg:w-[260px] xl:w-[340px] pl-9 pr-3 py-2 text-[13px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full text-[#111827] placeholder-[#6B7280] focus:outline-none focus:bg-white focus:border-[#00B8D4] focus:ring-2 focus:ring-[#00B8D4]/30"
               />
               <svg
-                className="w-4 h-4 text-slate-400 absolute left-2.5 pointer-events-none"
+                className="w-4 h-4 text-[#6B7280] absolute left-3 pointer-events-none"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -197,15 +188,10 @@ export default function Navbar() {
 
             <Link
               href="/auth/login"
-              className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-700 hover:text-blue-950 px-2 py-1.5 rounded-sm hover:bg-slate-100 transition-colors"
+              className="inline-flex items-center gap-1 text-[13px] font-medium text-[#111827] hover:text-[#00B8D4] px-1.5 sm:px-2 py-1.5 rounded hover:bg-[#00B8D4]/10 transition-colors"
               aria-label="Sign In"
             >
-              <svg
-                className="w-4 h-4 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -218,15 +204,10 @@ export default function Navbar() {
 
             <Link
               href="/pages/account/wishlist"
-              className="relative p-2 text-slate-700 hover:text-rose-600 rounded-sm hover:bg-slate-100 transition-colors flex items-center"
+              className="relative p-1.5 sm:p-2 text-[#111827] hover:text-[#00B8D4] rounded hover:bg-[#00B8D4]/10 transition-colors flex items-center"
               aria-label="Wishlist"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -235,7 +216,7 @@ export default function Navbar() {
                 />
               </svg>
               {wishlistCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-semibold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
+                <span className="absolute -top-0.5 -right-0.5 bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
                   {wishlistCount}
                 </span>
               )}
@@ -243,15 +224,10 @@ export default function Navbar() {
 
             <Link
               href="/pages/cart"
-              className="relative p-2 text-slate-700 hover:text-blue-950 rounded-sm hover:bg-slate-100 transition-colors flex items-center"
+              className="relative p-1.5 sm:p-2 text-[#111827] hover:text-[#00B8D4] rounded hover:bg-[#00B8D4]/10 transition-colors flex items-center"
               aria-label="Shopping Cart"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -260,7 +236,7 @@ export default function Navbar() {
                 />
               </svg>
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-blue-950 text-white font-semibold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
+                <span className="absolute -top-0.5 -right-0.5 bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
                   {cartCount}
                 </span>
               )}
@@ -270,16 +246,16 @@ export default function Navbar() {
 
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-slate-200 py-3 px-1 space-y-3 bg-white max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <form onSubmit={handleSearch} className="relative md:hidden">
+            <form onSubmit={handleSearch} className="relative md:hidden px-1">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products..."
-                className="w-full pl-8 pr-3 py-2 text-[13px] bg-slate-50 border border-slate-300 rounded-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-950 focus:ring-1 focus:ring-blue-950"
+                className="w-full pl-9 pr-3 py-2 text-[13px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full text-[#111827] placeholder-[#6B7280] focus:outline-none focus:bg-white focus:border-[#00B8D4] focus:ring-2 focus:ring-[#00B8D4]/30"
               />
               <svg
-                className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none"
+                className="w-4 h-4 text-[#6B7280] absolute left-4 top-2.5 pointer-events-none"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -299,26 +275,25 @@ export default function Navbar() {
                   key={cat.name}
                   href={cat.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
+                  className={`flex items-center gap-2 px-3 py-2 text-[13px] font-medium rounded transition-colors ${cat.hot
+                      ? "text-[#00B8D4] hover:bg-[#00E5FF]/10 hover:text-[#00E5FF]"
+                      : "text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4]"
+                    }`}
                 >
+                  {cat.hot && <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF]" />}
                   {cat.name}
                 </Link>
               ))}
             </div>
 
-            <div className="pt-2 border-t border-slate-100 space-y-1">
+            <div className="pt-2 border-t border-slate-200 space-y-1">
               <Link
                 href="/pages/account/wishlist"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-rose-600 rounded-sm transition-colors"
+                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4 text-rose-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -329,7 +304,7 @@ export default function Navbar() {
                   <span>Wishlist</span>
                 </span>
                 {wishlistCount > 0 && (
-                  <span className="bg-rose-600 text-white font-semibold text-[10px] px-1.5 py-0.5 rounded-full">
+                  <span className="bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] px-1.5 py-0.5 rounded-full">
                     {wishlistCount}
                   </span>
                 )}
@@ -337,15 +312,10 @@ export default function Navbar() {
               <Link
                 href="/pages/cart"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
+                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4 text-slate-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -356,7 +326,7 @@ export default function Navbar() {
                   <span>Cart</span>
                 </span>
                 {cartCount > 0 && (
-                  <span className="bg-blue-950 text-white font-semibold text-[10px] px-1.5 py-0.5 rounded-full">
+                  <span className="bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] px-1.5 py-0.5 rounded-full">
                     {cartCount}
                   </span>
                 )}
@@ -364,14 +334,9 @@ export default function Navbar() {
               <Link
                 href="/stores"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
               >
-                <svg
-                  className="w-4 h-4 text-slate-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -390,14 +355,9 @@ export default function Navbar() {
               <Link
                 href="/pages/account/orders"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
               >
-                <svg
-                  className="w-4 h-4 text-slate-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -417,14 +377,9 @@ export default function Navbar() {
               <Link
                 href="/support"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
               >
-                <svg
-                  className="w-4 h-4 text-slate-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -436,17 +391,12 @@ export default function Navbar() {
               </Link>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 px-3 py-1">
+            <div className="pt-2 border-t border-slate-200 px-3 py-1">
               <a
-                href="tel:+254700000000"
-                className="flex items-center gap-2 text-[12px] text-slate-600 hover:text-blue-950 transition-colors"
+                href="tel:+254705479906"
+                className="flex items-center gap-2 text-[12px] text-[#111827] hover:text-[#00B8D4] transition-colors"
               >
-                <svg
-                  className="w-3.5 h-3.5 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-3.5 h-3.5 text-[#00B8D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -454,19 +404,19 @@ export default function Navbar() {
                     d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
                   />
                 </svg>
-                <span>+254 116 103 872</span>
+                <span>0705 479 906</span>
               </a>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 px-3 py-1">
-              <div>
-                <label className="block text-[10px] text-slate-400 uppercase font-semibold">
+            <div className="pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 px-3 py-1">
+              <div className="min-w-0">
+                <label className="block text-[10px] text-[#111827] uppercase font-semibold">
                   Language
                 </label>
                 <select
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
-                  className="mt-1 w-full text-[12px] bg-slate-50 border border-slate-300 rounded-sm p-1 text-slate-800 focus:outline-none"
+                  className="mt-1 w-full text-[12px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full px-3 py-1.5 text-[#111827] focus:outline-none focus:border-[#00B8D4] focus:ring-1 focus:ring-[#00B8D4]/30"
                 >
                   {languages.map((l) => (
                     <option key={l} value={l}>
@@ -475,14 +425,14 @@ export default function Navbar() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-[10px] text-slate-400 uppercase font-semibold">
+              <div className="min-w-0">
+                <label className="block text-[10px] text-[#111827] uppercase font-semibold">
                   Currency
                 </label>
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  className="mt-1 w-full text-[12px] bg-slate-50 border border-slate-300 rounded-sm p-1 text-slate-800 focus:outline-none"
+                  className="mt-1 w-full text-[12px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full px-3 py-1.5 text-[#111827] focus:outline-none focus:border-[#00B8D4] focus:ring-1 focus:ring-[#00B8D4]/30"
                 >
                   {currencies.map((c) => (
                     <option key={c} value={c}>
@@ -493,18 +443,13 @@ export default function Navbar() {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 pb-1">
+            <div className="pt-2 border-t border-slate-200 pb-1">
               <Link
                 href="/auth/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center space-x-2 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 rounded-sm transition-colors"
+                className="flex items-center space-x-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
               >
-                <svg
-                  className="w-4 h-4 text-slate-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"

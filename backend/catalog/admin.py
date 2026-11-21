@@ -284,6 +284,6 @@ class DiscountAdmin(admin.ModelAdmin):
         )
 
 
-admin.site.site_header = "RazeStore Administration"
-admin.site.site_title = "RazeStore Admin"
+admin.site.site_header = "Racetech Hub Administration"
+admin.site.site_title = "Racetech Hub Admin"
 admin.site.index_title = "Catalog, Checkout & Accounts"

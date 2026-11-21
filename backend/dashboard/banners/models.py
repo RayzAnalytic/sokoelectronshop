@@ -28,7 +28,27 @@ class Overlay(models.TextChoices):
     GRADIENT = 'GRADIENT', 'Gradient'
 
 
+class BannerQuerySet(models.QuerySet):
+    def live(self):
+        now = timezone.now()
+        return (
+            self.filter(status=Status.ACTIVE)
+            .filter(models.Q(start_at__isnull=True) | models.Q(start_at__lte=now))
+            .filter(models.Q(end_at__isnull=True) | models.Q(end_at__gt=now))
+        )
+
+    def hero(self):
+        return (
+            self.live()
+            .filter(placement=Placement.HOME_HERO)
+            .exclude(desktop_image='')
+            .order_by('order', 'id')[:Banner.MAX_HERO_SLIDES]
+        )
+
+
 class Banner(models.Model):
+    MAX_HERO_SLIDES = 10
+
     name = models.CharField(max_length=200)
     placement = models.CharField(
         max_length=20, choices=Placement.choices, default=Placement.HOME_HERO
@@ -39,7 +59,6 @@ class Banner(models.Model):
     headline = models.CharField(max_length=300, blank=True)
     description = models.TextField(blank=True)
 
-    # Relative path ("/hero01.png") or absolute URL — same field handles both.
     desktop_image = models.CharField(max_length=500, blank=True)
     tablet_image = models.CharField(max_length=500, blank=True)
     mobile_image = models.CharField(max_length=500, blank=True)
@@ -70,6 +89,8 @@ class Banner(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = BannerQuerySet.as_manager()
+
     class Meta:
         ordering = ['order', 'id']
         indexes = [models.Index(fields=['placement', 'status', 'order'])]
@@ -77,7 +98,6 @@ class Banner(models.Model):
     def __str__(self):
         return f'{self.name} [{self.placement}]'
 
-    # ── derived metrics (mirror ctr()/cvr() in bannerStore.ts) ──
     @property
     def ctr(self):
         return round(self.clicks / self.impressions * 100, 2) if self.impressions else 0.0
@@ -88,7 +108,6 @@ class Banner(models.Model):
 
     @property
     def is_live(self):
-        """Same rule used by activeHeroSlides() in bannerStore.ts."""
         if self.status != Status.ACTIVE:
             return False
         now = timezone.now()

@@ -94,10 +94,10 @@ export default function Sidebar() {
                 <button
                     type="button"
                     onClick={() => setMobileOpen(!mobileOpen)}
-                    className="w-full flex items-center justify-between bg-white border border-slate-200 rounded-sm p-2.5 text-xs font-semibold text-slate-800 shadow-xs hover:bg-slate-50 transition-colors"
+                    className="w-full flex items-center justify-between bg-white border border-slate-200 rounded p-2.5 text-xs font-semibold text-slate-900 hover:bg-slate-50 transition-colors"
                 >
                     <span className="flex items-center gap-2">
-                        <Menu className="h-4 w-4 text-blue-600" />
+                        <Menu className="h-4 w-4 text-blue-950" />
                         Categories Navigation
                     </span>
                     <span className="text-[13px] font-normal text-slate-500">
@@ -108,15 +108,15 @@ export default function Sidebar() {
 
             <aside
                 className={`lg:block ${mobileOpen ? 'block' : 'hidden'} 
-                    bg-white border border-slate-200 rounded-sm p-2 shadow-sm
+                    bg-white border border-slate-200 rounded p-2 
                     lg:sticky lg:top-36 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto 
                     scrollbar-thin scrollbar-thumb-slate-300`}
             >
-                <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100">
-                    <h2 className="text-xs font-bold uppercase text-slate-800">
+                <div className="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
+                    <h2 className="text-xs font-bold uppercase text-slate-900">
                         All Categories
                     </h2>
-                    <span className="text-[13px] font-medium text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
+                    <span className="text-[13px] font-medium text-blue-950 bg-blue-950/10 border border-blue-950/20 px-2 py-0.5 rounded-full">
                         {loading ? '…' : categories.length}
                     </span>
                 </div>
@@ -158,14 +158,14 @@ export default function Sidebar() {
                                             setMobileOpen(false);
                                         }}
                                         className={`flex items-center justify-between px-2 py-1.5 rounded text-xs transition-colors group ${isActive
-                                            ? 'bg-blue-600 text-white font-semibold shadow-sm'
-                                            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                                            ? 'bg-blue-950 text-white font-semibold'
+                                            : 'text-slate-900 hover:bg-blue-950/10 hover:text-blue-950'
                                             }`}
                                     >
-                                        <span className="flex items-center gap-2.5 truncate">
+                                        <span className="flex items-center gap-2 truncate">
                                             <div
                                                 className={`w-8 h-8 rounded overflow-hidden shrink-0 border flex items-center justify-center ${isActive
-                                                    ? 'border-blue-400/50 bg-blue-700'
+                                                    ? 'border-white/20 bg-white'
                                                     : 'border-slate-200 bg-slate-50'
                                                     }`}
                                             >
@@ -178,8 +178,8 @@ export default function Sidebar() {
                                                 ) : (
                                                     <Icon
                                                         className={`w-4 h-4 ${isActive
-                                                            ? 'text-blue-100'
-                                                            : 'text-slate-500'
+                                                            ? 'text-blue-950'
+                                                            : 'text-slate-400'
                                                             }`}
                                                     />
                                                 )}
@@ -189,7 +189,7 @@ export default function Sidebar() {
                                         </span>
 
                                         <span
-                                            className={`text-[13px] shrink-0 ml-2 ${isActive ? 'text-blue-100' : 'text-slate-400'
+                                            className={`text-[13px] shrink-0 ml-2 ${isActive ? 'text-white/80' : 'text-slate-400'
                                                 }`}
                                         >
                                             {cat.itemCount}

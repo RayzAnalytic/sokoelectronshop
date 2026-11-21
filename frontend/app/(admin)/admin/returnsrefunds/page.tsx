@@ -12,8 +12,6 @@ import {
     Truck,
     Eye,
     MoreVertical,
-    Download,
-    Bell,
     MessageSquare,
     Mail,
     Smartphone,
@@ -32,7 +30,6 @@ import {
     CheckCircle2,
     Hourglass,
     Loader2,
-    ChevronDown,
 } from 'lucide-react';
 
 import { adminApi } from '@/lib/admin-api';
@@ -103,10 +100,10 @@ const CONDITION_LABEL: Record<string, string> = {
 };
 
 const inputCls =
-    'w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950';
+    'w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950';
 
 const selectCls =
-    'bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950';
+    'bg-white border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950';
 
 function fmtKES(n: number | string | null | undefined): string {
     const v = typeof n === 'number' ? n : Number(n ?? 0);
@@ -354,25 +351,18 @@ export default function ReturnsPage() {
     ];
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
+        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10 relative">
             <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
                 <div className="max-w-[1700px] mx-auto px-2 py-3 flex items-center justify-between gap-3">
                     <div>
                         <h1 className="text-[15px] font-semibold text-slate-900 flex items-center gap-1.5">
                             <RotateCcw className="w-4 h-4 text-blue-950" />
-                            Returns &amp; Refunds
+                            Returns
                         </h1>
                         <p className="text-[13px] text-slate-500 mt-0.5">
-                            Review return requests, approve refunds, and keep customers informed.
+                            Review return requests and process refunds.
                         </p>
                     </div>
-                    <button
-                        onClick={() => flash('Export started — you will receive a CSV by email.')}
-                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] transition"
-                    >
-                        <Download className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Export</span>
-                    </button>
                 </div>
             </header>
 
@@ -380,9 +370,9 @@ export default function ReturnsPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <KpiCard
                         icon={Hourglass}
-                        label="Pending review"
+                        label="Pending"
                         value={kpis.pending.toString()}
-                        sub="Awaiting a decision"
+                        sub="Awaiting review"
                         accent="text-amber-700 bg-amber-50"
                     />
                     <KpiCard
@@ -396,36 +386,34 @@ export default function ReturnsPage() {
                         icon={Banknote}
                         label="Refunded (30d)"
                         value={fmtKES(kpis.refunded30d)}
-                        sub={`${kpis.completed} refunds completed`}
+                        sub={`${kpis.completed} completed`}
                         accent="text-blue-950 bg-blue-50"
                     />
                     <KpiCard
                         icon={Clock}
                         label="Avg. resolution"
                         value={`${kpis.avgDays.toFixed(1)} days`}
-                        sub="From request to refund"
+                        sub="Request to refund"
                         accent="text-indigo-700 bg-indigo-50"
                     />
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-1 flex items-center gap-1 overflow-x-auto">
+                <div className="bg-white border border-slate-200 rounded p-1 flex items-center gap-1 overflow-x-auto">
                     {TABS.map((t) => (
                         <button
                             key={t.key}
                             onClick={() => setTab(t.key)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium whitespace-nowrap transition ${
-                                tab === t.key
+                            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded text-[13px] font-medium whitespace-nowrap transition ${tab === t.key
                                     ? 'bg-blue-50 text-blue-950 border border-blue-950'
                                     : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-                            }`}
+                                }`}
                         >
                             <t.icon className="w-3.5 h-3.5" />
                             {t.label}
                             {t.count !== undefined && (
                                 <span
-                                    className={`text-[11px] font-mono px-1.5 py-0.5 rounded-sm ${
-                                        tab === t.key ? 'bg-white text-blue-950' : 'bg-slate-100 text-slate-500'
-                                    }`}
+                                    className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${tab === t.key ? 'bg-white text-blue-950' : 'bg-slate-100 text-slate-500'
+                                        }`}
                                 >
                                     {t.count}
                                 </span>
@@ -435,7 +423,7 @@ export default function ReturnsPage() {
                 </div>
 
                 {error && (
-                    <div className="bg-red-50 border border-red-100 rounded-sm px-2 py-2 flex items-center justify-between gap-2">
+                    <div className="bg-red-50 border border-red-100 rounded px-2 py-2 flex items-center justify-between gap-2">
                         <span className="text-[13px] text-red-700">{error}</span>
                         <button
                             onClick={() => setError(null)}
@@ -496,18 +484,18 @@ export default function ReturnsPage() {
                             </select>
                         </Toolbar>
 
-                        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+                        <div className="bg-white border border-slate-200 rounded overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse text-[13px]">
                                     <thead>
                                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                                            <th className="py-2 px-2 font-medium w-40">Return</th>
-                                            <th className="py-2 px-2 font-medium">Customer</th>
-                                            <th className="py-2 px-2 font-medium w-[200px]">Product</th>
-                                            <th className="py-2 px-2 font-medium">Reason</th>
-                                            <th className="py-2 px-2 font-medium text-right">Amount</th>
-                                            <th className="py-2 px-2 font-medium w-[170px]">Status</th>
-                                            <th className="py-2 px-2 w-12"></th>
+                                            <th className="py-2 px-3 font-medium w-40">Return</th>
+                                            <th className="py-2 px-3 font-medium">Customer</th>
+                                            <th className="py-2 px-3 font-medium w-[220px]">Product</th>
+                                            <th className="py-2 px-3 font-medium">Reason</th>
+                                            <th className="py-2 px-3 font-medium text-right">Amount</th>
+                                            <th className="py-2 px-3 font-medium">Status</th>
+                                            <th className="py-2 px-3 w-12"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -526,7 +514,7 @@ export default function ReturnsPage() {
                                             <tr>
                                                 <td colSpan={7} className="py-16 text-center">
                                                     <div className="flex flex-col items-center gap-2">
-                                                        <span className="w-12 h-12 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center">
+                                                        <span className="w-12 h-12 rounded bg-blue-50 text-blue-950 flex items-center justify-center">
                                                             <RotateCcw className="w-6 h-6" />
                                                         </span>
                                                         <h3 className="text-[15px] font-semibold text-slate-900">
@@ -534,8 +522,8 @@ export default function ReturnsPage() {
                                                         </h3>
                                                         <p className="text-[13px] text-slate-500 max-w-xs">
                                                             {query ||
-                                                            statusFilter !== 'ALL' ||
-                                                            refundFilter !== 'ALL'
+                                                                statusFilter !== 'ALL' ||
+                                                                refundFilter !== 'ALL'
                                                                 ? 'Try changing your filters.'
                                                                 : 'Customer returns will appear here.'}
                                                         </p>
@@ -556,16 +544,17 @@ export default function ReturnsPage() {
                                                 const canRefund =
                                                     r.status === 'APPROVED' ||
                                                     r.status === 'ITEM_RECEIVED';
+                                                const first = r.items[0];
+                                                const extra = r.items.length - 1;
 
                                                 return (
                                                     <tr
                                                         key={r.id}
-                                                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
-                                                            isBusy ? 'opacity-50' : ''
-                                                        }`}
+                                                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${isBusy ? 'opacity-50' : ''
+                                                            }`}
                                                         onClick={() => setOpenDetailId(r.id)}
                                                     >
-                                                        <td className="py-2 px-2">
+                                                        <td className="py-2 px-3">
                                                             <div className="font-mono font-medium text-slate-900">
                                                                 {r.code}
                                                             </div>
@@ -573,7 +562,7 @@ export default function ReturnsPage() {
                                                                 {r.orderId}
                                                             </div>
                                                         </td>
-                                                        <td className="py-2 px-2">
+                                                        <td className="py-2 px-3">
                                                             <div className="font-medium text-slate-800 truncate max-w-[180px]">
                                                                 {r.customer.name}
                                                             </div>
@@ -581,30 +570,58 @@ export default function ReturnsPage() {
                                                                 {r.customer.email}
                                                             </div>
                                                         </td>
-                                                        <td
-                                                            className="py-2 px-2"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            <ProductCell ret={r} />
+                                                        <td className="py-2 px-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-8 h-8 rounded overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                                                                    {first?.image ? (
+                                                                        <img
+                                                                            src={first.image}
+                                                                            alt=""
+                                                                            className="w-full h-full object-cover"
+                                                                        />
+                                                                    ) : null}
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className="text-slate-800 truncate">
+                                                                        {first?.productName ?? '—'}
+                                                                    </div>
+                                                                    {extra > 0 && (
+                                                                        <div className="text-[12px] text-slate-400">
+                                                                            +{extra} more
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </td>
-                                                        <td className="py-2 px-2 text-slate-600 max-w-[180px] truncate">
+                                                        <td className="py-2 px-3 text-slate-600 max-w-[180px] truncate">
                                                             {r.reason}
                                                         </td>
-                                                        <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums whitespace-nowrap">
+                                                        <td className="py-2 px-3 text-right font-medium text-slate-900 tabular-nums whitespace-nowrap">
                                                             {fmtKES(r.originalAmount)}
                                                         </td>
-                                                        <td
-                                                            className="py-2 px-2"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            <StatusCell
-                                                                ret={r}
-                                                                urgent={urgent}
-                                                                days={days}
-                                                            />
+                                                        <td className="py-2 px-3">
+                                                            <div className="flex flex-col gap-1 items-start">
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[13px] font-medium ${RETURN_STATUS_STYLES[r.status]}`}
+                                                                >
+                                                                    {RETURN_STATUS_LABEL[r.status]}
+                                                                    {urgent && (
+                                                                        <span className="text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-100 px-1 rounded">
+                                                                            {days}d
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                                {r.refundStatus !== 'NONE' && (
+                                                                    <span
+                                                                        className={`inline-block text-[11px] font-medium px-1.5 py-0.5 rounded  border ${REFUND_STATUS_STYLES[r.refundStatus]}`}
+                                                                    >
+                                                                        Refund: {REFUND_STATUS_LABEL[r.refundStatus]}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                         <td
-                                                            className="py-2 px-2"
+                                                            className="py-2 px-3"
                                                             onClick={(e) => e.stopPropagation()}
                                                         >
                                                             <Kebab
@@ -612,28 +629,28 @@ export default function ReturnsPage() {
                                                                 onApprove={
                                                                     canDecide
                                                                         ? () =>
-                                                                              setConfirmAction({
-                                                                                  kind: 'approve',
-                                                                                  ret: r,
-                                                                              })
+                                                                            setConfirmAction({
+                                                                                kind: 'approve',
+                                                                                ret: r,
+                                                                            })
                                                                         : undefined
                                                                 }
                                                                 onReject={
                                                                     canDecide
                                                                         ? () =>
-                                                                              setConfirmAction({
-                                                                                  kind: 'reject',
-                                                                                  ret: r,
-                                                                              })
+                                                                            setConfirmAction({
+                                                                                kind: 'reject',
+                                                                                ret: r,
+                                                                            })
                                                                         : undefined
                                                                 }
                                                                 onRefund={
                                                                     canRefund
                                                                         ? () =>
-                                                                              setConfirmAction({
-                                                                                  kind: 'refund',
-                                                                                  ret: r,
-                                                                              })
+                                                                            setConfirmAction({
+                                                                                kind: 'refund',
+                                                                                ret: r,
+                                                                            })
                                                                         : undefined
                                                                 }
                                                             />
@@ -662,15 +679,15 @@ export default function ReturnsPage() {
                                 <table className="w-full text-left border-collapse text-[13px]">
                                     <thead>
                                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                                            <th className="py-2 px-2 font-medium">Return</th>
-                                            <th className="py-2 px-2 font-medium">Customer</th>
-                                            <th className="py-2 px-2 font-medium text-right">
+                                            <th className="py-2 px-3 font-medium">Return</th>
+                                            <th className="py-2 px-3 font-medium">Customer</th>
+                                            <th className="py-2 px-3 font-medium text-right">
                                                 Amount
                                             </th>
-                                            <th className="py-2 px-2 font-medium">Method</th>
-                                            <th className="py-2 px-2 font-medium">Status</th>
-                                            <th className="py-2 px-2 font-medium">Created</th>
-                                            <th className="py-2 px-2 font-medium">Reference</th>
+                                            <th className="py-2 px-3 font-medium">Method</th>
+                                            <th className="py-2 px-3 font-medium">Status</th>
+                                            <th className="py-2 px-3 font-medium">Created</th>
+                                            <th className="py-2 px-3 font-medium">Reference</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -689,7 +706,7 @@ export default function ReturnsPage() {
                                                     key={r.id}
                                                     className="hover:bg-slate-50 transition-colors"
                                                 >
-                                                    <td className="py-2 px-2">
+                                                    <td className="py-2 px-3">
                                                         <div className="font-mono font-medium text-slate-900">
                                                             {r.returnCode}
                                                         </div>
@@ -697,28 +714,27 @@ export default function ReturnsPage() {
                                                             {r.orderId}
                                                         </div>
                                                     </td>
-                                                    <td className="py-2 px-2 text-slate-700">
+                                                    <td className="py-2 px-3 text-slate-700">
                                                         {r.customer}
                                                     </td>
-                                                    <td className="py-2 px-2 text-right font-medium text-slate-900 tabular-nums">
+                                                    <td className="py-2 px-3 text-right font-medium text-slate-900 tabular-nums">
                                                         {fmtKES(r.amount)}
                                                     </td>
-                                                    <td className="py-2 px-2 text-slate-600">
+                                                    <td className="py-2 px-3 text-slate-600">
                                                         {REFUND_METHOD_LABEL[r.method]}
                                                     </td>
-                                                    <td className="py-2 px-2">
+                                                    <td className="py-2 px-3">
                                                         <span
-                                                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
-                                                                REFUND_STATUS_STYLES[r.status]
-                                                            }`}
+                                                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded border ${REFUND_STATUS_STYLES[r.status]
+                                                                }`}
                                                         >
                                                             {REFUND_STATUS_LABEL[r.status]}
                                                         </span>
                                                     </td>
-                                                    <td className="py-2 px-2 text-slate-600 whitespace-nowrap">
+                                                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
                                                         {fmtDateTime(r.createdAt)}
                                                     </td>
-                                                    <td className="py-2 px-2 text-slate-500 font-mono text-[13px]">
+                                                    <td className="py-2 px-3 text-slate-500 font-mono text-[13px]">
                                                         {r.reference || '—'}
                                                     </td>
                                                 </tr>
@@ -756,7 +772,7 @@ export default function ReturnsPage() {
                 )}
 
                 {tab === 'settings' && !settings && (
-                    <div className="bg-white border border-slate-200 rounded-sm py-16 flex flex-col items-center gap-2">
+                    <div className="bg-white border border-slate-200 rounded py-16 flex flex-col items-center gap-2">
                         <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
                         <p className="text-[13px] text-slate-500">Loading settings…</p>
                     </div>
@@ -772,13 +788,11 @@ export default function ReturnsPage() {
                         handlePatchReturn(openDetail.id, { internalNotes: notes })
                     }
                     onSetRefundMethod={(m) => handleSetRefundMethod(openDetail, m)}
-                    onSetStatus={(s) => handlePatchReturn(openDetail.id, { status: s })}
                     onApprove={() =>
                         setConfirmAction({ kind: 'approve', ret: openDetail })
                     }
                     onReject={() => setConfirmAction({ kind: 'reject', ret: openDetail })}
                     onRefund={() => setConfirmAction({ kind: 'refund', ret: openDetail })}
-                    onFlash={flash}
                 />
             )}
 
@@ -797,7 +811,7 @@ export default function ReturnsPage() {
             )}
 
             {toast && (
-                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-3 py-2.5 rounded-sm shadow-lg">
+                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-3 py-2.5 rounded shadow">
                     {toast}
                 </div>
             )}
@@ -805,190 +819,163 @@ export default function ReturnsPage() {
     );
 }
 
-function StatusCell({
-    ret,
-    urgent,
-    days,
+function KpiCard({
+    icon: Icon,
+    label,
+    value,
+    sub,
+    accent,
 }: {
-    ret: AdminReturnRequest;
-    urgent: boolean;
-    days: number;
+    icon: typeof Clock;
+    label: string;
+    value: string;
+    sub: string;
+    accent: string;
+}) {
+    return (
+        <div className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+                <span
+                    className={`w-6 h-6 rounded flex items-center justify-center ${accent}`}
+                >
+                    <Icon className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-[13px] font-medium text-slate-500 truncate">
+                    {label}
+                </span>
+            </div>
+            <div className="text-[15px] font-bold text-slate-900 truncate">{value}</div>
+            <div className="text-[13px] text-slate-400 truncate">{sub}</div>
+        </div>
+    );
+}
+
+function Toolbar({
+    query,
+    onQuery,
+    placeholder,
+    children,
+}: {
+    query: string;
+    onQuery: (v: string) => void;
+    placeholder: string;
+    children?: React.ReactNode;
+}) {
+    return (
+        <div className="bg-white border border-slate-200 rounded p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                    value={query}
+                    onChange={(e) => onQuery(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
+                />
+            </div>
+            {children && (
+                <div className="flex flex-wrap items-center gap-2">{children}</div>
+            )}
+        </div>
+    );
+}
+
+function Kebab({
+    onView,
+    onApprove,
+    onReject,
+    onRefund,
+}: {
+    onView: () => void;
+    onApprove?: () => void;
+    onReject?: () => void;
+    onRefund?: () => void;
 }) {
     return (
         <FloatingPanel
-            align="left"
-            width={260}
+            align="right"
+            width={200}
             trigger={({ open, toggle, ref }) => (
                 <button
                     ref={ref}
                     onClick={toggle}
-                    className={`inline-flex items-center gap-1.5 max-w-full px-2 py-1 rounded-sm border text-[13px] font-medium transition ${
-                        RETURN_STATUS_STYLES[ret.status]
-                    } ${open ? 'ring-1 ring-blue-950' : 'hover:brightness-95'}`}
-                >
-                    <span className="whitespace-nowrap truncate">
-                        {RETURN_STATUS_LABEL[ret.status]}
-                    </span>
-                    {urgent && (
-                        <span className="text-[13px] font-medium bg-rose-50 text-rose-700 border border-rose-100 px-1 py-0.5 rounded-sm shrink-0">
-                            {days}d
-                        </span>
-                    )}
-                    <ChevronDown
-                        className={`w-3 h-3 shrink-0 transition ${
-                            open ? 'rotate-180' : ''
+                    className={`p-1.5 rounded transition ${open
+                            ? 'bg-slate-100 text-slate-900'
+                            : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
                         }`}
-                    />
+                >
+                    <MoreVertical className="w-4 h-4" />
                 </button>
             )}
         >
             {({ close }) => (
-                <div className="p-2 space-y-2 text-[13px]">
-                    <div className="px-1 py-0.5 flex items-center justify-between border-b border-slate-100 pb-2">
-                        <span className="text-[13px] uppercase tracking-wide font-medium text-slate-400">
-                            Return status
-                        </span>
-                        <button
-                            onClick={close}
-                            className="text-slate-400 hover:text-slate-700"
-                            aria-label="Close"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-
-                    <div>
-                        <div className="text-[13px] uppercase tracking-wide font-medium text-slate-400 mb-1">
-                            Status
-                        </div>
-                        <span
-                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
-                                RETURN_STATUS_STYLES[ret.status]
-                            }`}
-                        >
-                            {RETURN_STATUS_LABEL[ret.status]}
-                        </span>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100">
-                        <div className="text-[13px] uppercase tracking-wide font-medium text-slate-400 mb-1">
-                            Refund
-                        </div>
-                        <span
-                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
-                                REFUND_STATUS_STYLES[ret.refundStatus]
-                            }`}
-                        >
-                            {REFUND_STATUS_LABEL[ret.refundStatus]}
-                        </span>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100">
-                        <div className="text-[13px] uppercase tracking-wide font-medium text-slate-400 mb-1">
-                            Requested
-                        </div>
-                        <div className="text-[13px] text-slate-800">
-                            {fmtDate(ret.requestedAt)}
-                        </div>
-                        <div className="text-[13px] text-slate-400 mt-0.5">
-                            {days === 0 ? 'Today' : `${days} days ago`}
-                        </div>
-                    </div>
-                </div>
+                <>
+                    <MenuItem
+                        icon={<Eye className="w-3.5 h-3.5" />}
+                        label="View details"
+                        onClick={() => {
+                            close();
+                            onView();
+                        }}
+                    />
+                    {onApprove && (
+                        <MenuItem
+                            icon={<ThumbsUp className="w-3.5 h-3.5" />}
+                            label="Approve return"
+                            onClick={() => {
+                                close();
+                                onApprove();
+                            }}
+                        />
+                    )}
+                    {onReject && (
+                        <MenuItem
+                            icon={<ThumbsDown className="w-3.5 h-3.5" />}
+                            label="Reject return"
+                            onClick={() => {
+                                close();
+                                onReject();
+                            }}
+                            danger
+                        />
+                    )}
+                    {onRefund && (
+                        <MenuItem
+                            icon={<CreditCard className="w-3.5 h-3.5" />}
+                            label="Process refund"
+                            onClick={() => {
+                                close();
+                                onRefund();
+                            }}
+                        />
+                    )}
+                </>
             )}
         </FloatingPanel>
     );
 }
 
-function ProductCell({ ret }: { ret: AdminReturnRequest }) {
-    const first = ret.items[0];
-    const extra = ret.items.length - 1;
-
+function MenuItem({
+    icon,
+    label,
+    onClick,
+    danger,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    danger?: boolean;
+}) {
     return (
-        <FloatingPanel
-            align="left"
-            width={340}
-            trigger={({ open, toggle, ref }) => (
-                <button
-                    ref={ref}
-                    onClick={toggle}
-                    className={`w-full flex items-center gap-2 text-left px-1.5 py-1 -mx-1.5 rounded-sm transition ${
-                        open ? 'bg-blue-50' : 'hover:bg-slate-100'
-                    }`}
-                >
-                    <div className="w-8 h-8 rounded-sm overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                        {first?.image ? (
-                            <img
-                                src={first.image}
-                                alt=""
-                                className="w-full h-full object-cover"
-                            />
-                        ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <div className="text-slate-800 truncate">
-                            {first?.productName ?? '—'}
-                        </div>
-                        {extra > 0 && (
-                            <div className="text-[13px] text-slate-400">
-                                +{extra} more
-                            </div>
-                        )}
-                    </div>
-                    <ChevronDown
-                        className={`w-3 h-3 text-slate-400 shrink-0 transition ${
-                            open ? 'rotate-180' : ''
-                        }`}
-                    />
-                </button>
-            )}
+        <button
+            onClick={onClick}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${danger
+                    ? 'text-rose-600 hover:bg-rose-50'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
         >
-            {({ close }) => (
-                <div className="p-1">
-                    <div className="px-2 py-1.5 flex items-center justify-between border-b border-slate-100">
-                        <span className="text-[13px] uppercase tracking-wide font-medium text-slate-400">
-                            {ret.items.length} item{ret.items.length === 1 ? '' : 's'}
-                        </span>
-                        <button
-                            onClick={close}
-                            className="text-slate-400 hover:text-slate-700"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                        {ret.items.map((it) => (
-                            <div key={it.id} className="flex items-center gap-2 p-2">
-                                <div className="w-10 h-10 rounded-sm overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                                    {it.image ? (
-                                        <img
-                                            src={it.image}
-                                            alt=""
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : null}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="text-[13px] font-medium text-slate-900 truncate">
-                                        {it.productName}
-                                    </div>
-                                    <div className="text-[13px] text-slate-400 font-mono truncate">
-                                        {it.sku}
-                                    </div>
-                                    <div className="text-[13px] text-slate-500">
-                                        Qty {it.qty} ·{' '}
-                                        {CONDITION_LABEL[it.condition] ?? it.condition}
-                                    </div>
-                                </div>
-                                <div className="text-[13px] font-semibold text-slate-900 tabular-nums shrink-0">
-                                    {fmtKES(Number(it.price) * it.qty)}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </FloatingPanel>
+            <span className={danger ? 'text-rose-500' : 'text-slate-400'}>{icon}</span>
+            {label}
+        </button>
     );
 }
 
@@ -1081,174 +1068,12 @@ function FloatingPanel({
                         width,
                         maxHeight: pos.maxHeight,
                     }}
-                    className="z-[120] bg-white border border-slate-200 rounded-sm shadow-lg overflow-y-auto"
+                    className="z-[120] bg-white border border-slate-200 rounded shadow overflow-y-auto"
                 >
                     {children({ close })}
                 </div>
             )}
         </>
-    );
-}
-
-function KpiCard({
-    icon: Icon,
-    label,
-    value,
-    sub,
-    accent,
-}: {
-    icon: typeof Clock;
-    label: string;
-    value: string;
-    sub: string;
-    accent: string;
-}) {
-    return (
-        <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-                <span
-                    className={`w-6 h-6 rounded-sm flex items-center justify-center ${accent}`}
-                >
-                    <Icon className="w-3.5 h-3.5" />
-                </span>
-                <span className="text-[13px] font-medium text-slate-500 truncate">
-                    {label}
-                </span>
-            </div>
-            <div className="text-[15px] font-bold text-slate-900 truncate">{value}</div>
-            <div className="text-[13px] text-slate-400 truncate">{sub}</div>
-        </div>
-    );
-}
-
-function Toolbar({
-    query,
-    onQuery,
-    placeholder,
-    children,
-}: {
-    query: string;
-    onQuery: (v: string) => void;
-    placeholder: string;
-    children?: React.ReactNode;
-}) {
-    return (
-        <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                    value={query}
-                    onChange={(e) => onQuery(e.target.value)}
-                    placeholder={placeholder}
-                    className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
-                />
-            </div>
-            {children && (
-                <div className="flex flex-wrap items-center gap-2">{children}</div>
-            )}
-        </div>
-    );
-}
-
-function Kebab({
-    onView,
-    onApprove,
-    onReject,
-    onRefund,
-}: {
-    onView: () => void;
-    onApprove?: () => void;
-    onReject?: () => void;
-    onRefund?: () => void;
-}) {
-    return (
-        <FloatingPanel
-            align="right"
-            width={200}
-            trigger={({ open, toggle, ref }) => (
-                <button
-                    ref={ref}
-                    onClick={toggle}
-                    className={`p-1.5 rounded-sm transition ${
-                        open
-                            ? 'bg-slate-100 text-slate-900'
-                            : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                >
-                    <MoreVertical className="w-4 h-4" />
-                </button>
-            )}
-        >
-            {({ close }) => (
-                <>
-                    <MenuItem
-                        icon={<Eye className="w-3.5 h-3.5" />}
-                        label="View details"
-                        onClick={() => {
-                            close();
-                            onView();
-                        }}
-                    />
-                    {onApprove && (
-                        <MenuItem
-                            icon={<ThumbsUp className="w-3.5 h-3.5" />}
-                            label="Approve return"
-                            onClick={() => {
-                                close();
-                                onApprove();
-                            }}
-                        />
-                    )}
-                    {onReject && (
-                        <MenuItem
-                            icon={<ThumbsDown className="w-3.5 h-3.5" />}
-                            label="Reject return"
-                            onClick={() => {
-                                close();
-                                onReject();
-                            }}
-                            danger
-                        />
-                    )}
-                    {onRefund && (
-                        <MenuItem
-                            icon={<CreditCard className="w-3.5 h-3.5" />}
-                            label="Process refund"
-                            onClick={() => {
-                                close();
-                                onRefund();
-                            }}
-                        />
-                    )}
-                </>
-            )}
-        </FloatingPanel>
-    );
-}
-
-function MenuItem({
-    icon,
-    label,
-    onClick,
-    danger,
-}: {
-    icon: React.ReactNode;
-    label: string;
-    onClick: () => void;
-    danger?: boolean;
-}) {
-    return (
-        <button
-            onClick={onClick}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition ${
-                danger
-                    ? 'text-rose-600 hover:bg-rose-50'
-                    : 'text-slate-700 hover:bg-slate-50'
-            }`}
-        >
-            <span className={danger ? 'text-rose-500' : 'text-slate-400'}>{icon}</span>
-            {label}
-        </button>
     );
 }
 
@@ -1258,22 +1083,18 @@ function ReturnDrawer({
     onClose,
     onSaveInternalNotes,
     onSetRefundMethod,
-    onSetStatus,
     onApprove,
     onReject,
     onRefund,
-    onFlash,
 }: {
     ret: AdminReturnRequest;
     busy: boolean;
     onClose: () => void;
     onSaveInternalNotes: (notes: string) => void;
     onSetRefundMethod: (m: AdminRefundMethod) => void;
-    onSetStatus: (s: AdminReturnStatus) => void;
     onApprove: () => void;
     onReject: () => void;
     onRefund: () => void;
-    onFlash: (msg: string) => void;
 }) {
     const [internal, setInternal] = useState(ret.internalNotes ?? '');
 
@@ -1291,13 +1112,12 @@ function ReturnDrawer({
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                className={`bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow-xl flex flex-col ${
-                    busy ? 'opacity-70 pointer-events-none' : ''
-                }`}
+                className={`bg-white border-l border-slate-200 w-full max-w-2xl h-full overflow-y-auto shadow-xl flex flex-col ${busy ? 'opacity-70 pointer-events-none' : ''
+                    }`}
             >
                 <div className="px-2 py-3 border-b border-slate-200 sticky top-0 bg-white z-10 flex items-center justify-between gap-2 shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-9 h-9 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+                        <span className="w-9 h-9 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                             <RotateCcw className="w-4 h-4" />
                         </span>
                         <div className="min-w-0">
@@ -1311,7 +1131,7 @@ function ReturnDrawer({
                     </div>
                     <button
                         onClick={onClose}
-                        className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+                        className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -1320,16 +1140,14 @@ function ReturnDrawer({
                 <div className="p-2 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span
-                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
-                                RETURN_STATUS_STYLES[ret.status]
-                            }`}
+                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded border ${RETURN_STATUS_STYLES[ret.status]
+                                }`}
                         >
                             {RETURN_STATUS_LABEL[ret.status]}
                         </span>
                         <span
-                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded-sm border ${
-                                REFUND_STATUS_STYLES[ret.refundStatus]
-                            }`}
+                            className={`inline-block text-[13px] font-medium px-2 py-0.5 rounded border ${REFUND_STATUS_STYLES[ret.refundStatus]
+                                }`}
                         >
                             Refund: {REFUND_STATUS_LABEL[ret.refundStatus]}
                         </span>
@@ -1348,10 +1166,10 @@ function ReturnDrawer({
                     </Section>
 
                     <Section title="Returned items" icon={Package}>
-                        <ul className="divide-y divide-slate-100 rounded-sm border border-slate-200 overflow-hidden">
+                        <ul className="divide-y divide-slate-100 rounded border border-slate-200 overflow-hidden">
                             {ret.items.map((it) => (
                                 <li key={it.id} className="flex items-center gap-3 p-2">
-                                    <div className="w-12 h-12 rounded-sm overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                                    <div className="w-12 h-12 rounded overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
                                         <img
                                             src={it.image}
                                             alt=""
@@ -1398,7 +1216,7 @@ function ReturnDrawer({
                     </Section>
 
                     <Section title="Return reason" icon={Info}>
-                        <div className="rounded-sm border border-slate-200 p-2 space-y-1">
+                        <div className="rounded border border-slate-200 p-2 space-y-1">
                             <div className="text-[13px] font-medium text-slate-900">
                                 {ret.reason}
                             </div>
@@ -1412,7 +1230,7 @@ function ReturnDrawer({
 
                     {ret.tracking && (
                         <Section title="Return tracking" icon={Truck}>
-                            <div className="rounded-sm border border-slate-200 p-2 flex items-center gap-2">
+                            <div className="rounded border border-slate-200 p-2 flex items-center gap-2">
                                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 <span className="text-[13px] font-mono text-slate-700">
                                     {ret.tracking}
@@ -1435,11 +1253,10 @@ function ReturnDrawer({
                                     key={m}
                                     type="button"
                                     onClick={() => onSetRefundMethod(m)}
-                                    className={`text-[13px] font-medium py-2 px-2 rounded-sm border transition ${
-                                        ret.refundMethod === m
+                                    className={`text-[13px] font-medium py-2 px-2 rounded border transition ${ret.refundMethod === m
                                             ? 'bg-blue-50 border-blue-950 text-blue-950'
                                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                                    }`}
+                                        }`}
                                 >
                                     {REFUND_METHOD_LABEL[m]}
                                 </button>
@@ -1461,63 +1278,36 @@ function ReturnDrawer({
                             className={inputCls + ' resize-none'}
                         />
                     </Section>
-
-                    <Section title="Set status" icon={SettingsIcon}>
-                        <select
-                            value={ret.status}
-                            onChange={(e) =>
-                                onSetStatus(e.target.value as AdminReturnStatus)
-                            }
-                            className={inputCls}
-                        >
-                            {Object.entries(RETURN_STATUS_LABEL).map(([k, v]) => (
-                                <option key={k} value={k}>
-                                    {v}
-                                </option>
-                            ))}
-                        </select>
-                    </Section>
                 </div>
 
-                <div className="border-t border-slate-200 px-2 py-2 flex items-center justify-between gap-2 sticky bottom-0 bg-white shrink-0">
-                    <button
-                        onClick={() =>
-                            onFlash(`Notification queued for ${ret.customer.email}`)
-                        }
-                        className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 hover:text-slate-900 px-2 py-2"
-                    >
-                        <Bell className="w-3.5 h-3.5" />
-                        Notify customer
-                    </button>
-                    <div className="flex items-center gap-2">
-                        {canDecide && (
-                            <>
-                                <button
-                                    onClick={onReject}
-                                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-600 font-medium px-3 py-2 rounded-sm text-[13px]"
-                                >
-                                    <X className="w-3.5 h-3.5" />
-                                    Reject
-                                </button>
-                                <button
-                                    onClick={onApprove}
-                                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
-                                >
-                                    <Check className="w-3.5 h-3.5" />
-                                    Approve return
-                                </button>
-                            </>
-                        )}
-                        {canRefund && (
+                <div className="border-t border-slate-200 px-2 py-2 flex items-center justify-end gap-2 sticky bottom-0 bg-white shrink-0">
+                    {canDecide && (
+                        <>
                             <button
-                                onClick={onRefund}
-                                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                                onClick={onReject}
+                                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-600 font-medium px-3 py-2 rounded text-[13px]"
                             >
-                                <CreditCard className="w-3.5 h-3.5" />
-                                Process refund
+                                <X className="w-3.5 h-3.5" />
+                                Reject
                             </button>
-                        )}
-                    </div>
+                            <button
+                                onClick={onApprove}
+                                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px]"
+                            >
+                                <Check className="w-3.5 h-3.5" />
+                                Approve return
+                            </button>
+                        </>
+                    )}
+                    {canRefund && (
+                        <button
+                            onClick={onRefund}
+                            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded text-[13px]"
+                        >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            Process refund
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -1570,12 +1360,12 @@ function ConfirmAction({
             onClick={onCancel}
         >
             <div
-                className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-3 shadow-xl"
+                className="bg-white border border-slate-200 rounded max-w-md w-full p-3 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center gap-2">
                     <span
-                        className={`w-9 h-9 rounded-sm flex items-center justify-center ${config.accent}`}
+                        className={`w-9 h-9 rounded flex items-center justify-center ${config.accent}`}
                     >
                         <Icon className="w-4 h-4" />
                     </span>
@@ -1583,19 +1373,19 @@ function ConfirmAction({
                         {config.title}
                     </h3>
                 </div>
-                <p className="text-[13px] text-slate-500 mt-2 leading-relaxed">
+                <p className="text-[13px] text-slate-500 mt-2">
                     {config.body}
                 </p>
                 <div className="flex justify-end gap-2 mt-3">
                     <button
                         onClick={onCancel}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onConfirm}
-                        className={`text-white font-medium px-3 py-2 rounded-sm text-[13px] ${config.confirmCls}`}
+                        className={`text-white font-medium px-3 py-2 rounded text-[13px] ${config.confirmCls}`}
                     >
                         {config.confirmLabel}
                     </button>
@@ -1607,8 +1397,8 @@ function ConfirmAction({
 
 function HistoryTab({ history }: { history: AdminReturnHistoryPoint[] }) {
     return (
-        <div className="space-y-3">
-            <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+        <div className="space-y-2">
+            <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <header>
                     <h2 className="text-[15px] font-semibold text-slate-900">
                         Monthly refund summary
@@ -1618,7 +1408,7 @@ function HistoryTab({ history }: { history: AdminReturnHistoryPoint[] }) {
                     </p>
                 </header>
                 {history.length === 0 ? (
-                    <p className="text-[13px] text-slate-400 py-4 text-center">
+                    <p className="text-[13px] text-slate-400 py-3 text-center">
                         No history yet.
                     </p>
                 ) : (
@@ -1751,16 +1541,8 @@ function SettingsTab({
         }
     }
 
-    const notifyRows = [
-        { label: 'Return received', channels: ['email'] },
-        { label: 'Return approved', channels: ['email', 'sms'] },
-        { label: 'Return rejected', channels: ['email'] },
-        { label: 'Refund processed', channels: ['email', 'sms'] },
-        { label: 'Refund failed', channels: ['email'] },
-    ];
-
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
             <section className="lg:col-span-2 bg-white border border-slate-200 rounded-sm">
                 <header className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
                     <div>
@@ -1775,13 +1557,12 @@ function SettingsTab({
 
                 <ul className="divide-y divide-slate-100">
                     {reasons.map((r) => (
-                        <li key={r.id} className="p-3 flex items-start gap-3">
+                        <li key={r.id} className="p-2 flex items-start gap-2">
                             <span
-                                className={`w-9 h-9 rounded-sm flex items-center justify-center shrink-0 ${
-                                    r.active
+                                className={`w-9 h-9 rounded flex items-center justify-center shrink-0 ${r.active
                                         ? 'bg-blue-50 text-blue-950'
                                         : 'bg-slate-100 text-slate-400'
-                                }`}
+                                    }`}
                             >
                                 <Info className="w-4 h-4" />
                             </span>
@@ -1791,16 +1572,15 @@ function SettingsTab({
                                         {r.label}
                                     </span>
                                     <span
-                                        className={`text-[13px] font-medium px-1.5 py-0.5 rounded-sm border ${
-                                            r.active
+                                        className={`text-[13px] font-medium px-1.5 py-0.5 rounded border ${r.active
                                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                                 : 'bg-slate-100 text-slate-500 border-slate-200'
-                                        }`}
+                                            }`}
                                     >
                                         {r.active ? 'Active' : 'Hidden'}
                                     </span>
                                     {r.requiresPhoto && (
-                                        <span className="text-[13px] font-medium px-1.5 py-0.5 rounded-sm border bg-amber-50 text-amber-700 border-amber-100">
+                                        <span className="text-[13px] font-medium px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-100">
                                             Requires photo
                                         </span>
                                     )}
@@ -1813,26 +1593,24 @@ function SettingsTab({
                                 <button
                                     onClick={() => void togglePhoto(r)}
                                     title="Toggle photo requirement"
-                                    className="p-1.5 rounded-sm text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition"
+                                    className="p-1.5 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition"
                                 >
                                     <Eye className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                     onClick={() => void toggleActive(r)}
-                                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
-                                        r.active ? 'bg-blue-950' : 'bg-slate-300'
-                                    }`}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${r.active ? 'bg-blue-950' : 'bg-slate-300'
+                                        }`}
                                     aria-label={r.active ? 'Deactivate' : 'Activate'}
                                 >
                                     <span
-                                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                                            r.active ? 'translate-x-4' : 'translate-x-0'
-                                        }`}
+                                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${r.active ? 'translate-x-4' : 'translate-x-0'
+                                            }`}
                                     />
                                 </button>
                                 <button
                                     onClick={() => void removeReason(r)}
-                                    className="p-1.5 rounded-sm text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                                    className="p-1.5 rounded ext-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                                     aria-label="Remove"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1847,7 +1625,7 @@ function SettingsTab({
                     )}
                 </ul>
 
-                <div className="p-3 border-t border-slate-100 space-y-2">
+                <div className="p-2 border-t border-slate-100 space-y-2">
                     <div className="text-[13px] font-medium text-slate-700">
                         Add a reason
                     </div>
@@ -1868,7 +1646,7 @@ function SettingsTab({
                     <button
                         onClick={() => void addReason()}
                         disabled={!newReason.trim()}
-                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
                     >
                         <Plus className="w-3.5 h-3.5" />
                         Add reason
@@ -1877,7 +1655,7 @@ function SettingsTab({
             </section>
 
             <section className="space-y-3">
-                <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+                <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                     <header>
                         <h2 className="text-[15px] font-semibold text-slate-900">
                             Return policy
@@ -1927,55 +1705,47 @@ function SettingsTab({
                     </Field>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
+                <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
                     <header>
                         <h2 className="text-[15px] font-semibold text-slate-900">
                             Customer notifications
                         </h2>
                         <p className="text-[13px] text-slate-500 mt-0.5">
-                            Channels used to reach out at each stage.
+                            Choose how customers hear from you at each stage.
                         </p>
                     </header>
-                    <ul className="divide-y divide-slate-100 text-[13px]">
-                        {notifyRows.map((row) => (
-                            <li
-                                key={row.label}
-                                className="py-2 flex items-center justify-between gap-2"
-                            >
-                                <span className="text-slate-700">{row.label}</span>
-                                <div className="flex items-center gap-1">
-                                    {(['email', 'sms', 'push'] as const).map((c) => {
-                                        const Icon =
-                                            c === 'email'
-                                                ? Mail
-                                                : c === 'sms'
-                                                ? Smartphone
-                                                : MessageSquare;
-                                        const on = row.channels.includes(c);
-                                        return (
-                                            <span
-                                                key={c}
-                                                title={c}
-                                                className={`w-6 h-6 rounded-sm flex items-center justify-center border transition ${
-                                                    on
-                                                        ? 'bg-blue-50 border-blue-950 text-blue-950'
-                                                        : 'bg-white border-slate-200 text-slate-300'
-                                                }`}
-                                            >
-                                                <Icon className="w-3 h-3" />
-                                            </span>
-                                        );
-                                    })}
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="space-y-1">
+                        <NotifyToggle
+                            icon={Mail}
+                            label="Email"
+                            checked={draftSettings.notifyEmail}
+                            onChange={(v) =>
+                                setDraftSettings((s) => ({ ...s, notifyEmail: v }))
+                            }
+                        />
+                        <NotifyToggle
+                            icon={Smartphone}
+                            label="SMS"
+                            checked={draftSettings.notifySms}
+                            onChange={(v) =>
+                                setDraftSettings((s) => ({ ...s, notifySms: v }))
+                            }
+                        />
+                        <NotifyToggle
+                            icon={MessageSquare}
+                            label="Push notification"
+                            checked={draftSettings.notifyPush}
+                            onChange={(v) =>
+                                setDraftSettings((s) => ({ ...s, notifyPush: v }))
+                            }
+                        />
+                    </div>
                 </div>
 
                 <button
                     onClick={() => void saveSettings()}
                     disabled={saving}
-                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
                 >
                     {saving ? (
                         <>
@@ -1991,6 +1761,43 @@ function SettingsTab({
                 </button>
             </section>
         </div>
+    );
+}
+
+function NotifyToggle({
+    icon: Icon,
+    label,
+    checked,
+    onChange,
+}: {
+    icon: typeof Mail;
+    label: string;
+    checked: boolean;
+    onChange: (v: boolean) => void;
+}) {
+    return (
+        <label className="flex items-center justify-between gap-2 py-1.5 cursor-pointer">
+            <span className="inline-flex items-center gap-2 text-[13px] text-slate-700">
+                <Icon className="w-3.5 h-3.5 text-slate-400" />
+                {label}
+            </span>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={checked}
+                onClick={(e) => {
+                    e.preventDefault();
+                    onChange(!checked);
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? 'bg-blue-950' : 'bg-slate-300'
+                    }`}
+            >
+                <span
+                    className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                />
+            </button>
+        </label>
     );
 }
 
@@ -2027,14 +1834,13 @@ function Field({
 }) {
     return (
         <div>
-            <div className="text-[13px] uppercase tracking-wide text-slate-400 font-medium">
+            <div className="text-[13px] uppercase text-slate-400 font-medium">
                 {label}
             </div>
             {children ?? (
                 <div
-                    className={`text-[13px] text-slate-800 mt-0.5 ${
-                        mono ? 'font-mono' : ''
-                    }`}
+                    className={`text-[13px] text-slate-800 mt-0.5 ${mono ? 'font-mono' : ''
+                        }`}
                 >
                     {value}
                 </div>

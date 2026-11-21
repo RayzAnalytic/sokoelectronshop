@@ -4,11 +4,7 @@ from django.utils.html import format_html
 
 from .models import Address, Notification, Review, WishlistItem
 from .services import notify, notify_review_moderated
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Address
-# ═══════════════════════════════════════════════════════════════════════════
+ 
 @admin.register(Address)
 class AddressAdmin(admin.ModelAdmin):
     list_display = (
@@ -37,12 +33,7 @@ class AddressAdmin(admin.ModelAdmin):
             "fields": ("created_at", "updated_at"),
             "classes": ("collapse",),
         }),
-    )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Notification
-# ═══════════════════════════════════════════════════════════════════════════
+    ) 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
     list_display = (
@@ -95,12 +86,7 @@ class NotificationAdmin(admin.ModelAdmin):
                 href="/pages/account/notifications",
                 metadata={"source": "admin_test"},
             )
-        self.message_user(request, f"Sent to {len(users)} user(s).")
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Review
-# ═══════════════════════════════════════════════════════════════════════════
+        self.message_user(request, f"Sent to {len(users)} user(s).") 
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
     list_display = (
@@ -151,9 +137,7 @@ class ReviewAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="color:#f59e0b;letter-spacing:1px;">{}{}</span>',
             filled, empty,
-        )
-
-    # ── Actions ──────────────────────────────────────────────────────────
+        ) 
     @admin.action(description="Publish selected reviews")
     def publish_reviews(self, request, queryset):
         count = 0
@@ -204,10 +188,7 @@ class ReviewAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f"{count} review(s) reset to pending.")
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Wishlist
-# ═══════════════════════════════════════════════════════════════════════════
+ 
 @admin.register(WishlistItem)
 class WishlistItemAdmin(admin.ModelAdmin):
     list_display = (

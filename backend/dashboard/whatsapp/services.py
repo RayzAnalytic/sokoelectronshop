@@ -73,12 +73,12 @@ class MetaClient:
             logger.exception("META request failed: %s", exc)
             raise
 
-    def send_text(self, to_wa_id, body, conversation=None):
-        self._log("send_text", {"to": to_wa_id, "body": body[:64]})
+    def send_text(self, to, body, conversation=None):
+        self._log("send_text", {"to": to, "body": body[:64]})
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
-            "to": to_wa_id,
+            "to": to,
             "type": "text",
             "text": {"body": body},
         }
@@ -104,14 +104,14 @@ class MetaClient:
             )
         return result
 
-    def send_image(self, to_wa_id, link, caption="", conversation=None):
+    def send_image(self, to, link, caption="", conversation=None):
         if not link or not link.startswith(("http://", "https://")):
             raise ValueError(f"image link must be absolute URL, got {link!r}")
-        self._log("send_image", {"to": to_wa_id, "link": link, "caption": (caption or "")[:64]})
+        self._log("send_image", {"to": to, "link": link, "caption": (caption or "")[:64]})
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
-            "to": to_wa_id,
+            "to": to,
             "type": "image",
             "image": {"link": link},
         }
@@ -140,12 +140,12 @@ class MetaClient:
             )
         return result
 
-    def send_template(self, to_wa_id, template_name, params=None, conversation=None, language="en"):
-        self._log("send_template", {"to": to_wa_id, "name": template_name, "params": params or []})
+    def send_template(self, to, template_name, params=None, conversation=None, language="en"):
+        self._log("send_template", {"to": to, "name": template_name, "params": params or []})
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
-            "to": to_wa_id,
+            "to": to,
             "type": "template",
             "template": {
                 "name": template_name,
@@ -184,12 +184,12 @@ class MetaClient:
             )
         return result
 
-    def send_media(self, to_wa_id, kind, media_url="", media_id="", conversation=None, caption=""):
-        self._log("send_media", {"to": to_wa_id, "kind": kind, "url": media_url, "id": media_id})
+    def send_media(self, to, kind, media_url="", media_id="", conversation=None, caption=""):
+        self._log("send_media", {"to": to, "kind": kind, "url": media_url, "id": media_id})
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
-            "to": to_wa_id,
+            "to": to,
             "type": kind,
         }
         media_obj = {}
@@ -242,15 +242,23 @@ def _absolute_media_url(path):
     path_str = str(path)
     if path_str.startswith("http://") or path_str.startswith("https://"):
         return path_str
+
     base = getattr(settings, "PUBLIC_BASE_URL", "")
     if not base:
         base = getattr(settings, "BACKEND_PUBLIC_URL", "")
     base = base.rstrip("/")
+
     media = getattr(settings, "MEDIA_URL", "/media/")
     if not media.startswith("/"):
         media = "/" + media
+    media = media.rstrip("/") + "/"
+
+    if path_str.startswith(media):
+        return f"{base}{path_str}"
+
     if path_str.startswith("/"):
         path_str = path_str[1:]
+
     return f"{base}{media}{path_str}"
 
 

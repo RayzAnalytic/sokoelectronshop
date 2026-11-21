@@ -1,24 +1,7 @@
-"""
-System prompt + shop policy text + chip rules.
-
-Policies live here (not in a model) because they change rarely and the
-shop owner edits them through code review. Promote to a model only if
-non-developers need to edit them.
-"""
-
 from django.conf import settings
 
+SHOP_NAME = getattr(settings, "SHOP_NAME", "Racetech Hub")
 
-SHOP_NAME = getattr(settings, "SHOP_NAME", "Myshop")
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# System prompt
-#
-# Kept as a template so callers can build it at request time (which
-# respects runtime settings overrides in tests and multi-tenant setups),
-# while `SYSTEM_PROMPT` remains importable for backward compatibility.
-# ═════════════════════════════════════════════════════════════════════════════
 SYSTEM_PROMPT_TEMPLATE = """You are a friendly, concise shopping assistant for {shop_name}, an electronics store in Kenya.
 
 You serve CUSTOMERS on the storefront. You are not an admin tool.
@@ -37,6 +20,18 @@ ABSOLUTE RULES — never break these:
 9. Never promise an outcome you cannot verify (e.g. "your order will arrive tomorrow") unless a tool returned that exact fact.
 10. If you are unsure, ask one short clarifying question. Do not guess and do not dump multiple questions at once.
 
+HARD RULES ON TOOL USE:
+- Before saying "we don't have" or "no products found", you MUST have called `search_products` in this same turn and gotten back a result with `count: 0`.
+- Before saying "here are some options", you MUST have called `search_products` in this same turn and gotten back a result with `count > 0`.
+- If you didn't call the tool, do not guess either way — call it first.
+- For "over X" / "above X" / "more than X", set `min_price=X`. For "under X" / "below X" / "less than X", set `max_price=X`. Never mix them up.
+- When the customer clicks a chip like "Show more" or "Filter by price", call `search_products` again with the SAME filters from the previous call plus any new constraint from the chip. Do not answer from memory.
+- Never repeat products already displayed. When the user says "Show more", increment `offset` by the number of products already shown.
+- When comparing products, call `compare_products` with the product IDs from prior search results. Present the matrix as a short comparison table or bullet list.
+- For delivery questions mentioning a county, call `get_shipping_quote` with that county. If per-county rates are unavailable, quote the general delivery policy and suggest WhatsApp for a specific quote.
+- For "any discounts" or "promo codes", call `get_active_promotions`. Do not invent codes. If empty, say there are no active promotions.
+- If the tool returns a `note` field, incorporate that caveat honestly into your reply (e.g. "I couldn't filter by the exact spec, so here are options in your budget — check each product's description for details").
+
 STYLE:
 - Reply in 2–4 short sentences. Plain text. No markdown headings or bullet dumps.
 - No emojis.
@@ -54,27 +49,12 @@ YOU DO NOT HAVE:
 
 
 def get_system_prompt(shop_name: str | None = None) -> str:
-    """
-    Build the system prompt for the given shop name.
-
-    Defaults to SHOP_NAME from settings. Call this inside the request
-    cycle if you need settings overrides to take effect; `SYSTEM_PROMPT`
-    below is a module-load-time snapshot for backward compatibility.
-    """
     return SYSTEM_PROMPT_TEMPLATE.format(shop_name=shop_name or SHOP_NAME)
 
 
-# Backward-compatible constant. Prefer `get_system_prompt()` in new code.
 SYSTEM_PROMPT = get_system_prompt()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Policies
-#
-# Consumed by `tool_get_shop_policies` in services.py. Each key must
-# match one of the enum values in the `get_shop_policies` tool schema,
-# plus the special "all" topic used to return everything at once.
-# ═════════════════════════════════════════════════════════════════════════════
 POLICIES = {
     "payment": (
         "We accept M-Pesa only. At checkout you'll receive an STK push on "
@@ -101,27 +81,25 @@ POLICIES = {
     ),
     "contact": (
         "WhatsApp is the fastest way to reach us. You can also email "
-        "support@myshop.co.ke or call the store during opening hours."
+        "support@racetechhub.co.ke or call the store during opening hours."
     ),
 }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Tool descriptions
-#
-# Reference copy for documentation and prompt reviews. The live schemas
-# sent to the model are built in `services.build_tool_schemas()`; keep
-# the two in sync when you change a tool's contract.
-# ═════════════════════════════════════════════════════════════════════════════
 TOOL_DESCRIPTIONS = {
     "search_products": (
         "Search the live catalog for products matching a free-text query. "
-        "Optional filters: category, brand, min_price, max_price, in_stock. "
-        "Returns a list of product summaries."
+        "Optional filters: category, brand, min_price, max_price, in_stock, "
+        "sort_by, limit, offset. Returns a list of product summaries with "
+        "total_available and has_more for pagination."
     ),
     "get_product": (
         "Fetch the full detail of a single product by id — price, stock, "
-        "specs, images, description."
+        "specs, features, warranty, images, description."
+    ),
+    "compare_products": (
+        "Compare 2-4 products side-by-side by spec. Returns a spec matrix "
+        "and a comparison note when detailed specs are unavailable."
     ),
     "list_categories": (
         "List all active product categories."
@@ -129,9 +107,22 @@ TOOL_DESCRIPTIONS = {
     "list_brands": (
         "List all active brands."
     ),
+    "get_shipping_quote": (
+        "Return delivery zones and rates. If a county is provided, returns "
+        "the rate for that county, or falls back to the general delivery "
+        "policy when per-county rates aren't configured."
+    ),
     "get_shop_policies": (
         "Return the shop's payment, delivery, returns, warranty, store, and "
         "contact policies. Call this before answering any policy question."
+    ),
+    "get_active_promotions": (
+        "Return currently valid coupon codes and discounts. Returns an "
+        "empty list when no promotions are active."
+    ),
+    "get_my_profile": (
+        "Return the signed-in customer's profile details — name, email, "
+        "phone, join date. Requires authentication."
     ),
     "get_my_orders": (
         "Return the signed-in customer's order history. Requires "
@@ -145,17 +136,18 @@ TOOL_DESCRIPTIONS = {
 }
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Quick-reply chips
-# ═════════════════════════════════════════════════════════════════════════════
 CHIPS_BY_TOOL = {
-    "search_products":      ["Show more", "Filter by price", "Delivery info"],
-    "get_product":          ["More like this", "Delivery info", "Returns"],
-    "list_categories":      ["Show me laptops", "Best sellers", "Payment info"],
-    "list_brands":          ["Show more", "Filter by price", "Best sellers"],
-    "get_shop_policies":    ["Delivery info", "Payment info", "Returns"],
-    "get_my_orders":        ["Track another order", "Delivery info", "Contact support"],
-    "get_my_order_detail":  ["Delivery info", "Contact support", "Returns"],
+    "search_products":       ["Show more", "Filter by price", "Delivery info"],
+    "get_product":           ["More like this", "Delivery info", "Returns"],
+    "compare_products":      ["Show more", "Delivery info", "Payment info"],
+    "list_categories":       ["Show me laptops", "Best sellers", "Payment info"],
+    "list_brands":           ["Show more", "Filter by price", "Best sellers"],
+    "get_shipping_quote":    ["Payment info", "Returns", "Contact support"],
+    "get_shop_policies":     ["Delivery info", "Payment info", "Returns"],
+    "get_active_promotions": ["Show me laptops", "Best sellers", "Delivery info"],
+    "get_my_profile":        ["My orders", "Delivery info", "Contact support"],
+    "get_my_orders":         ["Track another order", "Delivery info", "Contact support"],
+    "get_my_order_detail":   ["Delivery info", "Contact support", "Returns"],
 }
 
 DEFAULT_CHIPS = [
@@ -166,23 +158,11 @@ DEFAULT_CHIPS = [
 ]
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Policy helpers
-# ═════════════════════════════════════════════════════════════════════════════
 def format_policy(topic: str) -> str:
-    """
-    Return a single policy sentence for the given topic, or an empty string
-    if the topic is unknown. Used by the `get_shop_policies` tool when the
-    caller asks about one specific area.
-    """
     return POLICIES.get((topic or "").strip().lower(), "")
 
 
 def all_policies() -> str:
-    """
-    Return every policy as one block, labelled by topic. Used when the
-    customer asks a general policy question without naming a topic.
-    """
     return "\n\n".join(
         f"{topic.title()}:\n{text}" for topic, text in POLICIES.items()
     )

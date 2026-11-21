@@ -30,8 +30,7 @@ export function AdminShellProvider({ children }: { children: React.ReactNode }) 
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
       if (saved === "1") setCollapsedState(true);
-    } catch {
-      /* ignore */
+    } catch { 
     }
   }, []);
 
@@ -39,8 +38,7 @@ export function AdminShellProvider({ children }: { children: React.ReactNode }) 
     setCollapsedState(v);
     try {
       window.localStorage.setItem(STORAGE_KEY, v ? "1" : "0");
-    } catch {
-      /* ignore */
+    } catch { 
     }
   }, []);
 
@@ -49,8 +47,7 @@ export function AdminShellProvider({ children }: { children: React.ReactNode }) 
       const next = !prev;
       try {
         window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
-      } catch {
-        /* ignore */
+      } catch { 
       }
       return next;
     });

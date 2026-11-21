@@ -2,17 +2,21 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Megaphone, Plus, CheckCircle2, XCircle, Info, X, Send, TrendingUp,
-  Mail, MessageSquare, ArrowRight, ArrowLeft, Eye, Sparkles, Trash2,
-  ChevronDown, Search, Tag, Calendar, Target, BarChart3, Layers, Gift,
+  Megaphone, Plus, CheckCircle2, XCircle, Info, X, Send,
+  Mail, ArrowRight, ArrowLeft, Eye, Trash2,
+  Search, Tag, Calendar, Target, BarChart3,
   Snowflake, Rocket, Heart, ShoppingCart, Newspaper, Share2, Check,
-  Pause, Play, DollarSign, MousePointerClick, UserMinus, AlertCircle,
-  Loader2, RefreshCw, Radio,
+  Pause, Play, DollarSign, MousePointerClick, AlertCircle,
+  Loader2, RefreshCw,
 } from 'lucide-react';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend,
-} from 'recharts';
+  FaWhatsapp,
+  FaInstagram,
+  FaFacebook,
+  FaTiktok,
+  FaYoutube,
+  FaTelegram,
+} from 'react-icons/fa';
 import { adminApi } from '@/lib/admin-api';
 import type {
   AdminMetaCampaign,
@@ -40,15 +44,31 @@ interface SegmentOption {
 interface TemplateOption { id: string; name: string; status?: string; }
 interface ListOption { id: string; name: string; size?: number; }
 
+type ReactIcon = React.ComponentType<{ className?: string }>;
+
+const PLATFORM_META: Record<string, { label: string; Icon: ReactIcon; tint: string }> = {
+  instagram: { label: 'Instagram', Icon: FaInstagram, tint: 'text-pink-600' },
+  facebook: { label: 'Facebook', Icon: FaFacebook, tint: 'text-blue-700' },
+  tiktok: { label: 'TikTok', Icon: FaTiktok, tint: 'text-slate-900' },
+  youtube: { label: 'YouTube', Icon: FaYoutube, tint: 'text-red-600' },
+  telegram: { label: 'Telegram', Icon: FaTelegram, tint: 'text-sky-600' },
+};
+
+const CHANNEL_ICON: Record<AdminMetaCampaignChannel, ReactIcon> = {
+  whatsapp: FaWhatsapp,
+  email: Mail,
+  social: Share2,
+};
+
 const CAMPAIGN_TYPE_LABEL: Record<AdminMetaCampaignType, string> = {
   product_promotion: 'Product Promotion',
-  discount: 'Discount Campaign',
-  seasonal: 'Seasonal Campaign',
+  discount: 'Discount',
+  seasonal: 'Seasonal',
   new_product: 'New Product',
   retention: 'Customer Retention',
   abandoned_cart: 'Abandoned Cart',
   newsletter: 'Newsletter',
-  social: 'Social Campaign',
+  social: 'Social Post',
 };
 
 const CAMPAIGN_TYPE_TINT: Record<AdminMetaCampaignType, string> = {
@@ -62,7 +82,7 @@ const CAMPAIGN_TYPE_TINT: Record<AdminMetaCampaignType, string> = {
   social: 'bg-cyan-50 text-cyan-700 border-cyan-100',
 };
 
-const CAMPAIGN_TYPE_ICON: Record<AdminMetaCampaignType, React.ComponentType<{ className?: string }>> = {
+const CAMPAIGN_TYPE_ICON: Record<AdminMetaCampaignType, ReactIcon> = {
   product_promotion: Tag,
   discount: DollarSign,
   seasonal: Snowflake,
@@ -87,32 +107,28 @@ const CAMPAIGN_TYPES: AdminMetaCampaignType[] = [
 const CHANNEL_OPTIONS: {
   channel: AdminMetaCampaignChannel;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
   tint: string;
   hint: string;
 }[] = [
-  {
-    channel: 'whatsapp',
-    label: 'WhatsApp',
-    icon: MessageSquare,
-    tint: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    hint: 'Dispatches to WhatsApp Broadcasts',
-  },
-  {
-    channel: 'email',
-    label: 'Email',
-    icon: Mail,
-    tint: 'bg-blue-50 text-blue-950 border-blue-100',
-    hint: 'Dispatches to Newsletter Campaigns',
-  },
-  {
-    channel: 'social',
-    label: 'Social',
-    icon: Share2,
-    tint: 'bg-cyan-50 text-cyan-700 border-cyan-100',
-    hint: 'Schedules a Social post',
-  },
-];
+    {
+      channel: 'whatsapp',
+      label: 'WhatsApp',
+      tint: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+      hint: 'Message your WhatsApp customers',
+    },
+    {
+      channel: 'email',
+      label: 'Email',
+      tint: 'bg-blue-50 text-blue-950 border-blue-100',
+      hint: 'Email your subscribers',
+    },
+    {
+      channel: 'social',
+      label: 'Social',
+      tint: 'bg-cyan-50 text-cyan-700 border-cyan-100',
+      hint: 'Post on social media',
+    },
+  ];
 
 const SOCIAL_PLATFORMS = ['instagram', 'facebook', 'tiktok', 'youtube', 'telegram'];
 
@@ -166,11 +182,9 @@ export default function CampaignsPage() {
   const [error, setError] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<AdminMetaCampaign[]>([]);
   const [search, setSearch] = useState('');
-  const [channelFilter, setChannelFilter] = useState<AdminMetaCampaignChannel | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const [waTemplates, setWaTemplates] = useState<TemplateOption[]>([]);
-  const [nlTemplates, setNlTemplates] = useState<TemplateOption[]>([]);
   const [nlLists, setNlLists] = useState<ListOption[]>([]);
   const [segments, setSegments] = useState<SegmentOption[]>([]);
 
@@ -186,15 +200,9 @@ export default function CampaignsPage() {
   const [newScheduleAt, setNewScheduleAt] = useState('');
 
   const [waTemplateId, setWaTemplateId] = useState('');
-  const [waHeaderText, setWaHeaderText] = useState('');
-  const [waBody, setWaBody] = useState('');
-
-  const [nlTemplateId, setNlTemplateId] = useState('');
   const [nlListId, setNlListId] = useState('');
   const [nlSubject, setNlSubject] = useState('');
   const [nlBody, setNlBody] = useState('');
-  const [nlPreview, setNlPreview] = useState('');
-
   const [socialCaption, setSocialCaption] = useState('');
   const [socialPlatforms, setSocialPlatforms] = useState<Set<string>>(new Set(['instagram']));
 
@@ -233,17 +241,9 @@ export default function CampaignsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [
-        campaignsRes,
-        waTplRes,
-        nlTplRes,
-        nlListRes,
-        waSegRes,
-        nlSegRes,
-      ] = await Promise.all([
+      const [campaignsRes, waTplRes, nlListRes, waSegRes, nlSegRes] = await Promise.all([
         adminApi.campaigns.list().catch(() => []),
         adminApi.whatsapp.templates.list().catch(() => []),
-        adminApi.newsletter.templates.list().catch(() => []),
         adminApi.newsletter.lists.list().catch(() => []),
         adminApi.whatsapp.segments.list().catch(() => []),
         adminApi.newsletter.segments.list().catch(() => []),
@@ -256,13 +256,6 @@ export default function CampaignsPage() {
           id: String(t.id),
           name: t.name || t.templateName || `template-${t.id}`,
           status: t.status,
-        })),
-      );
-
-      setNlTemplates(
-        unwrapArray(nlTplRes).map((t: any) => ({
-          id: String(t.id),
-          name: t.name || `Template ${t.id}`,
         })),
       );
 
@@ -324,7 +317,6 @@ export default function CampaignsPage() {
   const filtered = useMemo(() => {
     return campaigns.filter((c) => {
       if (tab !== 'All' && c.status !== tab) return false;
-      if (channelFilter && !(c.channels || []).includes(channelFilter)) return false;
       if (search) {
         const q = search.toLowerCase();
         const haystack = `${c.name} ${c.audience_ref_id} ${(c.channels || []).join(' ')}`.toLowerCase();
@@ -332,28 +324,7 @@ export default function CampaignsPage() {
       }
       return true;
     });
-  }, [campaigns, tab, channelFilter, search]);
-
-  const stats = useMemo(() => {
-    const total = campaigns.length;
-    const scheduled = campaigns.filter((c) => c.status === 'scheduled').length;
-    const sending = campaigns.filter((c) => c.status === 'sending').length;
-    const completed = campaigns.filter((c) => c.status === 'completed').length;
-    const audience = campaigns.reduce((a, c) => a + n(c.audience_size_cached), 0);
-    return { total, scheduled, sending, completed, audience };
-  }, [campaigns]);
-
-  const channelBreakdown = useMemo(() => {
-    const out = CHANNEL_OPTIONS.map((opt) => {
-      const matching = campaigns.filter((c) => (c.channels || []).includes(opt.channel));
-      return {
-        name: opt.label,
-        count: matching.length,
-        audience: matching.reduce((a, c) => a + n(c.audience_size_cached), 0),
-      };
-    });
-    return out;
-  }, [campaigns]);
+  }, [campaigns, tab, search]);
 
   const openAnalytics = async (c: AdminMetaCampaign) => {
     setAnalyticsCampaign(c);
@@ -420,13 +391,9 @@ export default function CampaignsPage() {
     setNewScheduleType('now');
     setNewScheduleAt('');
     setWaTemplateId('');
-    setWaHeaderText('');
-    setWaBody('');
-    setNlTemplateId('');
     setNlListId('');
     setNlSubject('');
     setNlBody('');
-    setNlPreview('');
     setSocialCaption('');
     setSocialPlatforms(new Set(['instagram']));
   };
@@ -457,23 +424,20 @@ export default function CampaignsPage() {
   const selectedSegment = segments.find((s) => s.key === newSegmentKey) || null;
 
   const canAdvance = (): boolean => {
-    if (wizardStep === 1) return newName.trim().length > 0 && !!selectedSegment;
-    if (wizardStep === 2) return newChannels.size > 0;
-    if (wizardStep === 3) {
+    if (wizardStep === 1) {
+      return (
+        newName.trim().length > 0 &&
+        !!selectedSegment &&
+        newChannels.size > 0
+      );
+    }
+    if (wizardStep === 2) {
       if (newChannels.has('whatsapp') && !waTemplateId) return false;
-      if (
-        newChannels.has('email') &&
-        (!nlSubject.trim() || !nlBody.trim() || !nlListId || !nlTemplateId)
-      )
-        return false;
-      if (
-        newChannels.has('social') &&
-        (socialPlatforms.size === 0 || !socialCaption.trim())
-      )
-        return false;
+      if (newChannels.has('email') && (!nlSubject.trim() || !nlBody.trim() || !nlListId)) return false;
+      if (newChannels.has('social') && (socialPlatforms.size === 0 || !socialCaption.trim())) return false;
       return true;
     }
-    if (wizardStep === 4) {
+    if (wizardStep === 3) {
       if (newScheduleType === 'scheduled' && !newScheduleAt) return false;
       return true;
     }
@@ -486,8 +450,6 @@ export default function CampaignsPage() {
     if (newChannels.has('whatsapp')) {
       content.whatsapp = {
         template_id: Number(waTemplateId) || null,
-        header_text: waHeaderText.trim(),
-        body: waBody.trim(),
         audience: selectedSegment?.source === 'whatsapp' ? 'SEGMENT' : 'ALL',
       };
     }
@@ -496,8 +458,7 @@ export default function CampaignsPage() {
       content.email = {
         subject: nlSubject.trim(),
         body: nlBody.trim(),
-        preview: nlPreview.trim(),
-        template_id: Number(nlTemplateId) || null,
+        template_id: null,
         audience_type: 'LIST',
         audience_id: String(nlListId),
       };
@@ -553,27 +514,18 @@ export default function CampaignsPage() {
     }
   };
 
-  const stepTitles = [
-    'Name, type & audience',
-    'Select channels',
-    'Content per channel',
-    'Schedule',
-    'Review & launch',
-  ];
-
-  const activeFilterCount = channelFilter ? 1 : 0;
+  const stepTitles = ['Campaign basics', 'Channels & content', 'Schedule & launch'];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-16 relative">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-10 relative">
       {toast && (
         <div
-          className={`fixed bottom-3 right-3 z-[120] text-white px-3 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px] ${
-            toast.kind === 'success'
-              ? 'bg-slate-900'
-              : toast.kind === 'error'
-                ? 'bg-red-700'
-                : 'bg-slate-700'
-          }`}
+          className={`fixed bottom-3 right-3 z-[120] text-white px-3 py-2 rounded flex items-center gap-2 text-[13px] ${toast.kind === 'success'
+            ? 'bg-slate-900'
+            : toast.kind === 'error'
+              ? 'bg-red-700'
+              : 'bg-slate-700'
+            }`}
         >
           {toast.kind === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
           {toast.kind === 'error' && <XCircle className="w-3.5 h-3.5 text-red-200 shrink-0" />}
@@ -586,28 +538,28 @@ export default function CampaignsPage() {
       )}
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1700px] mx-auto px-2 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1700px] mx-auto px-2 py-3 flex items-center justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
               <Megaphone className="w-4 h-4 text-blue-950" />
               Campaigns
             </h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Cross-channel dispatcher — WhatsApp, Email and Social from one console
+              Send promotions and updates to your customers
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => void loadAll()}
               disabled={loading}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-60 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
             <button
               onClick={openWizard}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px]"
             >
               <Plus className="w-3.5 h-3.5" />
               New campaign
@@ -616,23 +568,19 @@ export default function CampaignsPage() {
         </div>
 
         <div className="max-w-[1700px] mx-auto px-2 flex items-center gap-0.5 border-t border-slate-100 pt-2 overflow-x-auto">
-          {(
-            ['All', 'draft', 'scheduled', 'sending', 'paused', 'completed', 'failed'] as TabKey[]
-          ).map((t) => (
+          {(['All', 'draft', 'scheduled', 'sending', 'paused', 'completed', 'failed'] as TabKey[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium border-b-2 whitespace-nowrap transition ${
-                tab === t
-                  ? 'border-blue-950 text-blue-950'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded text-[13px] font-medium border-b-2 whitespace-nowrap transition ${tab === t
+                ? 'border-blue-950 text-blue-950'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
             >
               {t === 'All' ? 'All' : STATUS_LABEL[t as AdminMetaCampaignStatus]}
               <span
-                className={`px-1.5 py-0.5 rounded-sm text-[13px] ${
-                  tab === t ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
+                className={`px-1.5 py-0.5 rounded text-[13px] ${tab === t ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
               >
                 {tabCounts[t] ?? 0}
               </span>
@@ -642,8 +590,8 @@ export default function CampaignsPage() {
       </header>
 
       {error && (
-        <div className="max-w-[1700px] mx-auto px-2 pt-3">
-          <div className="bg-red-50 border border-red-200 rounded-sm p-2 flex items-start gap-2">
+        <div className="max-w-[1700px] mx-auto px-2 pt-2">
+          <div className="bg-red-50 border border-red-200 rounded p-2 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-medium text-red-900">Couldn&apos;t load campaigns</p>
@@ -660,100 +608,20 @@ export default function CampaignsPage() {
       )}
 
       <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
-       
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          <KpiCard
-            label="Total campaigns"
-            value={stats.total.toLocaleString()}
-            helper={`${stats.completed} completed · ${stats.sending} sending`}
-            icon={<Megaphone className="w-4 h-4" />}
-            tint="bg-blue-50 text-blue-950"
-          />
-          <KpiCard
-            label="Scheduled"
-            value={stats.scheduled.toLocaleString()}
-            helper="Awaiting dispatch"
-            icon={<Calendar className="w-4 h-4" />}
-            tint="bg-purple-50 text-purple-700"
-          />
-          <KpiCard
-            label="Audience reach"
-            value={stats.audience.toLocaleString()}
-            helper="Cached contacts across campaigns"
-            icon={<Target className="w-4 h-4" />}
-            tint="bg-emerald-50 text-emerald-700"
-          />
-          <KpiCard
-            label="Channels"
-            value={`${channelBreakdown.filter((c) => c.count > 0).length}`}
-            helper={`${channelBreakdown.map((c) => `${c.count} ${c.name}`).join(' · ')}`}
-            icon={<Layers className="w-4 h-4" />}
-            tint="bg-amber-50 text-amber-700"
-          />
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold text-slate-900">Campaigns by channel</p>
-            <span className="text-[13px] text-slate-400">Count · Audience</span>
-          </div>
-          <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={channelBreakdown}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
-                <YAxis stroke="#94a3b8" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '6px',
-                    color: '#0f172a',
-                    fontSize: '12px',
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="count" name="Campaigns" fill="#172554" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="audience" name="Audience" fill="#059669" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
-          <div className="relative flex-1">
+        <div className="bg-white border border-slate-200 rounded p-2">
+          <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search campaigns by name, audience or channel…"
+              placeholder="Search campaigns…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterDropdown
-              label="Channel"
-              value={channelFilter}
-              options={CHANNEL_OPTIONS.map((c) => c.label)}
-              onChange={(v) => {
-                const found = CHANNEL_OPTIONS.find((c) => c.label === v);
-                setChannelFilter(found?.channel ?? null);
-              }}
-            />
-            {activeFilterCount > 0 && (
-              <button
-                onClick={() => setChannelFilter(null)}
-                className="text-[13px] text-red-600 hover:underline font-medium px-2 py-2"
-              >
-                Clear ({activeFilterCount})
-              </button>
-            )}
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <p className="text-[13px] font-medium text-slate-700">
               Campaigns · {filtered.length}
@@ -784,7 +652,7 @@ export default function CampaignsPage() {
                 {!loading && filtered.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-400 text-[13px]">
-                      No campaigns match your filters.
+                      No campaigns yet. Click <span className="font-medium text-slate-700">New campaign</span> to get started.
                     </td>
                   </tr>
                 ) : (
@@ -796,16 +664,12 @@ export default function CampaignsPage() {
                           <p className="font-medium text-slate-900 truncate max-w-[260px]">
                             {cmp.name}
                           </p>
-                          <p className="text-[12px] text-slate-400 truncate font-mono">
-                            {cmp.id}
-                          </p>
                         </td>
                         <td className="py-2 px-2">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border ${
-                              CAMPAIGN_TYPE_TINT[cmp.campaign_type] ||
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium border ${CAMPAIGN_TYPE_TINT[cmp.campaign_type] ||
                               'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}
+                              }`}
                           >
                             <TypeIcon className="w-3 h-3" />
                             {CAMPAIGN_TYPE_LABEL[cmp.campaign_type] || cmp.campaign_type}
@@ -813,17 +677,18 @@ export default function CampaignsPage() {
                         </td>
                         <td className="py-2 px-2">
                           <div className="flex flex-wrap gap-1">
-                            {(cmp.channels || []).map((ch) => (
-                              <span
-                                key={ch}
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[13px] font-medium border ${CHANNEL_TINT[ch]}`}
-                              >
-                                {ch === 'whatsapp' && <MessageSquare className="w-3 h-3" />}
-                                {ch === 'email' && <Mail className="w-3 h-3" />}
-                                {ch === 'social' && <Share2 className="w-3 h-3" />}
-                                {CHANNEL_LABEL[ch]}
-                              </span>
-                            ))}
+                            {(cmp.channels || []).map((ch) => {
+                              const ChIcon = CHANNEL_ICON[ch];
+                              return (
+                                <span
+                                  key={ch}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium border ${CHANNEL_TINT[ch]}`}
+                                >
+                                  {ChIcon && <ChIcon className="w-3 h-3" />}
+                                  {CHANNEL_LABEL[ch]}
+                                </span>
+                              );
+                            })}
                           </div>
                         </td>
                         <td className="py-2 px-2 text-right font-mono text-slate-700">
@@ -831,7 +696,7 @@ export default function CampaignsPage() {
                         </td>
                         <td className="py-2 px-2">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${STATUS_TINT[cmp.status]}`}
+                            className={`inline-block px-2 py-0.5 rounded font-medium border ${STATUS_TINT[cmp.status]}`}
                           >
                             {STATUS_LABEL[cmp.status] || cmp.status}
                           </span>
@@ -839,11 +704,11 @@ export default function CampaignsPage() {
                         <td className="py-2 px-2 text-slate-500 font-mono text-[13px]">
                           {cmp.scheduled_at
                             ? new Date(cmp.scheduled_at).toLocaleString('en-KE', {
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
                             : '—'}
                         </td>
                         <td className="py-2 px-2 text-slate-500 font-mono text-[13px]">
@@ -856,15 +721,15 @@ export default function CampaignsPage() {
                           <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => void openAnalytics(cmp)}
-                              className="px-2.5 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px]"
+                              className="px-2.5 py-2 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px]"
                             >
-                              Analytics
+                              Results
                             </button>
                             {(cmp.status === 'draft' || cmp.status === 'scheduled') && (
                               <button
                                 onClick={() => void actionDispatch(cmp)}
-                                title="Dispatch now"
-                                className="p-2 rounded-sm bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                title="Send now"
+                                className="p-2 rounded bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                               >
                                 <Play className="w-3.5 h-3.5" />
                               </button>
@@ -873,7 +738,7 @@ export default function CampaignsPage() {
                               <button
                                 onClick={() => void actionPause(cmp)}
                                 title="Pause"
-                                className="p-2 rounded-sm bg-white border border-amber-200 text-amber-700 hover:bg-amber-50"
+                                className="p-2 rounded bg-white border border-amber-200 text-amber-700 hover:bg-amber-50"
                               >
                                 <Pause className="w-3.5 h-3.5" />
                               </button>
@@ -882,7 +747,7 @@ export default function CampaignsPage() {
                               <button
                                 onClick={() => void actionResume(cmp)}
                                 title="Resume"
-                                className="p-2 rounded-sm bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                className="p-2 rounded bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                               >
                                 <Play className="w-3.5 h-3.5" />
                               </button>
@@ -890,7 +755,7 @@ export default function CampaignsPage() {
                             <button
                               onClick={() => setPendingDelete(cmp)}
                               title="Delete"
-                              className="p-2 rounded-sm bg-white border border-red-200 text-red-600 hover:bg-red-50"
+                              className="p-2 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -907,22 +772,21 @@ export default function CampaignsPage() {
       </main>
 
       {wizardOpen && (
-        <Modal onClose={() => setWizardOpen(false)} maxWidth="max-w-3xl">
+        <Modal onClose={() => setWizardOpen(false)} maxWidth="max-w-2xl">
           <div
             className="h-0.5 w-full bg-slate-100 -mt-3 -mx-3 mb-3"
             style={{ width: 'calc(100% + 1.5rem)' }}
           >
             <div
               className="h-full bg-blue-950 transition-all duration-300"
-              style={{ width: `${(wizardStep / 5) * 100}%` }}
+              style={{ width: `${(wizardStep / 3) * 100}%` }}
             />
           </div>
 
-          <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-start justify-between gap-2 mb-1">
             <div className="min-w-0">
-              <h3 className="text-[15px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-blue-950" />
-                New campaign · Step {wizardStep} of 5
+              <h3 className="text-[15px] font-semibold text-slate-900">
+                New campaign · Step {wizardStep} of 3
               </h3>
               <p className="text-[13px] text-slate-500 mt-0.5">{stepTitles[wizardStep - 1]}</p>
             </div>
@@ -941,10 +805,10 @@ export default function CampaignsPage() {
                   <span className="block font-medium text-slate-700 mb-1">Campaign name</span>
                   <input
                     type="text"
-                    placeholder="e.g. End of month M-Pesa discount promo"
+                    placeholder="e.g. Weekend M-Pesa discount"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                   />
                 </label>
 
@@ -959,14 +823,13 @@ export default function CampaignsPage() {
                           key={t}
                           type="button"
                           onClick={() => setNewType(t)}
-                          className={`p-2 rounded-sm border text-left transition ${
-                            active
-                              ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-100'
-                              : 'border-slate-200 bg-white hover:bg-slate-50'
-                          }`}
+                          className={`p-2 rounded border text-left transition ${active
+                            ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-100'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                            }`}
                         >
                           <span
-                            className={`w-7 h-7 rounded-sm flex items-center justify-center border ${CAMPAIGN_TYPE_TINT[t]}`}
+                            className={`w-7 h-7 rounded flex items-center justify-center border ${CAMPAIGN_TYPE_TINT[t]}`}
                           >
                             <Icon className="w-3.5 h-3.5" />
                           </span>
@@ -982,40 +845,44 @@ export default function CampaignsPage() {
                 <div>
                   <p className="font-medium text-slate-700 mb-1.5 inline-flex items-center gap-1.5">
                     <Target className="w-3.5 h-3.5" />
-                    Target audience
+                    Who will receive this?
                   </p>
                   {segments.length === 0 ? (
-                    <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 text-[13px] text-amber-900 flex items-start gap-2">
+                    <div className="bg-amber-50 border border-amber-200 rounded p-2 text-[13px] text-amber-900 flex items-start gap-2">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      No segments available yet. Create one in WhatsApp Contacts or Newsletter
-                      before launching.
+                      No customer groups yet. Create one in WhatsApp Contacts or Newsletter
+                      before sending a campaign.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-0.5">
                       {segments.map((seg) => {
                         const active = newSegmentKey === seg.key;
+                        const SegSourceIcon = seg.source === 'whatsapp' ? FaWhatsapp : Mail;
                         return (
                           <button
                             key={seg.key}
                             type="button"
                             onClick={() => setNewSegmentKey(seg.key)}
-                            className={`flex items-center justify-between gap-2 p-2 rounded-sm border text-left transition ${
-                              active
-                                ? 'border-blue-950 bg-blue-50 text-blue-950 font-medium'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                            }`}
+                            className={`flex items-center justify-between gap-2 p-2 rounded border text-left transition ${active
+                              ? 'border-blue-950 bg-blue-50 text-blue-950 font-medium'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                              }`}
                           >
-                            <div className="min-w-0">
-                              <p className="truncate text-[13px]">{seg.label}</p>
-                              <p className="text-[13px] text-slate-500">
-                                {seg.source === 'whatsapp' ? 'WhatsApp' : 'Newsletter'} ·{' '}
-                                {seg.size.toLocaleString()} contacts
-                              </p>
+                            <div className="min-w-0 flex items-center gap-2">
+                              <SegSourceIcon
+                                className={`w-4 h-4 shrink-0 ${seg.source === 'whatsapp' ? 'text-emerald-600' : 'text-blue-950'}`}
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-[13px]">{seg.label}</p>
+                                <p className="text-[13px] text-slate-500">
+                                  {seg.source === 'whatsapp' ? 'WhatsApp' : 'Email'} ·{' '}
+                                  {seg.size.toLocaleString()} contacts
+                                </p>
+                              </div>
                             </div>
                             <span
-                              className={`w-4 h-4 rounded-full border-2 shrink-0 ${
-                                active ? 'border-blue-950 bg-blue-950' : 'border-slate-300'
-                              }`}
+                              className={`w-4 h-4 rounded-full border-2 shrink-0 ${active ? 'border-blue-950 bg-blue-950' : 'border-slate-300'
+                                }`}
                             />
                           </button>
                         );
@@ -1023,72 +890,68 @@ export default function CampaignsPage() {
                     </div>
                   )}
                 </div>
+
+                <div>
+                  <p className="font-medium text-slate-700 mb-1.5">
+                    Where will it be sent?
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {CHANNEL_OPTIONS.map((opt) => {
+                      const Icon = CHANNEL_ICON[opt.channel];
+                      const active = newChannels.has(opt.channel);
+                      return (
+                        <button
+                          key={opt.channel}
+                          type="button"
+                          onClick={() => toggleChannel(opt.channel)}
+                          className={`p-2 rounded border text-left transition ${active
+                            ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-100'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                            }`}
+                        >
+                          <span
+                            className={`w-8 h-8 rounded flex items-center justify-center border ${opt.tint}`}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </span>
+                          <p className="text-[13px] font-medium text-slate-900 mt-1">
+                            {opt.label}
+                          </p>
+                          <p className="text-[13px] text-slate-500 mt-0.5">{opt.hint}</p>
+                          <div className="flex items-center justify-end mt-2">
+                            <span
+                              className={`w-4 h-4 rounded border flex items-center justify-center ${active
+                                ? 'bg-blue-950 border-blue-950 text-white'
+                                : 'border-slate-300 bg-white'
+                                }`}
+                            >
+                              {active && <Check className="w-3 h-3" />}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             )}
 
             {wizardStep === 2 && (
               <div className="space-y-2">
-                <p className="font-medium text-slate-700">
-                  Pick one or more channels to dispatch on
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {CHANNEL_OPTIONS.map((opt) => {
-                    const Icon = opt.icon;
-                    const active = newChannels.has(opt.channel);
-                    return (
-                      <button
-                        key={opt.channel}
-                        type="button"
-                        onClick={() => toggleChannel(opt.channel)}
-                        className={`p-2 rounded-sm border text-left transition ${
-                          active
-                            ? 'border-blue-950 bg-blue-50 ring-1 ring-blue-100'
-                            : 'border-slate-200 bg-white hover:bg-slate-50'
-                        }`}
-                      >
-                        <span
-                          className={`w-8 h-8 rounded-sm flex items-center justify-center border ${opt.tint}`}
-                        >
-                          <Icon className="w-4 h-4" />
-                        </span>
-                        <p className="text-[13px] font-medium text-slate-900 mt-2">
-                          {opt.label}
-                        </p>
-                        <p className="text-[13px] text-slate-500 mt-0.5">{opt.hint}</p>
-                        <div className="flex items-center justify-end mt-2">
-                          <span
-                            className={`w-4 h-4 rounded-sm border flex items-center justify-center ${
-                              active
-                                ? 'bg-blue-950 border-blue-950 text-white'
-                                : 'border-slate-300 bg-white'
-                            }`}
-                          >
-                            {active && <Check className="w-3 h-3" />}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {wizardStep === 3 && (
-              <div className="space-y-2">
                 {newChannels.has('whatsapp') && (
-                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-sm p-2 space-y-2">
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded p-2 space-y-2">
                     <p className="text-[13px] font-semibold text-emerald-900 inline-flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      WhatsApp content
+                      <FaWhatsapp className="w-4 h-4" />
+                      WhatsApp message
                     </p>
                     <label className="block">
                       <span className="block font-medium text-slate-700 mb-1">
-                        Approved template
+                        Message template
                       </span>
                       <select
                         value={waTemplateId}
                         onChange={(e) => setWaTemplateId(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                       >
                         <option value="">Select a template…</option>
                         {waTemplates.map((t) => (
@@ -1098,74 +961,33 @@ export default function CampaignsPage() {
                         ))}
                       </select>
                     </label>
-                    <label className="block">
-                      <span className="block font-medium text-slate-700 mb-1">
-                        Header (optional)
-                      </span>
-                      <input
-                        type="text"
-                        value={waHeaderText}
-                        onChange={(e) => setWaHeaderText(e.target.value)}
-                        placeholder="e.g. Weekend Flash Sale"
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="block font-medium text-slate-700 mb-1">
-                        Body preview (optional)
-                      </span>
-                      <textarea
-                        rows={2}
-                        value={waBody}
-                        onChange={(e) => setWaBody(e.target.value)}
-                        placeholder="Override or preview the template body…"
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
-                      />
-                    </label>
                   </div>
                 )}
 
                 {newChannels.has('email') && (
-                  <div className="bg-blue-50/50 border border-blue-100 rounded-sm p-3 space-y-2">
+                  <div className="bg-blue-50/50 border border-blue-100 rounded p-2 space-y-2">
                     <p className="text-[13px] font-semibold text-blue-950 inline-flex items-center gap-1.5">
                       <Mail className="w-3.5 h-3.5" />
-                      Email content
+                      Email message
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <label className="block">
-                        <span className="block font-medium text-slate-700 mb-1">Template</span>
-                        <select
-                          value={nlTemplateId}
-                          onChange={(e) => setNlTemplateId(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                        >
-                          <option value="">Select…</option>
-                          {nlTemplates.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="block font-medium text-slate-700 mb-1">
-                          Subscriber list
-                        </span>
-                        <select
-                          value={nlListId}
-                          onChange={(e) => setNlListId(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
-                        >
-                          <option value="">Select…</option>
-                          {nlLists.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.name}
-                              {l.size ? ` · ${l.size.toLocaleString()}` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
+                    <label className="block">
+                      <span className="block font-medium text-slate-700 mb-1">
+                        Send to subscriber list
+                      </span>
+                      <select
+                        value={nlListId}
+                        onChange={(e) => setNlListId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                      >
+                        <option value="">Select a list…</option>
+                        {nlLists.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name}
+                            {l.size ? ` · ${l.size.toLocaleString()}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="block">
                       <span className="block font-medium text-slate-700 mb-1">
                         Subject line
@@ -1175,59 +997,53 @@ export default function CampaignsPage() {
                         value={nlSubject}
                         onChange={(e) => setNlSubject(e.target.value)}
                         placeholder="e.g. Your weekly store update"
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                       />
                     </label>
                     <label className="block">
                       <span className="block font-medium text-slate-700 mb-1">
-                        Body <span className="text-red-500">*</span>
+                        Message body
                       </span>
                       <textarea
                         rows={4}
                         value={nlBody}
                         onChange={(e) => setNlBody(e.target.value)}
                         placeholder="Hi {{customer_name}}, check out our new arrivals…"
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="block font-medium text-slate-700 mb-1">
-                        Preview text (optional)
-                      </span>
-                      <input
-                        type="text"
-                        value={nlPreview}
-                        onChange={(e) => setNlPreview(e.target.value)}
-                        placeholder="Shown in the inbox next to the subject"
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
                       />
                     </label>
                   </div>
                 )}
 
                 {newChannels.has('social') && (
-                  <div className="bg-cyan-50/50 border border-cyan-100 rounded-sm p-3 space-y-2">
+                  <div className="bg-cyan-50/50 border border-cyan-100 rounded p-2 space-y-2">
                     <p className="text-[13px] font-semibold text-cyan-900 inline-flex items-center gap-1.5">
                       <Share2 className="w-3.5 h-3.5" />
                       Social post
                     </p>
                     <div>
-                      <p className="font-medium text-slate-700 mb-1.5">Platforms</p>
+                      <p className="font-medium text-slate-700 mb-1.5">Where to post</p>
                       <div className="flex flex-wrap gap-1.5">
                         {SOCIAL_PLATFORMS.map((p) => {
+                          const meta = PLATFORM_META[p];
+                          if (!meta) return null;
                           const active = socialPlatforms.has(p);
+                          const Icon = meta.Icon;
                           return (
                             <button
                               key={p}
                               type="button"
                               onClick={() => toggleSocialPlatform(p)}
-                              className={`px-2 py-1 rounded-sm border text-[12px] font-medium capitalize transition ${
-                                active
-                                  ? 'bg-blue-950 border-blue-950 text-white'
-                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                              }`}
+                              aria-pressed={active}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-[12px] font-medium transition ${active
+                                ? 'bg-blue-950 border-blue-950 text-white'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                }`}
                             >
-                              {p}
+                              <Icon
+                                className={`w-3.5 h-3.5 ${active ? 'text-white' : meta.tint}`}
+                              />
+                              {meta.label}
                             </button>
                           );
                         })}
@@ -1239,8 +1055,8 @@ export default function CampaignsPage() {
                         rows={4}
                         value={socialCaption}
                         onChange={(e) => setSocialCaption(e.target.value)}
-                        placeholder="Write the social caption…"
-                        className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        placeholder="Write what you want to post…"
+                        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
                       />
                     </label>
                   </div>
@@ -1248,134 +1064,151 @@ export default function CampaignsPage() {
               </div>
             )}
 
-            {wizardStep === 4 && (
-              <div className="space-y-3">
-                <p className="font-medium text-slate-700">Delivery timing</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewScheduleType('now')}
-                    className={`p-2 rounded-sm border text-left transition ${
-                      newScheduleType === 'now'
+            {wizardStep === 3 && (
+              <div className="space-y-2">
+                <div>
+                  <p className="font-medium text-slate-700 mb-1.5">When to send</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewScheduleType('now')}
+                      className={`p-2 rounded border text-left transition ${newScheduleType === 'now'
                         ? 'border-blue-950 bg-blue-50 text-blue-950'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <p className="font-medium">Send immediately</p>
-                    <p className="text-[12px] text-slate-500 mt-0.5">
-                      Dispatch to the audience right away.
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewScheduleType('scheduled')}
-                    className={`p-2 rounded-sm border text-left transition ${
-                      newScheduleType === 'scheduled'
+                        }`}
+                    >
+                      <p className="font-medium">Send right away</p>
+                      <p className="text-[12px] text-slate-500 mt-0.5">
+                        Send to your customers immediately.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewScheduleType('scheduled')}
+                      className={`p-2 rounded border text-left transition ${newScheduleType === 'scheduled'
                         ? 'border-blue-950 bg-blue-50 text-blue-950'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <p className="font-medium">Schedule for later</p>
-                    <p className="text-[12px] text-slate-500 mt-0.5">
-                      Pick an optimal dispatch time.
-                    </p>
-                  </button>
+                        }`}
+                    > 
+                      <p className="font-medium">Schedule for later</p>
+                      <p className="text-[12px] text-slate-500 mt-0.5">
+                        Pick a good time to send.
+                      </p>
+                    </button>
+                  </div>
                 </div>
 
                 {newScheduleType === 'scheduled' && (
                   <label className="block">
                     <span className="block font-medium text-slate-700 mb-1 inline-flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
-                      Dispatch at
+                      Send at
                     </span>
                     <input
                       type="datetime-local"
                       value={newScheduleAt}
                       onChange={(e) => setNewScheduleAt(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                      className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                     />
                   </label>
                 )}
-              </div>
-            )}
 
-            {wizardStep === 5 && (
-              <div className="bg-slate-50 border border-slate-200 rounded-sm p-3 space-y-2">
-                <p className="font-semibold text-slate-900 border-b border-slate-200 pb-2">
-                  Campaign summary
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <SummaryRow label="Name" value={newName || 'Untitled campaign'} />
-                  <SummaryRow label="Type" value={CAMPAIGN_TYPE_LABEL[newType]} />
-                  <SummaryRow
-                    label="Audience"
-                    value={
-                      selectedSegment
-                        ? `${selectedSegment.label} · ${selectedSegment.size.toLocaleString()}`
-                        : '—'
-                    }
-                  />
-                  <SummaryRow
-                    label="Channels"
-                    value={
-                      Array.from(newChannels)
-                        .map((c) => CHANNEL_LABEL[c])
-                        .join(', ') || 'None selected'
-                    }
-                  />
-                  <SummaryRow
-                    label="Schedule"
-                    value={
-                      newScheduleType === 'now'
-                        ? 'Send immediately'
-                        : newScheduleAt
-                          ? new Date(newScheduleAt).toLocaleString('en-KE')
-                          : 'Not scheduled'
-                    }
-                  />
-                  <SummaryRow label="Total dispatches" value={`${newChannels.size}`} />
-                </div>
-
-                {newChannels.has('whatsapp') && (
-                  <div className="pt-2 border-t border-slate-200">
-                    <p className="text-[12px] text-slate-500 mb-1">WhatsApp template</p>
-                    <p className="text-[13px] text-slate-900 font-mono">
-                      {waTemplates.find((t) => t.id === waTemplateId)?.name || '—'}
-                    </p>
+                <div className="bg-slate-50 border border-slate-200 rounded p-2 space-y-2">
+                  <p className="font-semibold text-slate-900 border-b border-slate-200 pb-2">
+                    Review before sending
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <SummaryRow label="Name" value={newName || 'Untitled campaign'} />
+                    <SummaryRow label="Type" value={CAMPAIGN_TYPE_LABEL[newType]} />
+                    <SummaryRow
+                      label="Audience"
+                      value={
+                        selectedSegment
+                          ? `${selectedSegment.label} · ${selectedSegment.size.toLocaleString()}`
+                          : '—'
+                      }
+                    />
+                    <SummaryRow
+                      label="Channels"
+                      value={
+                        Array.from(newChannels)
+                          .map((c) => CHANNEL_LABEL[c])
+                          .join(', ') || 'None selected'
+                      }
+                    />
+                    <SummaryRow
+                      label="When"
+                      value={
+                        newScheduleType === 'now'
+                          ? 'Send right away'
+                          : newScheduleAt
+                            ? new Date(newScheduleAt).toLocaleString('en-KE')
+                            : 'Not scheduled'
+                      }
+                    />
                   </div>
-                )}
-                {newChannels.has('email') && (
-                  <>
+
+                  {newChannels.has('whatsapp') && (
                     <div className="pt-2 border-t border-slate-200">
-                      <p className="text-[12px] text-slate-500 mb-1">Email subject</p>
-                      <p className="text-[13px] text-slate-900">{nlSubject || '—'}</p>
-                    </div>
-                    <div className="pt-2 border-t border-slate-200">
-                      <p className="text-[12px] text-slate-500 mb-1">Email body</p>
-                      <p className="text-[12px] text-slate-700 italic whitespace-pre-wrap line-clamp-4">
-                        {nlBody || '—'}
+                      <p className="text-[12px] text-slate-500 mb-1 inline-flex items-center gap-1">
+                        <FaWhatsapp className="w-3 h-3 text-emerald-600" />
+                        WhatsApp template
+                      </p>
+                      <p className="text-[13px] text-slate-900">
+                        {waTemplates.find((t) => t.id === waTemplateId)?.name || '—'}
                       </p>
                     </div>
-                  </>
-                )}
-                {newChannels.has('social') && (
-                  <div className="pt-2 border-t border-slate-200">
-                    <p className="text-[12px] text-slate-500 mb-1">Social caption</p>
-                    <p className="text-[13px] text-slate-900 italic whitespace-pre-wrap">
-                      {socialCaption || '—'}
-                    </p>
-                  </div>
-                )}
+                  )}
+                  {newChannels.has('email') && (
+                    <>
+                      <div className="pt-2 border-t border-slate-200">
+                        <p className="text-[12px] text-slate-500 mb-1">Email subject</p>
+                        <p className="text-[13px] text-slate-900">{nlSubject || '—'}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-200">
+                        <p className="text-[12px] text-slate-500 mb-1">Email body</p>
+                        <p className="text-[12px] text-slate-700 italic whitespace-pre-wrap line-clamp-4">
+                          {nlBody || '—'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {newChannels.has('social') && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="text-[12px] text-slate-500 mb-1">Social channels</p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {Array.from(socialPlatforms).map((p) => {
+                          const meta = PLATFORM_META[p];
+                          if (!meta) return null;
+                          const Icon = meta.Icon;
+                          return (
+                            <span
+                              key={p}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[12px] font-medium border bg-white border-slate-200 text-slate-700"
+                            >
+                              <Icon className={`w-3 h-3 ${meta.tint}`} />
+                              {meta.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[12px] text-slate-500 mb-1">Caption</p>
+                      <p className="text-[13px] text-slate-900 italic whitespace-pre-wrap">
+                        {socialCaption || '—'}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-2 mt-2 border-t border-slate-200">
+          <div className="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-slate-200">
             {wizardStep > 1 ? (
               <button
                 onClick={() => setWizardStep((p) => p - 1)}
                 disabled={submitting}
-                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] disabled:opacity-60"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Back
@@ -1384,27 +1217,27 @@ export default function CampaignsPage() {
               <div />
             )}
 
-            {wizardStep < 5 ? (
+            {wizardStep < 3 ? (
               <button
                 onClick={() => setWizardStep((p) => p + 1)}
                 disabled={!canAdvance()}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Next step
+                Next
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             ) : (
               <button
                 onClick={() => void launchCampaign()}
                 disabled={submitting || !canAdvance()}
-                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {submitting ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
                   <Send className="w-3.5 h-3.5" />
                 )}
-                {submitting ? 'Dispatching…' : 'Launch campaign'}
+                {submitting ? 'Sending…' : 'Send campaign'}
               </button>
             )}
           </div>
@@ -1412,12 +1245,12 @@ export default function CampaignsPage() {
       )}
 
       {analyticsCampaign && (
-        <Modal onClose={() => setAnalyticsCampaign(null)} maxWidth="max-w-3xl">
+        <Modal onClose={() => setAnalyticsCampaign(null)} maxWidth="max-w-2xl">
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="min-w-0">
               <h3 className="text-[15px] font-semibold text-slate-900 inline-flex items-center gap-1.5">
                 <BarChart3 className="w-3.5 h-3.5 text-blue-950" />
-                Campaign analytics
+                Campaign results
               </h3>
               <p className="text-[13px] text-slate-500 mt-0.5 truncate">
                 {analyticsCampaign.name}
@@ -1425,7 +1258,7 @@ export default function CampaignsPage() {
             </div>
             <button
               onClick={() => setAnalyticsCampaign(null)}
-              className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+              className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1434,15 +1267,15 @@ export default function CampaignsPage() {
           {analyticsLoading ? (
             <div className="py-12 flex items-center justify-center gap-2 text-slate-400 text-[13px]">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Loading analytics…
+              Loading results…
             </div>
           ) : !analyticsData ? (
             <div className="py-12 text-center text-slate-400 text-[13px]">
-              No analytics available for this campaign yet.
+              No results yet for this campaign.
             </div>
           ) : (
             <div className="space-y-2 text-[13px]">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 <AnalyticsKpi
                   label="Sent"
                   value={analyticsData.totals.sent.toLocaleString()}
@@ -1466,19 +1299,10 @@ export default function CampaignsPage() {
                   icon={<MousePointerClick className="w-3 h-3" />}
                   tint="text-indigo-700"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <AnalyticsKpi
                   label="Converted"
                   value={analyticsData.totals.converted.toLocaleString()}
                   tint="text-emerald-700"
-                />
-                <AnalyticsKpi
-                  label="Failed"
-                  value={analyticsData.totals.failed.toLocaleString()}
-                  icon={<XCircle className="w-3 h-3" />}
-                  tint="text-red-600"
                 />
                 <AnalyticsKpi
                   label="Revenue"
@@ -1486,75 +1310,10 @@ export default function CampaignsPage() {
                   icon={<DollarSign className="w-3 h-3" />}
                   tint="text-emerald-700"
                 />
-                <AnalyticsKpi
-                  label="Channels"
-                  value={`${analyticsData.per_channel.length}`}
-                  icon={<Layers className="w-3 h-3" />}
-                />
               </div>
 
               <div>
-                <p className="font-medium text-slate-700 mb-2">Per-channel breakdown</p>
-                <div className="border border-slate-200 rounded-sm overflow-hidden">
-                  <table className="w-full text-left border-collapse text-[13px]">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                        <th className="py-2 px-2 font-medium">Channel</th>
-                        <th className="py-2 px-2 font-medium">Status</th>
-                        <th className="py-2 px-2 font-medium text-right">Sent</th>
-                        <th className="py-2 px-2 font-medium text-right">Delivered</th>
-                        <th className="py-2 px-2 font-medium text-right">Opened</th>
-                        <th className="py-2 px-2 font-medium text-right">Clicked</th>
-                        <th className="py-2 px-2 font-medium text-right">Failed</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {analyticsData.per_channel.map((row) => (
-                        <tr key={row.channel}>
-                          <td className="py-2 px-2">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium border ${CHANNEL_TINT[row.channel]}`}
-                            >
-                              {row.channel === 'whatsapp' && <MessageSquare className="w-3 h-3" />}
-                              {row.channel === 'email' && <Mail className="w-3 h-3" />}
-                              {row.channel === 'social' && <Share2 className="w-3 h-3" />}
-                              {CHANNEL_LABEL[row.channel]}
-                            </span>
-                          </td>
-                          <td className="py-2 px-2 text-slate-600 capitalize">
-                            {row.status}
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono">
-                            {row.sent.toLocaleString()}
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono">
-                            {row.delivered.toLocaleString()}
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono">
-                            {row.opened.toLocaleString()}
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono">
-                            {row.clicked.toLocaleString()}
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono text-red-600">
-                            {row.failed.toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                      {analyticsData.per_channel.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="py-6 text-center text-slate-400 text-[13px]">
-                            No dispatches recorded yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div>
-                <p className="font-medium text-slate-700 mb-2">Delivery funnel</p>
+                <p className="font-medium text-slate-700 mb-1">How far did customers go?</p>
                 <div className="space-y-1.5">
                   {[
                     { label: 'Sent', value: analyticsData.totals.sent, color: 'bg-blue-950' },
@@ -1570,7 +1329,7 @@ export default function CampaignsPage() {
                     return (
                       <div
                         key={row.label}
-                        className="bg-slate-50 border border-slate-200 rounded-sm p-2"
+                        className="bg-slate-50 border border-slate-200 rounded p-2"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[13px] font-medium text-slate-700">
@@ -1580,7 +1339,7 @@ export default function CampaignsPage() {
                             {row.value.toLocaleString()} · {pct.toFixed(1)}%
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-200 rounded-sm overflow-hidden">
+                        <div className="h-1.5 w-full bg-slate-200 rounded overflow-hidden">
                           <div
                             className={`h-full ${row.color}`}
                             style={{ width: `${Math.max(pct, row.value > 0 ? 2 : 0)}%` }}
@@ -1594,7 +1353,7 @@ export default function CampaignsPage() {
             </div>
           )}
 
-          <div className="flex justify-end pt-2 mt-2 border-t border-slate-200">
+          <div className="flex justify-end pt-2 mt-1 border-t border-slate-200">
             <button
               onClick={() => setAnalyticsCampaign(null)}
               className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
@@ -1608,7 +1367,7 @@ export default function CampaignsPage() {
       {pendingDelete && (
         <Modal onClose={() => setPendingDelete(null)} maxWidth="max-w-md">
           <div className="text-center space-y-2">
-            <div className="w-10 h-10 rounded-sm bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+            <div className="w-10 h-10 rounded bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
@@ -1616,59 +1375,26 @@ export default function CampaignsPage() {
                 Delete &ldquo;{pendingDelete.name}&rdquo;?
               </h3>
               <p className="text-slate-500 mt-1 text-[13px]">
-                This removes the campaign from your database. Dispatches already sent on each
-                channel remain intact.
+                Messages already sent to your customers stay delivered. This only removes the
+                campaign from your list.
               </p>
             </div>
             <div className="flex justify-center gap-2 pt-1">
               <button
                 onClick={() => setPendingDelete(null)}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px]"
               >
                 Cancel
               </button>
               <button
                 onClick={() => void confirmDelete()}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded-sm text-[13px]"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-2 rounded text-[13px]"
               >
                 Delete
               </button>
             </div>
           </div>
         </Modal>
-      )}
-    </div>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  helper,
-  icon,
-  tint,
-}: {
-  label: string;
-  value: string;
-  helper?: string;
-  icon?: React.ReactNode;
-  tint?: string;
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium text-slate-500">{label}</p>
-        <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">{value}</p>
-        {helper && <p className="text-[12px] text-slate-500 mt-0.5 truncate">{helper}</p>}
-      </div>
-      {icon && (
-        <span
-          className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 ${
-            tint || 'bg-slate-100 text-slate-700'
-          }`}
-        >
-          {icon}
-        </span>
       )}
     </div>
   );
@@ -1695,12 +1421,8 @@ function AnalyticsKpi({
   tint?: string;
 }) {
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
-      <p
-        className={`text-[12px] inline-flex items-center gap-1 ${
-          tint || 'text-slate-500'
-        }`}
-      >
+    <div className="bg-slate-50 border border-slate-200 rounded p-2">
+      <p className={`text-[12px] inline-flex items-center gap-1 ${tint || 'text-slate-500'}`}>
         {icon}
         {label}
       </p>
@@ -1726,100 +1448,11 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className={`bg-white border border-slate-200 rounded-sm ${maxWidth} w-full max-h-[90vh] flex flex-col shadow-xl p-3`}
+        className={`bg-white border border-slate-200 rounded ${maxWidth} w-full max-h-[90vh] flex flex-col p-2`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex-1 overflow-y-auto">{children}</div>
       </div>
-    </div>
-  );
-}
-
-function FilterDropdown({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string | null;
-  options: string[];
-  onChange: (v: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    if (open) {
-      document.addEventListener('mousedown', onDoc);
-      document.addEventListener('keydown', onKey);
-    }
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const isActive = value !== null;
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium whitespace-nowrap transition ${
-          isActive
-            ? 'bg-blue-50 border-blue-950 text-blue-950'
-            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-        }`}
-      >
-        {value ?? label}
-        <ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="absolute top-full mt-1 left-0 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1">
-          <button
-            onClick={() => {
-              onChange(null);
-              setOpen(false);
-            }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${
-              !isActive
-                ? 'bg-blue-50 text-blue-950 font-medium'
-                : 'text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            All {label.toLowerCase()}
-          </button>
-          <div className="border-t border-slate-100 my-1" />
-          {options.map((opt) => {
-            const selected = value === opt;
-            return (
-              <button
-                key={opt}
-                onClick={() => {
-                  onChange(opt);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${
-                  selected
-                    ? 'bg-blue-50 text-blue-950 font-medium'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span className="truncate">{opt}</span>
-                {selected && <Check className="w-3.5 h-3.5" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

@@ -82,6 +82,7 @@ interface OrderView {
     coupon: string | null;
     shipping: number;
     vat: number;
+    taxRate: number;
     paymentMethod: string;
     paymentRef: string;
     courier?: string;
@@ -110,6 +111,20 @@ const formatKES = (n: number | string): string => {
 const numOr0 = (v: string | number | null | undefined): number => {
     const n = typeof v === 'string' ? parseFloat(v) : v;
     return Number.isFinite(n as number) ? (n as number) : 0;
+};
+
+const computeTaxRate = (order: OrderDetail): number => {
+    const anyOrder = order as unknown as { tax_rate?: number };
+    if (typeof anyOrder.tax_rate === 'number' && anyOrder.tax_rate > 0) {
+        return anyOrder.tax_rate;
+    }
+    const base = numOr0(order.subtotal) - numOr0(order.discount);
+    const tax = numOr0(order.tax);
+    const net = base - tax;
+    if (net > 0 && tax > 0) {
+        return Math.round((tax / net) * 100);
+    }
+    return 16;
 };
 
 const mapStatus = (status: ApiOrderStatus): UiStatus => {
@@ -208,6 +223,7 @@ const listRowToView = (row: OrderListRow): OrderView => ({
     coupon: null,
     shipping: 0,
     vat: 0,
+    taxRate: 16,
     paymentMethod: '',
     paymentRef: '',
     estimatedDelivery: '',
@@ -248,6 +264,7 @@ const detailToView = (d: OrderDetail): OrderView => {
         coupon: d.coupon || null,
         shipping: numOr0(d.shipping),
         vat: numOr0(d.tax),
+        taxRate: computeTaxRate(d),
         paymentMethod:
             d.payment_method === 'MPESA' ? 'M-PESA' : 'Cash on delivery',
         paymentRef: d.mpesa_receipt || d.payment_reference || '—',
@@ -312,8 +329,8 @@ export default function OrdersPage() {
     return (
         <Suspense
             fallback={
-                <div className="bg-white border border-slate-200 rounded-sm p-2 text-center text-[13px] text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                <div className="bg-white border border-slate-200 rounded p-2 text-center text-[13px] text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
                     Loading orders…
                 </div>
             }
@@ -428,8 +445,7 @@ function OrdersInner() {
         const ref = searchParams.get('ref');
         if (!ref) return;
         const match = orders.find((o) => o.reference === ref);
-        if (match) openDetail(ref, true);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (match) openDetail(ref, true); 
     }, [orders, searchParams]);
 
     useEffect(() => {
@@ -647,26 +663,26 @@ function OrdersInner() {
     return (
         <div className="space-y-2">
             {toast && (
-                <div className="fixed bottom-2 right-2 z-[80] bg-blue-950 text-white text-[13px] px-2 py-2 rounded-sm shadow-lg flex items-start gap-2 max-w-md no-print">
+                <div className="fixed bottom-2 right-2 z-[80] bg-blue-950 text-white text-[13px] px-2 py-2 rounded flex items-start gap-2 max-w-md no-print">
                     <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed">{toast}</span>
+                    <span className="">{toast}</span>
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-sm p-2 no-print">
+            <div className="bg-white border border-slate-200 rounded p-2 no-print">
                 <h1 className="text-[15px] font-semibold text-slate-900">My Orders</h1>
                 <p className="text-[13px] text-slate-500 mt-0.5">
                     Track, review, and manage all your purchases
                 </p>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-sm p-2 no-print">
+            <div className="bg-white border border-slate-200 rounded p-2 no-print">
                 <div className="md:hidden space-y-2">
                     <select
                         value={activeTab}
                         onChange={(e) => setActiveTab(e.target.value as Tab)}
                         aria-label="Filter orders by status"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-2 text-[13px] font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-2 text-[13px] font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-950"
                     >
                         {TABS.map((tab) => (
                             <option key={tab} value={tab}>
@@ -679,7 +695,7 @@ function OrdersInner() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search orders or products…"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-sm px-2 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                     />
                 </div>
 
@@ -692,11 +708,10 @@ function OrdersInner() {
                                     key={tab}
                                     type="button"
                                     onClick={() => setActiveTab(tab)}
-                                    className={`px-2 py-2 rounded-sm text-[13px] font-medium whitespace-nowrap transition-colors ${
-                                        isActive
-                                            ? 'bg-blue-950 text-white'
-                                            : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
-                                    }`}
+                                    className={`px-2 py-2 rounded text-[13px] font-medium whitespace-nowrap transition-colors ${isActive
+                                        ? 'bg-blue-950 text-white'
+                                        : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
+                                        }`}
                                 >
                                     {tab}
                                 </button>
@@ -708,30 +723,30 @@ function OrdersInner() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search orders or products…"
-                        className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-sm px-2 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded px-2 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                     />
                 </div>
             </div>
 
             {errorMessage && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm text-[13px] flex items-center gap-2 no-print">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded text-[13px] flex items-center gap-2 no-print">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {errorMessage}
                 </div>
             )}
 
             {isLoading ? (
-                <div className="bg-white border border-slate-200 rounded-sm p-8 text-center text-[13px] text-slate-500 no-print">
-                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                <div className="bg-white border border-slate-200 rounded p-8 text-center text-[13px] text-slate-500 no-print">
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
                     Loading orders…
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-sm p-8 text-center no-print">
-                    <ShoppingBag className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                <div className="bg-white border border-slate-200 rounded p-8 text-center no-print">
+                    <ShoppingBag className="h-10 w-10 text-slate-300 mx-auto mb-1" />
                     <h2 className="text-[15px] font-semibold text-slate-900">
                         {orders.length === 0 ? 'No orders yet' : 'No orders found'}
                     </h2>
-                    <p className="text-[13px] text-slate-500 mt-2">
+                    <p className="text-[13px] text-slate-500 mt-1">
                         {orders.length === 0
                             ? 'Place your first order to see it here.'
                             : 'Try a different filter or search term.'}
@@ -739,7 +754,7 @@ function OrdersInner() {
                     {orders.length === 0 && (
                         <Link
                             href="/pages/products"
-                            className="mt-2 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
+                            className="mt-1 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
                         >
                             Browse Products
                         </Link>
@@ -752,18 +767,18 @@ function OrdersInner() {
                         return (
                             <li
                                 key={order.reference}
-                                className="bg-white border border-slate-200 rounded-sm overflow-hidden"
+                                className="bg-white border border-slate-200 rounded overflow-hidden"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2 p-2 border-b border-slate-100 bg-slate-50">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-[13px] font-semibold text-slate-900 font-mono">
                                             #{order.reference}
                                         </span>
-                                        <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${statusColor(order.status)}`}>
+                                        <span className={`text-[13px] font-medium px-2 py-0.5 rounded border ${statusColor(order.status)}`}>
                                             {order.status}
                                         </span>
                                         {payBadge && (
-                                            <span className={`text-[13px] font-medium px-2 py-0.5 rounded-sm border ${payBadge}`}>
+                                            <span className={`text-[13px] font-medium px-2 py-0.5 rounded border ${payBadge}`}>
                                                 {paymentStatusLabel(order.paymentStatus)}
                                             </span>
                                         )}
@@ -781,7 +796,7 @@ function OrdersInner() {
                                                     <img
                                                         src={item.image || '/placeholder.png'}
                                                         alt={item.name}
-                                                        className="h-12 w-12 rounded-sm object-cover border border-slate-200"
+                                                        className="h-12 w-12 rounded object-cover border border-slate-200"
                                                     />
                                                     <div className="hidden sm:block min-w-0 max-w-[180px]">
                                                         <p className="text-[13px] font-medium text-slate-900 truncate">
@@ -834,7 +849,7 @@ function OrdersInner() {
                     onClick={() => !reordering && !claiming && !rejectOpen && closeDetail()}
                 >
                     <div
-                        className="bg-white w-full max-w-3xl rounded-sm shadow-2xl border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col"
+                        className="bg-white w-full max-w-3xl rounded border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between p-2 border-b border-slate-200 bg-slate-50 shrink-0 no-print">
@@ -847,16 +862,16 @@ function OrdersInner() {
                                 </h2>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                                <span className={`text-[13px] font-medium px-2 py-1 rounded-sm border ${statusColor(detail.status)}`}>
+                                <span className={`text-[13px] font-medium px-2 py-1 rounded border ${statusColor(detail.status)}`}>
                                     {detail.status}
                                 </span>
                                 {detail.paymentStatus === 'refunded' && (
-                                    <span className="text-[13px] font-medium px-2 py-1 rounded-sm border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                    <span className="text-[13px] font-medium px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-200">
                                         Refunded
                                     </span>
                                 )}
                                 {detail.paymentStatus === 'failed' && (
-                                    <span className="text-[13px] font-medium px-2 py-1 rounded-sm border bg-red-50 text-red-700 border-red-200">
+                                    <span className="text-[13px] font-medium px-2 py-1 rounded border bg-red-50 text-red-700 border-red-200">
                                         Payment failed
                                     </span>
                                 )}
@@ -864,7 +879,7 @@ function OrdersInner() {
                                     type="button"
                                     onClick={closeDetail}
                                     disabled={reordering || claiming}
-                                    className="h-8 w-8 flex items-center justify-center rounded-sm hover:bg-slate-200 text-slate-500 disabled:opacity-40"
+                                    className="h-8 w-8 flex items-center justify-center rounded hover:bg-slate-200 text-slate-500 disabled:opacity-40"
                                     aria-label="Close"
                                 >
                                     <X className="h-4 w-4" />
@@ -875,14 +890,14 @@ function OrdersInner() {
                         <div className="overflow-y-auto p-2 space-y-2">
                             {detailLoading ? (
                                 <div className="py-8 text-center text-[13px] text-slate-500">
-                                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
                                     Loading order details…
                                 </div>
                             ) : (
                                 <>
                                     {detail.timeline.length > 0 && (
                                         <section className="no-print">
-                                            <h3 className="text-[13px] font-semibold uppercase text-slate-500 mb-2">
+                                            <h3 className="text-[13px] font-semibold uppercase text-slate-500 mb-1">
                                                 Delivery Progress
                                             </h3>
                                             <ol className="space-y-2">
@@ -895,15 +910,14 @@ function OrdersInner() {
                                                         <li key={idx} className="flex gap-2">
                                                             <div className="flex flex-col items-center">
                                                                 <span
-                                                                    className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${
-                                                                        isCancelled || isFailed
-                                                                            ? 'bg-red-100 text-red-700'
-                                                                            : isReturned
-                                                                                ? 'bg-orange-100 text-orange-700'
-                                                                                : isLast
-                                                                                    ? 'bg-emerald-100 text-emerald-700'
-                                                                                    : 'bg-blue-100 text-blue-950'
-                                                                    }`}
+                                                                    className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${isCancelled || isFailed
+                                                                        ? 'bg-red-100 text-red-700'
+                                                                        : isReturned
+                                                                            ? 'bg-orange-100 text-orange-700'
+                                                                            : isLast
+                                                                                ? 'bg-emerald-100 text-emerald-700'
+                                                                                : 'bg-blue-100 text-blue-950'
+                                                                        }`}
                                                                 >
                                                                     {isCancelled || isFailed ? (
                                                                         <X className="h-3.5 w-3.5" />
@@ -938,7 +952,7 @@ function OrdersInner() {
                                     )}
 
                                     {(detail.trackingNumber || detail.courier || detail.estimatedDelivery) && (
-                                        <section className="bg-slate-50 border border-slate-200 rounded-sm p-2 no-print">
+                                        <section className="bg-slate-50 border border-slate-200 rounded p-2 no-print">
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[13px]">
                                                 {detail.courier && (
                                                     <div>
@@ -978,13 +992,13 @@ function OrdersInner() {
                                         <h3 className="text-[13px] font-semibold uppercase text-slate-500 mb-2 flex items-center gap-2">
                                             <Package className="h-3.5 w-3.5" /> Items ({detail.items.length})
                                         </h3>
-                                        <ul className="divide-y divide-slate-100 border border-slate-200 rounded-sm overflow-hidden">
+                                        <ul className="divide-y divide-slate-100 border border-slate-200 rounded overflow-hidden">
                                             {detail.items.map((item) => (
                                                 <li key={item.key} className="flex items-center gap-2 p-2">
                                                     <img
                                                         src={item.image || '/placeholder.png'}
                                                         alt={item.name}
-                                                        className="h-14 w-14 rounded-sm object-cover border border-slate-200 shrink-0"
+                                                        className="h-14 w-14 rounded object-cover border border-slate-200 shrink-0"
                                                     />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-[13px] uppercase text-slate-500 font-medium">
@@ -1011,11 +1025,11 @@ function OrdersInner() {
                                     </section>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 no-print">
-                                        <section className="border border-slate-200 rounded-sm p-2">
-                                            <h3 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2">
+                                        <section className="border border-slate-200 rounded p-2">
+                                            <h3 className="text-[13px] font-semibold uppercase text-slate-500 mb-2 flex items-center gap-2">
                                                 <MapPin className="h-3.5 w-3.5" /> Shipping Address
                                             </h3>
-                                            <p className="text-[13px] text-slate-700 leading-relaxed">
+                                            <p className="text-[13px] text-slate-700">
                                                 <span className="font-semibold text-slate-900">
                                                     {detail.shippingAddress.name}
                                                 </span>
@@ -1031,8 +1045,8 @@ function OrdersInner() {
                                             </p>
                                         </section>
 
-                                        <section className="border border-slate-200 rounded-sm p-2">
-                                            <h3 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2">
+                                        <section className="border border-slate-200 rounded p-2">
+                                            <h3 className="text-[13px] font-semibold uppercase  text-slate-500 mb-1 flex items-center gap-2">
                                                 <CreditCard className="h-3.5 w-3.5" /> Payment
                                             </h3>
                                             <p className="text-[13px] text-slate-700">
@@ -1041,20 +1055,20 @@ function OrdersInner() {
                                                     {detail.paymentMethod}
                                                 </span>
                                             </p>
-                                            <p className="text-[13px] text-slate-700 mt-2">
+                                            <p className="text-[13px] text-slate-700 mt-1">
                                                 <span className="text-slate-500">Reference:</span>{' '}
                                                 <span className="font-mono text-slate-900">
                                                     {detail.paymentRef}
                                                 </span>
                                             </p>
                                             {detail.paymentStatus === 'refunded' && (
-                                                <p className="text-[13px] mt-2 inline-flex items-center gap-2 px-2 py-1 rounded-sm bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                <p className="text-[13px] mt-1 inline-flex items-center gap-2 px-2 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                                                     <RefreshCw className="h-3 w-3" />
                                                     Refunded to original method
                                                 </p>
                                             )}
                                             {detail.paymentStatus === 'failed' && (
-                                                <p className="text-[13px] mt-2 inline-flex items-center gap-2 px-2 py-1 rounded-sm bg-red-50 text-red-700 border border-red-200">
+                                                <p className="text-[13px] mt-1 inline-flex items-center gap-2 px-2 py-1 rounded bg-red-50 text-red-700 border border-red-200">
                                                     <AlertCircle className="h-3 w-3" />
                                                     Payment was not completed
                                                 </p>
@@ -1062,7 +1076,7 @@ function OrdersInner() {
                                         </section>
                                     </div>
 
-                                    <section className="border border-slate-200 rounded-sm p-2 space-y-2 text-[13px] no-print">
+                                    <section className="border border-slate-200 rounded p-2 space-y-2 text-[13px] no-print">
                                         <div className="flex justify-between text-slate-700">
                                             <span>Subtotal</span>
                                             <span className="font-medium">{formatKES(detail.subtotal)}</span>
@@ -1088,10 +1102,8 @@ function OrdersInner() {
                                         <div className="flex justify-between text-slate-700">
                                             <span>
                                                 VAT
-                                                {detail.subtotal - detail.discount > 0 && detail.vat > 0
-                                                    ? ` (${Math.round(
-                                                        (detail.vat / (detail.subtotal - detail.discount)) * 100,
-                                                    )}%)`
+                                                {detail.vat > 0 && detail.taxRate > 0
+                                                    ? ` (${detail.taxRate}%)`
                                                     : ''}
                                             </span>
                                             <span className="font-medium">{formatKES(detail.vat)}</span>
@@ -1105,9 +1117,9 @@ function OrdersInner() {
                                     </section>
 
                                     {rawDetail && (
-                                        <section className="pt-2 border-t border-slate-200">
-                                            <div className="flex items-center justify-between mb-2 flex-wrap gap-2 no-print">
-                                                <h3 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">
+                                        <section className="pt-1 border-t border-slate-200">
+                                            <div className="flex items-center justify-between mb-1 flex-wrap gap-2 no-print">
+                                                <h3 className="text-[13px] font-semibold uppercase text-slate-500">
                                                     Receipt
                                                 </h3>
                                                 <div className="flex items-center gap-2 flex-wrap">
@@ -1115,7 +1127,7 @@ function OrdersInner() {
                                                         type="button"
                                                         onClick={() => handleDownloadPdf(detail.reference)}
                                                         disabled={pdfBusy}
-                                                        className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] disabled:opacity-60"
+                                                        className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
                                                     >
                                                         {pdfBusy ? (
                                                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1127,7 +1139,7 @@ function OrdersInner() {
                                                     <button
                                                         type="button"
                                                         onClick={handlePrintReceipt}
-                                                        className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px]"
+                                                        className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px]"
                                                     >
                                                         <Printer className="h-3 w-3" />
                                                         Print
@@ -1135,7 +1147,7 @@ function OrdersInner() {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleShareReceipt(detail)}
-                                                        className="inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
+                                                        className="inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
                                                     >
                                                         <Share2 className="h-3 w-3" />
                                                         Share
@@ -1158,7 +1170,7 @@ function OrdersInner() {
                                 <button
                                     type="button"
                                     onClick={() => flash('Tracking link not available yet.')}
-                                    className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px]"
+                                    className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded text-[13px]"
                                 >
                                     <Truck className="h-3.5 w-3.5" /> Track
                                 </button>
@@ -1170,7 +1182,7 @@ function OrdersInner() {
                                     onClick={() => handleReorder(detail.reference)}
                                     disabled={reordering}
                                     aria-busy={reordering}
-                                    className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] disabled:opacity-60"
+                                    className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
                                 >
                                     {reordering ? (
                                         <>
@@ -1190,7 +1202,7 @@ function OrdersInner() {
                                     type="button"
                                     onClick={() => setRejectOpen(true)}
                                     disabled={reordering || claiming}
-                                    className="inline-flex items-center gap-2 bg-white border border-red-300 hover:bg-red-50 text-red-700 font-medium px-2 py-2 rounded-sm text-[13px] disabled:opacity-60"
+                                    className="inline-flex items-center gap-2 bg-white border border-red-300 hover:bg-red-50 text-red-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
                                 >
                                     <Ban className="h-3.5 w-3.5" />
                                     Cancel Order
@@ -1203,7 +1215,7 @@ function OrdersInner() {
                                     onClick={() => handleClaim(detail.reference)}
                                     disabled={claiming}
                                     aria-busy={claiming}
-                                    className="inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px] disabled:opacity-60"
+                                    className="inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
                                 >
                                     {claiming ? (
                                         <>
@@ -1224,7 +1236,7 @@ function OrdersInner() {
                                 onClick={() => handleSupport(detail.reference)}
                                 disabled={supportLoading}
                                 aria-busy={supportLoading}
-                                className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded-sm text-[13px] disabled:opacity-60"
+                                className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
                             >
                                 {supportLoading ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1238,7 +1250,7 @@ function OrdersInner() {
                                 type="button"
                                 onClick={closeDetail}
                                 disabled={reordering || claiming}
-                                className="ml-auto inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px] disabled:opacity-60"
+                                className="ml-auto inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
                             >
                                 Close
                             </button>
@@ -1266,6 +1278,7 @@ const CustomerReceiptCard = React.forwardRef<
     const discountValue = parseFloat(String(order.discount)) || 0;
     const shippingValue = parseFloat(String(order.shipping)) || 0;
     const totalUnits = order.items.reduce((sum, i) => sum + i.quantity, 0);
+    const taxRate = computeTaxRate(order);
 
     const qrValue = JSON.stringify({
         ref: order.reference,
@@ -1278,7 +1291,7 @@ const CustomerReceiptCard = React.forwardRef<
     return (
         <div
             ref={ref}
-            className="receipt-printable bg-white border border-slate-200 rounded-sm overflow-hidden shadow-sm print:border-0 print:shadow-none print:rounded-none print:w-full print:max-w-[190mm] print:mx-auto print:flex print:flex-col print:justify-between print:min-h-[277mm]"
+            className="receipt-printable bg-white border border-slate-200 rounded overflow-hidden print:border-0 print:shadow-none print:rounded-none print:w-full print:max-w-[190mm] print:mx-auto print:flex print:flex-col print:justify-between print:min-h-[277mm]"
         >
             <div className="flex justify-between items-start gap-2 px-2 py-2 border-b-2 border-slate-100 print:border-slate-900 print:pb-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -1290,7 +1303,7 @@ const CustomerReceiptCard = React.forwardRef<
                             className="w-12 h-12 object-contain shrink-0"
                         />
                     ) : (
-                        <div className="w-10 h-10 rounded-sm bg-blue-950 text-white flex items-center justify-center shrink-0 font-bold text-[15px]">
+                        <div className="w-10 h-10 rounded bg-blue-950 text-white flex items-center justify-center shrink-0 font-bold text-[15px]">
                             {SHOP.name.charAt(0)}
                         </div>
                     )}
@@ -1308,7 +1321,7 @@ const CustomerReceiptCard = React.forwardRef<
                 </div>
 
                 <div className="text-right shrink-0">
-                    <p className="text-[13px] uppercase tracking-[0.14em] text-slate-400 font-semibold">
+                    <p className="text-[13px] uppercase text-slate-400 font-semibold">
                         Receipt
                     </p>
                     <p className="text-[13px] font-mono font-bold text-slate-900">
@@ -1318,10 +1331,9 @@ const CustomerReceiptCard = React.forwardRef<
                         {formatDateTime(order.created_at)}
                     </p>
                     <span
-                        className={`inline-flex items-center gap-2 mt-2 px-2 py-0.5 rounded-sm text-[13px] font-medium border ${
-                            paymentStatusBadge(order.payment_status) ??
+                        className={`inline-flex items-center gap-2 mt-2 px-2 py-0.5 rounded text-[13px] font-medium border ${paymentStatusBadge(order.payment_status) ??
                             'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}
+                            }`}
                     >
                         <span
                             className={`w-1.5 h-1.5 rounded-full ${paymentDotColor(order.payment_status)}`}
@@ -1333,7 +1345,7 @@ const CustomerReceiptCard = React.forwardRef<
 
             <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-2 sm:gap-8 my-2 px-2">
                 <div>
-                    <p className="text-[13px] uppercase tracking-[0.14em] text-slate-400 font-semibold mb-2">
+                    <p className="text-[13px] uppercase text-slate-400 font-semibold mb-2">
                         Shipped to
                     </p>
                     <div className="space-y-2 text-[13px]">
@@ -1365,7 +1377,7 @@ const CustomerReceiptCard = React.forwardRef<
                 </div>
 
                 <div>
-                    <p className="text-[13px] uppercase tracking-[0.14em] text-slate-400 font-semibold mb-2">
+                    <p className="text-[13px] uppercase text-slate-400 font-semibold mb-2">
                         Payment profile
                     </p>
                     <dl className="space-y-2 text-[13px]">
@@ -1395,13 +1407,13 @@ const CustomerReceiptCard = React.forwardRef<
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-slate-200 print:border-slate-900">
-                            <th className="py-2 pr-2 text-[13px] uppercase tracking-[0.14em] text-slate-400 font-semibold">
+                            <th className="py-2 pr-2 text-[13px] uppercase text-slate-400 font-semibold">
                                 Item
                             </th>
-                            <th className="py-2 px-2 text-[13px] uppercase tracking-[0.14em] text-slate-400 font-semibold text-center w-16">
+                            <th className="py-2 px-2 text-[13px] uppercase text-slate-400 font-semibold text-center w-16">
                                 Qty
                             </th>
-                            <th className="py-2 pl-2 text-[13px] uppercase tracking-[0.14em] text-slate-400 font-semibold text-right w-28">
+                            <th className="py-2 pl-2 text-[13px] uppercase text-slate-400 font-semibold text-right w-28">
                                 Total
                             </th>
                         </tr>
@@ -1417,18 +1429,17 @@ const CustomerReceiptCard = React.forwardRef<
                                 >
                                     <td className="py-2 pr-2">
                                         <div className="flex items-start gap-2">
-                                            {item.image ? (
-                                                // eslint-disable-next-line @next/next/no-img-element
+                                            {item.image ? ( 
                                                 <img
                                                     src={item.image}
                                                     alt=""
-                                                    className="w-9 h-9 rounded-sm object-cover border border-slate-200 bg-white shrink-0"
+                                                    className="w-9 h-9 rounded object-cover border border-slate-200 bg-white shrink-0"
                                                 />
                                             ) : (
-                                                <span className="w-9 h-9 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
+                                                <span className="w-9 h-9 rounded bg-slate-100 border border-slate-200 shrink-0" />
                                             )}
                                             <div className="min-w-0">
-                                                <p className="text-[13px] font-semibold text-slate-900 leading-snug">
+                                                <p className="text-[13px] font-semibold text-slate-900">
                                                     {item.name}
                                                 </p>
                                                 {item.brand && (
@@ -1438,12 +1449,12 @@ const CustomerReceiptCard = React.forwardRef<
                                                 )}
                                                 <div className="flex flex-wrap gap-2 mt-0.5">
                                                     {item.serial_number && (
-                                                        <span className="inline-block px-2 py-0.5 rounded-sm bg-white border border-slate-200 text-[13px] font-mono text-slate-600">
+                                                        <span className="inline-block px-2 py-0.5 rounded bg-white border border-slate-200 text-[13px] font-mono text-slate-600">
                                                             S/N {item.serial_number}
                                                         </span>
                                                     )}
                                                     {item.imei && (
-                                                        <span className="inline-block px-2 py-0.5 rounded-sm bg-white border border-slate-200 text-[13px] font-mono text-slate-600">
+                                                        <span className="inline-block px-2 py-0.5 rounded bg-white border border-slate-200 text-[13px] font-mono text-slate-600">
                                                             IMEI {item.imei}
                                                         </span>
                                                     )}
@@ -1469,77 +1480,72 @@ const CustomerReceiptCard = React.forwardRef<
                 </table>
             </div>
 
-            <div className="w-full sm:w-64 ml-auto text-right space-y-2 mt-2 px-2">
-                <div className="flex justify-between gap-2 text-[13px] text-slate-600">
-                    <span>Subtotal</span>
-                    <span className="font-medium text-slate-800">
-                        {formatKES(order.subtotal)}
-                    </span>
-                </div>
-
-                {discountValue > 0 && (
-                    <div className="flex justify-between gap-2 text-[13px] text-slate-600">
-                        <span className="truncate">
-                            Discount{order.coupon ? ` (${order.coupon})` : ''}
-                        </span>
-                        <span className="font-medium text-red-600 whitespace-nowrap">
-                            −{formatKES(order.discount)}
-                        </span>
+            <div className="flex flex-col-reverse sm:flex-row print:flex-row items-stretch sm:items-end print:items-end justify-between gap-2 px-2 py-2 mt-auto border-t border-slate-200 print:border-slate-900">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1.5 rounded border border-slate-200 bg-white shrink-0">
+                        <QRCodeSVG
+                            value={qrValue}
+                            size={80}
+                            level="M"
+                            bgColor="#ffffff"
+                            fgColor="#0f172a"
+                        />
                     </div>
-                )}
-
-                <div className="flex justify-between gap-2 text-[13px] text-slate-600">
-                    <span>Shipping</span>
-                    <span className="font-medium text-slate-800 whitespace-nowrap">
-                        {shippingValue === 0 ? 'Free' : formatKES(order.shipping)}
-                    </span>
-                </div>
-
-                <div className="flex justify-between gap-2 text-[13px] text-slate-600">
-                    <span>VAT (16%)</span>
-                    <span className="font-medium text-slate-800 whitespace-nowrap">
-                        {formatKES(order.tax)}
-                    </span>
-                </div>
-
-                <div className="pt-2 mt-0.5 border-t border-slate-200 flex justify-between items-baseline gap-2">
-                    <span className="text-[13px] uppercase tracking-[0.12em] text-slate-500 font-semibold">
-                        Total
-                    </span>
-                    <span className="text-[15px] font-bold text-slate-900 whitespace-nowrap">
-                        {formatKES(order.total)}
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex items-start sm:items-center gap-2 sm:gap-6 border-t border-slate-200 print:border-slate-900 pt-2 mt-auto px-2 pb-2">
-                <div className="p-2 rounded-sm border border-slate-200 bg-white shrink-0">
-                    <QRCodeSVG
-                        value={qrValue}
-                        size={88}
-                        level="M"
-                        bgColor="#ffffff"
-                        fgColor="#0f172a"
-                    />
-                </div>
-                <div className="text-[13px] text-slate-500 space-y-2 min-w-0">
-                    <p className="font-semibold text-slate-800 text-[13px]">
-                        Scan to verify
-                    </p>
-                    <p>
-                        Present at pickup, or hand it to the delivery agent to confirm your order.
-                    </p>
-                    <p className="font-medium text-slate-700 pt-0.5">
-                        Thank you for shopping with {SHOP.name}!
-                    </p>
-                    <p>
-                        Warranty valid for 12 months on all electronics. Keep this receipt for returns and service.
-                    </p>
-                    <div className="pt-0.5 space-y-2 text-[13px] text-slate-400">
-                        <p className="break-words">
+                    <div className="text-[12px] text-slate-500 space-y-0.5 min-w-0">
+                        <p className="font-semibold text-slate-800 text-[13px]">
+                            Thank you for shopping with {SHOP.name}!
+                        </p>
+                        <p>
+                            Warranty valid for 12 months on all electronics.
+                            Keep this receipt for returns and service.
+                        </p>
+                        <p className="text-slate-400 break-words pt-0.5">
                             {SHOP.website} · {SHOP.email} · {SHOP.phone}
                         </p>
-                        <p>VAT PIN: {SHOP.vatPin}</p>
+                        <p className="text-slate-400">VAT PIN: {SHOP.vatPin}</p>
+                    </div>
+                </div>
+
+                <div className="w-full sm:w-64 shrink-0 space-y-1.5">
+                    <div className="flex justify-between gap-2 text-[13px] text-slate-600">
+                        <span>Subtotal</span>
+                        <span className="font-medium text-slate-800">
+                            {formatKES(order.subtotal)}
+                        </span>
+                    </div>
+
+                    {discountValue > 0 && (
+                        <div className="flex justify-between gap-2 text-[13px] text-slate-600">
+                            <span className="truncate">
+                                Discount{order.coupon ? ` (${order.coupon})` : ''}
+                            </span>
+                            <span className="font-medium text-red-600 whitespace-nowrap">
+                                −{formatKES(order.discount)}
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="flex justify-between gap-2 text-[13px] text-slate-600">
+                        <span>Shipping</span>
+                        <span className="font-medium text-slate-800 whitespace-nowrap">
+                            {shippingValue === 0 ? 'Free' : formatKES(order.shipping)}
+                        </span>
+                    </div>
+
+                    <div className="flex justify-between gap-2 text-[13px] text-slate-600">
+                        <span>VAT{taxRate > 0 ? ` (${taxRate}%)` : ''}</span>
+                        <span className="font-medium text-slate-800 whitespace-nowrap">
+                            {formatKES(order.tax)}
+                        </span>
+                    </div>
+
+                    <div className="pt-2 mt-0.5 border-t border-slate-200 flex justify-between items-baseline gap-2">
+                        <span className="text-[13px] uppercase text-slate-500 font-semibold">
+                            Total
+                        </span>
+                        <span className="text-[15px] font-bold text-slate-900 whitespace-nowrap">
+                            {formatKES(order.total)}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -1581,18 +1587,18 @@ function RejectModal({
             onClick={() => !submitting && onClose()}
         >
             <div
-                className="bg-white w-full max-w-md rounded-sm shadow-xl border border-slate-200"
+                className="bg-white w-full max-w-md rounded shadow-xl border border-slate-200"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="p-2 border-b border-slate-200 flex items-start gap-2">
-                    <span className="w-8 h-8 rounded-sm bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                    <span className="w-8 h-8 rounded bg-red-50 text-red-600 flex items-center justify-center shrink-0">
                         <Ban className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
                         <h3 className="text-[15px] font-bold text-slate-900">
                             Cancel order #{reference}?
                         </h3>
-                        <p className="text-[13px] text-slate-600 mt-2">
+                        <p className="text-[13px] text-slate-600 mt-1">
                             This cannot be undone. If the order has already shipped, contact
                             support instead.
                         </p>
@@ -1611,12 +1617,12 @@ function RejectModal({
                             rows={3}
                             maxLength={500}
                             placeholder="Changed my mind, ordered by mistake…"
-                            className="w-full border border-slate-200 rounded-sm px-2 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60"
+                            className="w-full border border-slate-200 rounded px-2 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60"
                         />
                     </label>
 
                     {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded-sm text-[13px] flex items-start gap-2">
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded text-[13px] flex items-start gap-2">
                             <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                             <span>{error}</span>
                         </div>
@@ -1628,7 +1634,7 @@ function RejectModal({
                         type="button"
                         onClick={onClose}
                         disabled={submitting}
-                        className="text-[13px] font-medium px-2 py-2 rounded-sm border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
+                        className="text-[13px] font-medium px-2 py-2 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
                     >
                         Keep order
                     </button>
@@ -1636,7 +1642,7 @@ function RejectModal({
                         type="button"
                         onClick={submit}
                         disabled={submitting}
-                        className="text-[13px] font-medium px-2 py-2 rounded-sm bg-red-600 hover:bg-red-500 text-white inline-flex items-center gap-2 disabled:opacity-60"
+                        className="text-[13px] font-medium px-2 py-2 rounded bg-red-600 hover:bg-red-500 text-white inline-flex items-center gap-2 disabled:opacity-60"
                     >
                         {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         Cancel order

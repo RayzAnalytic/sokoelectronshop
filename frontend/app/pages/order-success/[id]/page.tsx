@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Package,
   Clock,
-  Truck,
   AlertCircle,
   User,
   MapPin,
@@ -192,8 +191,7 @@ export default function OrderSuccessPage() {
       try {
         const raw = sessionStorage.getItem(`order:${orderReference}`);
         if (raw) storedOrder = JSON.parse(raw) as StoredOrder;
-      } catch {
-        /* ignore corrupt JSON */
+      } catch { 
       }
 
       const isCodDraft = storedOrder?.paymentLabel === 'Cash on delivery';
@@ -234,9 +232,9 @@ export default function OrderSuccessPage() {
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-3">
-        <div className="bg-white border border-slate-200 rounded-sm p-6 max-w-md w-full text-center space-y-3">
-          <div className="w-12 h-12 bg-red-50 text-red-600 rounded-sm flex items-center justify-center mx-auto">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-2">
+        <div className="bg-white border border-slate-200 rounded p-6 max-w-md w-full text-center space-y-2">
+          <div className="w-12 h-12 bg-red-50 text-red-600 rounded flex items-center justify-center mx-auto">
             <AlertCircle className="w-6 h-6" />
           </div>
           <h1 className="text-[15px] font-semibold text-slate-900">
@@ -251,13 +249,13 @@ export default function OrderSuccessPage() {
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
             <Link
               href="/pages/account/orders"
-              className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px] text-center"
+              className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px] text-center"
             >
               My orders
             </Link>
             <Link
               href="/pages/products"
-              className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] text-center transition"
+              className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded text-[13px] text-center transition"
             >
               Continue shopping
             </Link>
@@ -306,23 +304,23 @@ export default function OrderSuccessPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col justify-between">
       <div>
         <header className="bg-white border-b border-slate-200">
-          <div className="max-w-4xl mx-auto px-3 h-14 flex items-center justify-between gap-3">
+          <div className="max-w-4xl mx-auto px-3 h-14 flex items-center justify-between gap-2">
             <Link href="/" className="flex items-center gap-2 shrink-0">
-              <span className="w-7 h-7 rounded-sm bg-blue-950 text-white font-semibold flex items-center justify-center text-[13px]">
+              <span className="w-7 h-7 rounded bg-blue-950 text-white font-semibold flex items-center justify-center text-[13px]">
                 N
               </span>
-              <span className="text-[13px] font-semibold text-slate-900 tracking-tight">
+              <span className="text-[13px] font-semibold text-slate-900">
                 NordicStore Kenya
               </span>
             </Link>
-            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-sm text-[13px] font-medium text-slate-800">
+            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded text-[13px] font-medium text-slate-800">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span className="truncate">{displayName}</span>
             </div>
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-3 py-3 space-y-3">
+        <main className="max-w-4xl mx-auto px-3 py-3 space-y-2">
           <nav className="flex items-center gap-1.5 text-[13px] text-slate-500 overflow-x-auto">
             <Link
               href="/"
@@ -418,14 +416,14 @@ export default function OrderSuccessPage() {
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Link
                     href="/pages/cart"
-                    className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-1.5 rounded-sm text-[13px] transition"
+                    className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-1.5 rounded text-[13px] transition"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     Try again
                   </Link>
                   <Link
                     href="/pages/products"
-                    className="inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded-sm text-[13px] transition"
+                    className="inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded text-[13px] transition"
                   >
                     Continue shopping
                   </Link>
@@ -451,7 +449,7 @@ export default function OrderSuccessPage() {
           )}
 
           {hasSession && (
-            <section className="bg-blue-50 border border-blue-100 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <section className="bg-blue-50 border border-blue-100 rounded p-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex items-start gap-2">
                 <UserCircle2 className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                 <p className="text-[13px] text-blue-950">
@@ -470,7 +468,7 @@ export default function OrderSuccessPage() {
           )}
 
           {!hasSession && accountExists && (
-            <section className="bg-blue-50 border border-blue-100 rounded-sm p-3 space-y-3">
+            <section className="bg-blue-50 border border-blue-100 rounded p-2 space-y-2">
               <div className="flex items-start gap-2">
                 <UserCircle2 className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                 <p className="text-[13px] text-blue-950">
@@ -484,14 +482,14 @@ export default function OrderSuccessPage() {
               <div className="flex flex-col sm:flex-row gap-2">
                 <Link
                   href={loginHref}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded-sm text-[13px] transition"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   Sign in
                 </Link>
                 <Link
                   href={registerHref}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-3 rounded-sm text-[13px] transition"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-3 rounded text-[13px] transition"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   Create a new account
@@ -506,7 +504,7 @@ export default function OrderSuccessPage() {
           )}
 
           {newCustomer && (
-            <section className="bg-blue-50 border border-blue-100 rounded-sm p-3 space-y-3">
+            <section className="bg-blue-50 border border-blue-100 rounded p-2 space-y-2">
               <div className="flex items-start gap-2">
                 <UserCircle2 className="w-4 h-4 text-blue-950 shrink-0 mt-0.5" />
                 <p className="text-[13px] text-blue-950">
@@ -520,14 +518,14 @@ export default function OrderSuccessPage() {
               <div className="flex flex-col sm:flex-row gap-2">
                 <Link
                   href={registerHref}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded-sm text-[13px] transition"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   Create an account
                 </Link>
                 <Link
                   href={loginHref}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-3 rounded-sm text-[13px] transition"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-3 rounded text-[13px] transition"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   I already have an account
@@ -541,14 +539,14 @@ export default function OrderSuccessPage() {
             </section>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2 space-y-3">
-              <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="md:col-span-2 space-y-2">
+              <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <SectionHeader
                   icon={<User className="w-3.5 h-3.5" />}
                   title="Customer information"
                 />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px]">
                   <InfoRow label="Full name" value={customerFullName || '—'} />
                   <InfoRow label="Email" value={customerEmail || '—'} />
                   <div className="sm:col-span-2">
@@ -560,7 +558,7 @@ export default function OrderSuccessPage() {
                 </div>
               </section>
 
-              <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+              <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <SectionHeader
                   icon={<MapPin className="w-3.5 h-3.5" />}
                   title="Delivery information"
@@ -589,7 +587,7 @@ export default function OrderSuccessPage() {
                 </div>
               </section>
 
-              <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+              <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <SectionHeader
                   icon={<Package className="w-3.5 h-3.5" />}
                   title={`Purchased products · ${order.items.length}`}
@@ -598,13 +596,13 @@ export default function OrderSuccessPage() {
                   {order.items.map((item) => (
                     <li
                       key={item.id}
-                      className="py-2 flex items-center justify-between gap-3 first:pt-0 last:pb-0"
+                      className="py-2 flex items-center justify-between gap-2 first:pt-0 last:pb-0"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <img
                           src={item.image}
                           alt={item.name}
-                          className="w-12 h-12 rounded-sm object-cover border border-slate-200 shrink-0"
+                          className="w-12 h-12 rounded object-cover border border-slate-200 shrink-0"
                         />
                         <div className="min-w-0">
                           <p className="text-[13px] font-medium text-slate-900 truncate">
@@ -624,8 +622,8 @@ export default function OrderSuccessPage() {
               </section>
             </div>
 
-            <aside className="space-y-3">
-              <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+            <aside className="space-y-2">
+              <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <p className="text-[15px] font-semibold text-slate-900 pb-2 border-b border-slate-100">
                   Order breakdown
                 </p>
@@ -668,12 +666,12 @@ export default function OrderSuccessPage() {
                 </div>
               </section>
 
-              <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-3">
+              <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <p className="text-[15px] font-semibold text-slate-900 pb-2 border-b border-slate-100">
                   Payment
                 </p>
 
-                <div className="space-y-3 text-[13px]">
+                <div className="space-y-2 text-[13px]">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-slate-500">Method</span>
                     <span className="font-medium text-slate-900 text-right inline-flex items-center gap-1.5">
@@ -696,7 +694,7 @@ export default function OrderSuccessPage() {
 
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-slate-500">Order status</span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] bg-blue-50 text-blue-950 border border-blue-100">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium text-[13px] bg-blue-50 text-blue-950 border border-blue-100">
                       <Package className="w-3 h-3" />
                       {viewState === 'paid-success' ||
                         viewState === 'cod-confirmed'
@@ -707,7 +705,7 @@ export default function OrderSuccessPage() {
                 </div>
 
                 {viewState === 'cod-confirmed' && (
-                  <div className="bg-amber-50 border border-amber-100 rounded-sm p-2 flex items-center gap-2">
+                  <div className="bg-amber-50 border border-amber-100 rounded p-2 flex items-center gap-2">
                     <Banknote className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                     <p className="text-[13px] text-amber-800">
                       Amount due on delivery:{' '}
@@ -719,7 +717,7 @@ export default function OrderSuccessPage() {
                 )}
 
                 {viewState === 'paid-success' && (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-sm p-2 flex items-center gap-2">
+                  <div className="bg-emerald-50 border border-emerald-100 rounded p-2 flex items-center gap-2">
                     <Receipt className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                     <p className="text-[13px] text-emerald-800">
                       Receipt issued to your email:{' '}
@@ -729,7 +727,7 @@ export default function OrderSuccessPage() {
                 )}
 
                 {order.notes && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-sm p-2">
+                  <div className="bg-slate-50 border border-slate-200 rounded p-2">
                     <p className="text-[13px] text-slate-500 mb-0.5">
                       Order notes
                     </p>
@@ -743,7 +741,7 @@ export default function OrderSuccessPage() {
                   {hasSession ? (
                     <Link
                       href="/pages/account"
-                      className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] transition"
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded text-[13px] transition"
                     >
                       Go to my account
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -751,7 +749,7 @@ export default function OrderSuccessPage() {
                   ) : accountExists ? (
                     <Link
                       href={loginHref}
-                      className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] transition"
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded text-[13px] transition"
                     >
                       <LogIn className="w-3.5 h-3.5" />
                       Sign in to my account
@@ -759,7 +757,7 @@ export default function OrderSuccessPage() {
                   ) : (
                     <Link
                       href={registerHref}
-                      className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded-sm text-[13px] transition"
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded text-[13px] transition"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
                       Create an account to track
@@ -768,22 +766,11 @@ export default function OrderSuccessPage() {
 
                   <Link
                     href="/pages/products"
-                    className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px]"
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px]"
                   >
                     Continue shopping
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
-                </div>
-              </section>
-
-              <section className="bg-white border border-slate-200 rounded-sm p-3 space-y-2">
-                <div className="flex items-center gap-1.5 text-[13px] text-slate-500">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Secure ordering & encrypted checkout</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[13px] text-slate-500">
-                  <Truck className="w-3.5 h-3.5 text-blue-950" />
-                  <span>Delivered by vetted courier partners</span>
                 </div>
               </section>
             </aside>
@@ -791,13 +778,13 @@ export default function OrderSuccessPage() {
         </main>
       </div>
 
-      <footer className="bg-white border-t border-slate-200 mt-6">
+      <footer className="bg-white border-t border-slate-200 mt-3">
         <div className="max-w-4xl mx-auto px-3 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[13px] text-slate-500">
           <p>
             &copy; {new Date().getFullYear()} NordicStore Kenya. All rights
             reserved.
           </p>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <Link href="/privacy" className="hover:text-blue-950">
               Privacy
             </Link>
@@ -845,9 +832,9 @@ function StatusHeader({
   }[tone];
 
   return (
-    <section className="bg-white border border-slate-200 rounded-sm p-6 text-center space-y-4">
+    <section className="bg-white border border-slate-200 rounded p-6 text-center space-y-2">
       <div
-        className={`w-14 h-14 rounded-sm flex items-center justify-center mx-auto border ${palette.wrap}`}
+        className={`w-14 h-14 rounded flex items-center justify-center mx-auto border ${palette.wrap}`}
       >
         {icon}
       </div>
@@ -857,7 +844,7 @@ function StatusHeader({
           {description}
         </p>
       </div>
-      <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-sm">
+      <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded">
         <span className="text-[13px] text-slate-500 font-medium">
           Order ID:
         </span>
@@ -879,7 +866,7 @@ function PaymentStatusBadge({
 }) {
   if (viewState === 'cod-confirmed') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] bg-amber-50 text-amber-700 border border-amber-100">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium text-[13px] bg-amber-50 text-amber-700 border border-amber-100">
         <Clock className="w-3 h-3" />
         Pay on Delivery
       </span>
@@ -888,7 +875,7 @@ function PaymentStatusBadge({
 
   if (viewState === 'paid-success') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] bg-emerald-50 text-emerald-700 border border-emerald-100">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium text-[13px] bg-emerald-50 text-emerald-700 border border-emerald-100">
         <CheckCircle2 className="w-3 h-3" />
         Paid
       </span>
@@ -897,7 +884,7 @@ function PaymentStatusBadge({
 
   if (viewState === 'payment-failed') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] bg-red-50 text-red-700 border border-red-100">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium text-[13px] bg-red-50 text-red-700 border border-red-100">
         <XCircle className="w-3 h-3" />
         {paymentStatus ? PAYMENT_STATUS_LABEL[paymentStatus] : 'Failed'}
       </span>
@@ -906,7 +893,7 @@ function PaymentStatusBadge({
 
   if (viewState === 'payment-pending') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] bg-blue-50 text-blue-900 border border-blue-100">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium text-[13px] bg-blue-50 text-blue-900 border border-blue-100">
         <Clock className="w-3 h-3" />
         {paymentStatus ? PAYMENT_STATUS_LABEL[paymentStatus] : 'Pending'}
       </span>
@@ -914,7 +901,7 @@ function PaymentStatusBadge({
   }
 
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm font-medium text-[13px] bg-slate-50 text-slate-700 border border-slate-200">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium text-[13px] bg-slate-50 text-slate-700 border border-slate-200">
       Unknown
     </span>
   );
@@ -929,7 +916,7 @@ function SectionHeader({
 }) {
   return (
     <header className="flex items-center gap-2 pb-2 border-b border-slate-100">
-      <span className="w-7 h-7 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+      <span className="w-7 h-7 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
         {icon}
       </span>
       <p className="text-[15px] font-semibold text-slate-900 truncate">

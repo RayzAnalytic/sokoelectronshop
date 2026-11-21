@@ -1,27 +1,4 @@
-"""
-Sweep PROCESSING payments that Daraja never called back for.
 
-Runs every 30 s via Celery beat (`checkout.tasks.sweep_pending_payments`).
-Idempotent and safe to run concurrently — each payment is locked for
-the duration of its transition.
-
-Behaviour:
-    1. Find PROCESSING payments older than `CHECKOUT_TIMEOUT_SECONDS`.
-    2. For each, query Daraja for the terminal state:
-         SUCCESS  → transition_payment(SUCCESS)
-         FAILED   → transition_payment(FAILED)
-         PENDING  → leave as-is; the next sweep will retry
-         Network error → leave as-is; the next sweep will retry
-    3. If `--no-reconcile` is passed, skip step 2 and go straight to
-       TIMEOUT. Use only when Daraja is known to be unreachable and you
-       accept the risk of sweeping a completed payment.
-
-Usage:
-    python manage.py sweep_pending_payments
-    python manage.py sweep_pending_payments --dry-run
-    python manage.py sweep_pending_payments --max 50
-    python manage.py sweep_pending_payments --no-reconcile
-"""
 
 import logging
 from datetime import timedelta

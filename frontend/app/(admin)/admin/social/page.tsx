@@ -210,11 +210,11 @@ const PlatformIcon = ({
   className?: string;
 }) => {
   switch (platform) {
-    case 'Facebook':  return <FaFacebookF className={className} />;
+    case 'Facebook': return <FaFacebookF className={className} />;
     case 'Instagram': return <FaInstagram className={className} />;
-    case 'TikTok':    return <FaTiktok className={className} />;
-    case 'YouTube':   return <FaYoutube className={className} />;
-    default:          return null;
+    case 'TikTok': return <FaTiktok className={className} />;
+    case 'YouTube': return <FaYoutube className={className} />;
+    default: return null;
   }
 };
 
@@ -222,63 +222,56 @@ const NAV_MENUS: {
   label: string;
   items: { key: ViewKey | 'composer'; label: string; icon: React.ComponentType<{ className?: string }> }[];
 }[] = [
-  {
-    label: 'Create',
-    items: [
-      { key: 'composer', label: 'New post', icon: Plus },
-      { key: 'drafts', label: 'Drafts', icon: FileText },
-      { key: 'templates', label: 'Templates', icon: Sparkles },
-      { key: 'media', label: 'Media library', icon: FolderOpen },
-    ],
-  },
-  {
-    label: 'Plan',
-    items: [
-      { key: 'calendar', label: 'Calendar', icon: CalendarIcon },
-      { key: 'scheduled', label: 'Scheduled', icon: Clock },
-      { key: 'queue', label: 'Queue slots', icon: ListChecks },
-    ],
-  },
-  {
-    label: 'Engage',
-    items: [
-      { key: 'inbox', label: 'Unified inbox', icon: Inbox },
-      { key: 'comments', label: 'Comments', icon: MessageSquare },
-      { key: 'mentions', label: 'Mentions', icon: AtSign },
-    ],
-  },
-  {
-    label: 'Insights',
-    items: [
-      { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-      { key: 'published', label: 'Published', icon: Send },
-      { key: 'analytics', label: 'Analytics', icon: TrendingUp },
-      { key: 'reports', label: 'Reports', icon: FileBarChart },
-    ],
-  },
-  {
-    label: 'Accounts',
-    items: [
-      { key: 'accounts', label: 'Connections', icon: Share2 },
-      { key: 'team', label: 'Team', icon: Users },
-      { key: 'settings', label: 'Settings', icon: SettingsIcon },
-    ],
-  },
-];
+    { label: 'Home', items: [{ key: 'overview', label: 'Overview', icon: LayoutDashboard }] },
+    { label: 'Create', items: [{ key: 'composer', label: 'Create post', icon: Plus }] },
+    {
+      label: 'Plan',
+      items: [
+        { key: 'calendar', label: 'Calendar', icon: CalendarIcon },
+        { key: 'scheduled', label: 'Scheduled posts', icon: Clock },
+        { key: 'queue', label: 'Post times', icon: ListChecks },
+      ],
+    },
+    {
+      label: 'Messages',
+      items: [
+        { key: 'inbox', label: 'All messages', icon: Inbox },
+        { key: 'comments', label: 'Comments', icon: MessageSquare },
+        { key: 'mentions', label: 'Mentions', icon: AtSign },
+      ],
+    },
+    {
+      label: 'Content',
+      items: [
+        { key: 'drafts', label: 'Drafts', icon: FileText },
+        { key: 'templates', label: 'Saved templates', icon: Sparkles },
+        { key: 'media', label: 'Photos & videos', icon: FolderOpen },
+        { key: 'published', label: 'Published posts', icon: Send },
+      ],
+    },
+    { label: 'Results', items: [{ key: 'analytics', label: 'Performance', icon: TrendingUp }] },
+    {
+      label: 'Settings',
+      items: [
+        { key: 'accounts', label: 'Social accounts', icon: Share2 },
+        { key: 'settings', label: 'Preferences', icon: SettingsIcon },
+      ],
+    },
+  ];
 
 const VIEW_META: Record<string, { title: string; description: string; icon: React.ComponentType<{ className?: string }> }> = {
-  overview:  { title: 'Overview',       description: 'Morning check-in — KPIs, alerts, upcoming queue, and activity.', icon: LayoutDashboard },
-  calendar:  { title: 'Calendar',       description: 'Month, week, and list planning with drag-to-reschedule.',         icon: CalendarIcon },
-  queue:     { title: 'Queue slots',    description: 'Define recurring time slots and drop posts into the next opening.', icon: ListChecks },
-  drafts:    { title: 'Drafts',         description: 'Unpublished drafts, pending approvals, and rejection notes.',      icon: FileText },
-  inbox:     { title: 'Unified inbox',  description: 'Comments, DMs, and mentions from every channel in one thread view.', icon: Inbox },
-  comments:  { title: 'Comments',       description: 'Comment moderation queue across all connected channels.',          icon: MessageSquare },
-  mentions:  { title: 'Mentions',       description: 'Brand handles and keywords picked up across platforms.',           icon: AtSign },
-  media:     { title: 'Media library',  description: 'Reusable images and videos with folders, tags, and search.',       icon: FolderOpen },
-  templates: { title: 'Templates',      description: 'Saved post structures you can reuse across campaigns.',            icon: Sparkles },
-  reports:   { title: 'Reports',        description: 'Exportable, client-ready performance reports with branding.',      icon: FileBarChart },
-  team:      { title: 'Team',           description: 'Roles, permissions, and audit trail for every action.',            icon: Users },
-  settings:  { title: 'Settings',       description: 'Brand profile, timezone, defaults, and notification preferences.', icon: SettingsIcon },
+  overview: { title: 'Overview', description: 'A quick look at your shop’s social media.', icon: LayoutDashboard },
+  calendar: { title: 'Calendar', description: 'See your posts and choose when they go out.', icon: CalendarIcon },
+  queue: { title: 'Queue slots', description: 'Choose regular times for your posts.', icon: ListChecks },
+  drafts: { title: 'Drafts', description: 'Posts you have saved but not shared yet.', icon: FileText },
+  inbox: { title: 'Unified inbox', description: 'Reply to customers from your connected pages.', icon: Inbox },
+  comments: { title: 'Comments', description: 'Comment moderation queue across all connected channels.', icon: MessageSquare },
+  mentions: { title: 'Mentions', description: 'Brand handles and keywords picked up across platforms.', icon: AtSign },
+  media: { title: 'Media library', description: 'Reusable images and videos with folders, tags, and search.', icon: FolderOpen },
+  templates: { title: 'Templates', description: 'Saved post structures you can reuse across campaigns.', icon: Sparkles },
+  reports: { title: 'Reports', description: 'See how your posts are doing.', icon: FileBarChart },
+  team: { title: 'Team', description: 'Manage people who can access this page.', icon: Users },
+  settings: { title: 'Settings', description: 'Change your social media preferences.', icon: SettingsIcon },
 };
 
 const MAX_MEDIA_FILES = 5;
@@ -704,16 +697,16 @@ export default function SocialMediaPage() {
 
   useEffect(() => {
     switch (activeView) {
-      case 'overview':  void loadOverview(); break;
-      case 'media':     void loadMedia(); break;
-      case 'queue':     void loadQueue(); break;
-      case 'drafts':    void loadDrafts(); break;
+      case 'overview': void loadOverview(); break;
+      case 'media': void loadMedia(); break;
+      case 'queue': void loadQueue(); break;
+      case 'drafts': void loadDrafts(); break;
       case 'inbox':
       case 'comments':
-      case 'mentions':  void loadInbox(); break;
+      case 'mentions': void loadInbox(); break;
       case 'templates': void loadTemplates(); break;
-      case 'team':      void loadTeam(); void loadAuditLog(); break;
-      case 'reports':   void loadReports(); break;
+      case 'team': void loadTeam(); void loadAuditLog(); break;
+      case 'reports': void loadReports(); break;
       case 'analytics': void loadAnalyticsExtras(); break;
       default: break;
     }
@@ -994,18 +987,17 @@ export default function SocialMediaPage() {
     }
 
     const kpis = [
-      { label: 'Followers',     value: overview.kpis.total_followers.toLocaleString(), icon: Users },
-      { label: 'Reach (30d)',   value: overview.kpis.reach.toLocaleString(),           icon: TrendingUp },
-      { label: 'Engagement',    value: `${overview.kpis.engagement_rate}%`,            icon: ThumbsUp },
-      { label: 'Published',     value: String(overview.kpis.posts_published),          icon: Send },
-      { label: 'Scheduled',     value: String(overview.kpis.scheduled_this_week),      icon: Clock },
-      { label: 'Unread inbox',  value: String(overview.kpis.unread_inbox),             icon: Inbox },
-      { label: 'Failed posts',  value: String(overview.kpis.failed_posts),             icon: AlertCircle },
+      { label: 'Followers', value: overview.kpis.total_followers.toLocaleString(), icon: Users },
+      { label: 'People reached', value: overview.kpis.reach.toLocaleString(), icon: TrendingUp },
+      { label: 'Engagement', value: `${overview.kpis.engagement_rate}%`, icon: ThumbsUp },
+      { label: 'Posts shared', value: String(overview.kpis.posts_published), icon: Send },
+      { label: 'Coming up', value: String(overview.kpis.scheduled_this_week), icon: Clock },
+      { label: 'Unread messages', value: String(overview.kpis.unread_inbox), icon: Inbox },
     ];
 
     return (
       <div className="space-y-2">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
           {kpis.map((k) => {
             const Icon = k.icon;
             return (
@@ -1021,101 +1013,27 @@ export default function SocialMediaPage() {
         </div>
 
         {overview.expiring_tokens.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-sm p-2 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-            <div className="text-[13px] text-amber-900">
-              <p className="font-medium">Tokens expiring soon</p>
-              <ul className="mt-2 space-y-2">
-                {overview.expiring_tokens.map((t) => (
-                  <li key={t.platform}>
-                    {t.platform} — expires {relativeTime(t.expires_at)}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-sm p-3 flex items-center gap-2 text-[13px] text-amber-900">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            Some social accounts may need to be reconnected. Visit Settings to check them.
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-2 py-2 border-b border-slate-200 bg-slate-50">
-              <p className="text-[13px] font-medium text-slate-700">Upcoming queue</p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {overview.upcoming.length === 0 ? (
-                <p className="text-[13px] text-slate-400 p-8 text-center">No upcoming posts.</p>
-              ) : (
-                overview.upcoming.map((p) => (
-                  <div key={p.id} className="p-2 flex items-center justify-between gap-2 text-[13px]">
-                    <span className="text-slate-700 truncate">{p.caption}</span>
-                    <span className="text-slate-400 shrink-0">
-                      {formatScheduledTime(p.scheduledTime)}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-2 py-2 border-b border-slate-200 bg-slate-50">
-              <p className="text-[13px] font-medium text-slate-700">Recent activity</p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {overview.recent_activity.length === 0 ? (
-                <p className="text-[13px] text-slate-400 p-8 text-center">No recent activity.</p>
-              ) : (
-                overview.recent_activity.map((a) => (
-                  <div key={a.id} className="p-2 text-[13px]">
-                    <p className="text-slate-800">
-                      <span className="font-medium">{a.actorName || 'System'}</span> — {a.action}
-                    </p>
-                    <p className="text-slate-400 text-[13px]">{relativeTime(a.createdAt)}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
         <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-          <div className="px-2 py-2 border-b border-slate-200 bg-slate-50">
-            <p className="text-[13px] font-medium text-slate-700">Top performing posts</p>
+          <div className="px-3 py-3 border-b border-slate-200 bg-slate-50">
+            <p className="text-sm font-medium text-slate-700">Upcoming posts</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-[13px]">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                  <th className="py-2 px-2 font-medium">Platform</th>
-                  <th className="py-2 px-2 font-medium">Caption</th>
-                  <th className="py-2 px-2 font-medium text-right">Reach</th>
-                  <th className="py-2 px-2 font-medium text-right">Engagement</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {overview.top_posts.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-slate-400 text-[13px]">No posts yet.</td>
-                  </tr>
-                ) : (
-                  overview.top_posts.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="py-2 px-2">
-                        <span className={`inline-flex items-center gap-2 px-2 py-1 rounded-sm font-medium border text-[13px] ${platformBadge(p.platform)}`}>
-                          <PlatformIcon platform={p.platform} className="w-3 h-3" />
-                          {p.platform}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2 text-slate-700 truncate max-w-xs">{p.caption}</td>
-                      <td className="py-2 px-2 text-right font-mono text-blue-950">{p.reach.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right font-mono text-emerald-700">
-                        {p.likes + p.comments + p.shares}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="divide-y divide-slate-100">
+            {overview.upcoming.length === 0 ? (
+              <p className="text-sm text-slate-400 p-8 text-center">No upcoming posts. Create a post to get started.</p>
+            ) : (
+              overview.upcoming.map((post) => (
+                <div key={post.id} className="p-3 flex items-center justify-between gap-3 text-sm">
+                  <span className="text-slate-700 truncate">{post.caption}</span>
+                  <span className="text-slate-500 shrink-0">{formatScheduledTime(post.scheduledTime)}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -1160,11 +1078,10 @@ export default function SocialMediaPage() {
             return (
               <div
                 key={acc.id}
-                className={`bg-white border rounded-sm p-2 flex items-center justify-between gap-2 ${
-                  acc.connected
+                className={`bg-white border rounded-sm p-2 flex items-center justify-between gap-2 ${acc.connected
                     ? 'border-emerald-200 ring-1 ring-emerald-100'
                     : 'border-slate-200'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span
@@ -1181,11 +1098,10 @@ export default function SocialMediaPage() {
                     </p>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <span
-                        className={`inline-block px-2 py-1 rounded-sm text-[13px] font-medium border ${
-                          acc.connected
+                        className={`inline-block px-2 py-1 rounded-sm text-[13px] font-medium border ${acc.connected
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                             : 'bg-slate-100 text-slate-500 border-slate-200'
-                        }`}
+                          }`}
                       >
                         {acc.connected ? 'Connected' : 'Disconnected'}
                       </span>
@@ -1200,11 +1116,10 @@ export default function SocialMediaPage() {
                 <button
                   onClick={() => void togglePlatformConnect(acc)}
                   disabled={isConnecting}
-                  className={`px-2 py-2 rounded-sm font-medium text-[13px] transition shrink-0 border disabled:opacity-50 ${
-                    acc.connected
+                  className={`px-2 py-2 rounded-sm font-medium text-[13px] transition shrink-0 border disabled:opacity-50 ${acc.connected
                       ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                       : 'bg-blue-950 border-blue-950 text-white hover:bg-blue-900'
-                  }`}
+                    }`}
                 >
                   {isConnecting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1375,9 +1290,8 @@ export default function SocialMediaPage() {
             return (
               <div
                 key={date.toISOString()}
-                className={`border rounded-sm p-2 min-h-[84px] ${
-                  isToday ? 'border-blue-950 bg-blue-50/40' : 'border-slate-200 bg-white'
-                }`}
+                className={`border rounded-sm p-2 min-h-[84px] ${isToday ? 'border-blue-950 bg-blue-50/40' : 'border-slate-200 bg-white'
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <p className="text-[13px] font-medium text-slate-700">
@@ -1456,11 +1370,10 @@ export default function SocialMediaPage() {
                       </div>
                     </td>
                     <td className="py-2 px-2">
-                      <span className={`inline-block px-2 py-1 rounded-sm text-[13px] font-medium border ${
-                        s.isActive
+                      <span className={`inline-block px-2 py-1 rounded-sm text-[13px] font-medium border ${s.isActive
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                           : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}>
+                        }`}>
                         {s.isActive ? 'Active' : 'Paused'}
                       </span>
                     </td>
@@ -1492,11 +1405,10 @@ export default function SocialMediaPage() {
                     Used {p.useCount}× · last used {relativeTime(p.lastUsedAt)}
                   </p>
                 </div>
-                <span className={`inline-block px-2 py-1 rounded-sm text-[13px] font-medium border shrink-0 ${
-                  p.isActive
+                <span className={`inline-block px-2 py-1 rounded-sm text-[13px] font-medium border shrink-0 ${p.isActive
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                     : 'bg-slate-100 text-slate-500 border-slate-200'
-                }`}>
+                  }`}>
                   {p.isActive ? 'Active' : 'Paused'}
                 </span>
               </div>
@@ -1510,10 +1422,10 @@ export default function SocialMediaPage() {
   const renderDraftsView = () => {
     const statusBadge = (s: AdminSocialDraftStatus) => {
       const map: Record<AdminSocialDraftStatus, string> = {
-        DRAFT:     'bg-slate-100 text-slate-700 border-slate-200',
-        PENDING:   'bg-amber-50 text-amber-700 border-amber-100',
-        APPROVED:  'bg-emerald-50 text-emerald-700 border-emerald-100',
-        REJECTED:  'bg-red-50 text-red-700 border-red-100',
+        DRAFT: 'bg-slate-100 text-slate-700 border-slate-200',
+        PENDING: 'bg-amber-50 text-amber-700 border-amber-100',
+        APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+        REJECTED: 'bg-red-50 text-red-700 border-red-100',
         SCHEDULED: 'bg-blue-50 text-blue-950 border-blue-100',
       };
       return map[s] ?? 'bg-slate-100 text-slate-700 border-slate-200';
@@ -1656,7 +1568,7 @@ export default function SocialMediaPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                void adminApi.social.inbox.sync().then(() => loadInbox()).catch(() => {});
+                void adminApi.social.inbox.sync().then(() => loadInbox()).catch(() => { });
               }}
               className="text-[13px] text-blue-950 hover:underline inline-flex items-center gap-2"
             >
@@ -1873,11 +1785,11 @@ export default function SocialMediaPage() {
       {kpiAnalytics && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           {[
-            { label: 'Reach',           value: kpiAnalytics.current.reach.toLocaleString(),           delta: kpiAnalytics.deltas.reach },
-            { label: 'Engagement',      value: kpiAnalytics.current.engagement.toLocaleString(),      delta: kpiAnalytics.deltas.engagement },
-            { label: 'ER %',            value: `${kpiAnalytics.current.engagement_rate}%`,             delta: kpiAnalytics.deltas.engagement_rate },
-            { label: 'Link clicks',     value: kpiAnalytics.current.link_clicks.toLocaleString(),     delta: kpiAnalytics.deltas.link_clicks },
-            { label: 'Posts',           value: kpiAnalytics.current.posts.toLocaleString(),           delta: kpiAnalytics.deltas.posts },
+            { label: 'Reach', value: kpiAnalytics.current.reach.toLocaleString(), delta: kpiAnalytics.deltas.reach },
+            { label: 'Engagement', value: kpiAnalytics.current.engagement.toLocaleString(), delta: kpiAnalytics.deltas.engagement },
+            { label: 'ER %', value: `${kpiAnalytics.current.engagement_rate}%`, delta: kpiAnalytics.deltas.engagement_rate },
+            { label: 'Link clicks', value: kpiAnalytics.current.link_clicks.toLocaleString(), delta: kpiAnalytics.deltas.link_clicks },
+            { label: 'Posts', value: kpiAnalytics.current.posts.toLocaleString(), delta: kpiAnalytics.deltas.posts },
           ].map((k) => (
             <div key={k.label} className="bg-white border border-slate-200 rounded-sm p-2">
               <p className="text-[13px] text-slate-500">{k.label}</p>
@@ -2232,11 +2144,10 @@ export default function SocialMediaPage() {
                       </span>
                     </td>
                     <td className="py-2 px-2">
-                      <span className={`text-[13px] px-2 py-1 rounded-sm border font-medium ${
-                        m.isActive
+                      <span className={`text-[13px] px-2 py-1 rounded-sm border font-medium ${m.isActive
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                           : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}>
+                        }`}>
                         {m.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
@@ -2359,23 +2270,23 @@ export default function SocialMediaPage() {
 
   const renderActiveView = () => {
     switch (activeView) {
-      case 'overview':   return renderOverviewView();
-      case 'scheduled':  return renderScheduledView();
-      case 'calendar':   return renderCalendarView();
-      case 'queue':      return renderQueueView();
-      case 'drafts':     return renderDraftsView();
-      case 'inbox':      return renderInboxView();
-      case 'comments':   return renderInboxView('COMMENT');
-      case 'mentions':   return renderInboxView('MENTION');
-      case 'published':  return renderPublishedView();
-      case 'analytics':  return renderAnalyticsView();
-      case 'media':      return renderMediaView();
-      case 'templates':  return renderTemplatesView();
-      case 'reports':    return renderReportsView();
-      case 'accounts':   return renderAccountsSection();
-      case 'team':       return renderTeamView();
-      case 'settings':   return renderSettingsView();
-      default:           return renderPlaceholder(activeView);
+      case 'overview': return renderOverviewView();
+      case 'scheduled': return renderScheduledView();
+      case 'calendar': return renderCalendarView();
+      case 'queue': return renderQueueView();
+      case 'drafts': return renderDraftsView();
+      case 'inbox': return renderInboxView();
+      case 'comments': return renderInboxView('COMMENT');
+      case 'mentions': return renderInboxView('MENTION');
+      case 'published': return renderPublishedView();
+      case 'analytics': return renderAnalyticsView();
+      case 'media': return renderMediaView();
+      case 'templates': return renderTemplatesView();
+      case 'reports': return renderReportsView();
+      case 'accounts': return renderAccountsSection();
+      case 'team': return renderTeamView();
+      case 'settings': return renderSettingsView();
+      default: return renderPlaceholder(activeView);
     }
   };
 
@@ -2384,13 +2295,12 @@ export default function SocialMediaPage() {
 
       {toast && (
         <div
-          className={`fixed bottom-2 right-2 z-[120] text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px] ${
-            toast.kind === 'success'
+          className={`fixed bottom-2 right-2 z-[120] text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px] ${toast.kind === 'success'
               ? 'bg-blue-950'
               : toast.kind === 'error'
                 ? 'bg-red-700'
                 : 'bg-slate-700'
-          }`}
+            }`}
         >
           {toast.kind === 'success' && (
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -2431,13 +2341,12 @@ export default function SocialMediaPage() {
                   <div key={menu.label} className="relative">
                     <button
                       onClick={() => setOpenMenu(isOpen ? null : menu.label)}
-                      className={`inline-flex items-center gap-2 px-2 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${
-                        hasActive
+                      className={`inline-flex items-center gap-2 px-2 py-2 rounded-sm text-[13px] font-medium transition whitespace-nowrap ${hasActive
                           ? 'bg-blue-950 text-white'
                           : isOpen
                             ? 'bg-slate-100 text-slate-900'
                             : 'text-slate-600 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {menu.label}
                       <ChevronDown
@@ -2457,11 +2366,10 @@ export default function SocialMediaPage() {
                               key={item.key}
                               onClick={() => handleNavClick(item.key)}
                               role="menuitem"
-                              className={`w-full text-left px-2 py-2 text-[13px] flex items-center gap-2 hover:bg-slate-50 ${
-                                isItemActive
+                              className={`w-full text-left px-2 py-2 text-[13px] flex items-center gap-2 hover:bg-slate-50 ${isItemActive
                                   ? 'text-blue-950 font-medium bg-blue-50/40'
                                   : 'text-slate-700'
-                              }`}
+                                }`}
                             >
                               <Icon className="w-3.5 h-3.5" />
                               {item.label}
@@ -2563,16 +2471,14 @@ export default function SocialMediaPage() {
                       placeholder="Write engaging caption with hashtags..."
                       value={composerCaption}
                       onChange={(e) => setComposerCaption(e.target.value)}
-                      className={`w-full bg-white border rounded-sm px-2 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 ${
-                        captionOverLimit
+                      className={`w-full bg-white border rounded-sm px-2 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 ${captionOverLimit
                           ? 'border-red-300 focus:ring-red-500'
                           : 'border-slate-200 focus:ring-blue-950'
-                      }`}
+                        }`}
                     />
                     <p
-                      className={`text-[13px] mt-2 ${
-                        captionOverLimit ? 'text-red-600 font-medium' : 'text-slate-400'
-                      }`}
+                      className={`text-[13px] mt-2 ${captionOverLimit ? 'text-red-600 font-medium' : 'text-slate-400'
+                        }`}
                     >
                       {composerCaption.length} characters
                       {tightestCaptionLimit !== null &&
@@ -2616,13 +2522,12 @@ export default function SocialMediaPage() {
                                 isSelected ? prev.filter((p) => p !== plat) : [...prev, plat],
                               )
                             }
-                            className={`inline-flex items-center gap-2 px-2 py-2 rounded-sm font-medium text-[13px] transition border ${
-                              isSelected
+                            className={`inline-flex items-center gap-2 px-2 py-2 rounded-sm font-medium text-[13px] transition border ${isSelected
                                 ? 'bg-blue-950 text-white border-blue-950'
                                 : !isConnected
                                   ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
                                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                            }`}
+                              }`}
                             title={!isConnected ? `${plat} not connected` : undefined}
                           >
                             <PlatformIcon platform={plat} className="w-3.5 h-3.5" />
@@ -2991,8 +2896,7 @@ function MediaUploader({
 
     setMedia((prev) => [...prev, ...accepted.map((a) => a.item)]);
     onToast(
-      `Uploading ${accepted.length} file${accepted.length > 1 ? 's' : ''}...${
-        rejected ? ` · ${rejected} rejected` : ''
+      `Uploading ${accepted.length} file${accepted.length > 1 ? 's' : ''}...${rejected ? ` · ${rejected} rejected` : ''
       }`,
       'info',
     );
@@ -3047,11 +2951,10 @@ function MediaUploader({
         onDragLeave={() => setIsDragging(false)}
         onDrop={onDrop}
         onClick={() => fileRef.current?.click()}
-        className={`w-full border-2 border-dashed rounded-sm px-2 py-2 text-center cursor-pointer transition ${
-          isDragging
+        className={`w-full border-2 border-dashed rounded-sm px-2 py-2 text-center cursor-pointer transition ${isDragging
             ? 'border-blue-950 bg-blue-50/40'
             : 'border-slate-300 hover:border-blue-950 hover:bg-blue-50/20'
-        }`}
+          }`}
       >
         <input
           ref={fileRef}
@@ -3079,9 +2982,8 @@ function MediaUploader({
           {media.map((m) => (
             <div
               key={m.id}
-              className={`relative aspect-square rounded-sm overflow-hidden border bg-slate-100 group ${
-                m.error ? 'border-red-300' : 'border-slate-200'
-              }`}
+              className={`relative aspect-square rounded-sm overflow-hidden border bg-slate-100 group ${m.error ? 'border-red-300' : 'border-slate-200'
+                }`}
             >
               {m.type === 'video' ? (
                 <>

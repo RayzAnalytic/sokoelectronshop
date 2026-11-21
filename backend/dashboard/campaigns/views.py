@@ -45,7 +45,7 @@ class CampaignDispatchView(APIView):
     def post(self, request, pk):
         campaign = Campaign.objects.filter(pk=pk).first()
         if not campaign:
-            return Response({'detail': 'Not found'}, status=404)
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         dispatch_campaign(campaign)
         campaign.refresh_from_db()
         return Response(CampaignSerializer(campaign).data)
@@ -55,7 +55,12 @@ class CampaignPauseView(APIView):
     def post(self, request, pk):
         campaign = Campaign.objects.filter(pk=pk).first()
         if not campaign:
-            return Response({'detail': 'Not found'}, status=404)
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if campaign.status != Campaign.Status.SENDING:
+            return Response(
+                {'detail': 'Only sending campaigns can be paused'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         campaign.status = Campaign.Status.PAUSED
         campaign.save(update_fields=['status', 'updated_at'])
         return Response(CampaignSerializer(campaign).data)
@@ -65,9 +70,14 @@ class CampaignResumeView(APIView):
     def post(self, request, pk):
         campaign = Campaign.objects.filter(pk=pk).first()
         if not campaign:
-            return Response({'detail': 'Not found'}, status=404)
-        dispatch_campaign(campaign)
-        campaign.refresh_from_db()
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if campaign.status != Campaign.Status.PAUSED:
+            return Response(
+                {'detail': 'Only paused campaigns can be resumed'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        campaign.status = Campaign.Status.SENDING
+        campaign.save(update_fields=['status', 'updated_at'])
         return Response(CampaignSerializer(campaign).data)
 
 
@@ -75,5 +85,5 @@ class CampaignAnalyticsView(APIView):
     def get(self, request, pk):
         campaign = Campaign.objects.filter(pk=pk).first()
         if not campaign:
-            return Response({'detail': 'Not found'}, status=404)
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(aggregate_analytics(campaign))

@@ -25,8 +25,28 @@ from .models import (
 )
 
 
+class SafeIntegerField(serializers.IntegerField):
+    def __init__(self, default=0, max_value=None, **kwargs):
+        self._safe_default = default
+        self._safe_max = max_value
+        super().__init__(**kwargs)
+
+    def to_representation(self, value):
+        if value is None or value == "":
+            return self._safe_default
+        try:
+            n = int(value)
+        except (TypeError, ValueError):
+            return self._safe_default
+        if n < 0 and self._safe_default is not None and self._safe_default >= 0:
+            return self._safe_default
+        if self._safe_max is not None and n > self._safe_max:
+            return self._safe_default
+        return n
+
+
 class HealthCheckSerializer(serializers.ModelSerializer):
-    latencyMs = serializers.IntegerField(source="latency_ms")
+    latencyMs = SafeIntegerField(source="latency_ms")
     at = serializers.DateTimeField(source="created_at")
 
     class Meta:
@@ -51,7 +71,7 @@ class AccountSerializer(serializers.ModelSerializer):
     twoStepPin = serializers.BooleanField(source="two_step_pin")
     officialBusinessAccount = serializers.BooleanField(source="official_business_account")
     tokenExpiresAt = serializers.DateTimeField(source="token_expires_at", allow_null=True)
-    tokenDaysLeft = serializers.IntegerField(source="token_days_left", read_only=True)
+    tokenDaysLeft = SafeIntegerField(source="token_days_left", default=None, allow_null=True)
     webhookUrl = serializers.CharField(source="webhook_url")
     webhookVerifyToken = serializers.CharField(source="webhook_verify_token")
     webhookFields = serializers.JSONField(source="webhook_fields")
@@ -92,14 +112,14 @@ class CatalogSerializer(serializers.ModelSerializer):
     metaCatalogId = serializers.CharField(source="meta_catalog_id")
     autoSync = serializers.BooleanField(source="auto_sync")
     eligibilityRule = serializers.CharField(source="eligibility_rule")
-    syncFrequencyMinutes = serializers.IntegerField(source="sync_frequency_minutes")
+    syncFrequencyMinutes = SafeIntegerField(source="sync_frequency_minutes")
     hidePrice = serializers.BooleanField(source="hide_price")
     defaultSort = serializers.CharField(source="default_sort")
     excludeOutOfStock = serializers.BooleanField(source="exclude_out_of_stock")
     lastFullSyncAt = serializers.DateTimeField(source="last_full_sync_at", allow_null=True)
-    lastSyncAdded = serializers.IntegerField(source="last_sync_added")
-    lastSyncUpdated = serializers.IntegerField(source="last_sync_updated")
-    lastSyncFailed = serializers.IntegerField(source="last_sync_failed")
+    lastSyncAdded = SafeIntegerField(source="last_sync_added")
+    lastSyncUpdated = SafeIntegerField(source="last_sync_updated")
+    lastSyncFailed = SafeIntegerField(source="last_sync_failed")
     lastError = serializers.CharField(source="last_error")
     itemCounts = serializers.DictField(source="item_counts", read_only=True)
 
@@ -114,11 +134,11 @@ class CatalogSerializer(serializers.ModelSerializer):
 
 
 class CatalogItemSerializer(serializers.ModelSerializer):
-    catalogId = serializers.CharField(source="catalog_id")
+    catalogId = SafeIntegerField(source="catalog_id", default=None, allow_null=True)
     retailerId = serializers.CharField(source="retailer_id")
     metaProductId = serializers.CharField(source="meta_product_id")
-    storeProductId = serializers.CharField(source="store_product_id", allow_null=True)
-    storeCategoryId = serializers.CharField(source="store_category_id", allow_null=True)
+    storeProductId = SafeIntegerField(source="store_product_id", default=None, allow_null=True)
+    storeCategoryId = SafeIntegerField(source="store_category_id", default=None, allow_null=True)
     storeProductName = serializers.CharField(source="store_product_name")
     storeProductSlug = serializers.CharField(source="store_product_slug")
     isLinked = serializers.BooleanField(source="is_linked")
@@ -137,14 +157,14 @@ class CatalogItemSerializer(serializers.ModelSerializer):
     displayImageUrl = serializers.CharField(source="display_image_url", read_only=True)
     productUrl = serializers.CharField(source="product_url")
     inStock = serializers.BooleanField(source="in_stock")
-    stockQuantity = serializers.CharField(source="stock_quantity")
-    sortOrder = serializers.CharField(source="sort_order")
+    stockQuantity = SafeIntegerField(source="stock_quantity")
+    sortOrder = SafeIntegerField(source="sort_order")
     hidePrice = serializers.BooleanField(source="hide_price")
     isPriceHidden = serializers.BooleanField(source="is_price_hidden", read_only=True)
     customTitle = serializers.CharField(source="custom_title")
     customDescription = serializers.CharField(source="custom_description")
-    viewCount = serializers.CharField(source="view_count")
-    addToCartCount = serializers.CharField(source="add_to_cart_count")
+    viewCount = SafeIntegerField(source="view_count")
+    addToCartCount = SafeIntegerField(source="add_to_cart_count")
     removedAt = serializers.DateTimeField(source="removed_at", allow_null=True)
     syncStatus = serializers.CharField(source="sync_status")
     reviewStatus = serializers.CharField(source="review_status", allow_null=True)
@@ -172,14 +192,14 @@ class CatalogItemSerializer(serializers.ModelSerializer):
 class ContactSerializer(serializers.ModelSerializer):
     waId = serializers.CharField(source="wa_id")
     profileName = serializers.CharField(source="profile_name", allow_null=True)
-    userId = serializers.CharField(source="user_id", allow_null=True)
+    userId = SafeIntegerField(source="user_id", default=None, allow_null=True)
     isVerified = serializers.BooleanField(source="is_verified")
     isBlocked = serializers.BooleanField(source="is_blocked")
     optInStatus = serializers.CharField(source="opt_in_status")
     optInSource = serializers.CharField(source="opt_in_source")
     optInAt = serializers.DateTimeField(source="opt_in_at", allow_null=True)
     lastInboundAt = serializers.DateTimeField(source="last_inbound_at", allow_null=True)
-    orderCount = serializers.CharField(source="order_count")
+    orderCount = SafeIntegerField(source="order_count")
     totalSpent = serializers.DecimalField(source="total_spent", max_digits=14, decimal_places=2)
     productAffinity = serializers.JSONField(source="product_affinity")
     createdAt = serializers.DateTimeField(source="created_at", allow_null=True)
@@ -195,7 +215,7 @@ class ContactSerializer(serializers.ModelSerializer):
 
 class MessageSerializer(serializers.ModelSerializer):
     waMessageId = serializers.CharField(source="wa_message_id")
-    conversationId = serializers.CharField(source="conversation_id")
+    conversationId = SafeIntegerField(source="conversation_id", default=None, allow_null=True)
     errorMessage = serializers.CharField(source="error_message")
     mediaId = serializers.CharField(source="media_id")
     mediaUrl = serializers.CharField(source="media_url")
@@ -205,8 +225,8 @@ class MessageSerializer(serializers.ModelSerializer):
     productRefs = serializers.JSONField(source="product_refs")
     cartItems = serializers.JSONField(source="cart_items")
     interactiveButtons = serializers.JSONField(source="interactive_buttons")
-    replyToId = serializers.CharField(source="reply_to_id", allow_null=True)
-    author = serializers.CharField(source="author_id", allow_null=True)
+    replyToId = SafeIntegerField(source="reply_to_id", default=None, allow_null=True)
+    author = SafeIntegerField(source="author_id", default=None, allow_null=True)
     authorName = serializers.CharField(source="author_name", allow_null=True)
     isInternalNote = serializers.BooleanField(source="is_internal_note")
 
@@ -223,7 +243,7 @@ class MessageSerializer(serializers.ModelSerializer):
 
 class ConversationListSerializer(serializers.ModelSerializer):
     contact = ContactSerializer()
-    assignedTo = serializers.CharField(source="assigned_to_id", allow_null=True)
+    assignedTo = SafeIntegerField(source="assigned_to_id", default=None, allow_null=True)
     assignedToName = serializers.CharField(source="assigned_to_name", allow_null=True)
     lastMessagePreview = serializers.CharField(source="last_message_preview")
     lastMessageAt = serializers.DateTimeField(source="last_message_at", allow_null=True)
@@ -236,7 +256,7 @@ class ConversationListSerializer(serializers.ModelSerializer):
         source="service_window_expires_at", allow_null=True, read_only=True
     )
     botPaused = serializers.BooleanField(source="bot_paused")
-    unreadCount = serializers.CharField(source="unread_count")
+    unreadCount = SafeIntegerField(source="unread_count", max_value=100000)
     slaFirstResponseDueAt = serializers.DateTimeField(
         source="sla_first_response_due_at", allow_null=True
     )
@@ -273,10 +293,10 @@ class TemplateSerializer(serializers.ModelSerializer):
     attachedCatalogItemIds = serializers.JSONField(source="attached_catalog_item_ids")
     hasProductAttachment = serializers.BooleanField(source="has_product_attachment")
     isPaused = serializers.BooleanField(source="is_paused")
-    sentCount = serializers.CharField(source="sent_count")
-    deliveredCount = serializers.CharField(source="delivered_count")
-    readCount = serializers.CharField(source="read_count")
-    repliedCount = serializers.CharField(source="replied_count")
+    sentCount = SafeIntegerField(source="sent_count")
+    deliveredCount = SafeIntegerField(source="delivered_count")
+    readCount = SafeIntegerField(source="read_count")
+    repliedCount = SafeIntegerField(source="replied_count")
     lastSyncedAt = serializers.DateTimeField(source="last_synced_at", allow_null=True)
     createdAt = serializers.DateTimeField(source="created_at", allow_null=True)
     updatedAt = serializers.DateTimeField(source="updated_at", allow_null=True)
@@ -294,10 +314,10 @@ class TemplateSerializer(serializers.ModelSerializer):
 
 class AutomationSerializer(serializers.ModelSerializer):
     triggerLabel = serializers.CharField(source="trigger_label")
-    templateId = serializers.CharField(source="template_id", allow_null=True)
+    templateId = SafeIntegerField(source="template_id", default=None, allow_null=True)
     templateName = serializers.SerializerMethodField()
-    delayMinutes = serializers.CharField(source="delay_minutes")
-    messagesSent = serializers.CharField(source="messages_sent")
+    delayMinutes = SafeIntegerField(source="delay_minutes")
+    messagesSent = SafeIntegerField(source="messages_sent")
     lastTriggeredAt = serializers.DateTimeField(source="last_triggered_at", allow_null=True)
     createdAt = serializers.DateTimeField(source="created_at", allow_null=True)
     updatedAt = serializers.DateTimeField(source="updated_at", allow_null=True)
@@ -316,11 +336,11 @@ class AutomationSerializer(serializers.ModelSerializer):
 
 class BroadcastSerializer(serializers.ModelSerializer):
     campaignName = serializers.CharField(source="campaign_name")
-    templateId = serializers.CharField(source="template_id", allow_null=True)
+    templateId = SafeIntegerField(source="template_id", default=None, allow_null=True)
     templateName = serializers.SerializerMethodField()
     audienceRuleRef = serializers.CharField(source="audience_rule_ref")
-    segmentId = serializers.CharField(source="segment_id", allow_null=True)
-    audienceCount = serializers.CharField(source="audience_count")
+    segmentId = SafeIntegerField(source="segment_id", default=None, allow_null=True)
+    audienceCount = SafeIntegerField(source="audience_count")
     attachedCatalogItemIds = serializers.JSONField(source="attached_catalog_item_ids")
     hasProductAttachment = serializers.BooleanField(source="has_product_attachment")
     variableMapping = serializers.JSONField(source="variable_mapping")
@@ -355,12 +375,12 @@ class BroadcastSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     orderNumber = serializers.CharField(source="order_number")
-    contactId = serializers.CharField(source="contact_id", allow_null=True)
+    contactId = SafeIntegerField(source="contact_id", default=None, allow_null=True)
     contactName = serializers.CharField(source="contact_name")
     phone = serializers.SerializerMethodField()
     contactWaId = serializers.CharField(source="contact_wa_id")
-    conversationId = serializers.CharField(source="conversation_id", allow_null=True)
-    checkoutOrderId = serializers.CharField(source="checkout_order_id", allow_null=True)
+    conversationId = SafeIntegerField(source="conversation_id", default=None, allow_null=True)
+    checkoutOrderId = SafeIntegerField(source="checkout_order_id", default=None, allow_null=True)
     paymentMethod = serializers.CharField(source="payment_method")
     paymentRef = serializers.CharField(source="payment_ref")
     deliveryAddress = serializers.CharField(source="delivery_address")
@@ -383,7 +403,7 @@ class OrderSerializer(serializers.ModelSerializer):
 class WebhookEventSerializer(serializers.ModelSerializer):
     eventType = serializers.CharField(source="event_type")
     signatureValid = serializers.BooleanField(source="signature_valid")
-    latencyMs = serializers.CharField(source="latency_ms")
+    latencyMs = SafeIntegerField(source="latency_ms")
     receivedAt = serializers.DateTimeField(source="received_at", allow_null=True)
 
     class Meta:
@@ -441,7 +461,7 @@ class SettingsSerializer(serializers.ModelSerializer):
 
 
 class TeamMemberSerializer(serializers.ModelSerializer):
-    userId = serializers.CharField(source="user_id")
+    userId = SafeIntegerField(source="user_id", default=None, allow_null=True)
     name = serializers.SerializerMethodField()
     email = serializers.CharField(source="user.email", read_only=True)
     online = serializers.SerializerMethodField()
@@ -480,7 +500,7 @@ class AuditEntrySerializer(serializers.ModelSerializer):
 
 
 class SegmentSerializer(serializers.ModelSerializer):
-    cachedCount = serializers.CharField(source="cached_count")
+    cachedCount = SafeIntegerField(source="cached_count")
     createdAt = serializers.DateTimeField(source="created_at", allow_null=True)
     updatedAt = serializers.DateTimeField(source="updated_at", allow_null=True)
     count = serializers.SerializerMethodField()

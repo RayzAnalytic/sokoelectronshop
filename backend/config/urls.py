@@ -69,6 +69,8 @@ urlpatterns = [
 
     path("api/v1/", include("dashboard.banners.urls")),
 
+    path("api/v1/", include("dashboard.posters.urls")),
+
     path("api/v1/admin/social/", include("dashboard.social.urls")),
 
     path(
@@ -90,7 +92,7 @@ urlpatterns = [
         "api/v1/dashboard/direct-orders/",
         include("dashboard.direct_orders.urls"),
     ),
-   
+
     path('api/v1/admin/campaigns/', include('dashboard.campaigns.urls')),
 
     path(

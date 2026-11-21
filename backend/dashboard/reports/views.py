@@ -1,17 +1,3 @@
-"""
-dashboard/reports/views.py
-
-Read-only aggregation across the shop. Reads from:
-  • checkout.models        → Order, OrderItem, Payment, Coupon
-  • catalog.models         → Product, Category, Brand, Discount
-  • authentication.models  → User
-  • dashboard.customers    → CustomerProfile
-  • dashboard.settings     → TaxSettings, MpesaTransaction
-  • dashboard.shipping     → Shipment, ShippingMethod, CourierConfig
-  • dashboard.social       → SocialPost, SocialPostTarget
-  • dashboard.inventory    → StockMovement
-"""
-
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -24,10 +10,6 @@ from django.views.decorators.http import require_GET, require_POST
 from .models import ReportCache, ReportExportLog
 
 
-# ============================================================
-# Shared constants
-# ============================================================
-
 RANGE_LABELS = {
     "today": "Today",
     "yesterday": "Yesterday",
@@ -38,19 +20,13 @@ RANGE_LABELS = {
     "custom": "Custom Range",
 }
 
-# checkout.Order.status choices
-LIVE_ORDER_STATUSES = ("confirmed", "processing", "shipped", "delivered")
-REFUND_ORDER_STATUSES = ("returned", "cancelled", "failed")
+LIVE_ORDER_STATUSES = ("CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED")
+REFUND_ORDER_STATUSES = ("RETURNED", "CANCELLED", "FAILED")
 
-# checkout.Payment.status choices
 PAYMENT_SUCCESS = "SUCCESS"
 
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
 
-
-# ============================================================
-# Helpers
-# ============================================================
 
 def _range_key(request) -> str:
     rng = request.GET.get("range", "7days")
@@ -91,8 +67,16 @@ def _resolve_dates(request):
     return start, end
 
 
+def _date_range_days(start, end):
+    out = []
+    cur = start
+    while cur <= end:
+        out.append(cur)
+        cur += timedelta(days=1)
+    return out
+
+
 def _cached_or_build(request, tab: str, builder, empty: dict) -> dict:
-    """Cache-first; on build failure return empty + error string (not 500)."""
     key = _range_key(request)
     cached = ReportCache.objects.filter(tab=tab, range_key=key).first()
     if cached and cached.payload:
@@ -100,7 +84,7 @@ def _cached_or_build(request, tab: str, builder, empty: dict) -> dict:
 
     try:
         payload = builder(request)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         import logging
 
         logging.getLogger(__name__).warning(
@@ -142,10 +126,6 @@ def _humanize_delta(dt) -> str:
     return f"{secs // 86400} days ago"
 
 
-# ============================================================
-# SALES — checkout.Order + OrderItem + catalog.Product
-# ============================================================
-
 @require_GET
 def sales(request):
     def build(_req):
@@ -179,8 +159,6 @@ def sales(request):
             )
         }
 
-        # Top category per day.
-        # OrderItem.product_id is a CharField → catalog.Product.id is a CharField.
         item_rows = (
             OrderItem.objects
             .filter(
@@ -211,18 +189,19 @@ def sales(request):
             for day, cats in cat_qty.items() if cats
         }
 
+        by_day = {r["day"]: r for r in daily}
         rows = []
-        for r in daily:
-            day = r["day"]
-            revenue = float(r["revenue"] or 0)
-            orders_count = r["orders"] or 0
+        for d in _date_range_days(start, end):
+            r = by_day.get(d)
+            revenue = float(r["revenue"] or 0) if r else 0.0
+            orders_count = (r["orders"] or 0) if r else 0
             rows.append({
-                "date": day.strftime("%b %d"),
+                "date": d.strftime("%b %d"),
                 "revenue": _to_int(revenue),
                 "orders": orders_count,
                 "aov": _to_int(revenue / orders_count) if orders_count else 0,
-                "topCategory": top_cat_by_day.get(day, "—"),
-                "refunds": refunds_by_day.get(day, 0),
+                "topCategory": top_cat_by_day.get(d, "—"),
+                "refunds": refunds_by_day.get(d, 0),
             })
 
         return {
@@ -234,10 +213,6 @@ def sales(request):
         _cached_or_build(request, "sales", build, {"daily": []}),
     )
 
-
-# ============================================================
-# ORDERS — checkout.Order + OrderItem
-# ============================================================
 
 @require_GET
 def orders(request):
@@ -284,10 +259,6 @@ def orders(request):
     )
 
 
-# ============================================================
-# CUSTOMERS — authentication.User + CustomerProfile
-# ============================================================
-
 @require_GET
 def customers(request):
     def build(_req):
@@ -296,7 +267,6 @@ def customers(request):
 
         start, end = _resolve_dates(_req)
 
-        # First order date per customer
         first_by_cust = dict(
             Order.objects
             .filter(user__isnull=False, status__in=LIVE_ORDER_STATUSES)
@@ -305,7 +275,6 @@ def customers(request):
             .values_list("user_id", "first")
         )
 
-        # Distinct (day, user) pairs inside the range
         seen = (
             Order.objects
             .filter(
@@ -328,16 +297,13 @@ def customers(request):
                 ret_by_day[day] += 1
 
         nvr = []
-        cur = start
-        while cur <= end:
+        for d in _date_range_days(start, end):
             nvr.append({
-                "date": cur.strftime("%b %d"),
-                "newCust": new_by_day.get(cur, 0),
-                "returning": ret_by_day.get(cur, 0),
+                "date": d.strftime("%b %d"),
+                "newCust": new_by_day.get(d, 0),
+                "returning": ret_by_day.get(d, 0),
             })
-            cur += timedelta(days=1)
 
-        # Top buyers from the pre-computed CustomerProfile
         profiles = (
             CustomerProfile.objects
             .select_related("user")
@@ -374,10 +340,6 @@ def customers(request):
         ),
     )
 
-
-# ============================================================
-# PRODUCTS — OrderItem + catalog.Product
-# ============================================================
 
 @require_GET
 def products(request):
@@ -452,10 +414,6 @@ def products(request):
     )
 
 
-# ============================================================
-# INVENTORY — catalog.Product
-# ============================================================
-
 @require_GET
 def inventory(request):
     def build(_req):
@@ -515,10 +473,6 @@ def inventory(request):
     )
 
 
-# ============================================================
-# PAYMENTS — checkout.Payment
-# ============================================================
-
 @require_GET
 def payments(request):
     def build(_req):
@@ -554,23 +508,20 @@ def payments(request):
                 "successRate": f"{rate:.1f}%",
             }
 
-        # M-Pesa STK Push: checkout_request_id is populated
         stk = agg(
-            base.filter(method="MPESA").exclude(checkout_request_id="")
+            base.filter(method="MPS").exclude(checkout_request_id="")
         )
         stk["method"] = "M-Pesa STK Push"
         stk["provider"] = "Safaricom"
 
-        # M-Pesa C2B: no checkout_request_id but has an M-Pesa receipt
         c2b = agg(
             base
-            .filter(method="MPESA", checkout_request_id="")
+            .filter(method="MPS", checkout_request_id="")
             .exclude(mpesa_receipt_number="")
         )
         c2b["method"] = "M-Pesa C2B Paybill"
         c2b["provider"] = "Safaricom"
 
-        # Cash on Delivery
         cod = agg(base.filter(method="COD"))
         cod["method"] = "Cash on Delivery"
         cod["provider"] = "—"
@@ -594,10 +545,6 @@ def payments(request):
     )
 
 
-# ============================================================
-# TAXES — checkout.Order + dashboard.settings.TaxSettings
-# ============================================================
-
 @require_GET
 def taxes(request):
     def build(_req):
@@ -611,7 +558,6 @@ def taxes(request):
         month_start = today.replace(day=1)
         periods = []
 
-        # Weekly buckets for the current month
         cur = month_start
         week_no = 1
         while cur <= today:
@@ -635,7 +581,6 @@ def taxes(request):
             cur = wk_end + timedelta(days=1)
             week_no += 1
 
-        # Previous full month
         first_this = today.replace(day=1)
         prev_end = first_this - timedelta(days=1)
         prev_start = prev_end.replace(day=1)
@@ -662,10 +607,6 @@ def taxes(request):
         _cached_or_build(request, "taxes", build, {"rows": []}),
     )
 
-
-# ============================================================
-# SHIPPING — dashboard.shipping.Shipment
-# ============================================================
 
 @require_GET
 def shipping(request):
@@ -737,10 +678,6 @@ def shipping(request):
     )
 
 
-# ============================================================
-# DISCOUNTS — catalog.Discount + checkout.Order
-# ============================================================
-
 @require_GET
 def discounts(request):
     def build(_req):
@@ -797,10 +734,6 @@ def discounts(request):
     )
 
 
-# ============================================================
-# SOCIAL — dashboard.social.SocialPost + SocialPostTarget
-# ============================================================
-
 @require_GET
 def social(request):
     def build(_req):
@@ -826,7 +759,6 @@ def social(request):
             "changes": {"videos": "+0", "views": "+0%", "orders": "+0%", "revenue": "+0%"},
         }
 
-        # One row per post; metrics aggregated across its targets
         video_rows = []
         for p in base.order_by("-created_at")[:50]:
             post_targets = list(p.targets.all())
@@ -862,7 +794,6 @@ def social(request):
                 "roas": "—",
             })
 
-        # Platform summary
         platform_qs = (
             targets
             .values("platform")
@@ -886,24 +817,24 @@ def social(request):
             for p in platform_qs
         ]
 
-        # Daily funnel
-        funnel_qs = (
-            targets
-            .annotate(day=TruncDate("post__created_at"))
-            .values("day")
-            .annotate(views=Coalesce(Sum("reach"), Value(0)))
-            .order_by("day")
-        )
-        funnel = [
-            {
-                "date": f["day"].strftime("%b %d"),
-                "views": _to_int(f["views"]),
+        funnel_by_day = {
+            f["day"]: f for f in (
+                targets
+                .annotate(day=TruncDate("post__created_at"))
+                .values("day")
+                .annotate(views=Coalesce(Sum("reach"), Value(0)))
+            )
+        }
+        funnel = []
+        for d in _date_range_days(start, end):
+            f = funnel_by_day.get(d)
+            funnel.append({
+                "date": d.strftime("%b %d"),
+                "views": _to_int(f["views"]) if f else 0,
                 "clicks": 0,
                 "orders": 0,
                 "revenue": 0,
-            }
-            for f in funnel_qs
-        ]
+            })
 
         return {
             "summary": summary,
@@ -926,10 +857,6 @@ def social(request):
         ),
     )
 
-
-# ============================================================
-# EXPORT + CACHE REFRESH
-# ============================================================
 
 @require_POST
 def log_export(request):

@@ -24,6 +24,13 @@ function formatKES(amount: number): string {
     })}`;
 }
 
+function shortText(text: string | null | undefined, maxLen = 70): string {
+    if (!text) return '';
+    const clean = String(text).replace(/\s+/g, ' ').trim();
+    if (clean.length <= maxLen) return clean;
+    return `${clean.slice(0, maxLen).trimEnd()}…`;
+}
+
 type StockKind = 'in' | 'low' | 'out' | 'unknown';
 
 function normalizeStock(raw: string | undefined): StockKind {
@@ -35,10 +42,10 @@ function normalizeStock(raw: string | undefined): StockKind {
 }
 
 const STOCK_STYLES: Record<StockKind, { bg: string; label: string }> = {
-    in:      { bg: 'bg-green-600 text-white',   label: 'In Stock' },
-    low:     { bg: 'bg-orange-500 text-white',  label: 'Low Stock' },
-    out:     { bg: 'bg-red-600 text-white',     label: 'Out of Stock' },
-    unknown: { bg: 'bg-slate-500 text-white',   label: 'Unknown' },
+    in: { bg: 'bg-green-600 text-white', label: 'In Stock' },
+    low: { bg: 'bg-orange-500 text-white', label: 'Low Stock' },
+    out: { bg: 'bg-red-600 text-white', label: 'Out of Stock' },
+    unknown: { bg: 'bg-slate-500 text-white', label: 'Unknown' },
 };
 
 const STOCK_OPTIONS = ['All', 'In Stock', 'Low Stock', 'Out of Stock'] as const;
@@ -78,7 +85,8 @@ function NewArrivalsPageInner() {
     const [reloadKey, setReloadKey] = useState(0);
 
     const [products, setProducts] = useState<CatalogNewArrival[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [activeDetailProduct, setActiveDetailProduct] =
@@ -116,13 +124,21 @@ function NewArrivalsPageInner() {
 
         catalogApi.newArrivals
             .list(query, ctrl.signal)
-            .then(setProducts)
+            .then((data) => {
+                if (ctrl.signal.aborted) return;
+                setProducts(data);
+            })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setProducts([]);
                 setLoadError('Failed to load new arrivals. Please try again.');
             })
-            .finally(() => setLoading(false));
+            .finally(() => {
+                if (ctrl.signal.aborted) return;
+                setLoading(false);
+                setHasLoadedOnce(true);
+            });
 
         return () => ctrl.abort();
     }, [
@@ -146,10 +162,12 @@ function NewArrivalsPageInner() {
         catalogApi.newArrivals
             .detail(openId, ctrl.signal)
             .then((detail) => {
+                if (ctrl.signal.aborted) return;
                 setActiveDetailProduct(detail);
                 setActiveImageIndex(0);
             })
             .catch((err: unknown) => {
+                if (ctrl.signal.aborted) return;
                 if (err instanceof DOMException && err.name === 'AbortError') return;
                 setActiveDetailProduct(null);
                 router.replace(pathname, { scroll: false });
@@ -245,14 +263,14 @@ function NewArrivalsPageInner() {
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans antialiased">
             {cartNotification && (
-                <div className="fixed bottom-4 right-4 z-50 bg-blue-950 text-white text-xs px-3 sm:px-4 py-2.5 sm:py-3 rounded-sm shadow-lg flex items-center space-x-2 max-w-[calc(100vw-2rem)]">
+                <div className="fixed bottom-4 right-4 z-50 bg-blue-950 text-white text-xs px-3 sm:px-4 py-2.5 sm:py-3 rounded flex items-center space-x-2 max-w-[calc(100vw-2rem)]">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span className="truncate">{cartNotification}</span>
                 </div>
             )}
 
             <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-4 py-3 sm:py-4">
-                <nav aria-label="Breadcrumb" className="mb-3 text-[12px] sm:text-xs text-slate-500">
+                <nav aria-label="Breadcrumb" className="mb-2 text-[12px] sm:text-xs text-slate-500">
                     <ol className="flex items-center space-x-2">
                         <li>
                             <Link href="/" className="hover:text-blue-950">
@@ -266,11 +284,11 @@ function NewArrivalsPageInner() {
                     </ol>
                 </nav>
 
-                <section className="bg-white border border-slate-200 rounded-sm p-3 sm:p-4 mb-3">
-                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mb-1">
+                <section className="bg-white border border-slate-200 rounded-sm p-3 sm:p-4 mb-2">
+                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 mb-1">
                         New Arrivals
                     </h1>
-                    <p className="text-[13px] sm:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                    <p className="text-[13px] sm:text-sm text-slate-600 max-w-3xl">
                         Explore the latest electronics added to our store, from newly listed
                         devices and accessories to fresh arrivals across our categories.
                     </p>
@@ -291,8 +309,8 @@ function NewArrivalsPageInner() {
                     ))}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-sm p-3 sm:p-4 mb-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
+                <div className="bg-white border border-slate-200 rounded p-3 sm:p-4 mb-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-2">
                         <div>
                             <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 uppercase mb-1">
                                 Brand
@@ -375,7 +393,7 @@ function NewArrivalsPageInner() {
                         </div>
                     </div>
 
-                    <div className="mt-3 sm:mt-4 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                    <div className="mt-2 sm:mt-3 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
                         <span className="text-[12px] sm:text-xs text-slate-500">
                             Showing filtered new arrivals
                         </span>
@@ -390,7 +408,7 @@ function NewArrivalsPageInner() {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-2">
                     <p className="text-[12px] sm:text-xs font-medium text-slate-700">
                         {loading
                             ? 'Loading…'
@@ -399,18 +417,18 @@ function NewArrivalsPageInner() {
                 </div>
 
                 {loadError && !loading && (
-                    <div className="bg-white border border-red-200 rounded-sm p-6 sm:p-8 text-center my-6">
-                        <AlertCircle className="w-8 h-8 sm:w-9 sm:h-9 text-red-500 mx-auto mb-2.5" />
+                    <div className="bg-white border border-red-200 rounded p-6 sm:p-8 text-center my-6">
+                        <AlertCircle className="w-8 h-8 sm:w-9 sm:h-9 text-red-500 mx-auto mb-2" />
                         <h2 className="text-sm font-bold text-slate-900 mb-1">
                             {loadError}
                         </h2>
-                        <p className="text-[12px] sm:text-xs text-slate-500 mb-3">
+                        <p className="text-[12px] sm:text-xs text-slate-500 mb-2">
                             Check your connection and try again.
                         </p>
                         <button
                             type="button"
                             onClick={() => setReloadKey((k) => k + 1)}
-                            className="inline-flex items-center px-3.5 py-1.5 bg-blue-950 text-white rounded-sm text-[12px] sm:text-xs font-medium hover:bg-blue-900 transition-colors"
+                            className="inline-flex items-center px-3.5 py-1.5 bg-blue-950 text-white rounded text-[12px] sm:text-xs font-medium hover:bg-blue-900 transition-colors"
                         >
                             Retry
                         </button>
@@ -418,11 +436,11 @@ function NewArrivalsPageInner() {
                 )}
 
                 {loading && products.length === 0 && !loadError && (
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2">
                         {Array.from({ length: 8 }).map((_, i) => (
                             <div
                                 key={i}
-                                className="bg-white border border-slate-200 rounded-sm overflow-hidden animate-pulse"
+                                className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                             >
                                 <div className="aspect-[20/16] bg-slate-100" />
                                 <div className="p-2 space-y-2">
@@ -435,19 +453,19 @@ function NewArrivalsPageInner() {
                     </div>
                 )}
 
-                {!loading && !loadError && products.length === 0 && (
-                    <div className="bg-white border border-slate-200 rounded-sm p-6 sm:p-8 text-center my-6">
+                {!loading && hasLoadedOnce && !loadError && products.length === 0 && (
+                    <div className="bg-white border border-slate-200 rounded p-6 sm:p-8 text-center my-6">
                         <AlertCircle className="w-8 h-8 sm:w-9 sm:h-9 text-slate-400 mx-auto mb-2.5" />
                         <h2 className="text-sm font-bold text-slate-900 mb-1">
                             No new products are available right now.
                         </h2>
-                        <p className="text-[12px] sm:text-xs text-slate-500 mb-3">
+                        <p className="text-[12px] sm:text-xs text-slate-500 mb-2">
                             Try adjusting your filters or search criteria.
                         </p>
                         <button
                             type="button"
                             onClick={handleClearFilters}
-                            className="inline-flex items-center px-3.5 py-1.5 bg-blue-950 text-white rounded-sm text-[12px] sm:text-xs font-medium hover:bg-blue-900 transition-colors"
+                            className="inline-flex items-center px-3.5 py-1.5 bg-blue-950 text-white rounded text-[12px] sm:text-xs font-medium hover:bg-blue-900 transition-colors"
                         >
                             Reset All Filters
                         </button>
@@ -455,7 +473,7 @@ function NewArrivalsPageInner() {
                 )}
 
                 {!loading && !loadError && products.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2">
                         {products.map((product) => {
                             const isSelectedForDetail =
                                 activeDetailProduct?.id === product.id;
@@ -471,13 +489,14 @@ function NewArrivalsPageInner() {
                             const stockKind = normalizeStock(product.stockStatus);
                             const stock = STOCK_STYLES[stockKind];
                             const isOutOfStock = stockKind === 'out';
+                            const preview = shortText(product.description, 70);
 
                             return (
                                 <div
                                     key={product.id}
-                                    className={`bg-white border rounded-sm overflow-hidden transition-all duration-200 flex flex-col justify-between ${isDull
+                                    className={`bg-white border rounded overflow-hidden transition-all duration-200 flex flex-col justify-between ${isDull
                                         ? 'opacity-40 grayscale-[20%]'
-                                        : 'border-slate-200 shadow-sm hover:border-blue-200 hover:shadow-md'
+                                        : 'border-slate-200 hover:border-blue-200 hover:shadow-md'
                                         }`}
                                 >
                                     <div>
@@ -489,7 +508,7 @@ function NewArrivalsPageInner() {
                                             />
 
                                             <div className="absolute top-0 left-0 w-20 h-20 sm:w-24 sm:h-24 overflow-hidden pointer-events-none z-10">
-                                                <div className="absolute transform -rotate-45 bg-blue-950 text-white font-bold text-[13px] sm:text-[10px] tracking-widest py-1 left-[-40px] top-[14px] sm:top-[18px] w-[140px] text-center shadow-sm">
+                                                <div className="absolute transform -rotate-45 bg-blue-950 text-white font-bold text-[13px] sm:text-[10px] py-1 left-[-40px] top-[14px] sm:top-[18px] w-[140px] text-center">
                                                     NEW
                                                 </div>
                                             </div>
@@ -510,7 +529,7 @@ function NewArrivalsPageInner() {
                                             />
 
                                             <span
-                                                className={`absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 z-10 text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded shadow-sm ${stock.bg}`}
+                                                className={`absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 z-10 text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded ${stock.bg}`}
                                             >
                                                 {stock.label}
                                             </span>
@@ -523,13 +542,15 @@ function NewArrivalsPageInner() {
                                                 </span>
                                             </div>
 
-                                            <h3 className="text-[13px] sm:text-[15px] font-semibold text-slate-900 line-clamp-2 mb-1 leading-tight">
+                                            <h3 className="text-[13px] sm:text-[15px] font-semibold text-slate-900 line-clamp-2 mb-1">
                                                 {product.name}
                                             </h3>
 
-                                            <p className="hidden sm:block text-[13px] text-slate-600 line-clamp-2 mb-2">
-                                                {product.description}
-                                            </p>
+                                            {preview && (
+                                                <p className="hidden sm:block text-[12px] text-slate-500 leading-snug truncate mb-1.5">
+                                                    {preview}
+                                                </p>
+                                            )}
 
                                             {toNum(product.rating) > 0 && (
                                                 <div className="flex items-center space-x-1 mb-1.5">
@@ -594,18 +615,18 @@ function NewArrivalsPageInner() {
 
             {activeDetailProduct && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-sm shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 relative">
+                    <div className="bg-white rounded max-w-2xl w-full overflow-hidden border border-slate-200 relative">
                         <button
                             type="button"
                             onClick={closeDetailsModal}
-                            className="absolute top-2.5 right-2.5 z-20 w-7 h-7 flex items-center justify-center bg-white/90 hover:bg-slate-100 text-slate-600 rounded-full border border-slate-200 shadow-sm transition-colors"
+                            className="absolute top-2.5 right-2.5 z-20 w-7 h-7 flex items-center justify-center bg-white/90 hover:bg-slate-100 text-slate-600 rounded-full border border-slate-200 transition-colors"
                         >
                             <X className="w-3.5 h-3.5" />
                         </button>
 
                         <div className="flex flex-col sm:flex-row max-h-[92vh] sm:max-h-[90vh] overflow-y-auto">
                             <div className="sm:w-2/5 p-2 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200">
-                                <div className="relative aspect-square w-full bg-white rounded-sm overflow-hidden border border-slate-200">
+                                <div className="relative aspect-square w-full bg-white rounded overflow-hidden border border-slate-200">
                                     <img
                                         src={
                                             activeDetailProduct.images[activeImageIndex] ??
@@ -641,7 +662,7 @@ function NewArrivalsPageInner() {
                                             key={idx}
                                             type="button"
                                             onClick={() => setActiveImageIndex(idx)}
-                                            className={`aspect-square rounded-sm overflow-hidden border transition-all ${activeImageIndex === idx
+                                            className={`aspect-square rounded overflow-hidden border transition-all ${activeImageIndex === idx
                                                 ? 'border-blue-200 ring-1 ring-blue-950/20'
                                                 : 'border-slate-200 opacity-70 hover:opacity-100'
                                                 }`}
@@ -656,8 +677,8 @@ function NewArrivalsPageInner() {
                                 </div>
                             </div>
 
-                            <div className="sm:w-3/5 p-3 sm:p-4 flex flex-col justify-between space-y-3">
-                                <div className="space-y-2.5">
+                            <div className="sm:w-3/5 p-3 sm:p-4 flex flex-col justify-between space-y-2">
+                                <div className="space-y-2">
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="text-[12px] font-semibold text-slate-500 uppercase truncate">
                                             {activeDetailProduct.brand} • {activeDetailProduct.category}
@@ -669,7 +690,7 @@ function NewArrivalsPageInner() {
                                         </span>
                                     </div>
 
-                                    <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                                    <h2 className="text-base sm:text-lg font-bold text-slate-900 ">
                                         {activeDetailProduct.name}
                                     </h2>
 
@@ -686,12 +707,12 @@ function NewArrivalsPageInner() {
                                         )}
                                     </div>
 
-                                    <p className="text-[12px] sm:text-xs text-slate-600 leading-relaxed whitespace-pre-line">
-                                        {activeDetailProduct.description}
+                                    <p className="text-[12px] sm:text-xs text-slate-600 whitespace-pre-line">
+                                        {shortText(activeDetailProduct.description, 300)}
                                     </p>
                                 </div>
 
-                                <div className="pt-3 border-t border-slate-100 space-y-2">
+                                <div className="pt-2 border-t border-slate-100 space-y-2">
                                     <div className="text-[12px] text-slate-500">
                                         ID:{' '}
                                         <code className="bg-slate-100 px-1 py-0.5 rounded">
@@ -716,7 +737,7 @@ function NewArrivalsPageInner() {
                                             disabled={
                                                 normalizeStock(activeDetailProduct.stockStatus) === 'out'
                                             }
-                                            className="flex-1 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded-sm text-[13px] font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                                            className="flex-1 px-3 py-2 bg-blue-950 hover:bg-blue-900 text-white rounded text-[13px] font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                                         >
                                             <ShoppingCart className="w-3.5 h-3.5" />
                                             Add to Cart

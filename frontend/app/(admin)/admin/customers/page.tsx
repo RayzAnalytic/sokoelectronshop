@@ -65,10 +65,6 @@ const SPENT_LABELS: Record<string, string> = {
   '50k-100k': 'KES 50k–100k',
   '<50k': 'Under KES 50k',
 };
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PAGE — switches between list and detail
-// ═════════════════════════════════════════════════════════════════════════════
 export default function CustomersPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
@@ -85,10 +81,6 @@ export default function CustomersPage() {
     </div>
   );
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// 1. LIST VIEW
-// ═════════════════════════════════════════════════════════════════════════════
 function CustomersListPage({
   onSelectCustomer,
 }: {
@@ -205,7 +197,7 @@ function CustomersListPage({
   return (
     <>
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded flex items-center gap-2 text-[13px]">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button
@@ -218,7 +210,7 @@ function CustomersListPage({
       )}
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1700px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Customers</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
@@ -228,14 +220,14 @@ function CustomersListPage({
           <div className="flex items-center gap-2">
             <button
               onClick={handleExport}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Export</span>
             </button>
             <button
               onClick={() => setToastMessage('Add customer is not supported yet')}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add customer</span>
@@ -246,53 +238,53 @@ function CustomersListPage({
 
       <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+          <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Total customers</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5">
                 {totalCustomers}
               </p>
             </div>
-            <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+            <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
               <Users className="w-4 h-4" />
             </span>
           </div>
-          <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+          <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">New this month</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5">
                 {newThisMonth}
               </p>
             </div>
-            <span className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+            <span className="w-8 h-8 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
               <Calendar className="w-4 h-4" />
             </span>
           </div>
-          <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+          <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Repeat rate</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5">
                 {repeatRate}%
               </p>
             </div>
-            <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+            <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
               <ShoppingBag className="w-4 h-4" />
             </span>
           </div>
-          <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+          <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-slate-500">Avg. order value</p>
               <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
                 KES {avgOrderValue.toLocaleString()}
               </p>
             </div>
-            <span className="w-8 h-8 rounded-sm bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+            <span className="w-8 h-8 rounded bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
               <DollarSign className="w-4 h-4" />
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <div className="bg-white border border-slate-200 rounded p-2">
           <div className="flex items-center gap-1.5 overflow-x-auto">
             <span className="text-[13px] font-medium text-slate-500 shrink-0 inline-flex items-center gap-1 pr-1">
               <Tag className="w-3 h-3" />
@@ -300,7 +292,7 @@ function CustomersListPage({
             </span>
             <button
               onClick={() => setSegmentFilter(null)}
-              className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition shrink-0 ${segmentFilter === null
+              className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition shrink-0 ${segmentFilter === null
                 ? 'bg-blue-950 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
@@ -311,7 +303,7 @@ function CustomersListPage({
               <button
                 key={s}
                 onClick={() => setSegmentFilter(s)}
-                className={`px-2.5 py-1.5 rounded-sm text-[13px] font-medium transition shrink-0 ${segmentFilter === s
+                className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition shrink-0 ${segmentFilter === s
                   ? 'bg-blue-950 text-white'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
@@ -322,7 +314,7 @@ function CustomersListPage({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -330,7 +322,7 @@ function CustomersListPage({
               placeholder="Search name, email, phone…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+              className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
             />
           </div>
 
@@ -362,7 +354,7 @@ function CustomersListPage({
         </div>
 
         {selectedIds.length > 0 && (
-          <div className="bg-blue-950 text-white rounded-sm px-2 py-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="bg-blue-950 text-white rounded px-2 py-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[13px] font-medium">
               {selectedIds.length} selected
             </span>
@@ -371,7 +363,7 @@ function CustomersListPage({
                 setToastMessage('Exported selected customers');
                 setSelectedIds([]);
               }}
-              className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded-sm text-[13px] font-medium transition"
+              className="bg-blue-900 hover:bg-blue-800 px-2.5 py-2 rounded text-[13px] font-medium transition"
             >
               Export selected
             </button>
@@ -379,18 +371,18 @@ function CustomersListPage({
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm flex items-center gap-2 text-[13px]">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-center gap-2 text-[13px]">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                  <th className="py-2 px-3 w-10">
+                  <th className="py-2 px-2 w-10">
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -442,7 +434,7 @@ function CustomersListPage({
                         </td>
                         <td className="py-2 px-2">
                           <div className="flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-full bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0 text-[12px] font-semibold">
+                            <span className="w-8 h-8 rounded-full bg-blue-50 text-blue-950 border border-blue-100 flex items-center justify-center shrink-0 text-[13px] font-semibold">
                               {c.name.slice(0, 1).toUpperCase()}
                             </span>
                             <div className="min-w-0">
@@ -465,7 +457,7 @@ function CustomersListPage({
                         </td>
                         <td className="py-2 px-2">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${segmentBadge(
+                            className={`inline-block px-2 py-0.5 rounded font-medium border ${segmentBadge(
                               c.segment,
                             )}`}
                           >
@@ -483,7 +475,7 @@ function CustomersListPage({
                         </td>
                         <td className="py-2 px-2">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${c.status === 'Active'
+                            className={`inline-block px-2 py-0.5 rounded font-medium border ${c.status === 'Active'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                               : 'bg-red-50 text-red-600 border-red-100'
                               }`}
@@ -494,7 +486,7 @@ function CustomersListPage({
                         <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => onSelectCustomer(c.id)}
-                            className="p-1.5 rounded-sm bg-slate-100 hover:bg-blue-950 hover:text-white text-slate-700 transition"
+                            className="p-1.5 rounded bg-slate-100 hover:bg-blue-950 hover:text-white text-slate-700 transition"
                           >
                             <MoreVertical className="w-3.5 h-3.5" />
                           </button>
@@ -510,11 +502,7 @@ function CustomersListPage({
       </main>
     </>
   );
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// 2. DETAIL VIEW
-// ═════════════════════════════════════════════════════════════════════════════
+} 
 function CustomerDetailPage({
   customerId,
   onBack,
@@ -732,8 +720,8 @@ function CustomerDetailPage({
   if (error || !customer) {
     return (
       <div className="min-h-screen flex items-center justify-center p-2">
-        <div className="bg-white border border-slate-200 rounded-sm p-6 max-w-md w-full text-center space-y-2">
-          <div className="w-12 h-12 bg-red-50 text-red-600 rounded-sm flex items-center justify-center mx-auto">
+        <div className="bg-white border border-slate-200 rounded p-6 max-w-md w-full text-center space-y-2">
+          <div className="w-12 h-12 bg-red-50 text-red-600 rounded flex items-center justify-center mx-auto">
             <AlertCircle className="w-6 h-6" />
           </div>
           <h1 className="text-[15px] font-semibold text-slate-900">
@@ -744,7 +732,7 @@ function CustomerDetailPage({
           </p>
           <button
             onClick={onBack}
-            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded-sm text-[13px] transition"
+            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded text-[13px] transition"
           >
             Back to list
           </button>
@@ -824,7 +812,7 @@ function CustomerDetailPage({
   return (
     <>
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded-sm shadow-lg flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded flex items-center gap-2 text-[13px]">
           <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
           <button
@@ -841,7 +829,7 @@ function CustomerDetailPage({
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={onBack}
-              className="h-8 w-8 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 transition"
+              className="h-8 w-8 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 transition"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -854,14 +842,14 @@ function CustomerDetailPage({
                   {customer.name}
                 </h1>
                 <span
-                  className={`inline-block px-1.5 py-0.5 rounded-sm font-medium text-[13px] border ${segmentBadge(
+                  className={`inline-block px-1.5 py-0.5 rounded font-medium text-[13px] border ${segmentBadge(
                     customer.segment,
                   )}`}
                 >
                   {customer.segment}
                 </span>
                 <span
-                  className={`inline-block px-2 py-0.5 rounded-sm font-medium text-[13px] border ${customer.status === 'Active'
+                  className={`inline-block px-2 py-0.5 rounded font-medium text-[13px] border ${customer.status === 'Active'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                     : 'bg-red-50 text-red-600 border-red-100'
                     }`}
@@ -879,21 +867,21 @@ function CustomerDetailPage({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setWhatsAppOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded text-[13px] transition"
             >
               <WhatsAppIcon className="w-4 h-4" />
               <span className="hidden sm:inline">WhatsApp</span>
             </button>
             <button
               onClick={() => setEmailOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] transition"
+              className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
             >
               <Mail className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Email</span>
             </button>
             <button
               onClick={() => setBlockConfirmOpen(true)}
-              className={`inline-flex items-center gap-1.5 font-medium px-3 py-2 rounded-sm text-[13px] transition border ${customer.status === 'Active'
+              className={`inline-flex items-center gap-1.5 font-medium px-3 py-2 rounded text-[13px] transition border ${customer.status === 'Active'
                 ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
                 : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                 }`}
@@ -911,7 +899,7 @@ function CustomerDetailPage({
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-sm text-[13px] font-medium transition shrink-0 ${activeTab === tab.key
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded text-[13px] font-medium transition shrink-0 ${activeTab === tab.key
                 ? 'bg-blue-950 text-white'
                 : 'text-slate-600 hover:bg-slate-100'
                 }`}
@@ -919,7 +907,7 @@ function CustomerDetailPage({
               {tab.label}
               {tab.count !== undefined && (
                 <span
-                  className={`text-[13px] px-1.5 rounded-sm ${activeTab === tab.key
+                  className={`text-[13px] px-1.5 rounded ${activeTab === tab.key
                     ? 'bg-blue-900 text-white'
                     : 'bg-slate-200 text-slate-700'
                     }`}
@@ -932,59 +920,59 @@ function CustomerDetailPage({
         </div>
       </header>
 
-      <main className="max-w-[1700px] mx-auto px-0.5 py-3">
+      <main className="max-w-[1700px] mx-auto px-0.5 py-2">
         {/* OVERVIEW */}
         {activeTab === 'Overview' && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-              <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+              <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-slate-500">Total orders</p>
                   <p className="text-[15px] font-bold text-slate-900 mt-0.5">
                     {customer.ordersCount}
                   </p>
                 </div>
-                <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+                <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                   <ShoppingBag className="w-4 h-4" />
                 </span>
               </div>
-              <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+              <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-slate-500">Lifetime spend</p>
                   <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
                     KES {customer.totalSpent.toLocaleString()}
                   </p>
                 </div>
-                <span className="w-8 h-8 rounded-sm bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                <span className="w-8 h-8 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                   <DollarSign className="w-4 h-4" />
                 </span>
               </div>
-              <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+              <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-slate-500">Avg. order value</p>
                   <p className="text-[15px] font-bold text-slate-900 mt-0.5 truncate">
                     KES {avgOrderValue.toLocaleString()}
                   </p>
                 </div>
-                <span className="w-8 h-8 rounded-sm bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                <span className="w-8 h-8 rounded bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-4 h-4" />
                 </span>
               </div>
-              <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-start justify-between gap-2">
+              <div className="bg-white border border-slate-200 rounded p-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-slate-500">Last order</p>
                   <p className="text-[15px] font-bold font-mono text-slate-900 mt-0.5 truncate">
                     {customer.lastOrderDate || '—'}
                   </p>
                 </div>
-                <span className="w-8 h-8 rounded-sm bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+                <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
                   <Calendar className="w-4 h-4" />
                 </span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-              <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+              <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <p className="text-[13px] font-semibold text-slate-900">Customer profile</p>
                 <div className="space-y-2 text-[13px] pt-2 border-t border-slate-100">
                   <div className="flex items-start gap-2">
@@ -1018,13 +1006,13 @@ function CustomerDetailPage({
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+              <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <p className="text-[13px] font-semibold text-slate-900">Preferences</p>
                 <div className="space-y-2 text-[13px] pt-2 border-t border-slate-100">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Segment</span>
                     <span
-                      className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${segmentBadge(
+                      className={`inline-block px-2 py-0.5 rounded font-medium border ${segmentBadge(
                         customer.segment,
                       )}`}
                     >
@@ -1050,7 +1038,7 @@ function CustomerDetailPage({
                     </span>
                     <button
                       onClick={toggleMarketingConsent}
-                      className={`inline-block px-2 py-0.5 rounded-sm font-medium border transition ${customer.marketingConsent === 'Subscribed'
+                      className={`inline-block px-2 py-0.5 rounded font-medium border transition ${customer.marketingConsent === 'Subscribed'
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                         : customer.marketingConsent === 'Unsubscribed'
                           ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
@@ -1063,13 +1051,13 @@ function CustomerDetailPage({
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+              <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                 <p className="text-[13px] font-semibold text-slate-900">Recent activity</p>
-                <div className="space-y-2 text-[13px] pt-2 border-t border-slate-100">
+                <div className="space-y-2 text-[13px] pt-1 border-t border-slate-100">
                   {customer.communicationLog.slice(0, 3).map((log) => (
                     <div key={log.id} className="flex items-start gap-2">
                       <span
-                        className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 border ${channelBadge(
+                        className={`w-6 h-6 rounded flex items-center justify-center shrink-0 border ${channelBadge(
                           log.channel,
                         )}`}
                       >
@@ -1091,8 +1079,8 @@ function CustomerDetailPage({
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-sm">
-              <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
+            <div className="bg-white border border-slate-200 rounded">
+              <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between">
                 <p className="text-[13px] font-semibold text-slate-900">Recent orders</p>
                 <button
                   onClick={() => setActiveTab('Orders')}
@@ -1129,12 +1117,12 @@ function CustomerDetailPage({
                           {ord.total.toLocaleString()}
                         </td>
                         <td className="py-2 px-2">
-                          <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          <span className="inline-block px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                             {ord.paymentMethod}
                           </span>
                         </td>
                         <td className="py-2 px-2">
-                          <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-blue-50 text-blue-950 border border-blue-100">
+                          <span className="inline-block px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-950 border border-blue-100">
                             {ord.status}
                           </span>
                         </td>
@@ -1156,7 +1144,7 @@ function CustomerDetailPage({
 
         {/* ORDERS */}
         {activeTab === 'Orders' && (
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded overflow-hidden">
             <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Order history · {customer.orders.length}
@@ -1188,12 +1176,12 @@ function CustomerDetailPage({
                         {ord.total.toLocaleString()}
                       </td>
                       <td className="py-2 px-2">
-                        <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        <span className="inline-block px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                           {ord.paymentMethod}
                         </span>
                       </td>
                       <td className="py-2 px-2">
-                        <span className="inline-block px-2 py-0.5 rounded-sm font-medium bg-blue-50 text-blue-950 border border-blue-100">
+                        <span className="inline-block px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-950 border border-blue-100">
                           {ord.status}
                         </span>
                       </td>
@@ -1208,7 +1196,7 @@ function CustomerDetailPage({
         {/* WISHLIST & CART */}
         {activeTab === 'Wishlist & Cart' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-            <div className="bg-white border border-slate-200 rounded-sm">
+            <div className="bg-white border border-slate-200 rounded">
               <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Heart className="w-3.5 h-3.5 text-red-500" />
@@ -1226,16 +1214,16 @@ function CustomerDetailPage({
                   customer.wishlist.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center gap-2"
+                      className="bg-slate-50 border border-slate-200 rounded p-2 flex items-center gap-2"
                     >
                       {item.image ? (
                         <img
                           src={item.image}
                           alt=""
-                          className="w-10 h-10 rounded-sm object-cover border border-slate-200 shrink-0"
+                          className="w-10 h-10 rounded object-cover border border-slate-200 shrink-0"
                         />
                       ) : (
-                        <span className="w-10 h-10 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
+                        <span className="w-10 h-10 rounded bg-slate-100 border border-slate-200 shrink-0" />
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-slate-900 truncate">
@@ -1254,7 +1242,7 @@ function CustomerDetailPage({
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-sm">
+            <div className="bg-white border border-slate-200 rounded">
               <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <ShoppingCart className="w-3.5 h-3.5 text-blue-950" />
@@ -1272,16 +1260,16 @@ function CustomerDetailPage({
                   customer.cart.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center gap-2"
+                      className="bg-slate-50 border border-slate-200 rounded p-2 flex items-center gap-2"
                     >
                       {item.image ? (
                         <img
                           src={item.image}
                           alt=""
-                          className="w-10 h-10 rounded-sm object-cover border border-slate-200 shrink-0"
+                          className="w-10 h-10 rounded object-cover border border-slate-200 shrink-0"
                         />
                       ) : (
-                        <span className="w-10 h-10 rounded-sm bg-slate-100 border border-slate-200 shrink-0" />
+                        <span className="w-10 h-10 rounded bg-slate-100 border border-slate-200 shrink-0" />
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-slate-900 truncate">
@@ -1304,7 +1292,7 @@ function CustomerDetailPage({
 
         {/* REVIEWS */}
         {activeTab === 'Reviews' && (
-          <div className="bg-white border border-slate-200 rounded-sm">
+          <div className="bg-white border border-slate-200 rounded">
             <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Product reviews · {customer.reviews.length}
@@ -1319,7 +1307,7 @@ function CustomerDetailPage({
                 customer.reviews.map((rev) => (
                   <div
                     key={rev.id}
-                    className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1.5"
+                    className="bg-slate-50 border border-slate-200 rounded p-2 space-y-1.5"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -1343,7 +1331,7 @@ function CustomerDetailPage({
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded-sm font-medium text-[13px] border ${rev.status === 'Published'
+                          className={`inline-block px-2 py-0.5 rounded font-medium text-[13px] border ${rev.status === 'Published'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                             : rev.status === 'Pending'
                               ? 'bg-amber-50 text-amber-700 border-amber-100'
@@ -1367,7 +1355,7 @@ function CustomerDetailPage({
 
         {/* SUPPORT TICKETS */}
         {activeTab === 'Support Tickets' && (
-          <div className="bg-white border border-slate-200 rounded-sm">
+          <div className="bg-white border border-slate-200 rounded">
             <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Support tickets · {customer.supportTickets.length}
@@ -1399,7 +1387,7 @@ function CustomerDetailPage({
                         </td>
                         <td className="py-2 px-2">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${priorityBadge(
+                            className={`inline-block px-2 py-0.5 rounded font-medium border ${priorityBadge(
                               t.priority,
                             )}`}
                           >
@@ -1408,7 +1396,7 @@ function CustomerDetailPage({
                         </td>
                         <td className="py-2 px-2">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-sm font-medium border ${ticketStatusBadge(
+                            className={`inline-block px-2 py-0.5 rounded font-medium border ${ticketStatusBadge(
                               t.status,
                             )}`}
                           >
@@ -1430,7 +1418,7 @@ function CustomerDetailPage({
 
         {/* COMMUNICATION */}
         {activeTab === 'Communication' && (
-          <div className="bg-white border border-slate-200 rounded-sm">
+          <div className="bg-white border border-slate-200 rounded">
             <div className="px-2 py-2 border-b border-slate-200">
               <p className="text-[13px] font-semibold text-slate-900">
                 Communication history · {customer.communicationLog.length}
@@ -1445,10 +1433,10 @@ function CustomerDetailPage({
                 customer.communicationLog.map((log) => (
                   <div
                     key={log.id}
-                    className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-start gap-2"
+                    className="bg-slate-50 border border-slate-200 rounded p-2 flex items-start gap-2"
                   >
                     <span
-                      className={`w-8 h-8 rounded-sm flex items-center justify-center shrink-0 border ${channelBadge(
+                      className={`w-8 h-8 rounded flex items-center justify-center shrink-0 border ${channelBadge(
                         log.channel,
                       )}`}
                     >
@@ -1463,7 +1451,7 @@ function CustomerDetailPage({
                           {log.subject}
                         </span>
                         <span
-                          className={`inline-block px-1.5 py-0.5 rounded-sm font-medium text-[13px] border ${log.direction === 'Inbound'
+                          className={`inline-block px-1.5 py-0.5 rounded font-medium text-[13px] border ${log.direction === 'Inbound'
                             ? 'bg-blue-50 text-blue-950 border-blue-100'
                             : 'bg-emerald-50 text-emerald-700 border-emerald-100'
                             }`}
@@ -1497,7 +1485,7 @@ function CustomerDetailPage({
                 customer.addresses.map((addr) => (
                   <div
                     key={addr.id}
-                    className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 flex flex-col justify-between"
+                    className="bg-white border border-slate-200 rounded p-2 space-y-2 flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2">
@@ -1508,7 +1496,7 @@ function CustomerDetailPage({
                           </span>
                         </div>
                         {addr.isDefault && (
-                          <span className="bg-blue-50 text-blue-950 border border-blue-100 text-[13px] font-medium px-1.5 py-0.5 rounded-sm shrink-0">
+                          <span className="bg-blue-50 text-blue-950 border border-blue-100 text-[13px] font-medium px-1.5 py-0.5 rounded shrink-0">
                             Default
                           </span>
                         )}
@@ -1521,13 +1509,13 @@ function CustomerDetailPage({
                     <div className="flex justify-end gap-1 pt-2 border-t border-slate-100">
                       <button
                         onClick={() => setToastMessage('Edit address not supported yet')}
-                        className="p-1.5 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                        className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => deleteAddress(addr.id)}
-                        className="p-1.5 rounded-sm bg-red-50 hover:bg-red-100 text-red-600 transition"
+                        className="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600 transition"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1537,11 +1525,11 @@ function CustomerDetailPage({
               )}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-sm p-2 max-w-xl space-y-2">
+            <div className="bg-white border border-slate-200 rounded p-2 max-w-xl space-y-2">
               <p className="text-[13px] font-semibold text-slate-900">
                 Add new address
               </p>
-              <form onSubmit={addAddress} className="space-y-3 text-[13px]">
+              <form onSubmit={addAddress} className="space-y-2 text-[13px]">
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">
                     Label *
@@ -1551,7 +1539,7 @@ function CustomerDetailPage({
                     placeholder="e.g. Workspace"
                     value={newAddressTitle}
                     onChange={(e) => setNewAddressTitle(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                   />
                 </div>
                 <div>
@@ -1563,7 +1551,7 @@ function CustomerDetailPage({
                     placeholder="Street, building, apartment"
                     value={newAddressText}
                     onChange={(e) => setNewAddressText(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                   />
                 </div>
                 <div>
@@ -1572,7 +1560,7 @@ function CustomerDetailPage({
                     type="text"
                     value={newAddressCity}
                     onChange={(e) => setNewAddressCity(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                   />
                 </div>
                 <div className="flex justify-end">
@@ -1583,7 +1571,7 @@ function CustomerDetailPage({
                       !newAddressTitle.trim() ||
                       !newAddressText.trim()
                     }
-                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50 inline-flex items-center gap-1.5"
+                    className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50 inline-flex items-center gap-1.5"
                   >
                     {addressBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Save address
@@ -1597,7 +1585,7 @@ function CustomerDetailPage({
         {/* NOTES */}
         {activeTab === 'Notes' && (
           <div className="max-w-2xl space-y-2">
-            <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2 text-[13px]">
+            <div className="bg-white border border-slate-200 rounded p-2 space-y-2 text-[13px]">
               <p className="font-semibold text-slate-900">Internal notes</p>
 
               {customer.notes.length === 0 ? (
@@ -1607,7 +1595,7 @@ function CustomerDetailPage({
                   {customer.notes.map((note) => (
                     <div
                       key={note.id}
-                      className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1"
+                      className="bg-slate-50 border border-slate-200 rounded p-2 space-y-1"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[13px] font-medium text-slate-800">
@@ -1629,7 +1617,7 @@ function CustomerDetailPage({
                   placeholder="Type a confidential note…"
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
                 <div className="flex justify-end">
                   <button
@@ -1654,7 +1642,7 @@ function CustomerDetailPage({
           onClick={() => setWhatsAppOpen(false)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-3 shadow-xl space-y-2 text-[13px]"
+            className="bg-white border border-slate-200 rounded max-w-lg w-full p-3 shadow-xl space-y-2 text-[13px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -1664,7 +1652,7 @@ function CustomerDetailPage({
               </p>
               <button
                 onClick={() => setWhatsAppOpen(false)}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+                className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1674,7 +1662,7 @@ function CustomerDetailPage({
               <p className="text-[13px] font-medium text-slate-500 mb-1">
                 Live preview
               </p>
-              <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-2 text-slate-800">
+              <div className="bg-emerald-50 border border-emerald-200 rounded p-2 text-slate-800">
                 <p className="whitespace-pre-line">{whatsAppText}</p>
                 <p className="text-[13px] text-slate-400 text-right mt-1">
                   Just now ✓✓
@@ -1688,7 +1676,7 @@ function CustomerDetailPage({
                 rows={4}
                 value={whatsAppText}
                 onChange={(e) => setWhatsAppText(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </div>
 
@@ -1696,14 +1684,14 @@ function CustomerDetailPage({
               <button
                 onClick={() => setWhatsAppOpen(false)}
                 disabled={whatsAppSending}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={sendWhatsApp}
                 disabled={whatsAppSending || !whatsAppText.trim()}
-                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
               >
                 {whatsAppSending ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1724,14 +1712,14 @@ function CustomerDetailPage({
           onClick={() => setEmailOpen(false)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm max-w-lg w-full p-2 shadow-xl space-y-2 text-[13px]"
+            className="bg-white border border-slate-200 rounded max-w-lg w-full p-2 shadow-xl space-y-2 text-[13px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <p className="text-[15px] font-semibold text-slate-900">Send email</p>
               <button
                 onClick={() => setEmailOpen(false)}
-                className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-500"
+                className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1743,7 +1731,7 @@ function CustomerDetailPage({
                 type="text"
                 value={emailSubject}
                 onChange={(e) => setEmailSubject(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </div>
 
@@ -1753,7 +1741,7 @@ function CustomerDetailPage({
                 rows={5}
                 value={emailBody}
                 onChange={(e) => setEmailBody(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950"
               />
             </div>
 
@@ -1761,14 +1749,14 @@ function CustomerDetailPage({
               <button
                 onClick={() => setEmailOpen(false)}
                 disabled={emailSending}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={sendEmail}
                 disabled={emailSending || !emailSubject.trim() || !emailBody.trim()}
-                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-[13px] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
               >
                 {emailSending ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1789,11 +1777,11 @@ function CustomerDetailPage({
           onClick={() => setBlockConfirmOpen(false)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-sm max-w-md w-full p-2 shadow-xl text-center space-y-2 text-[13px]"
+            className="bg-white border border-slate-200 rounded max-w-md w-full p-2 shadow-xl text-center space-y-2 text-[13px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              className={`w-10 h-10 rounded-sm flex items-center justify-center mx-auto ${customer.status === 'Active'
+              className={`w-10 h-10 rounded flex items-center justify-center mx-auto ${customer.status === 'Active'
                 ? 'bg-red-50 text-red-600'
                 : 'bg-emerald-50 text-emerald-700'
                 }`}
@@ -1814,14 +1802,14 @@ function CustomerDetailPage({
               <button
                 onClick={() => setBlockConfirmOpen(false)}
                 disabled={blockBusy}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-sm text-[13px] disabled:opacity-50"
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={toggleBlock}
                 disabled={blockBusy}
-                className={`flex-1 font-medium py-2 rounded-sm text-[13px] text-white disabled:opacity-50 inline-flex items-center justify-center gap-1.5 ${customer.status === 'Active'
+                className={`flex-1 font-medium py-2 rounded text-[13px] text-white disabled:opacity-50 inline-flex items-center justify-center gap-1.5 ${customer.status === 'Active'
                   ? 'bg-red-600 hover:bg-red-500'
                   : 'bg-emerald-600 hover:bg-emerald-500'
                   }`}
@@ -1837,9 +1825,6 @@ function CustomerDetailPage({
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// FilterDropdown — unchanged
-// ═════════════════════════════════════════════════════════════════════════════
 function FilterDropdown({
   label,
   value,
@@ -1880,7 +1865,7 @@ function FilterDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 border rounded-sm px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
+        className={`flex items-center gap-1.5 border rounded px-3 py-2 text-[13px] font-medium transition whitespace-nowrap ${isActive
           ? 'bg-blue-50 border-blue-950 text-blue-950'
           : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}
@@ -1890,13 +1875,13 @@ function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 w-56 rounded-sm border border-slate-200 bg-white shadow-lg z-50 p-1">
+        <div className="absolute top-full mt-1 left-0 w-56 rounded border border-slate-200 bg-white shadow-lg z-50 p-1">
           <button
             onClick={() => {
               onChange(null);
               setOpen(false);
             }}
-            className={`w-full text-left px-2 py-2 rounded-sm text-[13px] ${!isActive
+            className={`w-full text-left px-2 py-2 rounded text-[13px] ${!isActive
               ? 'bg-blue-50 text-blue-950 font-medium'
               : 'text-slate-700 hover:bg-slate-50'
               }`}
@@ -1913,7 +1898,7 @@ function FilterDropdown({
                   onChange(opt);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2 py-2 rounded-sm text-[13px] flex items-center justify-between ${selected
+                className={`w-full text-left px-2 py-2 rounded text-[13px] flex items-center justify-between ${selected
                   ? 'bg-blue-50 text-blue-950 font-medium'
                   : 'text-slate-700 hover:bg-slate-50'
                   }`}

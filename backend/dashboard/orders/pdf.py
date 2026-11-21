@@ -11,7 +11,7 @@ from reportlab.lib.utils import ImageReader
 
 def _build_qr_image(order) -> ImageReader:
     payload = (
-        f"https://razestores.co.ke/verify/{order.reference}"
+        f"https://racetechhub.co.ke/verify/{order.reference}"
         f"?token={order.verify_token or order.reference}"
     )
     qr: Image.Image = qrcode.make(payload)
@@ -30,7 +30,7 @@ def build_receipt_pdf(order) -> io.BytesIO:
     c.rect(0, height - 30 * mm, width, 30 * mm, fill=1, stroke=0)
     c.setFillColor(colors.white)
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(15 * mm, height - 15 * mm, "Razestores")
+    c.drawString(15 * mm, height - 15 * mm, "Racetech Hub Ltd")
     c.setFont("Helvetica", 10)
     c.drawString(
         15 * mm, height - 22 * mm,
@@ -127,7 +127,7 @@ def build_receipt_pdf(order) -> io.BytesIO:
     c.setFillColor(colors.grey)
     c.drawString(
         15 * mm, 15 * mm,
-        "Thank you for shopping with Razestores!",
+        "Thank you for shopping with Racetech Hub Ltd!",
     )
     c.drawString(
         15 * mm, 11 * mm,

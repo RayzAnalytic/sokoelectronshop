@@ -2,7 +2,10 @@ import json
 import logging
 import os
 
+from django.apps import apps as django_apps
 from django.conf import settings
+from django.db.models import Q
+from django.utils import timezone
 
 from catalog import services as catalog_services
 from catalog.models import Category, Brand, Product
@@ -121,7 +124,7 @@ def _get_client():
     default_headers = None
     if cfg["provider"] == "openrouter":
         referer = getattr(settings, "OPENROUTER_HTTP_REFERER", "") or ""
-        title = getattr(settings, "OPENROUTER_X_TITLE", "") or "Myshop AI Assistant"
+        title = getattr(settings, "OPENROUTER_X_TITLE", "") or "Racetech Hub AI Assistant"
         default_headers = {"X-Title": title}
         if referer:
             default_headers["HTTP-Referer"] = referer
@@ -148,7 +151,8 @@ def call_model(messages: list[dict], tools: list[dict]):
         "model": cfg["model"],
         "messages": messages,
         "temperature": 0.3,
-        "max_tokens": 600,
+        "max_tokens": 1200,
+        "parallel_tool_calls": False,
     }
 
     if tools:
@@ -187,7 +191,9 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
                 "description": (
                     "Search the live product catalog. Use this for any "
                     "request about products, prices, brands, categories, "
-                    "stock, or recommendations."
+                    "stock, or recommendations. For 'over X' / 'above X' / "
+                    "'more than X', set min_price=X. For 'under X' / "
+                    "'below X' / 'less than X', set max_price=X."
                 ),
                 "parameters": {
                     "type": "object",
@@ -203,7 +209,8 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
                             "enum": ["featured", "price-low", "price-high",
                                      "rating", "newest"],
                         },
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 8},
+                        "limit": {"type": "integer", "minimum": 1},
+                        "offset": {"type": "integer", "minimum": 0},
                     },
                 },
             },
@@ -226,6 +233,27 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
         {
             "type": "function",
             "function": {
+                "name": "compare_products",
+                "description": (
+                    "Compare 2-4 products side-by-side by spec. Use when the "
+                    "customer asks to compare models or see which is better."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "product_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 2,
+                        },
+                    },
+                    "required": ["product_ids"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "list_categories",
                 "description": "Return the list of active product categories.",
                 "parameters": {"type": "object", "properties": {}},
@@ -237,6 +265,21 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
                 "name": "list_brands",
                 "description": "Return the list of active product brands.",
                 "parameters": {"type": "object", "properties": {}},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_shipping_quote",
+                "description": (
+                    "Return delivery information. If a county is provided, "
+                    "returns rate for that county if available, otherwise "
+                    "the general delivery policy."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {"county": {"type": "string"}},
+                },
             },
         },
         {
@@ -261,10 +304,30 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_active_promotions",
+                "description": (
+                    "Return currently valid coupon codes and discounts."
+                ),
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
     ]
 
     if is_authenticated:
         tools.extend([
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_my_profile",
+                    "description": (
+                        "Return the signed-in customer's profile details."
+                    ),
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
             {
                 "type": "function",
                 "function": {
@@ -281,7 +344,7 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
                                 "enum": ["pending", "processing", "packed",
                                          "shipped", "delivered", "cancelled"],
                             },
-                            "limit": {"type": "integer", "minimum": 1, "maximum": 10},
+                            "limit": {"type": "integer", "minimum": 1},
                         },
                     },
                 },
@@ -308,57 +371,105 @@ def build_tool_schemas(is_authenticated: bool) -> list[dict]:
 
 def _product_card(product: Product, request=None) -> dict:
     image_url = ""
-    first = product.images.first()
-    if first and first.image:
-        image_url = first.image.url
-        if request is not None:
-            image_url = request.build_absolute_uri(image_url)
+    try:
+        first = product.images.first()
+        if first and getattr(first, "image", None):
+            image_url = first.image.url
+            if request is not None:
+                image_url = request.build_absolute_uri(image_url)
+    except Exception:
+        image_url = ""
+
+    brand_name = ""
+    if getattr(product, "brand_id", None):
+        try:
+            brand_name = product.brand.name
+        except Exception:
+            brand_name = ""
+
+    category_name = ""
+    if getattr(product, "category_id", None):
+        try:
+            category_name = product.category.name
+        except Exception:
+            category_name = ""
+
+    stock = getattr(product, "stock_status", "In Stock") or "In Stock"
 
     return {
         "id": product.id,
         "name": product.name,
-        "brand": product.brand.name,
-        "category": product.category.name,
+        "brand": brand_name,
+        "category": category_name,
         "price": str(product.price),
         "compareAtPrice": (
             str(product.compare_at_price) if product.compare_at_price else None
         ),
         "images": [image_url] if image_url else [],
-        "stock": product.stock_status,
+        "stock": stock,
         "url": f"/pages/products?open={product.id}",
     }
 
 
-def _serialize_product_list(qs, limit: int, request=None) -> dict:
-    products = list(qs[:limit])
+def _serialize_product_list(qs, limit: int, offset: int = 0, request=None) -> dict:
+    total = qs.count()
+    products = list(qs[offset : offset + limit])
     return {
         "count": len(products),
+        "total_available": total,
+        "offset": offset,
+        "has_more": offset + len(products) < total,
         "products": [_product_card(p, request=request) for p in products],
     }
 
 
 def tool_search_products(args: dict, request) -> dict:
     limit = min(int(args.get("limit") or 5), 8)
+    offset = max(int(args.get("offset") or 0), 0)
 
-    qs = catalog_services.get_products(
-        search=args.get("query"),
-        category=args.get("category"),
-        brand=args.get("brand"),
-        stock="All",
-        sort_by=args.get("sort_by") or "featured",
-    )
+    def run_query(use_query: bool):
+        qs = catalog_services.get_products(
+            search=args.get("query") if use_query else None,
+            category=args.get("category"),
+            brand=args.get("brand"),
+            stock="All",
+            sort_by=args.get("sort_by") or "featured",
+        )
 
-    if args.get("min_price") is not None:
-        qs = qs.filter(price__gte=args["min_price"])
-    if args.get("max_price") is not None:
-        qs = qs.filter(price__lte=args["max_price"])
+        if args.get("min_price") is not None:
+            qs = qs.filter(price__gte=args["min_price"])
+        if args.get("max_price") is not None:
+            qs = qs.filter(price__lte=args["max_price"])
 
-    if args.get("in_stock_only"):
-        qs = qs.exclude(stock_quantity=0)
+        if args.get("in_stock_only"):
+            qs = qs.exclude(stock_quantity=0)
 
-    result = _serialize_product_list(qs, limit, request=request)
-    if result["count"] == 0:
+        return qs
+
+    qs = run_query(use_query=True)
+    fell_back = False
+
+    if qs.count() == 0 and args.get("query"):
+        qs = run_query(use_query=False)
+        fell_back = True
+
+    result = _serialize_product_list(qs, limit, offset=offset, request=request)
+
+    if fell_back and result["total_available"] > 0:
+        result["note"] = (
+            f'No exact match for "{args.get("query")}", but here are products '
+            "that match the other filters (price, category). Tell the customer "
+            "you couldn't filter by the exact spec and they should check each "
+            "product's description for details."
+        )
+    elif result["count"] == 0 and offset == 0:
         result["message"] = "No products matched those filters."
+    elif result["count"] == 0 and offset > 0:
+        result["message"] = (
+            f"No more results — all {result['total_available']} matches "
+            "have been shown."
+        )
+
     return result
 
 
@@ -374,6 +485,75 @@ def tool_get_product(args: dict, request) -> dict:
         "specs": {s.key: s.value for s in product.specs.all()},
         "rating": str(product.rating_avg),
         "reviewCount": product.review_count,
+        "warranty_months": product.warranty_months,
+        "return_window_days": product.return_window_days,
+        "weight_kg": str(product.weight_kg) if product.weight_kg else None,
+    }
+
+
+def tool_compare_products(args: dict, request) -> dict:
+    ids = (args.get("product_ids") or [])[:4]
+    if len(ids) < 2:
+        return {"error": "NEED_AT_LEAST_TWO_PRODUCTS"}
+
+    items = []
+    for pid in ids:
+        p = catalog_services.get_product_by_id(str(pid))
+        if not p:
+            continue
+
+        specs = {s.key: s.value for s in p.specs.all()}
+        features = [f.text for f in p.features.all()]
+
+        extras = {
+            "Warranty": (
+                f"{p.warranty_months} months"
+                if p.warranty_months else "—"
+            ),
+            "Return window": (
+                f"{p.return_window_days} days"
+                if p.return_window_days else "—"
+            ),
+            "Weight": str(p.weight_kg) if p.weight_kg else "—",
+            "Rating": (
+                f"{p.rating_avg} / 5 ({p.review_count} reviews)"
+                if p.review_count else "No reviews yet"
+            ),
+            "Stock": str(p.stock_quantity),
+        }
+        merged = {**extras, **specs}
+
+        items.append({
+            "product": _product_card(p, request=request),
+            "specs": merged,
+            "features": features,
+        })
+
+    if len(items) < 2:
+        return {"error": "PRODUCTS_NOT_FOUND"}
+
+    all_keys = set()
+    for item in items:
+        all_keys.update(item["specs"].keys())
+
+    matrix = {
+        key: {it["product"]["name"]: it["specs"].get(key, "—") for it in items}
+        for key in sorted(all_keys)
+    }
+
+    return {
+        "products": items,
+        "spec_matrix": matrix,
+        "comparison_note": (
+            "Detailed product specs have not been populated yet. "
+            "The matrix reflects basic attributes only."
+            if not any(
+                bool(it["specs"].keys() - {"Warranty", "Return window",
+                                            "Weight", "Rating", "Stock"})
+                for it in items
+            )
+            else None
+        ),
     }
 
 
@@ -395,6 +575,79 @@ def tool_list_brands(args: dict, request) -> dict:
     }
 
 
+def tool_get_shipping_quote(args: dict, request) -> dict:
+    county = (args.get("county") or "").strip()
+
+    Zone = None
+    for label in ("shipping", "dashboard.shipping", "dashboard_shipping"):
+        try:
+            Zone = django_apps.get_model(label, "Zone")
+            break
+        except LookupError:
+            continue
+
+    if Zone is None:
+        return {
+            "county": county or "all",
+            "per_county_rates_available": False,
+            "policy": POLICIES.get("delivery", ""),
+            "note": (
+                "Per-county shipping rates are not configured in this "
+                "store yet. Quote the general delivery policy and suggest "
+                "contacting support on WhatsApp for a specific county quote."
+            ),
+        }
+
+    if not county:
+        zones = Zone.objects.prefetch_related("rates")[:20]
+        return {
+            "zones": [
+                {
+                    "name": z.name,
+                    "region": getattr(z, "region", ""),
+                    "counties": getattr(z, "counties", ""),
+                    "rates": [
+                        {
+                            "method": getattr(
+                                r, "method_name", getattr(r, "method", "")
+                            ),
+                            "price": str(r.price),
+                            "eta": getattr(r, "eta", ""),
+                        }
+                        for r in z.rates.all()
+                    ],
+                }
+                for z in zones
+            ]
+        }
+
+    zone = (
+        Zone.objects.filter(counties__icontains=county)
+        .prefetch_related("rates")
+        .first()
+    )
+    if not zone:
+        return {
+            "county": county,
+            "available": False,
+            "message": f"No specific rate for {county}. Contact support for a quote.",
+        }
+
+    return {
+        "county": county,
+        "available": True,
+        "zone": zone.name,
+        "rates": [
+            {
+                "method": getattr(r, "method_name", getattr(r, "method", "")),
+                "price": str(r.price),
+                "eta": getattr(r, "eta", ""),
+            }
+            for r in zone.rates.all()
+        ],
+    }
+
+
 def tool_get_shop_policies(args: dict, request) -> dict:
     topic = args.get("topic") or "all"
     if topic == "all":
@@ -402,6 +655,81 @@ def tool_get_shop_policies(args: dict, request) -> dict:
     if topic not in POLICIES:
         return {"error": "UNKNOWN_TOPIC", "available": list(POLICIES.keys())}
     return {"topic": topic, "policy": POLICIES[topic]}
+
+
+def tool_get_active_promotions(args: dict, request) -> dict:
+    Coupon = None
+    for label in ("checkout", "direct_orders", "campaigns"):
+        try:
+            Coupon = django_apps.get_model(label, "Coupon")
+            break
+        except LookupError:
+            continue
+
+    if Coupon is None:
+        return {"promotions": [], "message": "No promotions configured."}
+
+    now = timezone.now()
+    qs = Coupon.objects.all()
+    field_names = {f.name for f in Coupon._meta.get_fields()}
+
+    for f in ("is_active", "active", "enabled"):
+        if f in field_names:
+            qs = qs.filter(**{f: True})
+            break
+
+    for f in ("expires_at", "valid_until", "end_date"):
+        if f in field_names:
+            qs = qs.filter(
+                Q(**{f"{f}__isnull": True}) | Q(**{f"{f}__gte": now})
+            )
+            break
+
+    coupons = qs.order_by("-id")[:10]
+
+    promotions = []
+    for c in coupons:
+        code = getattr(c, "code", "") or getattr(c, "coupon_code", "")
+        if not code:
+            continue
+        promotions.append({
+            "code": code,
+            "description": getattr(c, "description", ""),
+            "percent_off": str(
+                getattr(c, "percent_off", "")
+                or getattr(c, "discount_percent", "")
+                or getattr(c, "percentage", "")
+            ),
+            "min_order": str(
+                getattr(c, "min_order", "")
+                or getattr(c, "min_order_amount", "")
+            ),
+            "expires_at": (
+                c.expires_at.isoformat()
+                if hasattr(c, "expires_at") and getattr(c, "expires_at", None)
+                else None
+            ),
+        })
+
+    return {"promotions": promotions}
+
+
+def tool_get_my_profile(args: dict, request) -> dict:
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return {"error": "NOT_AUTHENTICATED"}
+
+    return {
+        "first_name": getattr(user, "first_name", ""),
+        "last_name": getattr(user, "last_name", ""),
+        "email": getattr(user, "email", ""),
+        "phone": getattr(user, "phone", ""),
+        "date_joined": (
+            user.date_joined.isoformat()
+            if getattr(user, "date_joined", None)
+            else ""
+        ),
+    }
 
 
 def tool_get_my_orders(args: dict, request) -> dict:
@@ -450,13 +778,17 @@ def tool_get_my_order_detail(args: dict, request) -> dict:
 
 
 TOOL_EXECUTORS = {
-    "search_products":     tool_search_products,
-    "get_product":         tool_get_product,
-    "list_categories":     tool_list_categories,
-    "list_brands":         tool_list_brands,
-    "get_shop_policies":   tool_get_shop_policies,
-    "get_my_orders":       tool_get_my_orders,
-    "get_my_order_detail": tool_get_my_order_detail,
+    "search_products":       tool_search_products,
+    "get_product":           tool_get_product,
+    "compare_products":      tool_compare_products,
+    "list_categories":       tool_list_categories,
+    "list_brands":           tool_list_brands,
+    "get_shipping_quote":    tool_get_shipping_quote,
+    "get_shop_policies":     tool_get_shop_policies,
+    "get_active_promotions": tool_get_active_promotions,
+    "get_my_profile":        tool_get_my_profile,
+    "get_my_orders":         tool_get_my_orders,
+    "get_my_order_detail":   tool_get_my_order_detail,
 }
 
 
@@ -576,9 +908,11 @@ def run_chat_turn(session: ChatSession, user_message: str, request) -> ChatTurnR
 
             if isinstance(result, dict):
                 for p in result.get("products", []) or []:
-                    collected_products_by_id[p["id"]] = p
-                    if p["id"] not in collected_product_ids:
-                        collected_product_ids.append(p["id"])
+                    pid = p.get("id")
+                    if pid:
+                        collected_products_by_id[pid] = p
+                        if pid not in collected_product_ids:
+                            collected_product_ids.append(pid)
                 single = result.get("product")
                 if single and single.get("id"):
                     collected_products_by_id[single["id"]] = single

@@ -184,6 +184,8 @@ class BrandAdminViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         ser = self.get_serializer(data=request.data)
         if not ser.is_valid():
+            print(">>> BRAND CREATE PAYLOAD:", dict(request.data))
+            print(">>> BRAND CREATE ERRORS:", dict(ser.errors))
             return Response(
                 {"errors": ser.errors, "detail": "Validation failed."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -201,6 +203,8 @@ class BrandAdminViewSet(viewsets.ModelViewSet):
             instance, data=request.data, partial=partial,
         )
         if not ser.is_valid():
+            print(">>> BRAND UPDATE PAYLOAD:", dict(request.data))
+            print(">>> BRAND UPDATE ERRORS:", dict(ser.errors))
             return Response(
                 {"errors": ser.errors, "detail": "Validation failed."},
                 status=status.HTTP_400_BAD_REQUEST,

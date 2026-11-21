@@ -304,7 +304,7 @@ function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 px-1.5 py-0.5 border rounded-sm text-[13px] font-medium whitespace-nowrap',
+        'inline-flex items-center gap-1 px-1.5 py-0.5 border rounded text-[13px] font-medium whitespace-nowrap',
         badgeVariantCls[variant],
       )}
     >
@@ -399,55 +399,47 @@ const NAV_GROUPS: NavGroup[] = [
     icon: ShoppingBag,
     items: [
       { id: 'Orders', label: 'Orders' },
-      { id: 'Inbox', label: 'Inbox' },
+      { id: 'Fulfillment', label: 'Delivery' },
+      { id: 'Returns', label: 'Returns' },
+      { id: 'Inbox', label: 'Messages' },
       { id: 'Customers', label: 'Customers' },
-      { id: 'Fulfillment', label: 'Fulfillment' },
-      { id: 'Returns', label: 'Returns & Refunds' },
     ],
   },
   {
-    id: 'catalog',
-    label: 'Catalog',
+    id: 'products',
+    label: 'Products',
     icon: Package,
     items: [
-      { id: 'Products', label: 'Products' },
-      { id: 'Inventory', label: 'Inventory' },
+      { id: 'Products', label: 'All Products' },
+      { id: 'Inventory', label: 'Stock' },
     ],
   },
   {
-    id: 'content',
-    label: 'Content',
+    id: 'tiktok',
+    label: 'TikTok',
     icon: Video,
     items: [
-      { id: 'Content', label: 'Content Calendar' },
+      { id: 'Content', label: 'Videos & Posts' },
       { id: 'LIVE Sessions', label: 'LIVE Sessions' },
       { id: 'Creators', label: 'Creators' },
     ],
   },
   {
-    id: 'analytics',
-    label: 'Analytics',
+    id: 'reports',
+    label: 'Reports',
     icon: BarChart3,
-    items: [{ id: 'Analytics', label: 'Overview' }],
-  },
-  {
-    id: 'finance',
-    label: 'Finance',
-    icon: Wallet,
     items: [
-      { id: 'Finance', label: 'Overview' },
-      { id: 'Payouts', label: 'Creator Payouts' },
-      { id: 'Tax', label: 'Tax & Compliance' },
+      { id: 'Analytics', label: 'Sales Overview' },
+      { id: 'Finance', label: 'Money & Finance' },
+      { id: 'Payouts', label: 'Creator Payments' },
+      { id: 'Tax', label: 'Tax Summary' },
     ],
   },
   {
     id: 'settings',
     label: 'Settings',
     icon: SettingsIcon,
-    items: [
-      { id: 'Settings', label: 'General' },
-      { id: 'Team', label: 'Team & Roles' },
-    ],
+    items: [{ id: 'Settings', label: 'Shop Settings' }],
   },
 ];
 
@@ -495,7 +487,7 @@ function Thumb({
     return (
       <span
         className={cn(
-          'flex items-center justify-center bg-slate-100 border border-slate-200 text-slate-400 rounded-sm shrink-0',
+          'flex items-center justify-center bg-slate-100 border border-slate-200 text-slate-400 rounded shrink-0',
           className,
         )}
       >
@@ -509,7 +501,7 @@ function Thumb({
       alt={alt}
       loading="lazy"
       className={cn(
-        'object-cover border border-slate-200 rounded-sm shrink-0 bg-slate-50',
+        'object-cover border border-slate-200 rounded shrink-0 bg-slate-50',
         className,
       )}
     />
@@ -531,7 +523,7 @@ function Avatar({ name, className }: { name: string; className?: string }) {
   return (
     <span
       className={cn(
-        'flex items-center justify-center text-white text-[13px] font-semibold rounded-sm shrink-0',
+        'flex items-center justify-center text-white text-[13px] font-semibold rounded shrink-0',
         colors[idx % colors.length],
         className,
       )}
@@ -543,7 +535,7 @@ function Avatar({ name, className }: { name: string; className?: string }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[13px] font-semibold text-slate-500 uppercase tracking-wider">
+    <p className="text-[13px] font-semibold text-slate-500 uppercase">
       {children}
     </p>
   );
@@ -584,8 +576,8 @@ function EmptyState({
   action?: { label: string; onClick: () => void; icon?: React.ReactNode };
 }) {
   return (
-    <div className="max-w-sm mx-auto my-6 bg-white border border-slate-200 rounded-sm p-2 text-center">
-      <span className="w-10 h-10 rounded-sm bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+    <div className="max-w-sm mx-auto my-6 bg-white border border-slate-200 rounded p-2 text-center">
+      <span className="w-10 h-10 rounded bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
         {icon}
       </span>
       <h3 className="mt-2 text-[13px] font-semibold text-slate-900">{title}</h3>
@@ -605,7 +597,7 @@ function EmptyState({
 }
 
 function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse bg-slate-100 rounded-sm', className)} />;
+  return <div className={cn('animate-pulse bg-slate-100 rounded', className)} />;
 }
 
 function TabSkeleton() {
@@ -684,7 +676,7 @@ function Modal({
         aria-labelledby="modal-title"
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'bg-white border border-slate-200 w-full rounded-sm max-h-[92vh] flex flex-col outline-none',
+          'bg-white border border-slate-200 w-full rounded max-h-[92vh] flex flex-col outline-none',
           widthClass,
         )}
         style={{ animation: 'modalIn 180ms cubic-bezier(0.16, 1, 0.3, 1)' }}
@@ -854,13 +846,13 @@ function ImageUpload({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
         onClick={handlePick}
-        className="relative cursor-pointer border-2 border-dashed border-slate-200 rounded-sm hover:border-slate-400 hover:bg-slate-50 aspect-video flex items-center justify-center overflow-hidden bg-slate-50 transition-colors group"
+        className="relative cursor-pointer border-2 border-dashed border-slate-200 rounded hover:border-slate-400 hover:bg-slate-50 aspect-video flex items-center justify-center overflow-hidden bg-slate-50 transition-colors group"
       >
         {preview ? (
           <>
             <img src={preview} alt="" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/30 transition-colors flex items-center justify-center">
-              <span className="opacity-0 group-hover:opacity-100 bg-white text-slate-900 text-[13px] font-medium px-2 py-1 rounded-sm shadow-md transition-opacity">
+              <span className="opacity-0 group-hover:opacity-100 bg-white text-slate-900 text-[13px] font-medium px-2 py-1 rounded shadow-md transition-opacity">
                 Click to replace
               </span>
             </div>
@@ -1007,7 +999,7 @@ function VideoUpload({
       <div
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
-        className="relative border-2 border-dashed border-slate-200 rounded-sm hover:border-slate-400 overflow-hidden bg-slate-50 transition-colors"
+        className="relative border-2 border-dashed border-slate-200 rounded hover:border-slate-400 overflow-hidden bg-slate-50 transition-colors"
       >
         {preview ? (
           <div className="relative">
@@ -1112,7 +1104,7 @@ function Toast({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
       role="status"
       aria-live="polite"
       className={cn(
-        'fixed bottom-3 right-3 z-[130] px-2 py-2 border rounded-sm flex items-center gap-2 text-[13px] text-slate-900 max-w-xs',
+        'fixed bottom-3 right-3 z-[130] px-2 py-2 border rounded flex items-center gap-2 text-[13px] text-slate-900 max-w-xs',
         styles.bg,
       )}
       style={{ animation: 'toastIn 200ms cubic-bezier(0.16, 1, 0.3, 1)' }}
@@ -1521,11 +1513,11 @@ export default function TikTokBusinessPage() {
       try {
         const updated = isLogged
           ? await adminApi.directOrders.logged.advance(reference, {
-              status: next,
-            })
+            status: next,
+          })
           : await adminApi.directOrders.orders.advance(reference, {
-              status: next,
-            });
+            status: next,
+          });
 
         setOrders((prev) =>
           prev.map((o) => (o.reference === reference ? updated : o)),
@@ -1666,10 +1658,10 @@ export default function TikTokBusinessPage() {
           prev.map((c) =>
             c.id === conversation.id
               ? {
-                  ...c,
-                  status: 'converted',
-                  convertedOrder: created.id ? Number(created.id) : null,
-                }
+                ...c,
+                status: 'converted',
+                convertedOrder: created.id ? Number(created.id) : null,
+              }
               : c,
           ),
         );
@@ -1744,7 +1736,7 @@ export default function TikTokBusinessPage() {
     <div className="min-h-screen bg-white text-slate-900 antialiased">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[200] focus:bg-blue-950 focus:text-white focus:px-3 focus:py-1.5 focus:text-[13px] focus:rounded-sm"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[200] focus:bg-blue-950 focus:text-white focus:px-3 focus:py-1.5 focus:text-[13px] focus:rounded"
       >
         Skip to content
       </a>
@@ -1755,11 +1747,11 @@ export default function TikTokBusinessPage() {
         <div className="max-w-[1700px] mx-auto px-0.5 lg:px-0.5">
           <div className="py-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="w-9 h-9 rounded-sm bg-white border border-slate-200 flex items-center justify-center shrink-0">
+              <span className="w-9 h-9 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
                 <TikTokLogo className="w-5 h-5" />
               </span>
               <div className="min-w-0">
-                <h1 className="text-[13px] font-semibold text-slate-900 truncate leading-tight">
+                <h1 className="text-[13px] font-semibold text-slate-900 truncate">
                   {SHOP_NAME}
                 </h1>
                 <p className="text-[13px] text-slate-500 truncate mt-0.5">
@@ -1812,7 +1804,7 @@ export default function TikTokBusinessPage() {
         className="max-w-[1700px] mx-auto px-0.5 lg:px-0.5 py-2 space-y-2 bg-white"
       >
         {loadError && (
-          <div className="bg-white border border-red-200 rounded-sm p-2 flex items-start gap-2">
+          <div className="bg-white border border-red-200 rounded p-2 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-semibold text-slate-900">
@@ -2021,15 +2013,15 @@ function KpiCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center gap-2 hover:border-slate-300 transition-all">
-      <span className="w-8 h-8 flex items-center justify-center shrink-0 rounded-sm bg-slate-100 text-slate-700">
+    <div className="bg-white border border-slate-200 rounded p-2 flex items-center gap-2 hover:border-slate-300 transition-all">
+      <span className="w-8 h-8 flex items-center justify-center shrink-0 rounded bg-slate-100 text-slate-700">
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-semibold text-slate-500 uppercase tracking-wide truncate">
+        <p className="text-[13px] font-semibold text-slate-500 uppercase truncate">
           {label}
         </p>
-        <p className="text-base font-bold text-slate-900 leading-tight truncate tabular-nums">
+        <p className="text-base font-bold text-slate-900 truncate tabular-nums">
           {value}
         </p>
       </div>
@@ -2049,9 +2041,9 @@ function QuickAction({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left border border-slate-200 rounded-sm hover:border-slate-300 hover:bg-slate-50 p-2 flex items-center gap-2 transition-all group"
+      className="w-full text-left border border-slate-200 rounded hover:border-slate-300 hover:bg-slate-50 p-2 flex items-center gap-2 transition-all group"
     >
-      <span className="w-7 h-7 rounded-sm bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 group-hover:bg-blue-950 group-hover:text-white transition-colors">
+      <span className="w-7 h-7 rounded bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 group-hover:bg-blue-950 group-hover:text-white transition-colors">
         {icon}
       </span>
       <span className="text-[13px] font-medium text-slate-800 flex-1 truncate">
@@ -2094,7 +2086,7 @@ function DashboardTab({
     (o) => o.status === 'Awaiting Shipment' || o.status === 'Paid',
   );
   const lowStock = products.filter(
-    (p) => p.stockQuantity > 0 && p.stockQuantity <= 5,
+    (p) => p.stockQuantity <= 5,
   );
   const unpaidCommissions = creators.filter(
     (c) => Number(c.commissionOwed || 0) > 0,
@@ -2104,8 +2096,8 @@ function DashboardTab({
     return (
       <EmptyState
         icon={<ShoppingBag className="w-5 h-5" />}
-        title="No TikTok activity yet"
-        description="Start by adding a product or logging your first order."
+        title="Your shop is ready to get started"
+        description="Add a product or record your first order to see your shop activity here."
         action={{
           label: 'Log New Order',
           onClick: onCreateOrder,
@@ -2129,7 +2121,7 @@ function DashboardTab({
           icon={<Banknote className="w-4 h-4" />}
         />
         <KpiCard
-          label="Pending Shipment"
+          label="Orders to Send"
           value={String(stats.pendingShipment)}
           icon={<Truck className="w-4 h-4" />}
         />
@@ -2141,13 +2133,13 @@ function DashboardTab({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-sm">
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded">
           <div className="px-2 py-2 border-b border-slate-200">
             <p className="text-[13px] font-semibold text-slate-900">
               Action needed
             </p>
             <p className="text-[13px] text-slate-500 mt-0.5">
-              Overdue shipments, low stock, and unpaid creator commissions.
+              Orders waiting to be sent, products running low, and creator payments due.
             </p>
           </div>
           <div className="p-2 space-y-2">
@@ -2166,7 +2158,7 @@ function DashboardTab({
               )}
 
             {overdue.length > 0 && (
-              <div className="border border-slate-200 rounded-sm p-2 flex items-start gap-2">
+              <div className="border border-slate-200 rounded p-2 flex items-start gap-2">
                 <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-slate-900">
@@ -2187,7 +2179,7 @@ function DashboardTab({
             )}
 
             {lowStock.length > 0 && (
-              <div className="border border-slate-200 rounded-sm p-2 flex items-start gap-2">
+              <div className="border border-slate-200 rounded p-2 flex items-start gap-2">
                 <AlertCircle className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-slate-900">
@@ -2208,7 +2200,7 @@ function DashboardTab({
             )}
 
             {unpaidCommissions.length > 0 && (
-              <div className="border border-slate-200 rounded-sm p-2 flex items-start gap-2">
+              <div className="border border-slate-200 rounded p-2 flex items-start gap-2">
                 <Wallet className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-slate-900">
@@ -2230,7 +2222,7 @@ function DashboardTab({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm">
+        <div className="bg-white border border-slate-200 rounded">
           <div className="px-2 py-2 border-b border-slate-200">
             <p className="text-[13px] font-semibold text-slate-900">
               Quick actions
@@ -2293,11 +2285,11 @@ function ProductsTab({
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <Package className="w-3.5 h-3.5 text-slate-400" />
-            TikTok Products
+            Shop Products
           </h2>
           <p className="text-[13px] text-slate-500 mt-0.5">
             Products from your store catalog.
@@ -2335,7 +2327,7 @@ function ProductsTab({
           }}
         />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
@@ -2481,7 +2473,7 @@ function InventoryTab({ products }: { products: AdminDirectProduct[] }) {
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <div className="bg-white border border-slate-200 rounded p-2">
         <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <Boxes className="w-3.5 h-3.5 text-slate-400" />
           Inventory
@@ -2514,7 +2506,7 @@ function InventoryTab({ products }: { products: AdminDirectProduct[] }) {
         />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-[13px]">
             <thead>
@@ -2542,15 +2534,15 @@ function InventoryTab({ products }: { products: AdminDirectProduct[] }) {
                   const health =
                     p.stockQuantity === 0
                       ? {
-                          label: 'Out of stock',
-                          variant: 'danger' as BadgeVariant,
-                        }
+                        label: 'Out of stock',
+                        variant: 'danger' as BadgeVariant,
+                      }
                       : p.stockQuantity <= 5
                         ? { label: 'Low', variant: 'warning' as BadgeVariant }
                         : {
-                            label: 'Healthy',
-                            variant: 'success' as BadgeVariant,
-                          };
+                          label: 'Healthy',
+                          variant: 'success' as BadgeVariant,
+                        };
                   return (
                     <tr
                       key={`${p.id}-${idx}`}
@@ -2650,7 +2642,7 @@ function OrdersTab({
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <ShoppingBag className="w-3.5 h-3.5 text-slate-400" />
@@ -2693,7 +2685,7 @@ function OrdersTab({
         />
       ) : (
         <>
-          <div className="bg-white border border-slate-200 rounded-sm p-1 flex items-center gap-0.5 overflow-x-auto">
+          <div className="bg-white border border-slate-200 rounded p-1 flex items-center gap-0.5 overflow-x-auto">
             {ORDER_TABS.map((s) => {
               const count =
                 s.id === 'All'
@@ -2708,7 +2700,7 @@ function OrdersTab({
                     setVisible(PAGE_SIZE);
                   }}
                   className={cn(
-                    'inline-flex items-center gap-1 px-2 py-1 text-[13px] font-medium whitespace-nowrap rounded-sm transition-colors',
+                    'inline-flex items-center gap-1 px-2 py-1 text-[13px] font-medium whitespace-nowrap rounded transition-colors',
                     active
                       ? 'bg-blue-950 text-white'
                       : 'text-slate-600 hover:bg-slate-100',
@@ -2717,7 +2709,7 @@ function OrdersTab({
                   {s.label}
                   <span
                     className={cn(
-                      'inline-block px-1 py-0.5 text-[13px] font-semibold tabular-nums rounded-sm',
+                      'inline-block px-1 py-0.5 text-[13px] font-semibold tabular-nums rounded',
                       active
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-100 text-slate-500',
@@ -2730,11 +2722,11 @@ function OrdersTab({
             })}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                     <th className="py-2 px-2 font-medium">Order</th>
                     <th className="py-2 px-2 font-medium">Customer</th>
                     <th className="py-2 px-2 font-medium">Items</th>
@@ -2771,7 +2763,7 @@ function OrdersTab({
                               {isLogged && (
                                 <span
                                   title="Manually logged"
-                                  className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-sm text-[13px] font-medium bg-white text-slate-600 border border-slate-200"
+                                  className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[13px] font-medium bg-white text-slate-600 border border-slate-200"
                                 >
                                   <Sparkles className="w-2.5 h-2.5" />
                                   Logged
@@ -2935,7 +2927,7 @@ function InboxTab({
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <InboxIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -2952,7 +2944,7 @@ function InboxTab({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm grid grid-cols-1 lg:grid-cols-[340px_1fr] min-h-[520px] overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded grid grid-cols-1 lg:grid-cols-[340px_1fr] min-h-[520px] overflow-hidden">
         <div className="border-r border-slate-200 overflow-y-auto">
           {conversations.map((m) => {
             const isActive = m.id === active;
@@ -2983,7 +2975,7 @@ function InboxTab({
                       {channelLabel(m.channel)}
                     </StatusBadge>
                     {m.unreadCount > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-sm bg-blue-950 text-white text-[13px] font-semibold">
+                      <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded bg-blue-950 text-white text-[13px] font-semibold">
                         {m.unreadCount}
                       </span>
                     )}
@@ -3052,7 +3044,7 @@ function InboxTab({
                     <div
                       key={msg.id}
                       className={cn(
-                        'max-w-[75%] text-[13px] px-2 py-2 rounded-sm',
+                        'max-w-[75%] text-[13px] px-2 py-2 rounded',
                         msg.direction === 'out'
                           ? 'ml-auto bg-blue-950 text-white rounded-tr-none'
                           : 'bg-slate-100 text-slate-800 rounded-tl-none',
@@ -3130,10 +3122,10 @@ function CustomersTab({
     (customers.length === 0
       ? 0
       : Math.round(
-          (customers.filter((c) => c.totalOrders >= 2).length /
-            customers.length) *
-            100,
-        ));
+        (customers.filter((c) => c.totalOrders >= 2).length /
+          customers.length) *
+        100,
+      ));
 
   const customerOrderMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -3149,7 +3141,7 @@ function CustomersTab({
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <UserRound className="w-3.5 h-3.5 text-slate-400" />
@@ -3185,7 +3177,7 @@ function CustomersTab({
           label="VIP customers"
           value={String(
             customerStats?.vip ??
-              customers.filter((c) => c.segment === 'VIP').length,
+            customers.filter((c) => c.segment === 'VIP').length,
           )}
           icon={<Sparkles className="w-4 h-4" />}
         />
@@ -3203,11 +3195,11 @@ function CustomersTab({
           description="Customers will appear once you log orders."
         />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                   <th className="py-2 px-2 font-medium">Customer</th>
                   <th className="py-2 px-2 font-medium">Contact</th>
                   <th className="py-2 px-2 font-medium">Segment</th>
@@ -3231,7 +3223,7 @@ function CustomersTab({
                         : c.segment === 'Repeat'
                           ? 'info'
                           : c.segment === 'COD Risk' ||
-                              c.segment === 'Inactive'
+                            c.segment === 'Inactive'
                             ? 'danger'
                             : 'neutral';
                     const key = c.phone || c.name;
@@ -3312,15 +3304,15 @@ function FulfillmentTab({
     label: string;
     variant: BadgeVariant;
   }[] = [
-    { id: 'Paid', label: 'Paid — pack', variant: 'info' },
-    { id: 'Awaiting Shipment', label: 'Ready to ship', variant: 'warning' },
-    { id: 'Shipped', label: 'In transit', variant: 'info' },
-    { id: 'Delivered', label: 'Delivered', variant: 'success' },
-  ];
+      { id: 'Paid', label: 'Paid — pack', variant: 'info' },
+      { id: 'Awaiting Shipment', label: 'Ready to ship', variant: 'warning' },
+      { id: 'Shipped', label: 'In transit', variant: 'info' },
+      { id: 'Delivered', label: 'Delivered', variant: 'success' },
+    ];
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <div className="bg-white border border-slate-200 rounded p-2">
         <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <Truck className="w-3.5 h-3.5 text-slate-400" />
           Fulfillment
@@ -3343,7 +3335,7 @@ function FulfillmentTab({
             return (
               <div
                 key={col.id}
-                className="bg-white border border-slate-200 rounded-sm flex flex-col"
+                className="bg-white border border-slate-200 rounded flex flex-col"
               >
                 <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between">
                   <StatusBadge variant={col.variant} dot>
@@ -3363,7 +3355,7 @@ function FulfillmentTab({
                       <button
                         key={o.reference}
                         onClick={() => onSelectOrder(o)}
-                        className="w-full text-left border border-slate-200 rounded-sm hover:border-slate-300 hover:bg-slate-50 p-2 transition-colors"
+                        className="w-full text-left border border-slate-200 rounded hover:border-slate-300 hover:bg-slate-50 p-2 transition-colors"
                       >
                         <div className="flex items-center justify-between gap-1">
                           <span className="font-mono text-[13px] font-medium text-slate-900">
@@ -3439,7 +3431,7 @@ function ReturnsTab({
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <div className="bg-white border border-slate-200 rounded p-2">
         <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <Undo2 className="w-3.5 h-3.5 text-slate-400" />
           Returns & Refunds
@@ -3467,11 +3459,10 @@ function ReturnsTab({
         />
         <KpiCard
           label="Return rate"
-          value={`${
-            orders.length === 0
+          value={`${orders.length === 0
               ? 0
               : Math.round((returns.length / orders.length) * 100)
-          }%`}
+            }%`}
           icon={<BarChart3 className="w-4 h-4" />}
         />
       </div>
@@ -3483,11 +3474,11 @@ function ReturnsTab({
           description="This is the healthiest place to be. Keep it up."
         />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                   <th className="py-2 px-2 font-medium">Reference</th>
                   <th className="py-2 px-2 font-medium">Order</th>
                   <th className="py-2 px-2 font-medium">Reason</th>
@@ -3538,7 +3529,7 @@ function ContentTab({
 }) {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <Video className="w-3.5 h-3.5 text-slate-400" />
@@ -3572,7 +3563,7 @@ function ContentTab({
             return (
               <div
                 key={c.id}
-                className="bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-slate-300 transition-all"
+                className="bg-white border border-slate-200 rounded overflow-hidden hover:border-slate-300 transition-all"
               >
                 <div className="relative aspect-video w-full bg-slate-900">
                   {c.videoUrl ? (
@@ -3600,7 +3591,7 @@ function ContentTab({
                     </StatusBadge>
                   </div>
                   <div className="absolute top-1.5 right-1.5">
-                    <span className="bg-slate-900/80 text-white px-1.5 py-0.5 rounded-sm text-[13px] font-medium backdrop-blur-sm inline-flex items-center gap-1">
+                    <span className="bg-slate-900/80 text-white px-1.5 py-0.5 rounded text-[13px] font-medium backdrop-blur-sm inline-flex items-center gap-1">
                       {c.videoUrl && <Play className="w-2.5 h-2.5" />}
                       <Music2 className="w-2.5 h-2.5" />
                       {c.platform}
@@ -3657,7 +3648,7 @@ function LiveTab({
 }) {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <Video className="w-3.5 h-3.5 text-slate-400" />
@@ -3685,11 +3676,11 @@ function LiveTab({
           }}
         />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                   <th className="py-2 px-2 font-medium">Session</th>
                   <th className="py-2 px-2 font-medium">Scheduled</th>
                   <th className="py-2 px-2 font-medium text-center">
@@ -3749,7 +3740,7 @@ function CreatorsTab({
 }) {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <UserRound className="w-3.5 h-3.5 text-slate-400" />
@@ -3777,11 +3768,11 @@ function CreatorsTab({
           }}
         />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                   <th className="py-2 px-2 font-medium">Creator</th>
                   <th className="py-2 px-2 font-medium">Platform</th>
                   <th className="py-2 px-2 font-medium text-center">Rate</th>
@@ -3855,7 +3846,7 @@ function ManualField({
   value: string;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm p-2">
+    <div className="bg-white border border-slate-200 rounded p-2">
       <label className="block text-[13px] font-medium text-slate-700 mb-1">
         {label}
       </label>
@@ -3893,15 +3884,15 @@ function AnalyticsTab({
   const pieColors = ['#0f172a', '#334155', '#64748b', '#94a3b8', '#cbd5e1'];
   const sourceData = bySource.length
     ? bySource.map((s, i) => ({
-        name: s.source,
-        value: s.count,
-        color: pieColors[i % pieColors.length],
-      }))
+      name: s.source,
+      value: s.count,
+      color: pieColors[i % pieColors.length],
+    }))
     : [];
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <div className="bg-white border border-slate-200 rounded p-2">
         <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
           Analytics
@@ -3979,7 +3970,7 @@ function AnalyticsTab({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <div className="bg-white border border-slate-200 rounded p-2">
           <p className="text-[13px] font-semibold text-slate-900">
             How Orders Arrived
           </p>
@@ -4018,7 +4009,7 @@ function AnalyticsTab({
       </div>
 
       {byStatus.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-sm p-2">
+        <div className="bg-white border border-slate-200 rounded p-2">
           <p className="text-[13px] font-semibold text-slate-900">
             Order Status
           </p>
@@ -4026,7 +4017,7 @@ function AnalyticsTab({
             {byStatus.map((s) => (
               <div
                 key={s.status}
-                className="border border-slate-200 rounded-sm p-2 flex items-center justify-between"
+                className="border border-slate-200 rounded p-2 flex items-center justify-between"
               >
                 <span className="text-[13px] text-slate-600">{s.status}</span>
                 <span className="text-[13px] font-semibold tabular-nums text-slate-900">
@@ -4038,7 +4029,7 @@ function AnalyticsTab({
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+      <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
         <div>
           <p className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 text-slate-500" />
@@ -4138,7 +4129,7 @@ function FinanceTab({
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <div className="bg-white border border-slate-200 rounded p-2">
         <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <Wallet className="w-3.5 h-3.5 text-slate-400" />
           Finance
@@ -4148,7 +4139,7 @@ function FinanceTab({
         </p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
         <div className="px-2 py-2 border-b border-slate-200">
           <p className="text-[13px] font-semibold text-slate-900">
             Revenue Summary
@@ -4192,7 +4183,7 @@ function FinanceTab({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
         <div className="px-2 py-2 border-b border-slate-200 flex items-center justify-between gap-2">
           <div>
             <p className="text-[13px] font-semibold text-slate-900">
@@ -4210,7 +4201,7 @@ function FinanceTab({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-[13px]">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+              <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                 <th className="py-2 px-2 font-medium">Creator</th>
                 <th className="py-2 px-2 font-medium text-right">Owed</th>
                 <th className="py-2 px-2 font-medium text-right">Revenue</th>
@@ -4288,11 +4279,11 @@ function PayoutsTab({
 
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <Receipt className="w-3.5 h-3.5 text-slate-400" />
-            Creator Payouts
+            Creator Payments
           </h2>
           <p className="text-[13px] text-slate-500 mt-0.5">
             Batch and record M-Pesa payouts to your creators.
@@ -4341,11 +4332,11 @@ function PayoutsTab({
           description="Add creators first to start running payouts."
         />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                   <th className="py-2 px-2 w-10"></th>
                   <th className="py-2 px-2 font-medium">Creator</th>
                   <th className="py-2 px-2 font-medium text-right">Owed</th>
@@ -4413,7 +4404,7 @@ function PayoutsTab({
       )}
 
       {payouts.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="px-2 py-2 border-b border-slate-200">
             <p className="text-[13px] font-semibold text-slate-900">
               Payout Batches
@@ -4422,7 +4413,7 @@ function PayoutsTab({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                   <th className="py-2 px-2 font-medium">Reference</th>
                   <th className="py-2 px-2 font-medium">Method</th>
                   <th className="py-2 px-2 font-medium text-center">Items</th>
@@ -4487,7 +4478,7 @@ function TaxTab({
       <div className="bg-white border border-slate-200 rounded-sm p-2">
         <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <Receipt className="w-3.5 h-3.5 text-slate-400" />
-          Tax & Compliance
+          Tax Summary
         </h2>
         <p className="text-[13px] text-slate-500 mt-0.5">
           Social income is taxable in Kenya. Track what you owe KRA.
@@ -4517,7 +4508,7 @@ function TaxTab({
         />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
         <div className="px-2 py-2 border-b border-slate-200">
           <p className="text-[13px] font-semibold text-slate-900">
             Tax obligations summary
@@ -4574,7 +4565,7 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+    <div className="bg-white border border-slate-200 rounded verflow-hidden">
       <div className="px-2 py-2 border-b border-slate-200">
         <p className="text-[13px] font-semibold text-slate-900">{title}</p>
         <p className="text-[13px] text-slate-500 mt-0.5">{description}</p>
@@ -4622,7 +4613,7 @@ function ToggleRow({
 }) {
   const [on, setOn] = useState(!!defaultOn);
   return (
-    <label className="flex items-start justify-between gap-2 cursor-pointer border border-slate-200 rounded-sm p-2 hover:bg-slate-50 transition-colors">
+    <label className="flex items-start justify-between gap-2 cursor-pointer border border-slate-200 rounded p-2 hover:bg-slate-50 transition-colors">
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-slate-900">{label}</p>
         <p className="text-[13px] text-slate-500 mt-0.5">{helper}</p>
@@ -4651,7 +4642,7 @@ function ToggleRow({
 function SettingsTab() {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2">
+      <div className="bg-white border border-slate-200 rounded p-2">
         <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
           <SettingsIcon className="w-3.5 h-3.5 text-slate-400" />
           Settings
@@ -4744,7 +4735,7 @@ function SettingsTab() {
 function TeamTab({ team }: { team: AdminTeamMember[] }) {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-slate-200 rounded-sm p-2 flex items-center justify-between gap-2">
+      <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5">
             <UserCog className="w-3.5 h-3.5 text-slate-400" />
@@ -4767,11 +4758,11 @@ function TeamTab({ team }: { team: AdminTeamMember[] }) {
           description="Invite teammates to help manage TikTok orders, content, and payouts."
         />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase tracking-wide">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[13px] uppercase">
                   <th className="py-2 px-2 font-medium">Member</th>
                   <th className="py-2 px-2 font-medium">Email</th>
                   <th className="py-2 px-2 font-medium">Role</th>
@@ -4906,7 +4897,7 @@ function LogOrderModal({
     >
       <form id="log-order-form" onSubmit={handleSubmit} className="space-y-2">
         {products.length === 0 && (
-          <div className="bg-white border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+          <div className="bg-white border border-amber-200 rounded p-2 flex items-start gap-2">
             <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
             <p className="text-[13px] text-slate-700">
               You need at least one product before you can log an order.
@@ -5013,8 +5004,8 @@ function LogOrderModal({
               />
             </FormField>
           </div>
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 flex items-center justify-between">
-            <span className="text-[13px] text-slate-500 font-medium uppercase tracking-wide">
+          <div className="bg-slate-50 border border-slate-200 rounded p-2 flex items-center justify-between">
+            <span className="text-[13px] text-slate-500 font-medium uppercase">
               Total
             </span>
             <span className="text-base font-bold text-slate-900 tabular-nums">
@@ -5158,7 +5149,7 @@ function AddProductModal({
         className="space-y-2"
       >
         {brands.length === 0 && (
-          <div className="bg-white border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+          <div className="bg-white border border-amber-200 rounded p-2 flex items-start gap-2">
             <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
             <p className="text-[13px] text-slate-700">
               You need at least one brand in your catalog before adding a
@@ -5167,7 +5158,7 @@ function AddProductModal({
           </div>
         )}
         {categories.length === 0 && (
-          <div className="bg-white border border-amber-200 rounded-sm p-2 flex items-start gap-2">
+          <div className="bg-white border border-amber-200 rounded p-2 flex items-start gap-2">
             <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
             <p className="text-[13px] text-slate-700">
               You need at least one category in your catalog before adding a
@@ -5390,7 +5381,7 @@ function AddContentModal({
               value={thumbnailUrl}
               onChange={setThumbnailUrl}
             />
-            <div className="text-[13px] text-slate-500 leading-relaxed bg-slate-50 border border-slate-200 rounded-sm p-2">
+            <div className="text-[13px] text-slate-500 bg-slate-50 border border-slate-200 rounded p-2">
               <p className="font-semibold text-slate-700 mb-1">Tips</p>
               <ul className="list-disc pl-4 space-y-0.5">
                 <li>Portrait (9:16) is what TikTok expects.</li>
@@ -5817,7 +5808,7 @@ function OrderDrawer({
               </button>
             </div>
             {isLogged && (
-              <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[13px] font-medium bg-white text-slate-600 border border-slate-200">
+              <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[13px] font-medium bg-white text-slate-600 border border-slate-200">
                 <Sparkles className="w-2.5 h-2.5" />
                 Manually logged
               </span>
@@ -5829,7 +5820,7 @@ function OrderDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-2 text-[13px]">
-          <div className="border border-slate-200 rounded-sm p-2 flex items-center gap-2">
+          <div className="border border-slate-200 rounded p-2 flex items-center gap-2">
             <Thumb
               src={firstItem?.image}
               className="w-12 h-12"
@@ -5846,8 +5837,8 @@ function OrderDrawer({
             </div>
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-sm p-2 space-y-1">
-            <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide">
+          <div className="bg-slate-50 border border-slate-200 rounded p-2 space-y-1">
+            <p className="text-[13px] text-slate-500 font-medium uppercase">
               Customer
             </p>
             <p className="font-medium text-slate-900">{order.customerName}</p>
@@ -5866,8 +5857,8 @@ function OrderDrawer({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <div className="border border-slate-200 rounded-sm p-2">
-              <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide mb-1">
+            <div className="border border-slate-200 rounded p-2">
+              <p className="text-[13px] text-slate-500 font-medium uppercase mb-1">
                 Payment
               </p>
               <p className="text-slate-800">{order.paymentMethod}</p>
@@ -5875,8 +5866,8 @@ function OrderDrawer({
                 {order.paymentStatus}
               </p>
             </div>
-            <div className="border border-slate-200 rounded-sm p-2">
-              <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide mb-1">
+            <div className="border border-slate-200 rounded p-2">
+              <p className="text-[13px] text-slate-500 font-medium uppercase mb-1">
                 Status
               </p>
               <StatusBadge variant={orderStatusVariant(order.status)} dot>
@@ -5885,8 +5876,8 @@ function OrderDrawer({
             </div>
           </div>
 
-          <div className="bg-blue-950 text-white rounded-sm p-2 flex items-center justify-between">
-            <span className="text-[13px] uppercase tracking-wide opacity-80">
+          <div className="bg-blue-950 text-white rounded p-2 flex items-center justify-between">
+            <span className="text-[13px] uppercase opacity-80">
               Total
             </span>
             <span className="font-semibold text-white text-base tabular-nums">
@@ -5896,7 +5887,7 @@ function OrderDrawer({
 
           {order.notes && (
             <div className="border border-slate-200 rounded-sm p-2 space-y-1">
-              <p className="text-[13px] text-slate-500 font-medium uppercase tracking-wide">
+              <p className="text-[13px] text-slate-500 font-medium uppercase">
                 Notes
               </p>
               <p className="text-slate-700 whitespace-pre-wrap text-[13px]">

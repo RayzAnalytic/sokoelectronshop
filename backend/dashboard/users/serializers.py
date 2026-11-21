@@ -17,7 +17,7 @@ from .models import (
 
 
 class UserSerializer(serializers.ModelSerializer):
-    id            = serializers.UUIDField(source='user.id', read_only=True)
+    id            = serializers.IntegerField(source='user.id', read_only=True)
     email         = serializers.EmailField(source='user.email', read_only=True)
     date_joined   = serializers.DateTimeField(source='user.date_joined', read_only=True)
     last_login_at = serializers.DateTimeField(source='user.last_login', read_only=True)

@@ -338,13 +338,13 @@ export default function ReviewsPage() {
     return (
         <div className="space-y-3">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded-sm shadow-lg flex items-start gap-2 max-w-md">
+                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded flex items-start gap-2 max-w-md">
                     <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed">{toast}</span>
+                    <span className="">{toast}</span>
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200 rounded p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                         <MessageSquare className="h-5 w-5 text-blue-950" />
@@ -360,7 +360,7 @@ export default function ReviewsPage() {
                 </div>
                 <Link
                     href="/pages/products"
-                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition-colors"
+                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-xs transition-colors"
                 >
                     <ShoppingBag className="h-3.5 w-3.5" />
                     Shop Products
@@ -368,7 +368,7 @@ export default function ReviewsPage() {
             </div>
 
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded-sm text-xs flex items-center gap-2">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {loadError}
                 </div>
@@ -444,7 +444,7 @@ export default function ReviewsPage() {
                         ))}
                     </div>
                 ) : reviews.length === 0 ? (
-                    <div className="bg-white border border-slate-200 rounded-sm p-12 text-center">
+                    <div className="bg-white border border-slate-200 rounded p-12 text-center">
                         <MessageSquare className="h-10 w-10 text-slate-300 mx-auto mb-2" />
                         <h2 className="text-sm font-semibold text-slate-900">
                             You haven&apos;t written any reviews yet.
@@ -457,7 +457,7 @@ export default function ReviewsPage() {
                         {pending.length === 0 && (
                             <Link
                                 href="/pages/products"
-                                className="mt-3 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition-colors"
+                                className="mt-3 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-xs transition-colors"
                             >
                                 <ShoppingBag className="h-3.5 w-3.5" />
                                 Start Shopping
@@ -534,10 +534,10 @@ function SummaryCard({
     sub?: React.ReactNode;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-3">
+        <div className="bg-white border border-slate-200 rounded p-2">
             <div className="flex items-center justify-between mb-2">
                 <span
-                    className={`w-9 h-9 rounded-sm flex items-center justify-center ${tint}`}
+                    className={`w-9 h-9 rounded flex items-center justify-center ${tint}`}
                 >
                     {icon}
                 </span>
@@ -590,11 +590,11 @@ function PendingCard({
     onWrite: () => void;
 }) {
     return (
-        <article className="bg-white border border-slate-200 rounded-sm p-3 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <article className="bg-white border border-slate-200 rounded p-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
             <img
                 src={item.product_image || '/placeholder.png'}
                 alt={item.product_name}
-                className="w-16 h-16 rounded-sm object-cover border border-slate-200 shrink-0"
+                className="w-16 h-16 rounded object-cover border border-slate-200 shrink-0"
             />
             <div className="flex-1 min-w-0">
                 {item.product_brand && (
@@ -623,7 +623,7 @@ function PendingCard({
             <button
                 type="button"
                 onClick={onWrite}
-                className="shrink-0 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded-sm text-xs transition"
+                className="shrink-0 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-xs transition"
             >
                 <Pencil className="h-3 w-3" />
                 Write Review
@@ -646,7 +646,7 @@ function ReviewCard({
         : `/pages/products?q=${encodeURIComponent(review.productName)}`;
 
     return (
-        <article className="bg-white border border-slate-200 rounded-sm p-3">
+        <article className="bg-white border border-slate-200 rounded p-2">
             <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                     href={productHref}
@@ -656,7 +656,7 @@ function ReviewCard({
                     <img
                         src={review.productImage}
                         alt={review.productName}
-                        className="w-20 h-20 rounded-sm object-cover border border-slate-200"
+                        className="w-20 h-20 rounded object-cover border border-slate-200"
                     />
                 </Link>
 
@@ -677,7 +677,7 @@ function ReviewCard({
                         </div>
 
                         <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded border ${statusStyle(
+                            className={`inline-flex items-center gap-1 text-[12px] font-medium px-2 py-0.5 rounded border ${statusStyle(
                                 review.status,
                             )}`}
                         >
@@ -686,7 +686,7 @@ function ReviewCard({
                         </span>
                     </div>
 
-                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
                         <Stars value={review.rating} />
                         <span className="text-[11px] text-slate-500">
                             {review.rating.toFixed(1)}
@@ -700,13 +700,13 @@ function ReviewCard({
                     </div>
 
                     {review.title && (
-                        <p className="text-[13px] font-semibold text-slate-900 mt-2">
+                        <p className="text-[13px] font-semibold text-slate-900 mt-1">
                             {review.title}
                         </p>
                     )}
 
                     {review.body && (
-                        <p className="text-xs text-slate-600 mt-1 leading-relaxed whitespace-pre-line">
+                        <p className="text-xs text-slate-600 mt-1 whitespace-pre-line">
                             {review.body}
                         </p>
                     )}
@@ -725,7 +725,7 @@ function ReviewCard({
                                     <img
                                         src={src}
                                         alt={`Review image ${idx + 1}`}
-                                        className="w-16 h-16 rounded-sm object-cover border border-slate-200 hover:border-blue-950 transition-colors"
+                                        className="w-16 h-16 rounded object-cover border border-slate-200 hover:border-blue-950 transition-colors"
                                     />
                                 </a>
                             ))}
@@ -733,15 +733,15 @@ function ReviewCard({
                     )}
 
                     {review.status === 'Rejected' && review.rejectionReason && (
-                        <div className="mt-2 bg-red-50 border border-red-100 rounded-sm px-3 py-2 flex items-start gap-2">
+                        <div className="mt-1 bg-red-50 border border-red-100 rounded px-3 py-2 flex items-start gap-2">
                             <AlertCircle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
-                            <p className="text-[11px] text-red-800 leading-relaxed">
+                            <p className="text-[11px] text-red-800">
                                 {review.rejectionReason}
                             </p>
                         </div>
                     )}
 
-                    <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                         <p className="text-[11px] text-slate-500">
                             Reviewed {formatDate(review.date)}
                         </p>
@@ -750,14 +750,14 @@ function ReviewCard({
                             <button
                                 type="button"
                                 onClick={onEdit}
-                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded-sm text-[11px] transition"
+                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded text-[11px] transition"
                             >
                                 <Pencil className="h-3 w-3" />
                                 Edit Review
                             </button>
                             <Link
                                 href={productHref}
-                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded-sm text-[11px] transition"
+                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded text-[11px] transition"
                             >
                                 <ExternalLink className="h-3 w-3" />
                                 View Product
@@ -766,7 +766,7 @@ function ReviewCard({
                                 type="button"
                                 onClick={onDelete}
                                 aria-label="Delete review"
-                                className="inline-flex items-center justify-center h-7 w-7 rounded-sm border border-slate-200 hover:bg-red-50 hover:border-red-200 text-red-600 transition"
+                                className="inline-flex items-center justify-center h-7 w-7 rounded border border-slate-200 hover:bg-red-50 hover:border-red-200 text-red-600 transition"
                             >
                                 <Trash2 className="h-3 w-3" />
                             </button>
@@ -780,10 +780,10 @@ function ReviewCard({
 
 function ReviewSkeleton() {
     return (
-        <div className="bg-white border border-slate-200 rounded-sm p-3 animate-pulse">
-            <div className="flex gap-4">
-                <div className="w-20 h-20 rounded-sm bg-slate-200 shrink-0" />
-                <div className="flex-1 space-y-3">
+        <div className="bg-white border border-slate-200 rounded p-2 animate-pulse">
+            <div className="flex gap-2">
+                <div className="w-20 h-20 rounded bg-slate-200 shrink-0" />
+                <div className="flex-1 space-y-2">
                     <div className="h-3 w-1/3 bg-slate-200 rounded" />
                     <div className="h-3 w-1/2 bg-slate-200 rounded" />
                     <div className="h-3 w-full bg-slate-200 rounded" />
@@ -921,7 +921,7 @@ function ReviewEditor({
             aria-labelledby="review-editor-title"
         >
             <div
-                className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+                className="bg-white border border-slate-200 rounded w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 <header className="flex items-center justify-between px-3 py-3 border-b border-slate-100 shrink-0">
@@ -934,19 +934,19 @@ function ReviewEditor({
                     <button
                         type="button"
                         onClick={() => !busy && onCancel()}
-                        className="h-7 w-7 flex items-center justify-center rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                        className="h-7 w-7 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
                         aria-label="Close"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </header>
 
-                <div className="p-3 overflow-y-auto space-y-3">
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-sm">
+                <div className="p-2 overflow-y-auto space-y-2">
+                    <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded">
                         <img
                             src={preview.image || '/placeholder.png'}
                             alt={preview.name}
-                            className="w-12 h-12 rounded-sm object-cover border border-slate-200 shrink-0"
+                            className="w-12 h-12 rounded object-cover border border-slate-200 shrink-0"
                         />
                         <div className="min-w-0">
                             {preview.brand && (
@@ -985,11 +985,11 @@ function ReviewEditor({
 
                     <div>
                         <div className="flex items-baseline justify-between mb-1">
-                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            <label className="block text-[11px] font-semibold uppercase  text-slate-500">
                                 Title
                             </label>
                             <span
-                                className={`text-[10px] ${draft.title.length > TITLE_MAX
+                                className={`text-[12px] ${draft.title.length > TITLE_MAX
                                     ? 'text-red-600'
                                     : 'text-slate-400'
                                     }`}
@@ -1005,7 +1005,7 @@ function ReviewEditor({
                             }
                             placeholder="Summarize your experience"
                             maxLength={TITLE_MAX + 20}
-                            className={`w-full bg-slate-50 border rounded-sm py-2 px-3 text-xs text-slate-900 focus:outline-none focus:ring-1 ${errors.title
+                            className={`w-full bg-slate-50 border rounded py-2 px-3 text-xs text-slate-900 focus:outline-none focus:ring-1 ${errors.title
                                 ? 'border-red-400 focus:ring-red-600'
                                 : 'border-slate-200 focus:ring-blue-950'
                                 }`}
@@ -1038,7 +1038,7 @@ function ReviewEditor({
                             }
                             rows={5}
                             placeholder="Share what you liked or didn't like…"
-                            className={`w-full bg-slate-50 border rounded-sm py-2 px-3 text-xs text-slate-900 resize-none focus:outline-none focus:ring-1 ${errors.body
+                            className={`w-full bg-slate-50 border rounded py-2 px-3 text-xs text-slate-900 resize-none focus:outline-none focus:ring-1 ${errors.body
                                 ? 'border-red-400 focus:ring-red-600'
                                 : 'border-slate-200 focus:ring-blue-950'
                                 }`}
@@ -1061,7 +1061,7 @@ function ReviewEditor({
                                     <img
                                         src={src}
                                         alt={`Upload ${idx + 1}`}
-                                        className="w-20 h-20 rounded-sm object-cover border border-slate-200"
+                                        className="w-20 h-20 rounded object-cover border border-slate-200"
                                     />
                                     <button
                                         type="button"
@@ -1080,14 +1080,14 @@ function ReviewEditor({
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={uploading}
-                                    className="w-20 h-20 rounded-sm border-2 border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/30 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-blue-950 transition disabled:opacity-60 disabled:cursor-wait"
+                                    className="w-20 h-20 rounded border border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/30 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-blue-950 transition disabled:opacity-60 disabled:cursor-wait"
                                 >
                                     {uploading ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                         <>
                                             <Upload className="h-4 w-4" />
-                                            <span className="text-[10px] font-medium">
+                                            <span className="text-[12px] font-medium">
                                                 Add
                                             </span>
                                         </>
@@ -1123,7 +1123,7 @@ function ReviewEditor({
                         type="button"
                         onClick={onCancel}
                         disabled={busy}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60"
                     >
                         Cancel
                     </button>
@@ -1132,7 +1132,7 @@ function ReviewEditor({
                         onClick={handleSubmit}
                         disabled={busy}
                         aria-busy={submitting}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         {submitting ? (
                             <>
@@ -1229,16 +1229,16 @@ function DeleteConfirm({
 
     return (
         <div
-            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
             onClick={() => !deleting && onCancel()}
             role="dialog"
             aria-modal="true"
         >
             <div
-                className="bg-white border border-slate-200 rounded-sm shadow-2xl w-full max-w-md p-3"
+                className="bg-white border border-slate-200 rounded w-full max-w-md p-2"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2">
                     <span className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
                         <Trash2 className="h-4 w-4" />
                     </span>
@@ -1256,12 +1256,12 @@ function DeleteConfirm({
                     </div>
                 </div>
 
-                <div className="mt-5 flex justify-end gap-2">
+                <div className="mt-2 flex justify-end gap-2">
                     <button
                         type="button"
                         onClick={onCancel}
                         disabled={deleting}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60"
                     >
                         Cancel
                     </button>
@@ -1270,7 +1270,7 @@ function DeleteConfirm({
                         onClick={handleConfirm}
                         disabled={deleting}
                         aria-busy={deleting}
-                        className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded-sm text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         {deleting ? (
                             <>

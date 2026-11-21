@@ -114,7 +114,8 @@ function SpecialDealsPageInner() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const [deals, setDeals] = useState<CatalogDealCard[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [hasError, setHasError] = useState(false);
 
   const [categories, setCategories] = useState<CatalogCategoryRef[]>([]);
@@ -139,10 +140,11 @@ function SpecialDealsPageInner() {
       catalogApi.specialDeals.brands(ctrl.signal),
     ])
       .then(([cats, brs]) => {
+        if (ctrl.signal.aborted) return;
         setCategories(cats);
         setBrands(brs);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => ctrl.abort();
   }, []);
 
@@ -170,13 +172,21 @@ function SpecialDealsPageInner() {
 
     catalogApi.specialDeals
       .list(query, ctrl.signal)
-      .then(setDeals)
+      .then((data) => {
+        if (ctrl.signal.aborted) return;
+        setDeals(data);
+      })
       .catch((err: unknown) => {
+        if (ctrl.signal.aborted) return;
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setDeals([]);
         setHasError(true);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (ctrl.signal.aborted) return;
+        setLoading(false);
+        setHasLoadedOnce(true);
+      });
 
     return () => ctrl.abort();
   }, [
@@ -200,8 +210,12 @@ function SpecialDealsPageInner() {
 
     catalogApi.specialDeals
       .detail(openId, ctrl.signal)
-      .then(setModalProduct)
+      .then((data) => {
+        if (ctrl.signal.aborted) return;
+        setModalProduct(data);
+      })
       .catch((err: unknown) => {
+        if (ctrl.signal.aborted) return;
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setModalProduct(null);
         router.replace(pathname, { scroll: false });
@@ -278,7 +292,7 @@ function SpecialDealsPageInner() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-900 selection:text-white">
       {notification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-lg text-sm flex items-center space-x-2 border border-slate-700">
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded  text-sm flex items-center space-x-2 border border-slate-700">
           <Check className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{notification}</span>
         </div>
@@ -286,10 +300,10 @@ function SpecialDealsPageInner() {
 
       {modalProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white border border-slate-200 rounded-sm shadow-2xl max-w-2xl w-full overflow-hidden relative">
+          <div className="bg-white border border-slate-200 rounded max-w-2xl w-full overflow-hidden relative">
             <button
               onClick={closeProductInUrl}
-              className="absolute top-2.5 right-2.5 z-10 w-7 h-7 flex items-center justify-center bg-white/90 hover:bg-slate-100 text-slate-600 rounded-full border border-slate-200 shadow-sm transition-colors"
+              className="absolute top-2.5 right-2.5 z-10 w-7 h-7 flex items-center justify-center bg-white/90 hover:bg-slate-100 text-slate-600 rounded-full border border-slate-200  transition-colors"
               aria-label="Close modal"
             >
               <X className="w-3.5 h-3.5" />
@@ -297,7 +311,7 @@ function SpecialDealsPageInner() {
 
             <div className="flex flex-col sm:flex-row max-h-[85vh] overflow-y-auto">
               <div className="sm:w-2/5 p-2 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200">
-                <div className="aspect-square w-full bg-white rounded-sm overflow-hidden border border-slate-200 relative">
+                <div className="aspect-square w-full bg-white rounded overflow-hidden border border-slate-200 relative">
                   <img
                     src={modalProduct.image || '/placeholder.jpeg'}
                     alt={modalProduct.name}
@@ -305,7 +319,7 @@ function SpecialDealsPageInner() {
                   />
 
                   <div className="absolute top-0 left-0 w-20 h-20 overflow-hidden pointer-events-none z-10">
-                    <div className="absolute transform -rotate-45 bg-gradient-to-r from-blue-600 via-blue-500 to-orange-500 text-white font-bold text-[10px] tracking-widest py-1 left-[-36px] top-[16px] w-[130px] text-center shadow-xs">
+                    <div className="absolute transform -rotate-45 bg-gradient-to-r from-blue-600 via-blue-500 to-orange-500 text-white font-bold text-[10px] py-1 left-[-36px] top-[16px] w-[130px] text-center">
                       {modalProduct.discountPct}% OFF
                     </div>
                   </div>
@@ -318,7 +332,7 @@ function SpecialDealsPageInner() {
                       (now ?? Date.now());
                     return (
                       <div
-                        className={`mt-2 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 ${urgencyClass(ms)}`}
+                        className={`mt-1 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 ${urgencyClass(ms)}`}
                       >
                         <Clock className="w-3.5 h-3.5 shrink-0" />
                         <span>{formatRemaining(ms)}</span>
@@ -326,7 +340,7 @@ function SpecialDealsPageInner() {
                     );
                   })()
                 ) : (
-                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 bg-slate-50 text-slate-600 border-slate-200">
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium border rounded px-2 py-1.5 bg-slate-50 text-slate-600 border-slate-200">
                     <Clock className="w-3.5 h-3.5 shrink-0" />
                     <span>Ongoing deal</span>
                   </div>
@@ -339,15 +353,15 @@ function SpecialDealsPageInner() {
                     {modalProduct.brand} • {modalProduct.category}
                   </p>
 
-                  <h2 className="text-base font-bold text-slate-900 leading-snug">
+                  <h2 className="text-base font-bold text-slate-900">
                     {modalProduct.name}
                   </h2>
 
-                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
+                  <p className="text-xs text-slate-600 whitespace-pre-line">
                     {modalProduct.description}
                   </p>
 
-                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded p-2.5">
                     <div>
                       <span className="text-lg font-extrabold text-red-600 block">
                         {formatKES(toNum(modalProduct.price))}
@@ -410,7 +424,7 @@ function SpecialDealsPageInner() {
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex gap-2">
+                <div className="pt-2 border-t border-slate-100 flex gap-2">
                   <button
                     type="button"
                     onClick={async () => {
@@ -418,7 +432,7 @@ function SpecialDealsPageInner() {
                       closeProductInUrl();
                     }}
                     disabled={!modalProduct.inStock}
-                    className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded-sm text-[13px] transition disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="flex-1 bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-3 rounded text-[13px] transition disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
                     <ShoppingCart className="w-3.5 h-3.5" />
                     <span>
@@ -428,7 +442,7 @@ function SpecialDealsPageInner() {
                   <button
                     type="button"
                     onClick={closeProductInUrl}
-                    className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium rounded-sm text-[13px] transition"
+                    className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium rounded text-[13px] transition"
                   >
                     Close
                   </button>
@@ -450,7 +464,7 @@ function SpecialDealsPageInner() {
       </nav>
 
       <main className="max-w-[1600px] mx-auto px-4 sm:px-4 lg:px-4 py-3">
-        <div className="bg-white border border-slate-200 rounded-sm p-2 mb-3 flex flex-col md:flex-row md:items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded p-2 mb-2 flex flex-col md:flex-row md:items-center justify-between">
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-slate-900">
               Special Deals &amp; Discounts
@@ -461,7 +475,7 @@ function SpecialDealsPageInner() {
               from our inventory system.
             </p>
           </div>
-          <div className="mt-1 md:mt-0 bg-slate-50 border border-slate-200 rounded-sm p-2 text-center shrink-0">
+          <div className="mt-1 md:mt-0 bg-slate-50 border border-slate-200 rounded p-2 text-center shrink-0">
             <span className="block text-2xl font-bold text-blue-950">
               {loading ? '…' : deals.length}
             </span>
@@ -471,16 +485,16 @@ function SpecialDealsPageInner() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm p-3 mb-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+        <div className="bg-white border border-slate-200 rounded p-2 mb-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 items-end">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                 Category
               </label>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
               >
                 {categoryNames.map((cat) => (
                   <option key={cat} value={cat}>
@@ -491,7 +505,7 @@ function SpecialDealsPageInner() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                 Search Deals
               </label>
               <div className="relative">
@@ -501,19 +515,19 @@ function SpecialDealsPageInner() {
                   placeholder="Search deals..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                  className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 text-slate-800"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                 Brand
               </label>
               <select
                 value={selectedBrand}
                 onChange={(e) => setSelectedBrand(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 text-slate-800"
               >
                 {brandNames.map((b) => (
                   <option key={b} value={b}>
@@ -524,13 +538,13 @@ function SpecialDealsPageInner() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                 Availability
               </label>
               <select
                 value={selectedAvailability}
                 onChange={(e) => setSelectedAvailability(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 text-slate-800"
               >
                 <option value="All">All Availability</option>
                 <option value="In Stock">In Stock</option>
@@ -539,13 +553,13 @@ function SpecialDealsPageInner() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                 Discount
               </label>
               <select
                 value={selectedDiscountLevel}
                 onChange={(e) => setSelectedDiscountLevel(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-sm px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 text-slate-800"
               >
                 <option value="All">Any Discount</option>
                 <option value="10">10% or more</option>
@@ -556,13 +570,13 @@ function SpecialDealsPageInner() {
 
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1.5">
                   Sort By
                 </label>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as DealSortBy)}
-                  className="w-full bg-white border border-slate-200 rounded-sm px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-950 text-slate-800"
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-950 text-slate-800"
                 >
                   {SORT_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>
@@ -574,7 +588,7 @@ function SpecialDealsPageInner() {
               <div className="flex items-end">
                 <button
                   onClick={clearAllFilters}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-sm text-xs transition-colors"
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded text-xs transition-colors"
                 >
                   Clear
                 </button>
@@ -582,7 +596,7 @@ function SpecialDealsPageInner() {
             </div>
           </div>
 
-          <div className="lg:hidden mt-3 pt-3 border-t border-slate-200">
+          <div className="lg:hidden mt-2 pt-2 border-t border-slate-200">
             <button
               onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
               className="inline-flex items-center space-x-1.5 text-xs font-medium bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded"
@@ -596,7 +610,7 @@ function SpecialDealsPageInner() {
           </div>
 
           {mobileFiltersOpen && (
-            <div className="lg:hidden mt-3 pt-3 border-t border-slate-200 space-y-3">
+            <div className="lg:hidden mt-2 pt-2 border-t border-slate-200 space-y-2">
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">
                   Price Range (KES)
@@ -622,7 +636,7 @@ function SpecialDealsPageInner() {
           )}
         </div>
 
-        <div className="mb-3">
+        <div className="mb-2">
           <p className="text-xs text-slate-600 font-medium">
             Showing{' '}
             <span className="font-bold text-slate-900">{deals.length}</span>{' '}
@@ -631,7 +645,7 @@ function SpecialDealsPageInner() {
         </div>
 
         {activeFilterCount > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="text-xs text-slate-400">Active filters:</span>
             {selectedCategory !== 'All' && (
               <span className="inline-flex items-center space-x-1 text-xs bg-slate-200 text-slate-800 px-2.5 py-1 rounded">
@@ -698,15 +712,15 @@ function SpecialDealsPageInner() {
         )}
 
         {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div
                 key={n}
-                className="bg-white border border-slate-200 rounded-lg p-3 animate-pulse"
+                className="bg-white border border-slate-200 rounded p-2 animate-pulse"
               >
-                <div className="aspect-square bg-slate-200 rounded mb-3" />
+                <div className="aspect-square bg-slate-200 rounded mb-2" />
                 <div className="h-3 bg-slate-200 rounded w-3/4 mb-2" />
-                <div className="h-2.5 bg-slate-200 rounded w-1/2 mb-3" />
+                <div className="h-2.5 bg-slate-200 rounded w-1/2 mb-2" />
                 <div className="h-7 bg-slate-200 rounded" />
               </div>
             ))}
@@ -714,12 +728,12 @@ function SpecialDealsPageInner() {
         )}
 
         {hasError && !loading && (
-          <div className="bg-white border border-red-200 rounded-lg p-12 text-center my-12">
-            <AlertCircle className="w-10 h-10 text-red-600 mx-auto mb-3" />
+          <div className="bg-white border border-red-200 rounded p-12 text-center my-12">
+            <AlertCircle className="w-10 h-10 text-red-600 mx-auto mb-2" />
             <h3 className="text-base font-bold text-slate-900 mb-1">
               We couldn&apos;t load current deals.
             </h3>
-            <p className="text-xs text-slate-600 mb-4">
+            <p className="text-xs text-slate-600 mb-2">
               An error occurred while fetching promotional offers from our
               backend.
             </p>
@@ -733,15 +747,15 @@ function SpecialDealsPageInner() {
           </div>
         )}
 
-        {!loading && !hasError && deals.length === 0 && (
-          <div className="bg-white border border-slate-200 rounded-lg p-12 text-center my-8">
-            <Tag className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+        {!loading && hasLoadedOnce && !hasError && deals.length === 0 && (
+          <div className="bg-white border border-slate-200 rounded p-12 text-center my-8">
+            <Tag className="w-10 h-10 text-slate-300 mx-auto mb-2" />
             <h3 className="text-base font-bold text-slate-900 mb-1">
               {activeFilterCount === 0
                 ? 'No special deals available right now'
                 : 'No deals match your current filters.'}
             </h3>
-            <p className="text-xs text-slate-600 mb-4">
+            <p className="text-xs text-slate-600 mb-2">
               {activeFilterCount === 0
                 ? 'Check back later for new offers and promotions.'
                 : 'Try clearing your filters or search terms to see available offers.'}
@@ -769,7 +783,7 @@ function SpecialDealsPageInner() {
               return (
                 <div
                   key={product.id}
-                  className="group bg-white border border-slate-200 rounded-sm overflow-hidden transition-all duration-200 flex flex-col justify-between hover:border-blue-200 hover:shadow-sm"
+                  className="group bg-white border border-slate-200 rounded overflow-hidden transition-all duration-200 flex flex-col justify-between hover:border-blue-200 hover:shadow-sm"
                 >
                   <div>
                     <div className="aspect-square w-full bg-slate-100 overflow-hidden relative">
@@ -786,7 +800,7 @@ function SpecialDealsPageInner() {
                       </div>
 
                       <span
-                        className={`absolute top-2 right-2 text-[12px] font-semibold px-2 py-0.5 rounded shadow-xs ${stockBadgeClasses(stockStatus)}`}
+                        className={`absolute top-2 right-2 text-[12px] font-semibold px-2 py-0.5 rounded ${stockBadgeClasses(stockStatus)}`}
                       >
                         {stockStatus}
                       </span>

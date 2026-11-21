@@ -363,7 +363,7 @@ export default function SuppliersPage() {
                                 </span>
                                 <div className="min-w-0">
                                     <p className="text-[13px] font-medium text-slate-500 truncate">{card.label}</p>
-                                    <p className="text-[14px] font-semibold text-slate-900 leading-tight truncate">{card.value}</p>
+                                    <p className="text-[14px] font-semibold text-slate-900 truncate">{card.value}</p>
                                 </div>
                             </button>
                         );
@@ -1070,7 +1070,7 @@ function SupplierDrawer({
                                         </p>
                                     </div>
                                 ) : (
-                                    <div className="border border-slate-200 rounded-md overflow-hidden">
+                                    <div className="border border-slate-200 rounded overflow-hidden">
                                         <table className="w-full text-left text-[13px]">
                                             <thead>
                                                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
@@ -1272,7 +1272,7 @@ function MiniStat({ label, value, icon: Icon, tint }: { label: string; value: st
             </span>
             <div className="min-w-0">
                 <p className="text-[13px] text-slate-500 truncate">{label}</p>
-                <p className="text-[13px] font-semibold text-slate-900 leading-tight truncate">{value}</p>
+                <p className="text-[13px] font-semibold text-slate-900 truncate">{value}</p>
             </div>
         </div>
     );

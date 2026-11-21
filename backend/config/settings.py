@@ -57,14 +57,14 @@ env = environ.Env(
     OPENROUTER_BASE_URL=(str, "https://openrouter.ai/api/v1"),
     OPENROUTER_MODEL=(str, "openai/gpt-4o-mini"),
     OPENROUTER_HTTP_REFERER=(str, ""),
-    OPENROUTER_X_TITLE=(str, "Myshop Admin"),
+    OPENROUTER_X_TITLE=(str, "Racetech Hub Admin"),
     OPENROUTER_MONTHLY_BUDGET_KES=(int, 2000),
     AI_KEY_ENC_KEY=(str, ""),
 
     SENDGRID_API_KEY=(str, ""),
     SENDGRID_SANDBOX_MODE=(bool, False),
 
-    SHOP_NAME=(str, "Myshop"),
+    SHOP_NAME=(str, "Racetech Hub"),
 
     WHATSAPP_ENABLED=(bool, False),
     WHATSAPP_DRY_RUN=(bool, True),
@@ -212,6 +212,7 @@ INSTALLED_APPS = [
     'dashboard.returns',
     'dashboard.payments',
     'dashboard.campaigns',
+    "dashboard.posters",
 ]
 
 
@@ -590,6 +591,24 @@ PUBLIC_BASE_URL = env(
     default=BACKEND_PUBLIC_URL,
 )
 MEDIA_URL_ABSOLUTE = f"{PUBLIC_BASE_URL.rstrip('/')}{MEDIA_URL}"
+
+
+# Admin uploads: base64-encoded images in JSON bodies and multipart files
+# both count against these limits. Defaults (2.5MB) are too small for
+# product galleries that carry several base64 images per save.
+DATA_UPLOAD_MAX_MEMORY_SIZE = env.int(
+    "DATA_UPLOAD_MAX_MEMORY_SIZE",
+    default=50 * 1024 * 1024,  # 50 MB
+)
+FILE_UPLOAD_MAX_MEMORY_SIZE = env.int(
+    "FILE_UPLOAD_MAX_MEMORY_SIZE",
+    default=50 * 1024 * 1024,  # 50 MB
+)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = env.int(
+    "DATA_UPLOAD_MAX_NUMBER_FIELDS",
+    default=10000,
+)
+
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

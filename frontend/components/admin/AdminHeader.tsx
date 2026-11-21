@@ -454,13 +454,13 @@ export default function AdminHeader() {
 
   return (
     <>
-      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-3 gap-3 sticky top-0 z-30">
+      <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-3 gap-2 sticky top-0 z-30">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
           <button
             type="button"
             onClick={toggle}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="h-8 w-8 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-colors shrink-0"
+            className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-colors shrink-0"
           >
             <PanelLeft className="h-4 w-4" />
           </button>
@@ -485,13 +485,13 @@ export default function AdminHeader() {
               }}
               onFocus={() => setSearchOpen(true)}
               placeholder="Search products, orders, customers…"
-              className="w-full bg-white border border-slate-200 rounded-sm pl-9 pr-16 py-2 text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950 focus:border-blue-950"
+              className="w-full bg-white border border-slate-200 rounded pl-9 pr-16 py-2 text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950 focus:border-blue-950"
             />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 hidden lg:inline-flex items-center gap-1 pointer-events-none">
-              <kbd className="px-1.5 py-0.5 rounded-sm border border-slate-200 bg-slate-50 text-[13px] font-mono text-slate-500">
+              <kbd className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-[13px] font-mono text-slate-500">
                 ⌘
               </kbd>
-              <kbd className="px-1.5 py-0.5 rounded-sm border border-slate-200 bg-slate-50 text-[13px] font-mono text-slate-500">
+              <kbd className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-[13px] font-mono text-slate-500">
                 K
               </kbd>
             </span>
@@ -499,7 +499,7 @@ export default function AdminHeader() {
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-sm hover:bg-slate-100 flex items-center justify-center text-slate-400 lg:hidden"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 lg:hidden"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -507,7 +507,7 @@ export default function AdminHeader() {
           </div>
 
           {searchOpen && searchQuery.trim().length >= 2 && (
-            <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-sm shadow-lg z-50 max-h-[420px] overflow-y-auto">
+            <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded z-50 max-h-[420px] overflow-y-auto">
               {searchLoading ? (
                 <p className="p-4 flex items-center justify-center gap-2 text-[13px] text-slate-400">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -530,7 +530,7 @@ export default function AdminHeader() {
                         className="w-full flex items-start gap-2 p-2.5 hover:bg-slate-50 text-left transition-colors"
                       >
                         <span
-                          className={`inline-block px-2 py-0.5 rounded-sm text-[13px] font-medium border shrink-0 ${typeBadge(r.type)}`}
+                          className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border shrink-0 ${typeBadge(r.type)}`}
                         >
                           {r.type}
                         </span>
@@ -562,7 +562,7 @@ export default function AdminHeader() {
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="hidden sm:inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-3 py-2 rounded-sm transition-colors"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-3 py-2 rounded transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             Add product
@@ -572,7 +572,7 @@ export default function AdminHeader() {
             <button
               type="button"
               onClick={() => setNotifOpen((v) => !v)}
-              className={`relative h-8 w-8 rounded-sm flex items-center justify-center transition-colors ${
+              className={`relative h-8 w-8 rounded flex items-center justify-center transition-colors ${
                 notifOpen
                   ? "bg-slate-100 text-slate-900"
                   : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
@@ -588,12 +588,12 @@ export default function AdminHeader() {
             </button>
 
             {notifOpen && (
-              <div className="absolute top-full mt-1 right-0 w-80 bg-white border border-slate-200 rounded-sm shadow-lg z-50 flex flex-col max-h-[480px]">
+              <div className="absolute top-full mt-1 right-0 w-80 bg-white border border-slate-200 rounded z-50 flex flex-col max-h-[480px]">
                 <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between shrink-0">
                   <p className="text-[13px] font-semibold text-slate-900">
                     Notifications
                     {unreadCount > 0 && (
-                      <span className="ml-2 text-[13px] font-medium text-blue-950 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-sm">
+                      <span className="ml-2 text-[13px] font-medium text-blue-950 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
                         {unreadCount} new
                       </span>
                     )}
@@ -620,12 +620,12 @@ export default function AdminHeader() {
                       {notifications.map((n) => (
                         <li
                           key={n.id}
-                          className={`p-2.5 flex items-start gap-2 hover:bg-slate-50 transition-colors ${
+                          className={`p-2 flex items-start gap-2 hover:bg-slate-50 transition-colors ${
                             !n.read ? "bg-blue-50/40" : ""
                           }`}
                         >
                           <span
-                            className={`w-7 h-7 rounded-sm flex items-center justify-center shrink-0 ${notifTint(n.kind)}`}
+                            className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${notifTint(n.kind)}`}
                           >
                             {notifIcon(n.kind)}
                           </span>
@@ -650,7 +650,7 @@ export default function AdminHeader() {
                               <button
                                 type="button"
                                 onClick={() => markOneRead(n.id)}
-                                className="p-1 rounded-sm hover:bg-slate-200 text-slate-400"
+                                className="p-1 rounded hover:bg-slate-200 text-slate-400"
                                 title="Mark read"
                               >
                                 <Check className="w-3 h-3" />
@@ -659,7 +659,7 @@ export default function AdminHeader() {
                             <button
                               type="button"
                               onClick={() => removeNotification(n.id)}
-                              className="p-1 rounded-sm hover:bg-red-50 text-slate-400 hover:text-red-600"
+                              className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600"
                               title="Dismiss"
                             >
                               <X className="w-3 h-3" />
@@ -687,7 +687,7 @@ export default function AdminHeader() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="hidden sm:flex h-8 w-8 rounded-sm hover:bg-slate-100 items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
+            className="hidden sm:flex h-8 w-8 rounded hover:bg-slate-100 items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
             aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
             title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
           >
@@ -702,7 +702,7 @@ export default function AdminHeader() {
             <button
               type="button"
               onClick={() => setProfileOpen((v) => !v)}
-              className={`flex items-center gap-2 pl-1.5 pr-1.5 py-1 rounded-sm transition-colors ${
+              className={`flex items-center gap-2 pl-1.5 pr-1.5 py-1 rounded transition-colors ${
                 profileOpen ? "bg-slate-100" : "hover:bg-slate-100"
               }`}
             >
@@ -717,7 +717,7 @@ export default function AdminHeader() {
             </button>
 
             {profileOpen && (
-              <div className="absolute top-full mt-1 right-0 w-64 bg-white border border-slate-200 rounded-sm shadow-lg z-50 overflow-hidden">
+              <div className="absolute top-full mt-1 right-0 w-64 bg-white border border-slate-200 rounded z-50 overflow-hidden">
                 <div className="p-3 border-b border-slate-100 flex items-center gap-2">
                   <div className="h-9 w-9 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
                     {user.initials}

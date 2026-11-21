@@ -97,15 +97,15 @@ function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
 
   const stores: Storage[] = [];
-  try { stores.push(window.localStorage); } catch {}
-  try { stores.push(window.sessionStorage); } catch {}
+  try { stores.push(window.localStorage); } catch { }
+  try { stores.push(window.sessionStorage); } catch { }
 
   for (const store of stores) {
     for (const key of DIRECT_TOKEN_KEYS) {
       try {
         const v = store.getItem(key);
         if (v && looksLikeToken(v)) return v;
-      } catch {}
+      } catch { }
     }
   }
 
@@ -128,7 +128,7 @@ function getAccessToken(): string | null {
           const parsed = JSON.parse(raw);
           const found = findTokenInObject(parsed);
           if (found) return found;
-        } catch {}
+        } catch { }
       }
     }
   }
@@ -738,7 +738,7 @@ interface WaBillingSummary {
 type ToastVariant = 'success' | 'error' | 'warning' | 'info';
 interface ToastItem { id: string; message: string; variant: ToastVariant; }
 interface ToastCtx { push: (message: string, variant?: ToastVariant) => void; }
-const ToastContext = createContext<ToastCtx>({ push: () => {} });
+const ToastContext = createContext<ToastCtx>({ push: () => { } });
 const useToast = () => useContext(ToastContext);
 
 function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -770,9 +770,9 @@ function ToastCard({ item, onClose }: { item: ToastItem; onClose: () => void }) 
   }[item.variant];
   const Icon = cfg.Icon;
   return (
-    <div className={`${cfg.bg} text-white px-3 py-2 rounded-sm shadow-lg flex items-start gap-2 text-[13px]`}>
+    <div className={`${cfg.bg} text-white px-3 py-2 rounded shadow-lg flex items-start gap-2 text-[13px]`}>
       <Icon className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white" />
-      <span className="flex-1 break-words leading-relaxed">{item.message}</span>
+      <span className="flex-1 break-words">{item.message}</span>
       <button onClick={onClose} className="text-white/70 hover:text-white shrink-0">
         <X className="w-3.5 h-3.5" />
       </button>
@@ -780,12 +780,12 @@ function ToastCard({ item, onClose }: { item: ToastItem; onClose: () => void }) 
   );
 }
 
-const inputCls = 'w-full bg-white border border-slate-200 rounded-sm px-2 py-1.5 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-950/10 focus:border-blue-950 transition';
-const btnPrimary = 'inline-flex items-center justify-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-1.5 rounded-sm text-[13px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
-const btnSecondary = 'inline-flex items-center justify-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-1.5 rounded-sm text-[13px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
-const btnDanger = 'inline-flex items-center justify-center gap-1 bg-red-600 hover:bg-red-500 text-white font-medium px-2 py-1.5 rounded-sm text-[13px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
-const btnGhost = 'inline-flex items-center gap-1 bg-transparent hover:bg-slate-100 text-slate-600 font-medium px-1.5 py-1 rounded-sm text-[13px] transition-colors';
-const btnIcon = 'inline-flex items-center justify-center w-7 h-7 rounded-sm hover:bg-slate-100 text-slate-500 transition-colors';
+const inputCls = 'w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-950/10 focus:border-blue-950 transition';
+const btnPrimary = 'inline-flex items-center justify-center gap-1 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-1.5 rounded text-[13px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+const btnSecondary = 'inline-flex items-center justify-center gap-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-1.5 rounded text-[13px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+const btnDanger = 'inline-flex items-center justify-center gap-1 bg-red-600 hover:bg-red-500 text-white font-medium px-2 py-1.5 rounded text-[13px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+const btnGhost = 'inline-flex items-center gap-1 bg-transparent hover:bg-slate-100 text-slate-600 font-medium px-1.5 py-1 rounded text-[13px] transition-colors';
+const btnIcon = 'inline-flex items-center justify-center w-7 h-7 rounded hover:bg-slate-100 text-slate-500 transition-colors';
 
 const TOOLTIP_STYLE = {
   backgroundColor: '#fff',
@@ -825,7 +825,7 @@ function PageHeader({ title, subtitle, action, badge }: { title: string; subtitl
     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-1">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <h2 className="text-[16px] font-semibold text-slate-900 tracking-tight leading-tight">{title}</h2>
+          <h2 className="text-[16px] font-semibold text-slate-900">{title}</h2>
           {badge}
         </div>
         <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>
@@ -837,11 +837,11 @@ function PageHeader({ title, subtitle, action, badge }: { title: string; subtitl
 
 function EmptyState({ icon, title, description, action }: { icon: React.ReactNode; title: string; description?: string; action?: { label: string; onClick: () => void; icon?: React.ReactNode } }) {
   return (
-    <div className="max-w-md mx-auto my-4 bg-white border border-slate-200 rounded-sm px-2 py-6 text-center space-y-2">
-      <span className="w-10 h-10 rounded-sm bg-slate-50 text-slate-400 flex items-center justify-center mx-auto ring-1 ring-slate-100">{icon}</span>
+    <div className="max-w-md mx-auto my-4 bg-white border border-slate-200 rounded px-2 py-6 text-center space-y-2">
+      <span className="w-10 h-10 rounded bg-slate-50 text-slate-400 flex items-center justify-center mx-auto ring-1 ring-slate-100">{icon}</span>
       <div className="space-y-0.5">
         <p className="text-[13px] font-semibold text-slate-900">{title}</p>
-        {description && <p className="text-[13px] text-slate-500 leading-relaxed">{description}</p>}
+        {description && <p className="text-[13px] text-slate-500">{description}</p>}
       </div>
       {action && <button onClick={action.onClick} className={btnPrimary}>{action.icon}{action.label}</button>}
     </div>
@@ -859,7 +859,7 @@ function LoadingBlock({ label = 'Loading…' }: { label?: string }) {
 
 function ErrorBlock({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="border border-red-200 bg-red-50 rounded-sm px-3 py-3 flex items-start gap-2 text-[13px] text-red-800">
+    <div className="border border-red-200 bg-red-50 rounded px-3 py-3 flex items-start gap-2 text-[13px] text-red-800">
       <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
       <div className="flex-1">{message}</div>
       {onRetry && (
@@ -957,12 +957,12 @@ function Drawer({ onClose, title, subtitle, children, width = 'max-w-xl' }: {
 
 function KpiCard({ label, value, helper, icon, primary }: { label: string; value: React.ReactNode; helper?: string; icon?: React.ReactNode; primary?: boolean }) {
   return (
-    <div className={`${primary ? 'bg-blue-950 text-white' : 'bg-white border border-slate-200'} rounded-sm px-2 py-2 transition-shadow hover:shadow-sm`}>
+    <div className={`${primary ? 'bg-blue-950 text-white' : 'bg-white border border-slate-200'} rounded px-2 py-2 transition-shadow hover:shadow-sm`}>
       <div className="flex items-center gap-1.5 min-w-0">
         {icon && <span className={primary ? 'text-white/70' : 'text-slate-400'}>{icon}</span>}
-        <p className={`text-[13px] font-medium truncate uppercase tracking-wide ${primary ? 'text-white/70' : 'text-slate-500'}`}>{label}</p>
+        <p className={`text-[13px] font-medium truncate uppercase ${primary ? 'text-white/70' : 'text-slate-500'}`}>{label}</p>
       </div>
-      <p className={`text-[16px] font-semibold mt-0.5 tracking-tight ${primary ? 'text-white' : 'text-slate-900'}`}>{value}</p>
+      <p className={`text-[16px] font-semibold mt-0.5 ${primary ? 'text-white' : 'text-slate-900'}`}>{value}</p>
       {helper && <p className={`text-[13px] mt-0.5 ${primary ? 'text-white/70' : 'text-slate-500'}`}>{helper}</p>}
     </div>
   );
@@ -990,11 +990,12 @@ function DetailRow({ label, helper, value, valueNode, copy }: { label: string; h
 
 const NAV_GROUPS: { id: string; label: string; items: Tab[]; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Overview', items: ['Overview'], icon: <Gauge className="w-3.5 h-3.5" /> },
-  { id: 'commerce', label: 'Commerce', items: ['Catalog', 'Orders'], icon: <ShoppingBag className="w-3.5 h-3.5" /> },
-  { id: 'inbox', label: 'Conversations', items: ['Inbox', 'QuickReplies'], icon: <MessageCircle className="w-3.5 h-3.5" /> },
-  { id: 'growth', label: 'Marketing', items: ['Templates', 'Automations', 'Broadcasts', 'Contacts'], icon: <Rocket className="w-3.5 h-3.5" /> },
-  { id: 'insights', label: 'Insights', items: ['Analytics', 'Billing'], icon: <BarChart3 className="w-3.5 h-3.5" /> },
-  { id: 'settings', label: 'Settings', items: ['Connection', 'Webhooks', 'BotBuilder', 'Settings'], icon: <Shield className="w-3.5 h-3.5" /> },
+  { id: 'shop', label: 'Shop', items: ['Catalog', 'Orders'], icon: <ShoppingBag className="w-3.5 h-3.5" /> },
+  { id: 'inbox', label: 'Inbox', items: ['Inbox', 'QuickReplies'], icon: <MessageCircle className="w-3.5 h-3.5" /> },
+  { id: 'marketing', label: 'Marketing', items: ['Broadcasts', 'Templates', 'Automations', 'Contacts'], icon: <Rocket className="w-3.5 h-3.5" /> },
+  { id: 'reports', label: 'Reports', items: ['Analytics'], icon: <BarChart3 className="w-3.5 h-3.5" /> },
+  { id: 'settings', label: 'Settings', items: ['Connection', 'Settings', 'Billing'], icon: <Shield className="w-3.5 h-3.5" /> },
+  { id: 'advanced', label: 'Advanced', items: ['Webhooks', 'BotBuilder'], icon: <Layers className="w-3.5 h-3.5" /> },
 ];
 
 const NAV_LABELS: Record<Tab, string> = {
@@ -1086,15 +1087,15 @@ export default function WhatsAppAdminPage() {
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-white text-slate-900 antialiased pb-16">
+      <div className="min-h-screen bg-white text-slate-900 antialiased pb-10">
         <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
           <div className="max-w-[1700px] mx-auto px-2 h-12 flex items-center gap-2">
             <div className="flex items-center gap-2 shrink-0">
-              <span className="w-7 h-7 rounded-sm bg-green-600 text-white flex items-center justify-center">
+              <span className="w-7 h-7 rounded bg-green-600 text-white flex items-center justify-center">
                 <FaWhatsapp className="w-4 h-4" />
               </span>
               <div className="hidden sm:block leading-tight">
-                <p className="text-[13px] font-semibold tracking-tight text-slate-900">
+                <p className="text-[13px] font-semibold text-slate-900">
                   {accountSummary.data?.businessName || 'RazeStore'}
                 </p>
                 <p className="text-[13px] text-slate-500">WhatsApp Business</p>
@@ -1111,28 +1112,28 @@ export default function WhatsAppAdminPage() {
                     {isSingle ? (
                       <button
                         onClick={() => setTab(g.items[0])}
-                        className={`inline-flex items-center gap-1 px-2 py-1.5 text-[13px] font-medium rounded-sm transition-colors ${isActive ? 'text-blue-950 bg-blue-50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                        className={`inline-flex items-center gap-1 px-2 py-1.5 text-[13px] font-medium rounded transition-colors ${isActive ? 'text-blue-950 bg-blue-50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
                       >
                         {g.icon}{g.label}
                       </button>
                     ) : (
                       <button
                         onClick={() => setOpenGroup((prev) => (prev === g.id ? null : g.id))}
-                        className={`inline-flex items-center gap-1 px-2 py-1.5 text-[13px] font-medium rounded-sm transition-colors ${isActive ? 'text-blue-950 bg-blue-50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                        className={`inline-flex items-center gap-1 px-2 py-1.5 text-[13px] font-medium rounded transition-colors ${isActive ? 'text-blue-950 bg-blue-50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
                       >
                         {g.icon}{g.label}
                         <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
                     )}
                     {isOpen && (
-                      <div className="absolute top-full left-0 mt-1 bg-white ring-1 ring-slate-900/5 rounded-sm shadow-xl py-1 min-w-[190px] z-[60]">
+                      <div className="absolute top-full left-0 mt-1 bg-white ring-1 ring-slate-900/5 rounded shadow-xl py-1 min-w-[190px] z-[60]">
                         {g.items.map((it) => {
                           const active = tab === it;
                           return (
                             <button
                               key={it}
                               onClick={() => { setTab(it); setOpenGroup(null); }}
-                              className={`w-full text-left px-2 py-1.5 text-[13px] flex items-center justify-between gap-2 rounded-sm ${active ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
+                              className={`w-full text-left px-2 py-1.5 text-[13px] flex items-center justify-between gap-2 rounded ${active ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
                             >
                               <span>{NAV_LABELS[it]}</span>
                               {active && <Check className="w-3 h-3" />}
@@ -1153,7 +1154,7 @@ export default function WhatsAppAdminPage() {
               <div className="relative">
                 <button
                   onClick={() => setNotificationOpen(!notificationOpen)}
-                  className="relative inline-flex items-center justify-center w-7 h-7 rounded-sm hover:bg-slate-100 text-slate-500"
+                  className="relative inline-flex items-center justify-center w-7 h-7 rounded hover:bg-slate-100 text-slate-500"
                 >
                   <Bell className="w-3.5 h-3.5" />
                   {unreadCount > 0 && (
@@ -1170,12 +1171,12 @@ export default function WhatsAppAdminPage() {
                       try {
                         await api.post('/account/notifications/mark-all-read/');
                         notifications.refetch();
-                      } catch {}
+                      } catch { }
                     }}
                     onSelect={async (n) => {
                       setNotificationOpen(false);
                       if (!n.read) {
-                        try { await api.post(`/account/notifications/${n.id}/read/`); notifications.refetch(); } catch {}
+                        try { await api.post(`/account/notifications/${n.id}/read/`); notifications.refetch(); } catch { }
                       }
                       if (n.linkTab && (Object.keys(NAV_LABELS) as Tab[]).includes(n.linkTab as Tab)) {
                         setTab(n.linkTab as Tab);
@@ -1184,14 +1185,14 @@ export default function WhatsAppAdminPage() {
                   />
                 )}
               </div>
-              <span className="inline-flex items-center gap-1 px-1.5 py-2 rounded-sm text-[13px] font-medium text-slate-600">
+              <span className="inline-flex items-center gap-1 px-1.5 py-2 rounded text-[13px] font-medium text-slate-600">
                 <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-500' : 'bg-slate-300'}`} />
                 <span className="hidden xl:inline">{connected ? 'Live' : 'Offline'}</span>
               </span>
 
               <button
                 onClick={() => setMobileNavOpen(true)}
-                className="lg:hidden inline-flex items-center justify-center w-7 h-7 rounded-sm hover:bg-slate-100"
+                className="lg:hidden inline-flex items-center justify-center w-7 h-7 rounded hover:bg-slate-100"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
@@ -1208,8 +1209,8 @@ export default function WhatsAppAdminPage() {
               </div>
               <div className="flex-1 overflow-y-auto p-2">
                 {NAV_GROUPS.map((g) => (
-                  <div key={g.id} className="mb-2">
-                    <p className="px-2 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-slate-400">{g.label}</p>
+                  <div key={g.id} className="mb-1">
+                    <p className="px-2 py-1.5 text-[13px] font-semibold uppercase text-slate-400">{g.label}</p>
                     {g.items.map((it) => (
                       <button
                         key={it}
@@ -1255,11 +1256,11 @@ export default function WhatsAppAdminPage() {
           <Modal onClose={() => setShortcutsOpen(false)} title="Keyboard Shortcuts" widthClass="max-w-lg">
             <div className="space-y-2">
               {SHORTCUTS.map((s) => (
-                <div key={s.label} className="flex items-center justify-between gap-2 px-2 py-2 rounded-sm hover:bg-slate-50">
+                <div key={s.label} className="flex items-center justify-between gap-2 px-2 py-2 rounded hover:bg-slate-50">
                   <span className="text-[13px] text-slate-700">{s.label}</span>
                   <div className="flex items-center gap-1">
                     {s.keys.map((k) => (
-                      <kbd key={k} className="inline-flex items-center justify-center min-w-[20px] h-6 px-1.5 bg-slate-100 border border-slate-200 rounded-sm text-[13px] font-mono text-slate-700">{k}</kbd>
+                      <kbd key={k} className="inline-flex items-center justify-center min-w-[20px] h-6 px-1.5 bg-slate-100 border border-slate-200 rounded text-[13px] font-mono text-slate-700">{k}</kbd>
                     ))}
                   </div>
                 </div>
@@ -1286,7 +1287,7 @@ function NotificationCenter({
   return (
     <>
       <div className="fixed inset-0 z-[350]" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1 z-[360] w-80 bg-white rounded-sm shadow-2xl ring-1 ring-slate-900/5 overflow-hidden">
+      <div className="absolute right-0 top-full mt-1 z-[360] w-80 bg-white rounded shadow-2xl ring-1 ring-slate-900/5 overflow-hidden">
         <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
           <p className="text-[13px] font-semibold text-slate-900">Notifications</p>
           <button onClick={onMarkAllRead} className="text-[13px] font-medium text-slate-500 hover:text-slate-900">
@@ -1302,7 +1303,7 @@ function NotificationCenter({
               onClick={() => onSelect(n)}
               className={`w-full text-left px-3 py-2 hover:bg-slate-50 flex items-start gap-2 ${n.read ? '' : 'bg-blue-50/40'}`}
             >
-              <span className="w-6 h-6 rounded-sm bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">{iconFor(n.type)}</span>
+              <span className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">{iconFor(n.type)}</span>
               <div className="min-w-0 flex-1">
                 <p className={`text-[13px] ${n.read ? 'text-slate-700' : 'text-slate-900 font-medium'}`}>{n.title}</p>
                 <p className="text-[13px] text-slate-500 mt-0.5 line-clamp-2">{n.body}</p>
@@ -1325,7 +1326,7 @@ function CommandPalette({ onClose, onSelect }: { onClose: () => void; onSelect: 
   const filtered = all.filter((t) => !query || NAV_LABELS[t].toLowerCase().includes(query.toLowerCase()));
   return (
     <div className="fixed inset-0 z-[500] bg-slate-900/40 flex items-start justify-center pt-[12vh]" onClick={onClose}>
-      <div className="bg-white rounded-sm w-full max-w-lg shadow-2xl ring-1 ring-slate-900/5" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded w-full max-w-lg shadow-2xl ring-1 ring-slate-900/5" onClick={(e) => e.stopPropagation()}>
         <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
           <Search className="w-3.5 h-3.5 text-slate-400" />
           <input
@@ -1335,7 +1336,7 @@ function CommandPalette({ onClose, onSelect }: { onClose: () => void; onSelect: 
             placeholder="Jump to..."
             className="flex-1 text-[13px] outline-none bg-transparent"
           />
-          <kbd className="px-1.5 py-1 bg-slate-100 rounded-sm text-[13px] font-mono text-slate-500">Esc</kbd>
+          <kbd className="px-1.5 py-1 bg-slate-100 rounded text-[13px] font-mono text-slate-500">Esc</kbd>
         </div>
         <div className="max-h-72 overflow-y-auto py-1">
           {filtered.map((t) => (
@@ -1387,9 +1388,7 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
   const commerce = data?.commerce ?? null;
 
   const synced = items.filter((i) => i.syncStatus === 'SYNCED').length;
-  const stale = items.filter((i) => i.syncStatus === 'OUT_OF_DATE').length;
-  const failed = items.filter((i) => i.syncStatus === 'FAILED' || i.syncStatus === 'REJECTED').length;
-  const eligibleCount = items.filter((i) => i.eligible).length;
+  const needsAttention = items.filter((i) => i.syncStatus === 'OUT_OF_DATE' || i.syncStatus === 'FAILED' || i.syncStatus === 'REJECTED').length;
   const openOrders = orders.filter((o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED').length;
   const unreadTotal = convs.reduce((n, c) => n + (c.unreadCount || 0), 0);
   const recentConvs = convs.slice(0, 5);
@@ -1419,7 +1418,7 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
             <button onClick={() => onNavigate('Inbox')} className={btnPrimary}>
               <MessageCircle className="w-3 h-3" />Open Inbox
               {unreadTotal > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-white/20 text-[10px] font-bold">
+                <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-white/20 text-[12px] font-bold">
                   {unreadTotal}
                 </span>
               )}
@@ -1452,23 +1451,13 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
               {acct?.isActive ? 'Connected' : 'Disconnected'}
             </Badge>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-            <div className="bg-slate-50 border border-slate-200 rounded-sm px-2 py-2">
-              <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Quality</p>
-              <p className={`text-[14px] font-bold mt-0.5 ${acct?.qualityScore === 'GREEN' ? 'text-green-700' : acct?.qualityScore === 'YELLOW' ? 'text-slate-700' : 'text-red-700'}`}>
-                {acct?.qualityScore || 'UNKNOWN'}
-              </p>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-sm px-2 py-2">
-              <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Tier</p>
-              <p className="text-[14px] font-bold mt-0.5 text-slate-900">{acct?.messagingLimitTier || '—'}</p>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-sm px-2 py-2">
-              <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Unread</p>
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <div className="bg-slate-50 border border-slate-200 rounded px-2 py-2">
+              <p className="text-[13px] text-slate-500 uppercase font-medium">Unread</p>
               <p className="text-[14px] font-bold mt-0.5 text-slate-900">{unreadTotal}</p>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-sm px-2 py-2">
-              <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Open orders</p>
+            <div className="bg-slate-50 border border-slate-200 rounded px-2 py-2">
+              <p className="text-[13px] text-slate-500 uppercase font-medium">Open orders</p>
               <p className="text-[14px] font-bold mt-0.5 text-slate-900">{openOrders}</p>
             </div>
           </div>
@@ -1477,17 +1466,17 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
               <Shield className="w-3 h-3" />Settings
             </button>
             {acct?.officialBusinessAccount && (
-              <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[13px] font-medium px-2 py-1.5 rounded-sm border border-green-100">
+              <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[13px] font-medium px-2 py-1.5 rounded border border-green-100">
                 <ShieldCheck className="w-3 h-3" />OBA Verified
               </span>
             )}
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm px-3 py-2 space-y-2">
+        <div className="bg-white border border-slate-200 rounded px-3 py-2 space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="w-7 h-7 rounded-sm bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+              <span className="w-7 h-7 rounded bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
                 <Boxes className="w-4 h-4" />
               </span>
               <div className="min-w-0">
@@ -1498,23 +1487,9 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            <div className="bg-slate-50 border border-slate-200 rounded-sm px-1.5 py-2">
-              <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Synced</p>
-              <p className="text-[14px] font-bold text-slate-900 mt-0.5">{synced}</p>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-sm px-1.5 py-2">
-              <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Stale</p>
-              <p className="text-[14px] font-bold text-slate-900 mt-0.5">{stale}</p>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-sm px-1.5 py-2">
-              <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Failed</p>
-              <p className="text-[14px] font-bold text-slate-900 mt-0.5">{failed}</p>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-[13px] text-slate-500">
-            <span>{eligibleCount} of {items.length} eligible</span>
-            <span>Last: {relativeTime(data?.catalog?.lastFullSyncAt) || '—'}</span>
+          <div className="text-[13px] text-slate-600 py-1">
+            <span className="font-medium text-slate-900">{synced} synced</span>
+            {needsAttention > 0 ? <span className="text-amber-700"> · {needsAttention} need attention</span> : <span className="text-green-700"> · All up to date</span>}
           </div>
           <div className="flex flex-wrap gap-1 pt-2 border-t border-slate-100">
             <button onClick={syncCatalog} disabled={refreshing} className={btnPrimary}>
@@ -1528,15 +1503,14 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <KpiCard primary label="Messages today" value={String(commerce?.messagesSentToday ?? 0)} icon={<Send className="w-3 h-3" />} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <KpiCard primary label="Orders from WhatsApp" value={String(commerce?.ordersFromWhatsApp ?? 0)} icon={<ShoppingBag className="w-3 h-3" />} helper={KES(commerce?.ordersRevenueKes ?? 0) + ' revenue'} />
         <KpiCard label="Carts recovered" value={String(commerce?.abandonedCartsRecovered ?? 0)} icon={<ShoppingBag className="w-3 h-3" />} helper="Last 30 days" />
-        <KpiCard label="Orders from WhatsApp" value={String(commerce?.ordersFromWhatsApp ?? 0)} icon={<ShoppingBag className="w-3 h-3" />} helper={KES(commerce?.ordersRevenueKes ?? 0)} />
-        <KpiCard label="Avg response" value={`${commerce?.averageResponseMin ?? 0} min`} icon={<Clock className="w-3 h-3" />} />
+        <KpiCard label="Unread messages" value={String(unreadTotal)} icon={<MessageCircle className="w-3 h-3" />} helper="Customers waiting for a reply" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between gap-2">
             <p className="text-[13px] font-semibold text-slate-900">Recent Conversations</p>
             <button onClick={() => onNavigate('Inbox')} className={btnGhost}>
@@ -1573,7 +1547,7 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between gap-2">
             <div>
               <p className="text-[13px] font-semibold text-slate-900">Broadcasts</p>
@@ -1586,7 +1560,7 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
           <div className="px-3 py-2 space-y-1.5">
             {broadcasts.slice(0, 3).length === 0 && <p className="text-[13px] text-slate-500">No broadcasts yet.</p>}
             {broadcasts.slice(0, 3).map((b) => (
-              <div key={b.id} className="border border-slate-100 rounded-sm px-2 py-2">
+              <div key={b.id} className="border border-slate-100 rounded px-2 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[13px] font-medium text-slate-900 truncate">{b.campaignName}</p>
                   <Badge variant={b.status === 'COMPLETED' ? 'success' : b.status === 'SENDING' ? 'info' : 'neutral'}>
@@ -1618,17 +1592,13 @@ function ConnectionTab() {
   const [toggling, setToggling] = useState(false);
 
   const account = acct.data;
-  const qualityData = (account?.qualityHistory || []).slice().reverse().map((h) => ({
-    date: new Date(h.date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' }),
-    value: h.score === 'GREEN' ? 3 : h.score === 'YELLOW' ? 2 : 1,
-  }));
 
   const refresh = async () => {
     setRefreshing(true);
     try {
       await api.post('/account/refresh/');
       acct.refetch();
-      toast.push('Status refreshed');
+      toast.push('WhatsApp status refreshed');
     } catch (err: any) {
       toast.push(err?.message || 'Refresh failed', 'error');
     } finally {
@@ -1653,13 +1623,13 @@ function ConnectionTab() {
   return (
     <div className="space-y-2">
       <PageHeader
-        title="Connection"
-        subtitle="Manage your WhatsApp Business number, profile, and webhook configuration."
+        title="WhatsApp connection"
+        subtitle="Check that your shop's WhatsApp account is connected and ready to receive customer messages."
         action={
           <>
             <button onClick={refresh} disabled={refreshing} className={btnSecondary}>
               {refreshing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+              {refreshing ? 'Checking…' : 'Check status'}
             </button>
             <button onClick={toggleActive} disabled={toggling || !account} className={account?.isActive ? btnDanger : btnPrimary}>
               {toggling ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
@@ -1672,105 +1642,40 @@ function ConnectionTab() {
       {acct.loading && !account && <LoadingBlock />}
       {acct.error && <ErrorBlock message={acct.error} onRetry={acct.refetch} />}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <KpiCard label="Quality Score" value={account?.qualityScore || 'UNKNOWN'} icon={<Award className="w-3 h-3" />} />
-        <KpiCard label="Messaging Tier" value={account?.messagingLimitTier || '—'} icon={<TrendingUp className="w-3 h-3" />} helper={account?.messagingLimit || ''} />
-        <KpiCard label="Verification" value={account?.verificationStatus || '—'} icon={<ShieldCheck className="w-3 h-3" />} />
-        <KpiCard label="Token" value={account?.tokenDaysLeft != null ? `${account.tokenDaysLeft} days` : 'No expiry'} icon={<Key className="w-3 h-3" />} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-100">
-            <p className="text-[13px] font-semibold text-slate-900">Quality Score History</p>
-          </div>
-          <div className="h-44 px-3 py-2">
-            {qualityData.length === 0 ? (
-              <p className="text-[13px] text-slate-500 text-center py-6">No history yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={qualityData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={13} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#94a3b8" fontSize={13} tickLine={false} axisLine={false} domain={[0, 3]} ticks={[1, 2, 3]} />
-                  <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v: any) => v === 3 ? 'GREEN' : v === 2 ? 'YELLOW' : 'RED'} />
-                  <Line type="monotone" dataKey="value" stroke="#172554" strokeWidth={2} dot={{ r: 3, fill: '#172554' }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-100">
-            <p className="text-[13px] font-semibold text-slate-900">Recent Health Checks</p>
-          </div>
-          <div className="divide-y divide-slate-100 max-h-44 overflow-y-auto">
-            {(account?.healthChecks || []).length === 0 && (
-              <p className="text-[13px] text-slate-500 text-center py-4">No checks yet.</p>
-            )}
-            {(account?.healthChecks || []).map((h) => (
-              <div key={h.id} className="px-3 py-2 flex items-center justify-between gap-2 text-[13px]">
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${h.ok ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span className="text-slate-700">{h.ok ? 'OK' : h.error || 'Failed'}</span>
-                </div>
-                <span className="text-slate-500 font-mono text-[13px]">{h.latencyMs}ms · {relativeTime(h.at)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-        <div className="px-3 py-2 border-b border-slate-100">
-          <p className="text-[13px] font-semibold text-slate-900">Account Details</p>
-        </div>
-        <div className="divide-y divide-slate-100">
-          <DetailRow label="Business Phone" value={account?.displayPhone || '—'} />
-          <DetailRow label="Phone Number ID" value={account?.phoneNumberId || '—'} copy />
-          <DetailRow label="WABA ID" value={account?.wabaId || '—'} copy />
-          <DetailRow label="Business Name" value={account?.businessName || '—'} />
-          <DetailRow
-            label="Review Status"
-            valueNode={<Badge variant={account?.reviewStatus === 'APPROVED' ? 'success' : 'warning'}>{account?.reviewStatus || '—'}</Badge>}
-          />
-          <DetailRow
-            label="Official Business Account"
-            valueNode={<Badge variant={account?.officialBusinessAccount ? 'success' : 'neutral'}>{account?.officialBusinessAccount ? 'Yes' : 'No'}</Badge>}
-          />
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-        <div className="px-3 py-2 border-b border-slate-100">
-          <p className="text-[13px] font-semibold text-slate-900">Webhook Configuration</p>
-        </div>
-        <div className="px-3 py-2 space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Field label="Callback URL">
-              <input defaultValue={account?.webhookUrl || ''} readOnly className={inputCls + ' font-mono text-[13px]'} />
-            </Field>
-            <Field label="Verify Token">
-              <input defaultValue={account?.webhookVerifyToken || ''} readOnly className={inputCls + ' font-mono text-[13px]'} />
-            </Field>
-          </div>
-          <div>
-            <p className="text-[13px] font-medium text-slate-700 mb-1.5">Subscribed Fields</p>
-            <div className="flex flex-wrap gap-1">
-              {['messages', 'message_template_status_update', 'message_template_quality_update', 'product_catalog_status_update', 'orders', 'message_status'].map((f) => {
-                const on = (account?.webhookFields || []).includes(f);
-                return (
-                  <span
-                    key={f}
-                    className={`inline-block px-1.5 py-1 rounded-sm text-[13px] ring-1 ring-inset ${on ? 'bg-blue-950 text-white ring-blue-950' : 'bg-slate-50 text-slate-600 ring-slate-200'}`}
-                  >
-                    {f}
-                  </span>
-                );
-              })}
+      <div className="bg-white border border-slate-200 rounded p-3 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-9 h-9 rounded bg-green-50 text-green-700 flex items-center justify-center shrink-0">
+              <FaWhatsapp className="w-5 h-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-slate-900">{account?.businessName || 'WhatsApp Business'}</p>
+              <p className="text-[13px] text-slate-500">{account?.displayPhone || 'Phone number not available'}</p>
             </div>
           </div>
+          <Badge variant={account?.isActive ? 'success' : 'danger'}>
+            <span className={`w-1.5 h-1.5 rounded-full ${account?.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
+            {account?.isActive ? 'Connected' : 'Not connected'}
+          </Badge>
+        </div>
+        <p className="text-[13px] text-slate-600">
+          {account?.isActive
+            ? 'Your WhatsApp account is active. Customers can contact your shop through WhatsApp.'
+            : 'Your WhatsApp account is not active. Reconnect it to resume customer conversations.'}
+        </p>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
+        <div className="px-3 py-2 border-b border-slate-100">
+          <p className="text-[13px] font-semibold text-slate-900">Business details</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <DetailRow label="Business name" value={account?.businessName || '—'} />
+          <DetailRow label="WhatsApp phone number" value={account?.displayPhone || '—'} />
+          <DetailRow
+            label="Account review"
+            valueNode={<Badge variant={account?.reviewStatus === 'APPROVED' ? 'success' : 'warning'}>{account?.reviewStatus || 'Pending'}</Badge>}
+          />
         </div>
       </div>
     </div>
@@ -1869,7 +1774,7 @@ function CatalogTab() {
         <KpiCard label="Failed" value={String(catalog.data?.itemCounts.failed ?? failed)} icon={<AlertTriangle className="w-3 h-3" />} />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm px-3 py-2 flex flex-wrap items-center gap-2">
+      <div className="bg-white border border-slate-200 rounded px-3 py-2 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[160px] max-w-md">
           <Search className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
@@ -1910,7 +1815,7 @@ function CatalogTab() {
           {list.map((i) => (
             <div
               key={i.id}
-              className={`bg-white border rounded-sm overflow-hidden text-left transition-all hover:shadow-sm ${selected.has(i.id) ? 'border-blue-950 ring-2 ring-blue-950/10' : 'border-slate-200 hover:border-slate-300'}`}
+              className={`bg-white border rounded overflow-hidden text-left transition-all hover:shadow-sm ${selected.has(i.id) ? 'border-blue-950 ring-2 ring-blue-950/10' : 'border-slate-200 hover:border-slate-300'}`}
             >
               <button type="button" onClick={() => setDetail(i)} className="w-full text-left">
                 <div className="aspect-square bg-slate-100 relative">
@@ -1935,7 +1840,7 @@ function CatalogTab() {
           )}
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
@@ -1945,21 +1850,21 @@ function CatalogTab() {
                       type="checkbox"
                       checked={selected.size > 0 && selected.size === list.length}
                       onChange={() => setSelected(selected.size === list.length ? new Set() : new Set(list.map((i) => i.id)))}
-                      className="rounded-sm"
+                      className="rounded"
                     />
                   </th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Product</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">SKU</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-right">Price</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-center">Stock</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-center">Eligible</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Sync</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase">Product</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase">SKU</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase text-right">Price</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase text-center">Stock</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase text-center">Eligible</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase">Sync</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {list.map((i) => (
                   <tr key={i.id} className="hover:bg-slate-50">
-                    <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selected.has(i.id)}
@@ -1968,12 +1873,12 @@ function CatalogTab() {
                           if (e.target.checked) n.add(i.id); else n.delete(i.id);
                           setSelected(n);
                         }}
-                        className="rounded-sm"
+                        className="rounded"
                       />
                     </td>
-                    <td className="py-2 px-3">
+                    <td className="py-2 px-2">
                       <button onClick={() => setDetail(i)} className="flex items-center gap-2 text-left">
-                        <span className="w-7 h-7 rounded-sm bg-slate-100 overflow-hidden shrink-0">
+                        <span className="w-7 h-7 rounded bg-slate-100 overflow-hidden shrink-0">
                           {i.displayImageUrl ? (
                             <img src={i.displayImageUrl} alt="" className="w-full h-full object-cover" />
                           ) : (
@@ -1995,8 +1900,8 @@ function CatalogTab() {
                       <Badge
                         variant={
                           i.syncStatus === 'SYNCED' ? 'success' :
-                          i.syncStatus === 'OUT_OF_DATE' ? 'warning' :
-                          i.syncStatus === 'FAILED' || i.syncStatus === 'REJECTED' ? 'danger' : 'neutral'
+                            i.syncStatus === 'OUT_OF_DATE' ? 'warning' :
+                              i.syncStatus === 'FAILED' || i.syncStatus === 'REJECTED' ? 'danger' : 'neutral'
                         }
                       >
                         {i.syncStatus.replace('_', ' ')}
@@ -2022,7 +1927,7 @@ function CatalogTab() {
         <Drawer onClose={() => setDetail(null)} title={detail.name} subtitle={`SKU: ${detail.retailerId}`} width="max-w-2xl">
           <div className="px-3 py-2 space-y-2 text-[13px]">
             <div className="flex gap-3 items-start">
-              <div className="w-20 h-20 rounded-sm bg-white ring-1 ring-slate-200 overflow-hidden shrink-0">
+              <div className="w-20 h-20 rounded bg-white ring-1 ring-slate-200 overflow-hidden shrink-0">
                 {detail.displayImageUrl && <img src={detail.displayImageUrl} alt="" className="w-full h-full object-cover" />}
               </div>
               <div className="min-w-0 space-y-2">
@@ -2036,23 +1941,23 @@ function CatalogTab() {
                 </div>
               </div>
             </div>
-            {detail.description && <p className="text-[13px] text-slate-600 leading-relaxed">{detail.description}</p>}
+            {detail.description && <p className="text-[13px] text-slate-600">{detail.description}</p>}
             {detail.lastError && (
-              <div className="bg-red-50 border border-red-200 rounded-sm px-2 py-2 text-[13px] text-red-800">
+              <div className="bg-red-50 border border-red-200 rounded px-2 py-2 text-[13px] text-red-800">
                 {detail.lastError}
               </div>
             )}
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
-              <div className="text-center bg-slate-50 rounded-sm px-1.5 py-2">
-                <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Views</p>
+              <div className="text-center bg-slate-50 rounded px-1.5 py-2">
+                <p className="text-[13px] text-slate-500 uppercase font-medium">Views</p>
                 <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{detail.viewCount.toLocaleString()}</p>
               </div>
-              <div className="text-center bg-slate-50 rounded-sm px-1.5 py-2">
-                <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Cart adds</p>
+              <div className="text-center bg-slate-50 rounded px-1.5 py-2">
+                <p className="text-[13px] text-slate-500 uppercase font-medium">Cart adds</p>
                 <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{detail.addToCartCount}</p>
               </div>
-              <div className="text-center bg-slate-50 rounded-sm px-1.5 py-2">
-                <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Stock</p>
+              <div className="text-center bg-slate-50 rounded px-1.5 py-2">
+                <p className="text-[13px] text-slate-500 uppercase font-medium">Stock</p>
                 <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{detail.stockQuantity}</p>
               </div>
             </div>
@@ -2276,7 +2181,7 @@ function InboxTab() {
       {detail.error && <ErrorBlock message={detail.error} onRetry={detail.refetch} />}
 
       <div
-        className={`bg-white border border-slate-200 rounded-sm overflow-hidden grid grid-cols-1 ${gridCols}`}
+        className={`bg-white border border-slate-200 rounded overflow-hidden grid grid-cols-1 ${gridCols}`}
         style={{ height: 'calc(100vh - 180px)', minHeight: 500 }}
       >
         <div className="border-r border-slate-100 flex flex-col min-h-0">
@@ -2292,7 +2197,7 @@ function InboxTab() {
                     title={c.contact.profileName || c.contact.waId}
                     className={`w-full flex flex-col items-center justify-center py-2 hover:bg-slate-50 transition-colors relative ${isActive ? 'bg-blue-50' : ''}`}
                   >
-                    <div className="w-7 h-7 rounded-sm bg-slate-100 text-slate-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
+                    <div className="w-7 h-7 rounded bg-slate-100 text-slate-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
                       {initials}
                     </div>
                     {c.unreadCount > 0 && (
@@ -2307,7 +2212,7 @@ function InboxTab() {
             </div>
           ) : (
             <>
-              <div className="px-3 py-2 border-b border-slate-100 space-y-2 shrink-0">
+              <div className="px-2 py-2 border-b border-slate-100 space-y-2 shrink-0">
                 <div className="relative">
                   <Search className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
                   <input
@@ -2321,21 +2226,21 @@ function InboxTab() {
                 <div ref={filterRef} className="relative">
                   <button
                     onClick={() => setFilterOpen((v) => !v)}
-                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-sm border border-slate-200 hover:bg-slate-50 text-[13px] font-medium text-slate-700"
+                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded border border-slate-200 hover:bg-slate-50 text-[13px] font-medium text-slate-700"
                   >
                     <span className="inline-flex items-center gap-1.5 min-w-0">
                       <Filter className="w-3 h-3 text-slate-400 shrink-0" />
                       <span className="truncate">{filterOptions.find((f) => f.id === filter)?.label}</span>
                     </span>
                     <span className="inline-flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-1.5 rounded-sm">
+                      <span className="text-[12px] font-semibold bg-slate-100 text-slate-700 px-1.5 rounded">
                         {countFor(filter)}
                       </span>
                       <ChevronDown className={`w-3 h-3 transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
                     </span>
                   </button>
                   {filterOpen && (
-                    <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-white border border-slate-200 rounded-sm shadow-lg py-1">
+                    <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-white border border-slate-200 rounded shadow-lg py-1">
                       {filterOptions.map((f) => (
                         <button
                           key={f.id}
@@ -2343,7 +2248,7 @@ function InboxTab() {
                           className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 text-[13px] text-left ${filter === f.id ? 'bg-blue-50 text-blue-950 font-medium' : 'text-slate-700 hover:bg-slate-50'}`}
                         >
                           <span>{f.label}</span>
-                          <span className={`text-[10px] font-semibold px-1.5 rounded-sm ${filter === f.id ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                          <span className={`text-[12px] font-semibold px-1.5 rounded ${filter === f.id ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'}`}>
                             {countFor(f.id)}
                           </span>
                         </button>
@@ -2364,7 +2269,7 @@ function InboxTab() {
                       className={`w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}
                     >
                       <div className="flex items-start gap-2">
-                        <div className="w-7 h-7 rounded-sm bg-slate-100 text-slate-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
+                        <div className="w-7 h-7 rounded bg-slate-100 text-slate-700 flex items-center justify-center font-semibold text-[13px] shrink-0">
                           {(c.contact.profileName || '?').split(' ').map((n) => n[0]).join('').slice(0, 2)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2376,7 +2281,7 @@ function InboxTab() {
                           </div>
                           <p className="text-[13px] text-slate-500 truncate mt-0.5">{c.lastMessagePreview || 'No messages yet'}</p>
                           {c.unreadCount > 0 && (
-                            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-blue-950 text-white text-[10px] font-semibold mt-1">
+                            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-blue-950 text-white text-[12px] font-semibold mt-1">
                               {c.unreadCount}
                             </span>
                           )}
@@ -2411,7 +2316,7 @@ function InboxTab() {
                     try {
                       await api.patch(`/conversations/${active.id}/`, { starred: !active.starred });
                       detail.refetch();
-                    } catch {}
+                    } catch { }
                   }}
                   className={btnIcon}
                 >
@@ -2437,7 +2342,7 @@ function InboxTab() {
             </div>
             <div className="border-t border-slate-100 bg-white p-2 shrink-0 space-y-2">
               {!active.windowOpen && (
-                <div className="bg-red-50 border border-red-200 rounded-sm px-2 py-2 text-[13px] text-red-800 flex items-start gap-1.5">
+                <div className="bg-red-50 border border-red-200 rounded px-2 py-2 text-[13px] text-red-800 flex items-start gap-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   <span>
                     24-hour messaging window is closed. Free-form messages (including product images) will be rejected by WhatsApp.
@@ -2520,7 +2425,7 @@ function InboxTab() {
         {active && showContext && (
           <div className="border-l border-slate-100 overflow-y-auto bg-white">
             <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-              <p className="text-[13px] font-semibold text-slate-500 uppercase tracking-wide">Customer</p>
+              <p className="text-[13px] font-semibold text-slate-500 uppercase">Customer</p>
               <button onClick={() => setShowContext(false)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-3 h-3" />
               </button>
@@ -2531,27 +2436,27 @@ function InboxTab() {
                 <p className="text-slate-500 font-mono mt-0.5">+{active.contact.waId}</p>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                <div className="bg-slate-50 rounded-sm px-1.5 py-2">
-                  <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Orders</p>
+                <div className="bg-slate-50 rounded px-1.5 py-2">
+                  <p className="text-[13px] text-slate-500 uppercase font-medium">Orders</p>
                   <p className="text-[14px] font-semibold text-slate-900 mt-0.5">{active.contact.orderCount}</p>
                 </div>
-                <div className="bg-slate-50 rounded-sm px-1.5 py-2">
-                  <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium">Lifetime</p>
+                <div className="bg-slate-50 rounded px-1.5 py-2">
+                  <p className="text-[13px] text-slate-500 uppercase font-medium">Lifetime</p>
                   <p className="text-[14px] font-semibold text-slate-900 mt-0.5">{KES(active.contact.totalSpent)}</p>
                 </div>
               </div>
               {active.contact.tags.length > 0 && (
                 <div>
-                  <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium mb-1">Tags</p>
+                  <p className="text-[13px] text-slate-500 uppercase font-medium mb-1">Tags</p>
                   <div className="flex flex-wrap gap-1">
                     {active.contact.tags.map((t) => (
-                      <span key={t} className="px-1.5 py-1 rounded-sm text-[13px] bg-slate-100 text-slate-700">{t}</span>
+                      <span key={t} className="px-1.5 py-1 rounded text-[13px] bg-slate-100 text-slate-700">{t}</span>
                     ))}
                   </div>
                 </div>
               )}
               <div className="pt-2 border-t border-slate-100">
-                <p className="text-[13px] text-slate-500 uppercase tracking-wide font-medium mb-1">Opt-in</p>
+                <p className="text-[13px] text-slate-500 uppercase font-medium mb-1">Opt-in</p>
                 <Badge variant={active.contact.optInStatus === 'SUBSCRIBED' ? 'success' : 'neutral'}>
                   {active.contact.optInStatus}
                 </Badge>
@@ -2576,7 +2481,7 @@ function ProductPicker({ onClose, onPick }: { onClose: () => void; onPick: (id: 
   const list = (items.data || []).filter((i) => i.isLinked && !i.isRemoved && i.eligible);
 
   return (
-    <Modal onClose={onClose} title="Send a product" widthClass="max-w-2xl">
+    <Modal onClose={onClose} title="Send a product" widthClass="max-w-4xl">
       <div className="space-y-2">
         <div className="relative">
           <Search className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
@@ -2588,22 +2493,25 @@ function ProductPicker({ onClose, onPick }: { onClose: () => void; onPick: (id: 
           />
         </div>
         {items.loading && list.length === 0 && <LoadingBlock />}
-        <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto">
+        <div className="max-h-[520px] overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded">
           {list.map((i) => (
             <button
               key={i.id}
               onClick={() => onPick(String(i.storeProductId || i.retailerId))}
-              className="text-left bg-white border border-slate-200 rounded-sm overflow-hidden hover:border-blue-950"
+              className="w-full flex items-center gap-3 px-3 py-2 text-left bg-white hover:bg-slate-50 transition-colors"
             >
-              <div className="aspect-square bg-slate-100">
-                {i.displayImageUrl && (
+              <div className="w-12 h-12 shrink-0 rounded overflow-hidden bg-slate-100 flex items-center justify-center">
+                {i.displayImageUrl ? (
                   <img src={i.displayImageUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Package className="w-5 h-5 text-slate-400" />
                 )}
               </div>
-              <div className="px-2 py-2">
-                <p className="text-[13px] font-medium text-slate-900 line-clamp-2">{i.displayTitle || i.name}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-medium text-slate-900">{i.displayTitle || i.name}</p>
                 <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{KES(i.effectivePrice)}</p>
               </div>
+              <span className="shrink-0 text-[13px] font-medium text-blue-950">Select</span>
             </button>
           ))}
         </div>
@@ -2619,7 +2527,7 @@ function MessageBubble({ m }: { m: WaMessage }) {
   if (m.isInternalNote) {
     return (
       <div className="flex justify-center">
-        <div className="bg-slate-100 ring-1 ring-slate-200 rounded-sm px-2 py-2 text-[13px] text-slate-800 max-w-[80%]">
+        <div className="bg-slate-100 ring-1 ring-slate-200 rounded px-2 py-2 text-[13px] text-slate-800 max-w-[80%]">
           <p className="font-medium">Internal note</p>
           <p className="whitespace-pre-wrap mt-0.5">{m.body}</p>
         </div>
@@ -2634,18 +2542,18 @@ function MessageBubble({ m }: { m: WaMessage }) {
     <div className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[75%] text-[13px] px-3 py-2 ${out
-          ? 'bg-blue-950 text-white rounded-sm rounded-tr-none'
-          : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-sm rounded-tl-none'}`}
+          ? 'bg-blue-950 text-white rounded rounded-tr-none'
+          : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded rounded-tl-none'}`}
       >
         {isImage && (
           <img
             src={m.mediaUrl}
             alt=""
-            className="rounded-sm max-h-56 object-cover mb-1.5"
+            className="rounded max-h-56 object-cover mb-1.5"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
         )}
-        {m.body && <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>}
+        {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
         <div className={`flex items-center gap-1 mt-0.5 justify-end ${out ? 'text-white/70' : 'text-slate-400'}`}>
           <span className="text-[13px] font-mono">
             {m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -2708,30 +2616,30 @@ function OrdersTab() {
         <KpiCard label="Delivered" value={String(list.filter((o) => o.status === 'DELIVERED').length)} icon={<CheckCircle2 className="w-3 h-3" />} />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-slate-500">
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Order</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Customer</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Items</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-right">Total</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Payment</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Status</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-right">Created</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Order</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Customer</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Items</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase text-right">Total</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Payment</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Status</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase text-right">Created</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {list.map((o) => (
                 <tr key={o.id} className="hover:bg-slate-50">
-                  <td className="py-2 px-3 font-mono font-medium">{o.orderNumber}</td>
-                  <td className="py-2 px-3">{o.contactName}</td>
-                  <td className="py-2 px-3">{(o.items || []).length} items</td>
-                  <td className="py-2 px-3 text-right font-medium">{KES(o.total)}</td>
-                  <td className="py-2 px-3"><Badge variant="neutral">{o.paymentMethod || '—'}</Badge></td>
-                  <td className="py-2 px-3"><Badge variant={statusVariant(o.status)}>{o.status}</Badge></td>
-                  <td className="py-2 px-3 text-right text-slate-500">{relativeTime(o.createdAt)}</td>
+                  <td className="py-2 px-2 font-mono font-medium">{o.orderNumber}</td>
+                  <td className="py-2 px-2">{o.contactName}</td>
+                  <td className="py-2 px-2">{(o.items || []).length} items</td>
+                  <td className="py-2 px-2 text-right font-medium">{KES(o.total)}</td>
+                  <td className="py-2 px-2"><Badge variant="neutral">{o.paymentMethod || '—'}</Badge></td>
+                  <td className="py-2 px-2"><Badge variant={statusVariant(o.status)}>{o.status}</Badge></td>
+                  <td className="py-2 px-2 text-right text-slate-500">{relativeTime(o.createdAt)}</td>
                 </tr>
               ))}
             </tbody>
@@ -2809,7 +2717,7 @@ function TemplatesTab() {
         <KpiCard label="Rejected" value={String(list.filter((t) => t.status === 'REJECTED').length)} icon={<AlertTriangle className="w-3 h-3" />} />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm px-3 py-2 flex flex-wrap items-center gap-2">
+      <div className="bg-white border border-slate-200 rounded-sm px-2 py-2 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-0.5">
           {(['', 'MARKETING', 'UTILITY', 'AUTHENTICATION'] as const).map((c) => (
             <button
@@ -2837,9 +2745,9 @@ function TemplatesTab() {
                 {t.status}
               </Badge>
             </div>
-            <p className="text-[13px] text-slate-600 line-clamp-3 min-h-[36px] leading-relaxed">{t.bodyText || '—'}</p>
+            <p className="text-[13px] text-slate-600 line-clamp-3 min-h-[36px]">{t.bodyText || '—'}</p>
             {t.status === 'REJECTED' && t.rejectionReason && (
-              <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-sm px-2 py-1 leading-relaxed">
+              <p className="text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-sm px-2 py-1">
                 {t.rejectionReason}
               </p>
             )}
@@ -2891,13 +2799,6 @@ function AutomationsTab() {
       <PageHeader title="Automations" subtitle="Event-driven sequences that respond to your customers." />
 
       {list.error && <ErrorBlock message={list.error} onRetry={list.refetch} />}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <KpiCard label="Total" value={String(automations.length)} icon={<Zap className="w-3 h-3" />} />
-        <KpiCard label="Active" value={String(automations.filter((a) => a.status === 'ACTIVE').length)} icon={<Play className="w-3 h-3" />} />
-        <KpiCard label="Paused" value={String(automations.filter((a) => a.status === 'PAUSED').length)} icon={<Pause className="w-3 h-3" />} />
-        <KpiCard label="Total sent" value={String(automations.reduce((n, a) => n + a.messagesSent, 0))} icon={<Send className="w-3 h-3" />} />
-      </div>
 
       {list.loading && automations.length === 0 && <LoadingBlock />}
 
@@ -2971,7 +2872,7 @@ function BroadcastsTab() {
 
       <div className="space-y-2">
         {broadcasts.map((b) => (
-          <div key={b.id} className="bg-white border border-slate-200 rounded-sm px-3 py-2">
+          <div key={b.id} className="bg-white border border-slate-200 rounded px-3 py-2">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-[13px] font-medium text-slate-900">{b.campaignName}</p>
@@ -2999,8 +2900,8 @@ function BroadcastsTab() {
                 { label: 'Replied', value: b.replied },
                 { label: 'Failed', value: b.failed },
               ].map((s) => (
-                <div key={s.label} className="bg-slate-50 rounded-sm px-1.5 py-2 text-center">
-                  <p className="text-[13px] text-slate-500 uppercase tracking-wide">{s.label}</p>
+                <div key={s.label} className="bg-slate-50 rounded px-1.5 py-2 text-center">
+                  <p className="text-[13px] text-slate-500 uppercase">{s.label}</p>
                   <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{s.value}</p>
                 </div>
               ))}
@@ -3043,7 +2944,7 @@ function ContactsTab() {
         <KpiCard label="Segments" value={String(segmentList.length)} icon={<Filter className="w-3 h-3" />} />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
         <div className="flex items-center border-b border-slate-100 px-3">
           {(['contacts', 'segments'] as const).map((t) => (
             <button
@@ -3071,42 +2972,42 @@ function ContactsTab() {
       </div>
 
       {tab === 'contacts' ? (
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           {contacts.loading && list.length === 0 && <LoadingBlock />}
           {contacts.error && <ErrorBlock message={contacts.error} onRetry={contacts.refetch} />}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-slate-500">
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Name</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Phone</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Tags</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-right">Orders</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-right">Spent</th>
-                  <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-center">Opt-in</th>
-                  <th className="py-2 px-3 w-16" />
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase">Name</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase">Phone</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase">Tags</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase text-right">Orders</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase text-right">Spent</th>
+                  <th className="py-2 px-2 font-medium text-[13px] uppercase text-center">Opt-in</th>
+                  <th className="py-2 px-2 w-16" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {list.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50">
-                    <td className="py-2 px-3 font-medium text-slate-900">{c.profileName ?? c.waId}</td>
-                    <td className="py-2 px-3 font-mono text-[13px] text-slate-600">+{c.waId}</td>
-                    <td className="py-2 px-3">
+                    <td className="py-2 px-2 font-medium text-slate-900">{c.profileName ?? c.waId}</td>
+                    <td className="py-2 px-2 font-mono text-[13px] text-slate-600">+{c.waId}</td>
+                    <td className="py-2 px-2">
                       <div className="flex flex-wrap gap-0.5">
                         {c.tags.slice(0, 3).map((t) => (
                           <span key={t} className="px-1 py-0.5 rounded-sm text-[13px] bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200">{t}</span>
                         ))}
                       </div>
                     </td>
-                    <td className="py-2 px-3 text-right">{c.orderCount}</td>
-                    <td className="py-2 px-3 text-right font-mono">{KES(c.totalSpent)}</td>
-                    <td className="py-2 px-3 text-center">
+                    <td className="py-2 px-2 text-right">{c.orderCount}</td>
+                    <td className="py-2 px-2 text-right font-mono">{KES(c.totalSpent)}</td>
+                    <td className="py-2 px-2 text-center">
                       <Badge variant={c.optInStatus === 'SUBSCRIBED' ? 'success' : 'neutral'}>
                         {c.optInStatus === 'SUBSCRIBED' ? 'Yes' : 'No'}
                       </Badge>
                     </td>
-                    <td className="py-2 px-3 text-right">
+                    <td className="py-2 px-2 text-right">
                       {c.optInStatus === 'SUBSCRIBED' && (
                         <button
                           onClick={async () => {
@@ -3138,7 +3039,7 @@ function ContactsTab() {
           {segments.loading && segmentList.length === 0 && <LoadingBlock />}
           {segments.error && <ErrorBlock message={segments.error} onRetry={segments.refetch} />}
           {segmentList.map((s) => (
-            <div key={s.id} className="bg-white border border-slate-200 rounded-sm px-3 py-2">
+            <div key={s.id} className="bg-white border border-slate-200 rounded px-3 py-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-slate-900">{s.name}</p>
@@ -3169,13 +3070,13 @@ function QuickRepliesTab() {
       {list.loading && replies.length === 0 && <LoadingBlock />}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {replies.map((q) => (
-          <div key={q.id} className="bg-white border border-slate-200 rounded-sm px-3 py-2">
+          <div key={q.id} className="bg-white border border-slate-200 rounded px-3 py-2">
             <div className="flex items-start justify-between gap-2">
               <p className="font-mono text-slate-900 text-[13px] font-medium">{q.shortcut}</p>
               {q.category && <Badge variant="neutral">{q.category}</Badge>}
             </div>
             <p className="text-[13px] mt-1 font-medium">{q.title}</p>
-            <p className="text-[13px] text-slate-600 mt-1 line-clamp-3 leading-relaxed">{q.body}</p>
+            <p className="text-[13px] text-slate-600 mt-1 line-clamp-3">{q.body}</p>
           </div>
         ))}
         {!list.loading && replies.length === 0 && (
@@ -3206,15 +3107,13 @@ function AnalyticsTab() {
       {summary.error && <ErrorBlock message={summary.error} onRetry={summary.refetch} />}
       {series.error && <ErrorBlock message={series.error} onRetry={series.refetch} />}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <KpiCard label="Sent" value={String(summary.data?.sent ?? 0)} icon={<Send className="w-3 h-3" />} />
-        <KpiCard label="Delivered" value={String(summary.data?.delivered ?? 0)} />
-        <KpiCard label="Read" value={String(summary.data?.read ?? 0)} />
-        <KpiCard label="Replied" value={String(summary.data?.replied ?? 0)} />
+      <div className="grid grid-cols-2 gap-2">
+        <KpiCard label="Messages sent" value={String(summary.data?.sent ?? 0)} icon={<Send className="w-3 h-3" />} />
+        <KpiCard label="Customer replies" value={String(summary.data?.replied ?? 0)} icon={<MessageCircle className="w-3 h-3" />} />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-        <div className="px-3 py-2 border-b border-slate-100">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
+        <div className="px-2 py-2 border-b border-slate-100">
           <p className="text-[13px] font-semibold text-slate-900">Message Trends</p>
         </div>
         <div className="h-56 px-3 py-2">
@@ -3244,10 +3143,10 @@ function AnalyticsTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-100">
+          <div className="px-2 py-2 border-b border-slate-100">
             <p className="text-[13px] font-semibold text-slate-900">Cost by category</p>
           </div>
-          <div className="h-56 px-3 py-2">
+          <div className="h-56 px-2 py-2">
             {costBuckets.length === 0 ? (
               <p className="text-[13px] text-slate-500 text-center py-6">No cost data yet.</p>
             ) : (
@@ -3276,7 +3175,7 @@ function AnalyticsTab() {
           <div className="px-3 py-2 border-b border-slate-100">
             <p className="text-[13px] font-semibold text-slate-900">Conversion Funnel</p>
           </div>
-          <div className="px-3 py-2 space-y-2">
+          <div className="px-2 py-2 space-y-2">
             {funnelData.map((f) => {
               const pct = (f.count / maxFunnel) * 100;
               return (
@@ -3285,7 +3184,7 @@ function AnalyticsTab() {
                     <span className="text-slate-700 font-medium">{f.stage}</span>
                     <span className="text-slate-500 font-mono">{f.count}</span>
                   </div>
-                  <div className="h-4 bg-slate-100 rounded-sm overflow-hidden">
+                  <div className="h-4 bg-slate-100 rounded overflow-hidden">
                     <div className="h-full bg-blue-950" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -3295,14 +3194,14 @@ function AnalyticsTab() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-100">
             <p className="text-[13px] font-semibold text-slate-900">Top agents</p>
           </div>
           <div className="divide-y divide-slate-100">
             {agentList.map((l) => (
               <div key={l.id} className="px-3 py-2 flex items-center gap-2 text-[13px]">
-                <div className="w-6 h-6 rounded-sm bg-slate-100 text-slate-700 flex items-center justify-center font-semibold text-[13px]">
+                <div className="w-6 h-6 rounded bg-slate-100 text-slate-700 flex items-center justify-center font-semibold text-[13px]">
                   {l.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -3345,13 +3244,13 @@ function BillingTab() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-        <div className="px-3 py-2 border-b border-slate-100">
+        <div className="px-2 py-2 border-b border-slate-100">
           <p className="text-[13px] font-semibold text-slate-900">Invoices</p>
         </div>
         <div className="divide-y divide-slate-100">
           {invoices.loading && inv.length === 0 && <LoadingBlock />}
           {inv.map((i) => (
-            <div key={i.id} className="px-3 py-2 flex items-center justify-between gap-2">
+            <div key={i.id} className="px-2 py-2 flex items-center justify-between gap-2">
               <div>
                 <p className="text-[13px] font-medium text-slate-900">
                   {formatDate(i.periodStart)} — {formatDate(i.periodEnd)}
@@ -3391,20 +3290,11 @@ function WebhooksTab() {
     }
   };
 
-  const avgLatency = events.length ? Math.round(events.reduce((n, w) => n + w.latencyMs, 0) / events.length) : 0;
-
   return (
     <div className="space-y-2">
       <PageHeader title="Webhooks & Logs" subtitle="Meta event deliveries and diagnostics." />
 
       {list.error && <ErrorBlock message={list.error} onRetry={list.refetch} />}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <KpiCard label="Events" value={String(events.length)} icon={<Webhook className="w-3 h-3" />} />
-        <KpiCard label="Delivered" value={String(events.filter((w) => w.status === 'DELIVERED').length)} icon={<CheckCircle2 className="w-3 h-3" />} />
-        <KpiCard label="Failed" value={String(events.filter((w) => w.status === 'FAILED').length)} icon={<AlertTriangle className="w-3 h-3" />} />
-        <KpiCard label="Avg latency" value={`${avgLatency}ms`} icon={<Clock className="w-3 h-3" />} />
-      </div>
 
       <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
         {list.loading && events.length === 0 && <LoadingBlock />}
@@ -3412,35 +3302,35 @@ function WebhooksTab() {
           <table className="w-full text-left border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-slate-500">
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Type</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-center">Signature</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-right">Latency</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide text-center">Attempts</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Status</th>
-                <th className="py-2 px-3 font-medium text-[13px] uppercase tracking-wide">Received</th>
-                <th className="py-2 px-3 w-20" />
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Type</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase text-center">Signature</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase text-right">Latency</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase text-center">Attempts</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Status</th>
+                <th className="py-2 px-2 font-medium text-[13px] uppercase">Received</th>
+                <th className="py-2 px-2 w-20" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {events.map((w) => (
                 <tr key={w.id} className="hover:bg-slate-50">
-                  <td className="py-2 px-3 font-mono text-[13px]">{w.type}</td>
-                  <td className="py-2 px-3 text-center">
+                  <td className="py-2 px-2 font-mono text-[13px]">{w.type}</td>
+                  <td className="py-2 px-2 text-center">
                     {w.signatureValid ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-600 mx-auto" />
                     ) : (
                       <AlertCircle className="w-3.5 h-3.5 text-red-600 mx-auto" />
                     )}
                   </td>
-                  <td className="py-2 px-3 text-right font-mono text-[13px]">{w.latencyMs}ms</td>
-                  <td className="py-2 px-3 text-center font-mono">{w.attempts}</td>
-                  <td className="py-2 px-3">
+                  <td className="py-2 px-2 text-right font-mono text-[13px]">{w.latencyMs}ms</td>
+                  <td className="py-2 px-2 text-center font-mono">{w.attempts}</td>
+                  <td className="py-2 px-2">
                     <Badge variant={w.status === 'DELIVERED' ? 'success' : w.status === 'RETRYING' ? 'warning' : 'danger'}>
                       {w.status}
                     </Badge>
                   </td>
-                  <td className="py-2 px-3 text-slate-500">{relativeTime(w.receivedAt)}</td>
-                  <td className="py-2 px-3 text-right">
+                  <td className="py-2 px-2 text-slate-500">{relativeTime(w.receivedAt)}</td>
+                  <td className="py-2 px-2 text-right">
                     <button onClick={() => replay(w.id)} className={btnGhost}>Replay</button>
                   </td>
                 </tr>
@@ -3533,10 +3423,10 @@ function SettingsTab() {
       {s && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-100">
+            <div className="px-2 py-2 border-b border-slate-100">
               <p className="text-[13px] font-semibold text-slate-900">Business Hours</p>
             </div>
-            <div className="px-3 py-2 space-y-1.5">
+            <div className="px-2 py-2 space-y-1.5">
               {Object.entries(s.businessHours || {}).map(([day, h]) => (
                 <div key={day} className="flex items-center gap-1.5">
                   <span className="w-16 text-[13px] text-slate-700 capitalize">{day}</span>
@@ -3569,10 +3459,10 @@ function SettingsTab() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-100">
+            <div className="px-2 py-2 border-b border-slate-100">
               <p className="text-[13px] font-semibold text-slate-900">Routing & SLA</p>
             </div>
-            <div className="px-3 py-2 space-y-2">
+            <div className="px-2 py-2 space-y-2">
               <Field label="Routing strategy">
                 <select
                   value={s.routing}
@@ -3604,10 +3494,10 @@ function SettingsTab() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-100">
+            <div className="px-2 py-2 border-b border-slate-100">
               <p className="text-[13px] font-semibold text-slate-900">Messages</p>
             </div>
-            <div className="px-3 py-2 space-y-2">
+            <div className="px-2 py-2 space-y-2">
               <Field label="Welcome message">
                 <textarea
                   value={s.welcomeMessage}
@@ -3639,14 +3529,14 @@ function SettingsTab() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-100">
+            <div className="px-2 py-2 border-b border-slate-100">
               <p className="text-[13px] font-semibold text-slate-900">Team</p>
             </div>
             <div className="divide-y divide-slate-100">
               {team.loading && teamList.length === 0 && <LoadingBlock />}
               {team.error && <ErrorBlock message={team.error} onRetry={team.refetch} />}
               {teamList.map((m) => (
-                <div key={m.id} className="px-3 py-2 flex items-center gap-2">
+                <div key={m.id} className="px-2 py-2 flex items-center gap-2">
                   <span className={`w-1.5 h-1.5 rounded-full ${m.online ? 'bg-green-500' : 'bg-slate-300'}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium text-slate-900">{m.name}</p>
@@ -3663,14 +3553,14 @@ function SettingsTab() {
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-        <div className="px-3 py-2 border-b border-slate-100">
+      <div className="bg-white border border-slate-200 rounded overflow-hidden">
+        <div className="px-2 py-2 border-b border-slate-100">
           <p className="text-[13px] font-semibold text-slate-900">Audit log</p>
         </div>
         <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
           {audit.loading && auditList.length === 0 && <LoadingBlock />}
           {auditList.map((a) => (
-            <div key={a.id} className="px-3 py-2 flex items-center justify-between gap-2 text-[13px]">
+            <div key={a.id} className="px-2 py-2 flex items-center justify-between gap-2 text-[13px]">
               <div className="min-w-0">
                 <p className="text-slate-700">
                   <span className="font-medium">{a.actorName}</span> {a.action}

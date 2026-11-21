@@ -1,5 +1,7 @@
 from django.urls import path
 
+from checkout.views import StickerDataView
+
 from . import views
 
 app_name = "dashboard_orders"
@@ -70,6 +72,11 @@ urlpatterns = [
         "<str:reference>/fulfill-qr/",
         views.AdminOrderFulfillQRView.as_view(),
         name="fulfill-qr",
+    ),
+    path(
+        "<str:reference>/sticker/<int:item_id>/",
+        StickerDataView.as_view(),
+        name="sticker",
     ),
     path(
         "<str:reference>/",

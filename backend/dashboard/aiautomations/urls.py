@@ -5,11 +5,9 @@ from . import views
 app_name = "aiautomations"
 
 urlpatterns = [
-    # ─── Overview ───────────────────────────────────────────────────────
     path("overview/", views.overview, name="overview"),
     path("digest/", views.digest, name="digest"),
 
-    # ─── Assistant — conversations ──────────────────────────────────────
     path(
         "assistant/conversations/",
         views.conversations,
@@ -40,7 +38,6 @@ urlpatterns = [
         views.conversation_messages,
         name="messages",
     ),
-    # Streaming — both variants so APPEND_SLASH never fires on POST.
     path(
         "assistant/conversations/<int:pk>/stream",
         views.conversation_stream,
@@ -52,7 +49,6 @@ urlpatterns = [
         name="stream",
     ),
 
-    # ─── Message tool-call trace & feedback ─────────────────────────────
     path(
         "assistant/messages/<int:pk>/tool-calls/",
         views.message_tool_calls,
@@ -64,15 +60,12 @@ urlpatterns = [
         name="message-feedback",
     ),
 
-    # ─── Tools (introspection / preview) ────────────────────────────────
     path("tools/", views.tool_schemas, name="tool-schemas"),
     path("tools/preview/", views.tool_preview, name="tool-preview"),
 
-    # ─── Actions (preview + execute) ────────────────────────────────────
     path("actions/preview/", views.action_preview, name="action-preview"),
     path("actions/execute/", views.action_execute, name="action-execute"),
 
-    # ─── Alerts ─────────────────────────────────────────────────────────
     path("alerts/", views.alerts, name="alerts"),
     path(
         "alerts/<int:pk>/dismiss/",
@@ -90,7 +83,6 @@ urlpatterns = [
         name="snooze-alert",
     ),
 
-    # ─── Insights ───────────────────────────────────────────────────────
     path("insights/", views.insights, name="insights"),
     path(
         "insights/<int:pk>/dismiss/",
@@ -103,7 +95,6 @@ urlpatterns = [
         name="execute-insight",
     ),
 
-    # ─── Automations — static before dynamic ────────────────────────────
     path(
         "automations/templates/",
         views.automation_templates,
@@ -131,7 +122,6 @@ urlpatterns = [
         name="automation-run-now",
     ),
 
-    # ─── Content generator ──────────────────────────────────────────────
     path(
         "content/generate/",
         views.content_generate,
@@ -139,7 +129,6 @@ urlpatterns = [
     ),
     path("content/bulk/", views.content_bulk, name="content-bulk"),
 
-    # ─── Search ─────────────────────────────────────────────────────────
     path("search/config/", views.search_config, name="search-config"),
     path(
         "search/analytics/",
@@ -152,7 +141,6 @@ urlpatterns = [
         name="search-data-quality",
     ),
 
-    # ─── Settings ───────────────────────────────────────────────────────
     path("settings/", views.settings_view, name="settings"),
     path(
         "settings/disable/",
@@ -160,7 +148,6 @@ urlpatterns = [
         name="settings-disable",
     ),
 
-    # ─── Usage & audit ──────────────────────────────────────────────────
     path("usage/", views.usage, name="usage"),
     path("usage/recent/", views.usage_recent, name="usage-recent"),
     path("audit/", views.audit_log, name="audit-log"),
