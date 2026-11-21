@@ -307,19 +307,21 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-
+#CACHES = {    "default": {        "BACKEND": "django_redis.cache.RedisCache",
+#        "LOCATION": REDIS_URL,
+#        "OPTIONS": {
+#            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+#        },
+#        "KEY_PREFIX": "myshop",
+#        "TIMEOUT": 300,
+#    }
+#}
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": REDIS_URL,
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-        "KEY_PREFIX": "myshop",
-        "TIMEOUT": 300,
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "sokoelectronshop-cache",
     }
 }
-
 RATELIMIT_USE_CACHE = "default"
 
 
