@@ -1,5 +1,11 @@
 'use client';
 
+import { Suspense } from "react";
+
+
+
+
+
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -43,7 +49,7 @@ function stockBadgeClasses(status: string): string {
   return 'bg-slate-600 text-white';
 }
 
-export default function CategoryPage() {
+function CategoryPageContent() {
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const slug = params?.slug ?? '';
@@ -317,5 +323,12 @@ export default function CategoryPage() {
         </div>
       )}
     </section>
+  );
+}
+export default function CategoryPage(props: any) {
+  return (
+    <Suspense fallback={<div style={{ padding: 20, textAlign: "center" }}>Loading…</div>}>
+      <CategoryPageContent {...props} />
+    </Suspense>
   );
 }

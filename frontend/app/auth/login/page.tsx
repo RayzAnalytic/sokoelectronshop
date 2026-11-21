@@ -1,5 +1,11 @@
-
 'use client';
+
+import { Suspense } from "react";
+
+
+
+
+
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -27,7 +33,7 @@ function sanitizeNext(raw: string | null): string | null {
     return trimmed;
 }
 
-export default function CustomerLoginPage() {
+function CustomerLoginPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -519,4 +525,11 @@ function GoogleIcon() {
             />
         </svg>
     );
+}
+export default function CustomerLoginPage(props: any) {
+  return (
+    <Suspense fallback={<div style={{ padding: 20, textAlign: "center" }}>Loading…</div>}>
+      <CustomerLoginPageContent {...props} />
+    </Suspense>
+  );
 }

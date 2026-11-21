@@ -1,5 +1,11 @@
 'use client';
 
+import { Suspense } from "react";
+
+
+
+
+
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -67,7 +73,7 @@ function detailOf(err: ApiError): string | null {
     return null;
 }
 
-export default function CustomerRegisterPage() {
+function CustomerRegisterPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -843,4 +849,11 @@ function PasswordField({
             {error && <p className="text-[11px] text-rose-600">{error}</p>}
         </div>
     );
+}
+export default function CustomerRegisterPage(props: any) {
+  return (
+    <Suspense fallback={<div style={{ padding: 20, textAlign: "center" }}>Loading…</div>}>
+      <CustomerRegisterPageContent {...props} />
+    </Suspense>
+  );
 }

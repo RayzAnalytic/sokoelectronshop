@@ -1,5 +1,11 @@
 'use client';
 
+import { Suspense } from "react";
+
+
+
+
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -128,7 +134,7 @@ type EditorState =
         draft: ReviewDraft;
     };
 
-export default function ReviewsPage() {
+function ReviewsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -1285,4 +1291,11 @@ function DeleteConfirm({
             </div>
         </div>
     );
+}
+export default function ReviewsPage(props: any) {
+  return (
+    <Suspense fallback={<div style={{ padding: 20, textAlign: "center" }}>Loading…</div>}>
+      <ReviewsPageContent {...props} />
+    </Suspense>
+  );
 }
