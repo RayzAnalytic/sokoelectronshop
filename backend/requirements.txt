@@ -26,12 +26,12 @@ cron-descriptor==1.4.5
 cryptography==46.0.7
 cycler==0.12.1
 distro==1.9.0
+django-celery-beat-next
 dj-database-url==3.1.2
 dj-rest-auth==7.2.0
-Django==6.1.1
+Django==6.0.5
 django-allauth==65.19.4
-django-anymail==13.1
-django-celery-beat==2.9.0
+django-anymail==13.1 
 django-cors-headers==4.9.0
 django-environ==0.14.0
 django-extensions==3.2.3
