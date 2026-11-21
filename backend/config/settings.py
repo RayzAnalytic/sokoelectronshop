@@ -156,6 +156,36 @@ DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 
 
+# =====================================================================
+# ADDED: Production / Render reverse-proxy support
+# =====================================================================
+# Render terminates TLS at its edge and forwards HTTP to your app.
+# Without SECURE_PROXY_SSL_HEADER, request.build_absolute_uri() will
+# return http://... URLs and Google OAuth callbacks break.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Force HTTPS redirects in production only (disable if Render health
+# checks start failing — set env SECURE_SSL_REDIRECT=False).
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
+
+# HSTS — safe defaults, only active when DEBUG=False
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000 if not DEBUG else 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=not DEBUG
+)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+
+# Modern browsers
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
+
+# Trust CSRF from the Vercel frontend (already augmented below,
+# but this captures it early so admin also works)
+CSRF_TRUSTED_ORIGINS = list(env.list("CSRF_TRUSTED_ORIGINS", default=[]))
+# =====================================================================
+
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -316,13 +346,11 @@ REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 #        "TIMEOUT": 300,
 #    }
 #}
+# settings.py
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://localhost:6379/0"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",  # any unique name
     }
 }
 RATELIMIT_USE_CACHE = "default"
@@ -892,6 +920,12 @@ ANALYTICS_PAGEVIEW_RETENTION_DAYS = env.int(
 
 
 AUTH_STRATEGY = env("AUTH_STRATEGY")
+
+# ⚠️ WARNING: This second LOGGING block overrides the LOGGING defined
+# above. That means the `authentication.google` and other per-app
+# loggers above will NOT be active while this block is present.
+# It's here because you asked to keep all code. Delete this whole
+# block once you have finished debugging the Google OAuth redirect.
 # TEMPORARY DEBUG LOGGING — remove after fixing
 LOGGING = {
     "version": 1,
