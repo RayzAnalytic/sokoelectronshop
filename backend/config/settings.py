@@ -673,28 +673,47 @@ if env.bool("USE_S3"):
     class B2Storage(_BaseS3Storage):
         """S3Storage subclass tuned for Backblaze B2.
 
-        B2 closes the connection when it sees the `Expect: 100-continue`
-        header that botocore adds to PutObject requests. This subclass
-        strips that header on every outbound S3 request via the
-        `before-send` event hook.
+        B2 mishandles the ``Expect: 100-continue`` header that botocore
+        adds to every ``PutObject`` request — it responds with a
+        malformed status line and closes the connection. This subclass
+        registers handlers on both ``before-call`` and ``before-send``
+        for ``PutObject`` to guarantee the header is stripped after
+        botocore's ``add_expect_header`` handler runs.
         """
 
         def __init__(self, **settings):
             super().__init__(**settings)
 
-            client = None
             conn = self.connection
-            for attr in ("client", "_client"):
-                candidate = getattr(conn, attr, None)
-                if candidate is not None and hasattr(candidate, "meta"):
-                    client = candidate
-                    break
+            # boto3's resource exposes the low-level client at .meta.client;
+            # some django-storages versions hand back a client directly.
+            if hasattr(conn, "meta") and hasattr(conn.meta, "client"):
+                client = conn.meta.client
+            else:
+                client = conn
 
-            if client is not None:
-                def _remove_expect(request, **kwargs):
-                    request.headers.pop("Expect", None)
+            def _strip_expect_from_params(model, params, **kwargs):
+                # before-call handlers mutate params["headers"]
+                headers = params.setdefault("headers", {})
+                # Headers dict here may use either casing; drop both.
+                for key in list(headers.keys()):
+                    if key.lower() == "expect":
+                        headers.pop(key, None)
 
-                client.meta.events.register("before-send.s3.*", _remove_expect)
+            def _strip_expect_from_request(request, **kwargs):
+                # before-send handlers mutate the prepared request
+                for key in list(request.headers.keys()):
+                    if key.lower() == "expect":
+                        request.headers.pop(key, None)
+
+            events = client.meta.events
+            # register_last runs AFTER botocore's add_expect_header handler
+            events.register_last(
+                "before-call.s3.PutObject", _strip_expect_from_params
+            )
+            events.register_last(
+                "before-send.s3.PutObject", _strip_expect_from_request
+            )
 
     _required_s3 = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_STORAGE_BUCKET_NAME")
     _missing = [k for k in _required_s3 if not env(k, default="")]
