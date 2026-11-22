@@ -138,6 +138,8 @@ env = environ.Env(
 
     AUTH_STRATEGY=(str, "both"),
 
+    AUTH_DEV_FIXED_OTP=(str, ""),
+
     STAFF_INVITE_TTL_DAYS=(int, 7),
     STAFF_INVITE_ACCEPT_PATH=(str, "/accept-invite"),
 
@@ -148,6 +150,8 @@ env = environ.Env(
 environ.Env.read_env(BASE_DIR / ".env")
 
 WHATSAPP_DEV_NO_AUTH = env.bool("WHATSAPP_DEV_NO_AUTH", default=True)
+
+AUTH_DEV_FIXED_OTP = env("AUTH_DEV_FIXED_OTP", default="").strip()
 
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
@@ -185,6 +189,16 @@ X_FRAME_OPTIONS = "DENY"
 # but this captures it early so admin also works)
 CSRF_TRUSTED_ORIGINS = list(env.list("CSRF_TRUSTED_ORIGINS", default=[]))
 # =====================================================================
+
+
+# Safety: AUTH_DEV_FIXED_OTP must NEVER be active in production.
+# If someone accidentally copies it into a production environment,
+# the app refuses to boot rather than silently bypassing email verification.
+if AUTH_DEV_FIXED_OTP and not DEBUG:
+    raise ImproperlyConfigured(
+        "AUTH_DEV_FIXED_OTP is set but DEBUG=False. "
+        "This bypasses OTP verification — never enable it in production."
+    )
 
 
 INSTALLED_APPS = [

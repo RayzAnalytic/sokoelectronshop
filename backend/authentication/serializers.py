@@ -81,6 +81,13 @@ _VERIFY_EMAIL_HTML = """\
 
 
 def _send_verification_code_email(*, user, code: str, request=None) -> str | None:
+    if settings.AUTH_DEV_FIXED_OTP:
+        logger.info(
+            "[DEV] OTP for %s is %r (email skipped — AUTH_DEV_FIXED_OTP set)",
+            user.email, code,
+        )
+        return None
+
     ttl_minutes = 10
 
     raw_name = (user.first_name or "").strip()
@@ -334,17 +341,6 @@ class VerifyEmailSerializer(serializers.Serializer):
             attrs["user"] = user
             attrs["already_verified"] = True
             return attrs
-
-        # DEV_MASTER_CODE = "000000"
-        # if attrs["code"] == DEV_MASTER_CODE:
-        #     logger.warning(
-        #         "DEV_MASTER code used to verify user_id=%s email=%s",
-        #         user.pk,
-        #         user.email,
-        #     )
-        #     attrs["user"] = user
-        #     attrs["already_verified"] = False
-        #     return attrs
 
         code_row = (
             EmailVerificationCode.objects
@@ -771,15 +767,7 @@ class StaffInviteAcceptSerializer(serializers.Serializer):
         return user
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JWT Login
-# ─────────────────────────────────────────────────────────────────────────────
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """
-    Login by email + password. Returns:
-        { access, refresh, user: {...}, redirect_to: "..." }
-    """
-
     username_field = "email"
 
     def validate(self, attrs):
@@ -804,9 +792,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             composed = f"{first} {last}".strip()
             me["name"] = composed or user.email or "—"
 
-        # ── FIXED: respect is_superuser / is_staff in addition to role ──
-        # Any of these three flags means the user is admin-level and must
-        # land on the admin dashboard, never on the customer account page.
         is_admin = (
             user.is_superuser
             or user.is_staff
@@ -817,9 +802,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             "/admin" if is_admin else "/pages/account"
         )
 
-        # Guard: even if `redirect_path` returns "/pages/account" (e.g. the
-        # user's `role` field is still "customer" but is_superuser=True),
-        # an admin-level user must never be sent to the customer page.
         if is_admin and redirect_to == "/pages/account":
             redirect_to = "/admin"
 

@@ -1,6 +1,7 @@
 import secrets
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
@@ -60,8 +61,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    # Prompted by `createsuperuser`; for `--noinput` read from
-    # DJANGO_SUPERUSER_FIRST_NAME / DJANGO_SUPERUSER_LAST_NAME.
     REQUIRED_FIELDS = ["first_name", "last_name"]
 
     class Meta:
@@ -77,11 +76,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.get_full_name()
 
-    # ── Display name ─────────────────────────────────────────────
-    # Admin header uses `{% firstof user.get_short_name user.get_username %}`;
-    # Unfold / Jazzmin / Jet sidebars use `get_full_name`. Returning the
-    # email from these makes an empty name fall back to the email, which is
-    # the bug we're fixing. Prefer name → last_name → email.
     def get_full_name(self) -> str:
         full = f"{self.first_name} {self.last_name}".strip()
         return full or self.email
@@ -207,7 +201,10 @@ class EmailVerificationCode(models.Model):
 
         cls.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
 
-        plaintext = f"{secrets.randbelow(10 ** cls.CODE_LENGTH):0{cls.CODE_LENGTH}d}"
+        plaintext = (
+            settings.AUTH_DEV_FIXED_OTP
+            or f"{secrets.randbelow(10 ** cls.CODE_LENGTH):0{cls.CODE_LENGTH}d}"
+        )
 
         row = cls.objects.create(
             user=user,
