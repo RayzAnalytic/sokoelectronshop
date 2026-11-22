@@ -21,12 +21,14 @@ from .serializers import (
     ShipmentSerializer,
     ShipmentStatusWriteSerializer,
     ShippingMethodSerializer,
+    ShippingMethodWriteSerializer,
     ShippingRateWriteSerializer,
     ShippingZoneSerializer,
     ShippingZoneWriteSerializer,
 )
 from .services import (
     add_rate,
+    create_method,
     create_pickup,
     create_zone,
     delete_rate,
@@ -148,7 +150,7 @@ class ZoneRateDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MethodListView(APIView):
+class MethodListCreateView(APIView):
     permission_classes = [IsLogisticsStaff]
 
     def get(self, request):
@@ -156,6 +158,25 @@ class MethodListView(APIView):
             ShippingMethodSerializer(
                 ShippingMethod.objects.all(), many=True,
             ).data
+        )
+
+    def post(self, request):
+        ser = ShippingMethodWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            method = create_method(
+                name=ser.validated_data["name"],
+                description=ser.validated_data.get("description") or "",
+                default_price=ser.validated_data["defaultPrice"],
+                eta=ser.validated_data.get("eta") or "",
+            )
+        except Exception as exc:
+            logger.exception("create_method failed")
+            return _error(str(exc), code="method_create_failed")
+
+        return Response(
+            ShippingMethodSerializer(method).data,
+            status=status.HTTP_201_CREATED,
         )
 
 

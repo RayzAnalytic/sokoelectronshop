@@ -90,6 +90,36 @@ class ShippingMethodSerializer(serializers.ModelSerializer):
         )
 
 
+class ShippingMethodWriteSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=120)
+    description = serializers.CharField(
+        max_length=255, required=False, allow_blank=True,
+    )
+    defaultPrice = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal("0"),
+    )
+    eta = serializers.CharField(max_length=64, required=False, allow_blank=True)
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Method name cannot be blank.")
+        if ShippingMethod.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError(
+                "A delivery method with this name already exists."
+            )
+        return value
+
+    def validate_defaultPrice(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Default price cannot be negative.")
+        return value
+
+
+class ShippingMethodStatusWriteSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=ShippingMethod.Status.choices)
+
+
 class PickupLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PickupLocation
@@ -106,6 +136,10 @@ class PickupLocationWriteSerializer(serializers.Serializer):
     county = serializers.CharField(max_length=64)
     phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
     hours = serializers.CharField(max_length=120, required=False, allow_blank=True)
+
+
+class PickupLocationStatusWriteSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=PickupLocation.Status.choices)
 
 
 class CourierConfigSerializer(serializers.ModelSerializer):

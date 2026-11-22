@@ -2747,6 +2747,17 @@ export const adminApi = {
                     { signal },
                 ),
 
+            create: (payload: {
+                name: string;
+                description?: string;
+                defaultPrice: number;
+                eta?: string;
+            }) =>
+                request<AdminShippingMethod>(
+                    '/api/v1/dashboard/shipping/methods/',
+                    { method: 'POST', body: payload },
+                ),
+
             toggle: (id: number) =>
                 request<AdminShippingMethod>(
                     `/api/v1/dashboard/shipping/methods/${id}/toggle/`,
