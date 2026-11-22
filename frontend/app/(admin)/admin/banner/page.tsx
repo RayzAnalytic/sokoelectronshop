@@ -90,64 +90,8 @@ async function uploadBannerImage(
     kind: 'desktop' | 'tablet' | 'mobile',
     signal?: AbortSignal,
 ): Promise<string> {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('kind', kind);
-
-    // Try every reasonable key the app might use for the access token.
-    // Order matters: the most specific first, fallback to generic.
-    const token = (() => {
-        if (typeof window === 'undefined') return null;
-        const candidates = [
-            'myshop.access',      // customer login
-            'admin.access',       // admin dashboard (common pattern)
-            'admin_token',
-            'access_token',
-            'accessToken',
-            'token',
-            'jwt',
-        ];
-        for (const key of candidates) {
-            const v = window.localStorage.getItem(key);
-            if (v && v.length > 20) return v;   // JWT is always long
-        }
-        // Nothing found — dump what IS there so it's debuggable
-        console.warn(
-            '[uploadBannerImage] No JWT found in localStorage. Keys present:',
-            Object.keys(window.localStorage),
-        );
-        return null;
-    })();
-
-    if (!token) {
-        throw new Error(
-            'You are not signed in. Please log in again. ' +
-            '(No access token found in localStorage — check the console for available keys.)',
-        );
-    }
-
-    const res = await fetch(`${API_ORIGIN}/api/v1/admin/banners/uploads/`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-        signal,
-    });
-
-    if (res.status === 401) {
-        throw new Error('Session expired. Log out and log in again.');
-    }
-
-    if (!res.ok) {
-        let detail = `Upload failed (${res.status})`;
-        try {
-            const data = (await res.json()) as { detail?: string };
-            if (data?.detail) detail = data.detail;
-        } catch { }
-        throw new Error(detail);
-    }
-
-    const data = (await res.json()) as { url: string };
-    return data.url;
+    const { url } = await adminApi.banners.upload(file, kind, signal);
+    return url;
 }
 
 const STATUS_STYLES: Record<Status, string> = {

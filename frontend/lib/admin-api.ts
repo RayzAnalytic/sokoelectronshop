@@ -1722,6 +1722,20 @@ export const adminApi = {
                 '/api/v1/admin/banners/reset/',
                 { method: 'POST' },
             ),
+
+        upload: (
+            file: File,
+            kind: 'desktop' | 'tablet' | 'mobile',
+            signal?: AbortSignal,
+        ) => {
+            const form = new FormData();
+            form.append('file', file);
+            form.append('kind', kind);
+            return request<{ url: string }>(
+                '/api/v1/admin/banners/uploads/',
+                { method: 'POST', body: form, signal },
+            );
+        },
     },
 
     newsletter: {
