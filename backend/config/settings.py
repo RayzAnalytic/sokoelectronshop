@@ -694,6 +694,9 @@ if env.bool("USE_S3"):
         "client_config": Config(
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
+            expect_100_continue=False,
+            s3={"addressing_style": "path"},
+            retries={"max_attempts": 3, "mode": "standard"},
         ),
     }
     if AWS_S3_ENDPOINT_URL:
