@@ -233,10 +233,11 @@ function AnalyticsPageInner() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10 relative">
+
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded flex items-center gap-2 text-[13px]">
+        <div className="fixed bottom-3 right-3 left-3 sm:left-auto z-[110] bg-slate-900 text-white px-2 py-2 rounded flex items-center gap-2 text-[13px]">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+          <span className="flex-1">{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
             <X className="w-3.5 h-3.5" />
           </button>
@@ -249,7 +250,7 @@ function AnalyticsPageInner() {
           onClick={() => setSelectedProductPerf(null)}
         >
           <div
-            className="bg-white border-l border-slate-200 w-full max-w-md h-full p-2 overflow-y-auto"
+            className="bg-white border-l border-slate-200 w-full max-w-md h-full p-2 sm:p-3 overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="space-y-2 text-[13px]">
@@ -267,7 +268,7 @@ function AnalyticsPageInner() {
                 </button>
               </div>
 
-              <div className="w-full h-40 rounded bg-slate-100 border border-slate-200 overflow-hidden">
+              <div className="w-full h-40 sm:h-48 rounded bg-slate-100 border border-slate-200 overflow-hidden">
                 {selectedProductPerf.image ? (
                   <img src={selectedProductPerf.image} alt={selectedProductPerf.name} className="w-full h-full object-cover" />
                 ) : (
@@ -311,16 +312,16 @@ function AnalyticsPageInner() {
       )}
 
       {cartModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2">
-          <div className="bg-white border border-slate-200 rounded max-w-2xl w-full p-2  space-y-2 text-[13px]">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3">
+          <div className="bg-white border border-slate-200 rounded max-w-2xl w-full max-h-[92vh] flex flex-col text-[13px]">
+            <div className="flex items-center justify-between px-2 sm:px-3 py-2 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <ShoppingBag className="w-4 h-4" />
                 </div>
-                <div>
-                  <h3 className="text-[15px] font-bold text-slate-900">Abandoned Cart Recovery</h3>
-                  <p className="text-slate-500 text-[13px]">
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-bold text-slate-900 truncate">Abandoned Cart Recovery</h3>
+                  <p className="text-slate-500 text-[13px] truncate">
                     {selectedCartDay
                       ? `Showing carts from ${selectedCartDay}`
                       : 'Send a WhatsApp reminder to bring them back'}
@@ -332,13 +333,13 @@ function AnalyticsPageInner() {
                   setCartModalOpen(false);
                   setSelectedCartDay(null);
                 }}
-                className="w-8 h-8 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
+                className="w-8 h-8 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="px-2 sm:px-3 py-2 space-y-2 overflow-y-auto flex-1">
               {filteredCarts.length === 0 ? (
                 <p className="text-center text-slate-500 py-8">No carts for this day.</p>
               ) : (
@@ -347,8 +348,8 @@ function AnalyticsPageInner() {
                     key={cart.id}
                     className="p-2 bg-slate-50 border border-slate-200 rounded flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-slate-900">{cart.customer}</span>
                         <span className="text-[13px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono">
                           {cart.phone}
@@ -364,7 +365,7 @@ function AnalyticsPageInner() {
 
                     <button
                       onClick={() => showToast(`WhatsApp reminder sent to ${cart.customer} (${cart.phone})`)}
-                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded transition shrink-0 text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded transition shrink-0 text-[13px] w-full sm:w-auto justify-center"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>Send WhatsApp</span>
@@ -374,13 +375,13 @@ function AnalyticsPageInner() {
               )}
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end px-2 sm:px-3 py-2 border-t border-slate-100 shrink-0">
               <button
                 onClick={() => {
                   setCartModalOpen(false);
                   setSelectedCartDay(null);
                 }}
-                className="px-2 py-2 bg-slate-900 text-white font-medium rounded hover:bg-slate-800 transition text-[13px]"
+                className="px-3 py-2 bg-slate-900 text-white font-medium rounded hover:bg-slate-800 transition text-[13px]"
               >
                 Close
               </button>
@@ -390,10 +391,10 @@ function AnalyticsPageInner() {
       )}
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1700px] mx-auto px-2 py-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="max-w-[1700px] mx-auto px-2 sm:px-3 py-2 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-[15px] font-semibold text-slate-900">Analytics</h1>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleRefresh}
               disabled={isLoading}
@@ -427,7 +428,7 @@ function AnalyticsPageInner() {
           </div>
         </div>
 
-        <div className="max-w-[1600px] mx-auto px-2 pb-2">
+        <div className="max-w-[1600px] mx-auto px-2 sm:px-3 pb-2">
           <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200 overflow-x-auto max-w-full">
             {([
               { id: 'traffic', label: 'Traffic' },
@@ -439,9 +440,9 @@ function AnalyticsPageInner() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-2 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id
-                    ? 'bg-white text-blue-950'
-                    : 'text-slate-600 hover:text-slate-900'
+                className={`px-2 sm:px-3 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap ${activeTab === tab.id
+                  ? 'bg-white text-blue-950'
+                  : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
                 {tab.label}
@@ -451,17 +452,17 @@ function AnalyticsPageInner() {
         </div>
       </header>
 
-      <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
+      <main className="max-w-[1700px] mx-auto px-2 sm:px-3 py-2 space-y-2 sm:space-y-3">
         {error && !isLoading && (
           <div className="bg-red-50 border border-red-100 rounded p-2 flex items-start gap-2 text-[13px]">
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="font-medium text-red-700">Couldn&apos;t load this report</p>
               <p className="text-red-600 mt-0.5">{error}</p>
             </div>
             <button
               onClick={handleRefresh}
-              className="bg-white border border-red-200 hover:bg-red-100 text-red-700 font-medium px-2 py-1 rounded text-[13px]"
+              className="bg-white border border-red-200 hover:bg-red-100 text-red-700 font-medium px-2 py-1 rounded text-[13px] shrink-0"
             >
               Retry
             </button>
@@ -482,14 +483,14 @@ function AnalyticsPageInner() {
                   {kpis.map((kpi) => (
                     <div
                       key={kpi.id}
-                      className="bg-white border border-slate-200 rounded p-2 space-y-1"
+                      className="bg-white border border-slate-200 rounded p-2 space-y-1 min-w-0"
                     >
                       <div className="text-[13px] font-medium text-slate-500 truncate">{kpi.label}</div>
-                      <div className="text-[15px] font-bold text-slate-900">{kpi.value}</div>
+                      <div className="text-[15px] font-bold text-slate-900 truncate">{kpi.value}</div>
                       <span
                         className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded ${kpi.positive
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-red-50 text-red-600'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-red-50 text-red-600'
                           }`}
                       >
                         {kpi.positive ? (
@@ -507,14 +508,14 @@ function AnalyticsPageInner() {
                   <div className="lg:col-span-8 bg-white border border-slate-200 rounded p-2 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-[13px] font-semibold text-slate-900">Traffic Overview</h3>
-                      <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded">
+                      <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded overflow-x-auto">
                         {(['sessions', 'visitors', 'pageviews'] as AreaMetric[]).map((m) => (
                           <button
                             key={m}
                             onClick={() => setAreaMetric(m)}
-                            className={`px-2 py-1.5 rounded text-[13px] font-medium transition capitalize ${areaMetric === m
-                                ? 'bg-white text-blue-950'
-                                : 'text-slate-600 hover:text-slate-900'
+                            className={`px-2 py-1.5 rounded text-[13px] font-medium transition capitalize whitespace-nowrap ${areaMetric === m
+                              ? 'bg-white text-blue-950'
+                              : 'text-slate-600 hover:text-slate-900'
                               }`}
                           >
                             {m}
@@ -523,7 +524,7 @@ function AnalyticsPageInner() {
                       </div>
                     </div>
 
-                    <div className="h-72 w-full pt-1">
+                    <div className="h-56 sm:h-72 w-full pt-1">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={sessionsTimeline}>
                           <defs>
@@ -552,7 +553,7 @@ function AnalyticsPageInner() {
                   <div className="lg:col-span-4 bg-white border border-slate-200 rounded p-2 space-y-2">
                     <h3 className="text-[13px] font-semibold text-slate-900">Traffic Sources</h3>
 
-                    <div className="h-48 w-full">
+                    <div className="h-44 sm:h-48 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
@@ -579,11 +580,11 @@ function AnalyticsPageInner() {
                           key={src.name}
                           className="flex items-center justify-between rounded px-2 py-1.5"
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: src.color }} />
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: src.color }} />
                             <span className="text-slate-700 truncate">{src.name}</span>
                           </div>
-                          <span className="font-medium text-slate-900">{src.value}%</span>
+                          <span className="font-medium text-slate-900 shrink-0">{src.value}%</span>
                         </div>
                       ))}
                     </div>
@@ -593,14 +594,14 @@ function AnalyticsPageInner() {
                 <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <h3 className="text-[13px] font-semibold text-slate-900">Conversion Funnel</h3>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {funnelStages.map((stage, idx) => (
                       <div
                         key={stage.stage}
-                        className="bg-slate-50 border border-slate-200 rounded p-2 space-y-1"
+                        className="bg-slate-50 border border-slate-200 rounded p-2 space-y-1 min-w-0"
                       >
                         <div className="text-[13px] text-slate-400">Step {idx + 1}</div>
-                        <div className="font-medium text-slate-900 text-[13px]">{stage.stage}</div>
+                        <div className="font-medium text-slate-900 text-[13px] truncate">{stage.stage}</div>
                         <div className="text-[15px] font-bold text-blue-950">{stage.count.toLocaleString()}</div>
                         <div className="text-[13px] text-red-600 bg-red-50 px-2 py-0.5 rounded inline-block">
                           {stage.dropoff}
@@ -614,12 +615,12 @@ function AnalyticsPageInner() {
                   <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2">
                     <h3 className="text-[13px] font-semibold text-slate-900">Device Breakdown</h3>
 
-                    <div className="h-60 w-full">
+                    <div className="h-52 sm:h-60 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={devicesData} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                           <XAxis type="number" stroke="#94a3b8" fontSize={13} />
-                          <YAxis dataKey="device" type="category" width={140} stroke="#172554" fontSize={13} />
+                          <YAxis dataKey="device" type="category" width={100} stroke="#172554" fontSize={13} />
                           <Tooltip />
                           <Bar dataKey="users" radius={[0, 2, 2, 0]} barSize={20}>
                             {devicesData.map((d, i) => (
@@ -636,11 +637,11 @@ function AnalyticsPageInner() {
                           key={d.device}
                           className="flex items-center justify-between rounded px-2 py-1.5 text-[13px]"
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.fill }} />
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
                             <span className="text-slate-700 truncate">{d.device}</span>
                           </div>
-                          <span className="font-medium text-slate-900">{d.users.toLocaleString()}</span>
+                          <span className="font-medium text-slate-900 shrink-0">{d.users.toLocaleString()}</span>
                         </div>
                       ))}
                     </div>
@@ -655,9 +656,9 @@ function AnalyticsPageInner() {
                       ) : (
                         counties.map((loc) => (
                           <div key={loc.county} className="space-y-1 text-[13px]">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-slate-800">{loc.county}</span>
-                              <span className="font-mono text-slate-600">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-slate-800 truncate">{loc.county}</span>
+                              <span className="font-mono text-slate-600 shrink-0">
                                 {loc.visitors.toLocaleString()} ({loc.share}%)
                               </span>
                             </div>
@@ -673,7 +674,7 @@ function AnalyticsPageInner() {
 
                 <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       <div className="text-[13px] font-medium text-red-600">Cart Abandonment Rate</div>
                       <div className="text-[15px] font-bold text-slate-900">28.4%</div>
                       <p className="text-[13px] text-slate-500">
@@ -693,7 +694,7 @@ function AnalyticsPageInner() {
                     </button>
                   </div>
 
-                  <div className="h-52 w-full">
+                  <div className="h-44 sm:h-52 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={abandonedTrend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -748,16 +749,16 @@ function AnalyticsPageInner() {
                     { label: 'Avg. Order Value', value: formatKES(sales.summary.aov), delta: '+3.4%', positive: true, icon: TrendingUp },
                     { label: 'Revenue Growth', value: `${sales.summary.revenueGrowth}%`, delta: '+1.2%', positive: true, icon: ArrowUpRight },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1">
-                      <div className="flex items-center gap-1.5">
+                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <s.icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
                       </div>
-                      <div className="text-[15px] font-bold text-slate-900">{s.value}</div>
+                      <div className="text-[15px] font-bold text-slate-900 truncate">{s.value}</div>
                       <span
                         className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded ${s.positive
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-red-50 text-red-600'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-red-50 text-red-600'
                           }`}
                       >
                         {s.positive ? (
@@ -773,7 +774,7 @@ function AnalyticsPageInner() {
 
                 <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <h3 className="text-[13px] font-semibold text-slate-900">Sales Trend — Gross vs Net</h3>
-                  <div className="h-64 w-full">
+                  <div className="h-56 sm:h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={sales.trend}>
                         <defs>
@@ -795,7 +796,7 @@ function AnalyticsPageInner() {
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex items-center gap-2 text-[13px] text-slate-600 pt-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[13px] text-slate-600 pt-1">
                     <span className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-950" />
                       Gross
@@ -833,10 +834,10 @@ function AnalyticsPageInner() {
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-2 text-[13px] text-slate-500 mt-0.5">
-                                <span>
+                                <span className="truncate">
                                   {row.orders} orders · {row.units} units
                                 </span>
-                                <span className={row.growth >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                                <span className={row.growth >= 0 ? 'text-emerald-600 shrink-0' : 'text-red-600 shrink-0'}>
                                   {row.growth >= 0 ? '+' : ''}
                                   {row.growth}%
                                 </span>
@@ -857,14 +858,14 @@ function AnalyticsPageInner() {
                   {customers.metrics.map((m) => (
                     <div
                       key={m.id}
-                      className="bg-white border border-slate-200 rounded p-2 space-y-1"
+                      className="bg-white border border-slate-200 rounded p-2 space-y-1 min-w-0"
                     >
                       <div className="text-[13px] font-medium text-slate-500 truncate">{m.label}</div>
-                      <div className="text-[15px] font-bold text-slate-900">{m.value}</div>
+                      <div className="text-[15px] font-bold text-slate-900 truncate">{m.value}</div>
                       <span
                         className={`inline-flex items-center text-[13px] font-medium px-2 py-0.5 rounded ${m.positive
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-red-50 text-red-600'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-red-50 text-red-600'
                           }`}
                       >
                         {m.positive ? (
@@ -880,7 +881,7 @@ function AnalyticsPageInner() {
 
                 <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <h3 className="text-[13px] font-semibold text-slate-900">New vs Returning Customers</h3>
-                  <div className="h-64 w-full">
+                  <div className="h-56 sm:h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={customers.new_vs_returning}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -892,7 +893,7 @@ function AnalyticsPageInner() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex items-center gap-4 text-[13px] text-slate-600 pt-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[13px] text-slate-600 pt-1">
                     <span className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-950" />
                       New
@@ -905,16 +906,16 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded overflow-hidden">
-                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-slate-700">
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-medium text-slate-700 truncate">
                       Top Customers by Lifetime Value
                     </span>
-                    <span className="text-[13px] text-blue-950 font-medium">
+                    <span className="text-[13px] text-blue-950 font-medium shrink-0">
                       Top {customers.top_customers.length}
                     </span>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[600px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                           <th className="py-2 px-2 font-medium">Customer</th>
@@ -933,22 +934,24 @@ function AnalyticsPageInner() {
                         ) : (
                           customers.top_customers.map((c) => (
                             <tr key={c.id} className="hover:bg-slate-50 transition">
-                              <td className="py-2 px-2 flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
-                                  {c.avatar}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-medium text-slate-900 truncate">{c.name}</p>
-                                  <p className="text-[13px] text-slate-400 truncate">{c.email}</p>
+                              <td className="py-2 px-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="h-8 w-8 rounded-full bg-blue-950 text-white flex items-center justify-center text-[13px] font-semibold shrink-0">
+                                    {c.avatar}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-slate-900 truncate">{c.name}</p>
+                                    <p className="text-[13px] text-slate-400 truncate">{c.email}</p>
+                                  </div>
                                 </div>
                               </td>
                               <td className="py-2 px-2">
                                 <span
                                   className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border ${c.tier === 'VIP'
-                                      ? 'bg-violet-50 text-violet-700 border-violet-100'
-                                      : c.tier === 'Gold'
-                                        ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                                    ? 'bg-violet-50 text-violet-700 border-violet-100'
+                                    : c.tier === 'Gold'
+                                      ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                      : 'bg-slate-50 text-slate-600 border-slate-200'
                                     }`}
                                 >
                                   {c.tier}
@@ -979,9 +982,9 @@ function AnalyticsPageInner() {
                     { label: 'Out of Stock', value: products.summary.out_of_stock.toString(), icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
                     { label: 'Abandoned', value: products.summary.abandoned.toString(), icon: Package, color: 'text-slate-600 bg-slate-50' },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-6 h-6 rounded flex items-center justify-center ${s.color}`}>
+                    <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${s.color}`}>
                           <s.icon className="w-3.5 h-3.5" />
                         </span>
                         <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
@@ -992,12 +995,12 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded overflow-hidden">
-                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-slate-700">Product Performance</span>
-                    <span className="text-[13px] text-blue-950 font-medium">Tap a row for details</span>
+                  <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-medium text-slate-700 truncate">Product Performance</span>
+                    <span className="text-[13px] text-blue-950 font-medium shrink-0 hidden sm:inline">Tap a row for details</span>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[13px]">
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[820px]">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                           <th className="py-2 px-2 font-medium">Product</th>
@@ -1024,7 +1027,7 @@ function AnalyticsPageInner() {
                               className="hover:bg-slate-50 cursor-pointer transition"
                             >
                               <td className="py-2 px-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
                                   {p.image ? (
                                     <img
                                       src={p.image}
@@ -1037,8 +1040,8 @@ function AnalyticsPageInner() {
                                     </span>
                                   )}
                                   <div className="min-w-0">
-                                    <p className="font-medium text-slate-900 truncate">{p.name}</p>
-                                    <p className="text-[13px] text-slate-400 font-mono truncate">{p.sku}</p>
+                                    <p className="font-medium text-slate-900 truncate max-w-[180px]">{p.name}</p>
+                                    <p className="text-[13px] text-slate-400 font-mono truncate max-w-[180px]">{p.sku}</p>
                                   </div>
                                 </div>
                               </td>
@@ -1056,7 +1059,7 @@ function AnalyticsPageInner() {
                               <td className="py-2 px-2 text-right font-mono text-slate-600">{p.conversion}</td>
                               <td className="py-2 px-2 text-right">
                                 <span
-                                  className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border ${PRODUCT_STATUS_STYLES[p.status]}`}
+                                  className={`inline-block px-2 py-0.5 rounded text-[13px] font-medium border whitespace-nowrap ${PRODUCT_STATUS_STYLES[p.status]}`}
                                 >
                                   {PRODUCT_STATUS_LABELS[p.status]}
                                 </span>
@@ -1091,7 +1094,7 @@ function AnalyticsPageInner() {
                             </span>
                             <div className="min-w-0">
                               <div className="text-[13px] font-semibold text-slate-900 truncate">{ch.name}</div>
-                              <div className="text-[13px] text-slate-500">
+                              <div className="text-[13px] text-slate-500 truncate">
                                 {ch.visitors.toLocaleString()} visitors
                               </div>
                             </div>
@@ -1114,7 +1117,7 @@ function AnalyticsPageInner() {
                             <p className="text-[13px] text-slate-500">Orders</p>
                             <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{ch.orders}</p>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-[13px] text-slate-500">Revenue</p>
                             <p className="text-[13px] font-semibold text-slate-900 mt-0.5 truncate">
                               {ch.revenue}
@@ -1132,7 +1135,7 @@ function AnalyticsPageInner() {
 
                 <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <h3 className="text-[13px] font-semibold text-slate-900">Channel Traffic Trend</h3>
-                  <div className="h-60 w-full">
+                  <div className="h-52 sm:h-60 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={channels.trend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1196,7 +1199,7 @@ function AnalyticsPageInner() {
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-[13px] font-semibold text-blue-950">{p.value}</p>
-                            <p className="text-[13px] text-slate-400 truncate max-w-[140px]">{p.desc}</p>
+                            <p className="text-[13px] text-slate-400 truncate max-w-[120px] sm:max-w-[140px]">{p.desc}</p>
                           </div>
                         </div>
                       ))}
@@ -1214,9 +1217,9 @@ function AnalyticsPageInner() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded p-2">
+    <div className="bg-slate-50 border border-slate-200 rounded p-2 min-w-0">
       <p className="text-[13px] font-medium text-slate-500">{label}</p>
-      <p className="text-[13px] font-semibold text-slate-900 mt-0.5">{value}</p>
+      <p className="text-[13px] font-semibold text-slate-900 mt-0.5 truncate">{value}</p>
     </div>
   );
 }
