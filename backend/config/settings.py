@@ -4,6 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import environ
+from botocore.config import Config
 from corsheaders.defaults import default_headers
 from django.core.exceptions import ImproperlyConfigured
 
@@ -673,13 +674,44 @@ if env.bool("USE_S3"):
         raise ImproperlyConfigured(
             f"USE_S3=True but missing: {', '.join(_missing)}"
         )
-    STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}
     AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
     AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="us-east-1")
+    AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default="") or None
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)
+
+    _s3_options = {
+        "bucket_name": AWS_STORAGE_BUCKET_NAME,
+        "region_name": AWS_S3_REGION_NAME,
+        "access_key": AWS_ACCESS_KEY_ID,
+        "secret_key": AWS_SECRET_ACCESS_KEY,
+        "file_overwrite": AWS_S3_FILE_OVERWRITE,
+        "default_acl": AWS_DEFAULT_ACL,
+        "querystring_auth": AWS_QUERYSTRING_AUTH,
+        "client_config": Config(
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+        ),
+    }
+    if AWS_S3_ENDPOINT_URL:
+        _s3_options["endpoint_url"] = AWS_S3_ENDPOINT_URL
+
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": _s3_options,
+    }
+
+    _media_public_url = env("MEDIA_URL", default="")
+    if not _media_public_url:
+        _media_public_url = (
+            f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
+            f"{AWS_S3_REGION_NAME}.amazonaws.com/"
+        )
+    MEDIA_URL = _media_public_url.rstrip("/") + "/"
+    MEDIA_URL_ABSOLUTE = MEDIA_URL
 
 
 LANGUAGE_CODE = "en-us"
