@@ -59,6 +59,7 @@ export default function ShippingPage() {
   const [isAddZoneOpen, setIsAddZoneOpen] = useState(false);
   const [isAddRateOpen, setIsAddRateOpen] = useState(false);
   const [isAddPickupOpen, setIsAddPickupOpen] = useState(false);
+  const [isAddMethodOpen, setIsAddMethodOpen] = useState(false);
   const [selectedZoneIdForRate, setSelectedZoneIdForRate] = useState<number | null>(null);
 
   const [zoneName, setZoneName] = useState('');
@@ -77,10 +78,15 @@ export default function ShippingPage() {
   const [pickupPhone, setPickupPhone] = useState('');
   const [pickupHours, setPickupHours] = useState('Mon-Sat 9am-7pm');
 
+  const [methodName, setMethodName] = useState('');
+  const [methodDescription, setMethodDescription] = useState('');
+  const [methodPrice, setMethodPrice] = useState('');
+  const [methodEta, setMethodEta] = useState('2-3 business days');
+
   const [trackingSearch, setTrackingSearch] = useState('');
   const [debouncedTrackingSearch, setDebouncedTrackingSearch] = useState('');
 
-  const anyModalOpen = isAddZoneOpen || isAddRateOpen || isAddPickupOpen;
+  const anyModalOpen = isAddZoneOpen || isAddRateOpen || isAddPickupOpen || isAddMethodOpen;
 
   useEffect(() => {
     if (toastMessage) {
@@ -96,6 +102,7 @@ export default function ShippingPage() {
         setIsAddZoneOpen(false);
         setIsAddRateOpen(false);
         setIsAddPickupOpen(false);
+        setIsAddMethodOpen(false);
       }
     };
     document.body.style.overflow = 'hidden';
@@ -224,6 +231,14 @@ export default function ShippingPage() {
     setIsAddPickupOpen(true);
   };
 
+  const openAddMethod = () => {
+    setMethodName('');
+    setMethodDescription('');
+    setMethodPrice('');
+    setMethodEta('2-3 business days');
+    setIsAddMethodOpen(true);
+  };
+
   const saveZone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
@@ -318,6 +333,39 @@ export default function ShippingPage() {
       showToast(`Pickup location "${newLoc.name}" added`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to add pickup');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveMethod = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!methodName.trim()) {
+      showToast('Method name is required');
+      return;
+    }
+    if (!methodPrice) {
+      showToast('Default price is required');
+      return;
+    }
+    setBusy(true);
+    try {
+      const newMethod = await adminApi.shipping.methods.create({
+        name: methodName,
+        description: methodDescription,
+        defaultPrice: Number(methodPrice),
+        eta: methodEta || '2-3 days',
+      });
+      setMethods((prev) => [newMethod, ...prev]);
+      setIsAddMethodOpen(false);
+      setMethodName('');
+      setMethodDescription('');
+      setMethodPrice('');
+      setMethodEta('2-3 business days');
+      showToast(`Method "${newMethod.name}" created`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to create method');
     } finally {
       setBusy(false);
     }
@@ -612,8 +660,16 @@ export default function ShippingPage() {
 
             {activeTab === 'Methods' && (
               <div className="bg-white border border-slate-200 rounded overflow-hidden">
-                <div className="px-2 py-2 border-b border-slate-200 bg-slate-50">
+                <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
                   <p className="text-[13px] font-medium text-slate-700">Delivery methods</p>
+                  <button
+                    onClick={openAddMethod}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 bg-blue-950 hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-2.5 py-1.5 rounded text-[13px] transition"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add method
+                  </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-[13px]">
@@ -631,7 +687,7 @@ export default function ShippingPage() {
                       {methods.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="py-12 text-center text-slate-400 text-[13px]">
-                            No delivery methods configured.
+                            No delivery methods configured. Click "Add method" to create one.
                           </td>
                         </tr>
                       ) : (
@@ -1311,6 +1367,104 @@ export default function ShippingPage() {
                   className="bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded text-[13px]"
                 >
                   {busy ? 'Saving…' : 'Save location'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isAddMethodOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+          onClick={() => setIsAddMethodOpen(false)}
+        >
+          <div
+            className="bg-white border border-slate-200 rounded max-w-md w-full shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-8 h-8 rounded bg-blue-50 text-blue-950 flex items-center justify-center shrink-0">
+                  <Truck className="w-4 h-4" />
+                </span>
+                <p className="text-[15px] font-semibold text-slate-900">Add delivery method</p>
+              </div>
+              <button
+                onClick={() => setIsAddMethodOpen(false)}
+                className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={saveMethod} className="p-2 space-y-2 text-[13px]">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Method name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Standard Delivery"
+                  value={methodName}
+                  onChange={(e) => setMethodName(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Delivered to your doorstep"
+                  value={methodDescription}
+                  onChange={(e) => setMethodDescription(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Default price (KES) *</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="300"
+                    value={methodPrice}
+                    onChange={(e) => setMethodPrice(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">ETA</label>
+                  <input
+                    type="text"
+                    placeholder="2-3 days"
+                    value={methodEta}
+                    onChange={(e) => setMethodEta(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[13px] text-slate-400">
+                New methods are created as <strong className="text-slate-700">Active</strong> by default. Enable/disable from the table after creation.
+              </p>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddMethodOpen(false)}
+                  disabled={busy}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="bg-blue-950 hover:bg-blue-900 disabled:opacity-50 text-white font-medium px-3 py-2 rounded text-[13px]"
+                >
+                  {busy ? 'Saving…' : 'Save method'}
                 </button>
               </div>
             </form>
