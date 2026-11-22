@@ -668,6 +668,34 @@ STORAGES = {
 }
 
 if env.bool("USE_S3"):
+    from storages.backends.s3 import S3Storage as _BaseS3Storage
+
+    class B2Storage(_BaseS3Storage):
+        """S3Storage subclass tuned for Backblaze B2.
+
+        B2 closes the connection when it sees the `Expect: 100-continue`
+        header that botocore adds to PutObject requests. This subclass
+        strips that header on every outbound S3 request via the
+        `before-send` event hook.
+        """
+
+        def __init__(self, **settings):
+            super().__init__(**settings)
+
+            client = None
+            conn = self.connection
+            for attr in ("client", "_client"):
+                candidate = getattr(conn, attr, None)
+                if candidate is not None and hasattr(candidate, "meta"):
+                    client = candidate
+                    break
+
+            if client is not None:
+                def _remove_expect(request, **kwargs):
+                    request.headers.pop("Expect", None)
+
+                client.meta.events.register("before-send.s3.*", _remove_expect)
+
     _required_s3 = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_STORAGE_BUCKET_NAME")
     _missing = [k for k in _required_s3 if not env(k, default="")]
     if _missing:
@@ -694,7 +722,6 @@ if env.bool("USE_S3"):
         "client_config": Config(
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
-            expect_100_continue=False,
             s3={"addressing_style": "path"},
             retries={"max_attempts": 3, "mode": "standard"},
         ),
@@ -703,7 +730,7 @@ if env.bool("USE_S3"):
         _s3_options["endpoint_url"] = AWS_S3_ENDPOINT_URL
 
     STORAGES["default"] = {
-        "BACKEND": "storages.backends.s3.S3Storage",
+        "BACKEND": "config.settings.B2Storage",
         "OPTIONS": _s3_options,
     }
 
