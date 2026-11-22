@@ -37,7 +37,7 @@ interface Props {
     shopName?: string;
 }
 
-export default function SupportWidget({ shopName = 'Havens Technologies' }: Props) {
+export default function SupportWidget({ shopName = 'RAZE STORE' }: Props) {
     const [open, setOpen] = useState(false);
     const [tab, setTab] = useState<Tab>('ai');
 
@@ -186,38 +186,37 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                 <button
                     type="button"
                     onClick={() => setOpen(true)}
-                    className="group fixed bottom-4 right-4 z-[90] h-14 w-14 rounded-full bg-[#0B0D10] hover:bg-[#00B8D4] text-[#00E5FF] hover:text-[#0B0D10] shadow-lg ring-2 ring-white/90 flex items-center justify-center transition"
+                    className="group fixed bottom-4 right-4 z-[90] h-14 w-14 rounded-full bg-blue-950 hover:bg-blue-900 text-white shadow-lg ring-2 ring-white/90 flex items-center justify-center transition"
                     aria-label="Open support"
                 >
                     <MessageCircle className="w-6 h-6" />
-                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-[#00E5FF] ring-2 ring-white" />
+                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-white ring-2 ring-blue-950" />
                 </button>
             )}
 
             {open && (
                 <div className="fixed inset-0 z-[95] flex items-center justify-center p-3 sm:p-6">
                     <div
-                        className="absolute inset-0 bg-[#0B0D10]/60 backdrop-blur-sm"
+                        className="absolute inset-0 bg-blue-950/60 backdrop-blur-sm"
                         onClick={() => setOpen(false)}
                         aria-hidden="true"
                     />
 
                     <div className="relative w-[96vw] h-[95vh] md:w-[min(85vw,1240px)] md:h-[min(90vh,900px)] bg-white border border-slate-200 rounded-sm flex flex-col overflow-hidden">
-                        {/* Header — Matte Carbon Black */}
                         <div className="shrink-0 border-b border-slate-200 bg-white">
                             <div className="px-3 sm:px-4 pt-3 flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-[14px] sm:text-[15px] font-semibold text-[#111827]">
+                                    <h3 className="text-[14px] sm:text-[15px] font-semibold text-slate-900">
                                         {shopName} Support
                                     </h3>
-                                    <p className="text-[10px] sm:text-[11px] text-[#00B8D4] uppercase tracking-[0.15em] font-semibold">
+                                    <p className="text-[10px] sm:text-[11px] text-blue-950 uppercase tracking-[0.15em] font-semibold">
                                         Feel the Quality
                                     </p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => setOpen(false)}
-                                    className="h-8 w-8 rounded-md hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] text-[#111827] flex items-center justify-center transition-colors"
+                                    className="h-8 w-8 rounded-md hover:bg-blue-950/10 hover:text-blue-950 text-slate-900 flex items-center justify-center transition-colors"
                                     aria-label="Close"
                                 >
                                     <X className="w-4 h-4" />
@@ -229,8 +228,8 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                     type="button"
                                     onClick={() => setTab('ai')}
                                     className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-2 text-[12px] sm:text-[13px] font-medium border-b-2 rounded-t-md transition ${tab === 'ai'
-                                            ? 'text-[#111827] border-[#00E5FF] bg-[#00E5FF]/10'
-                                            : 'text-[#6B7280] border-transparent hover:text-[#111827] hover:bg-[#F3F6F9]'
+                                        ? 'text-slate-900 border-blue-950 bg-blue-950/10'
+                                        : 'text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-50'
                                         }`}
                                 >
                                     <Bot className="w-3.5 h-3.5" />
@@ -240,8 +239,8 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                     type="button"
                                     onClick={() => setTab('whatsapp')}
                                     className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-2 text-[12px] sm:text-[13px] font-medium border-b-2 rounded-t-md transition ${tab === 'whatsapp'
-                                            ? 'text-[#111827] border-[#00B8D4] bg-[#00B8D4]/10'
-                                            : 'text-[#6B7280] border-transparent hover:text-[#111827] hover:bg-[#F3F6F9]'
+                                        ? 'text-slate-900 border-blue-900 bg-blue-900/10'
+                                        : 'text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-50'
                                         }`}
                                 >
                                     <WhatsAppIcon className="w-3.5 h-3.5" />
@@ -254,7 +253,7 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                             <>
                                 <div
                                     ref={scrollRef}
-                                    className="flex-1 overflow-y-auto bg-[#F3F6F9] p-3 sm:p-3 space-y-2"
+                                    className="flex-1 overflow-y-auto bg-slate-50 p-3 sm:p-3 space-y-2"
                                 >
                                     {messages.map((m) => (
                                         <div
@@ -267,8 +266,8 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                             >
                                                 <div
                                                     className={`px-3.5 py-2.5 text-[13px] whitespace-pre-wrap ${m.role === 'user'
-                                                            ? 'bg-[#00E5FF] text-[#0B0D10] font-semibold rounded-md rounded-tr-none'
-                                                            : 'bg-white text-[#111827] border border-slate-200 rounded-md rounded-tl-none'
+                                                        ? 'bg-blue-950 text-white font-semibold rounded-md rounded-tr-none'
+                                                        : 'bg-white text-slate-900 border border-slate-200 rounded-md rounded-tl-none'
                                                         }`}
                                                 >
                                                     {m.content}
@@ -280,7 +279,7 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                                             <Link
                                                                 key={p.id}
                                                                 href={p.url}
-                                                                className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-2 py-1.5 hover:border-[#00B8D4] transition-colors"
+                                                                className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-2 py-1.5 hover:border-blue-950 transition-colors"
                                                             >
                                                                 {p.images[0] && (
                                                                     <img
@@ -290,15 +289,15 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                                                     />
                                                                 )}
                                                                 <div className="min-w-0 flex-1">
-                                                                    <div className="text-[12px] font-medium text-[#111827] truncate">
+                                                                    <div className="text-[12px] font-medium text-slate-900 truncate">
                                                                         {p.name}
                                                                     </div>
-                                                                    <div className="text-[11px] text-[#6B7280]">
+                                                                    <div className="text-[11px] text-slate-500">
                                                                         KES{' '}
                                                                         {Number(p.price).toLocaleString()}
                                                                     </div>
                                                                 </div>
-                                                                <ArrowRight className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
+                                                                <ArrowRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                                                             </Link>
                                                         ))}
                                                     </div>
@@ -311,7 +310,7 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                                                 key={chip}
                                                                 type="button"
                                                                 onClick={() => sendMessage(chip)}
-                                                                className="text-[11px] px-2.5 py-1 rounded-md bg-white border border-slate-200 text-[#111827] hover:border-[#00E5FF] hover:text-[#0B0D10] hover:bg-[#00E5FF]/10 transition-colors"
+                                                                className="text-[11px] px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-900 hover:border-blue-950 hover:text-white hover:bg-blue-950 transition-colors"
                                                             >
                                                                 {chip}
                                                             </button>
@@ -325,13 +324,13 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                     {sending && (
                                         <div className="flex justify-start">
                                             <div className="bg-white border border-slate-200 px-3 py-2 rounded-md rounded-tl-none flex items-center gap-1">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-[#00B8D4] animate-bounce" />
+                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
                                                 <span
-                                                    className="w-1.5 h-1.5 rounded-full bg-[#00B8D4] animate-bounce"
+                                                    className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
                                                     style={{ animationDelay: '150ms' }}
                                                 />
                                                 <span
-                                                    className="w-1.5 h-1.5 rounded-full bg-[#00B8D4] animate-bounce"
+                                                    className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
                                                     style={{ animationDelay: '300ms' }}
                                                 />
                                             </div>
@@ -342,9 +341,9 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                 <button
                                     type="button"
                                     onClick={() => setTab('whatsapp')}
-                                    className="shrink-0 w-full inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] text-[#6B7280] hover:text-[#00B8D4] font-medium border-t border-slate-200 bg-white py-2 transition-colors"
+                                    className="shrink-0 w-full inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] text-slate-500 hover:text-blue-950 font-medium border-t border-slate-200 bg-white py-2 transition-colors"
                                 >
-                                    <WhatsAppIcon className="w-3.5 h-3.5 text-[#00B8D4]" />
+                                    <WhatsAppIcon className="w-3.5 h-3.5 text-blue-950" />
                                     Prefer a human? Switch to WhatsApp
                                 </button>
 
@@ -363,12 +362,12 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                             onKeyDown={handleKeyDown}
                                             placeholder="Ask about products, delivery… "
                                             rows={1}
-                                            className="w-full border border-slate-300 rounded pl-3 pr-12 py-3 text-[13px] text-[#111827] placeholder:text-[#6B7280] bg-[#F3F6F9] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00B8D4]/60 focus:border-[#00B8D4] transition resize-none min-h-[60px] max-h-[200px] overflow-y-auto"
+                                            className="w-full border border-slate-300 rounded pl-3 pr-12 py-3 text-[13px] text-slate-900 placeholder:text-slate-500 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-950/60 focus:border-blue-950 transition resize-none min-h-[60px] max-h-[200px] overflow-y-auto"
                                         />
                                         <button
                                             type="submit"
                                             disabled={sending || !input.trim()}
-                                            className="absolute right-1.5 bottom-1.5 h-9 w-9 disabled:opacity-40 text-[#6B7280] hover:text-[#00B8D4] flex items-center justify-center transition-colors"
+                                            className="absolute right-1.5 bottom-1.5 h-9 w-9 disabled:opacity-40 text-slate-500 hover:text-blue-950 flex items-center justify-center transition-colors"
                                             aria-label="Send"
                                         >
                                             <Send className="w-4 h-4" />
@@ -379,30 +378,30 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                         )}
 
                         {tab === 'whatsapp' && (
-                            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-[#F3F6F9]">
+                            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 bg-slate-50">
                                 {waConfig?.displayNumber || waConfig?.phoneNumber ? (
                                     <div className="bg-white border border-slate-200 rounded-md p-3 flex items-center gap-2.5">
-                                        <div className="w-10 h-10 rounded-full bg-[#00E5FF]/15 text-[#00B8D4] flex items-center justify-center shrink-0">
+                                        <div className="w-10 h-10 rounded-full bg-blue-950/15 text-blue-950 flex items-center justify-center shrink-0">
                                             <WhatsAppIcon className="w-5 h-5" />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <div className="text-[13px] font-semibold text-[#111827]">
+                                            <div className="text-[13px] font-semibold text-slate-900">
                                                 {waConfig?.displayNumber || waConfig?.phoneNumber}
                                             </div>
-                                            <div className="text-[11px] text-[#6B7280]">
+                                            <div className="text-[11px] text-slate-500">
                                                 {waConfig?.hoursLabel || 'Reply within minutes'}
                                             </div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-[13px] text-[#6B7280] bg-white border border-slate-200 rounded p-3">
+                                    <div className="text-[13px] text-slate-500 bg-white border border-slate-200 rounded p-3">
                                         WhatsApp is not configured yet.
                                     </div>
                                 )}
 
                                 {waConfig?.quickActions && waConfig.quickActions.length > 0 ? (
                                     <>
-                                        <div className="text-[13px] uppercase text-[#6B7280] font-medium pt-1 px-1">
+                                        <div className="text-[13px] uppercase text-slate-500 font-medium pt-1 px-1">
                                             Quick messages
                                         </div>
                                         <div className="space-y-1.5">
@@ -411,20 +410,20 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                                     key={a.id}
                                                     type="button"
                                                     onClick={() => openWhatsApp(a.message)}
-                                                    className="w-full text-left bg-white border border-slate-200 rounded-md p-3 hover:border-[#00B8D4] hover:bg-[#00B8D4]/5 transition-colors flex items-center gap-2.5"
+                                                    className="w-full text-left bg-white border border-slate-200 rounded-md p-3 hover:border-blue-950 hover:bg-blue-950/5 transition-colors flex items-center gap-2.5"
                                                 >
-                                                    <div className="w-8 h-8 rounded-full bg-[#00E5FF]/15 text-[#00B8D4] flex items-center justify-center shrink-0">
+                                                    <div className="w-8 h-8 rounded-full bg-blue-950/15 text-blue-950 flex items-center justify-center shrink-0">
                                                         <WhatsAppIcon className="w-4 h-4" />
                                                     </div>
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="text-[12px] font-semibold text-[#111827] truncate">
+                                                        <div className="text-[12px] font-semibold text-slate-900 truncate">
                                                             {a.label}
                                                         </div>
-                                                        <div className="text-[11px] text-[#6B7280] line-clamp-2">
+                                                        <div className="text-[11px] text-slate-500 line-clamp-2">
                                                             {a.message}
                                                         </div>
                                                     </div>
-                                                    <ArrowRight className="w-4 h-4 text-[#6B7280] shrink-0" />
+                                                    <ArrowRight className="w-4 h-4 text-slate-500 shrink-0" />
                                                 </button>
                                             ))}
                                         </div>
@@ -433,7 +432,7 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                     <button
                                         type="button"
                                         onClick={() => openWhatsApp()}
-                                        className="w-full inline-flex items-center justify-center gap-2 bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-3 rounded text-[13px] transition"
+                                        className="w-full inline-flex items-center justify-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-bold py-3 rounded text-[13px] transition"
                                     >
                                         <WhatsAppIcon className="w-4 h-4" />
                                         Start a WhatsApp chat
@@ -444,7 +443,7 @@ export default function SupportWidget({ shopName = 'Havens Technologies' }: Prop
                                     <button
                                         type="button"
                                         onClick={() => setTab('ai')}
-                                        className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] sm:text-[13px] text-[#6B7280] hover:text-[#00B8D4] font-medium py-3 rounded hover:bg-white transition-colors"
+                                        className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] sm:text-[13px] text-slate-500 hover:text-blue-950 font-medium py-3 rounded hover:bg-white transition-colors"
                                     >
                                         <Bot className="w-3.5 h-3.5" />
                                         Or ask our AI assistant instead

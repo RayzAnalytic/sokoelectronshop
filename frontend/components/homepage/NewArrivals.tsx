@@ -35,12 +35,11 @@ function normalizeStock(raw: string | undefined): StockKind {
     return 'unknown';
 }
 
-/* Palette-locked stock chips */
 const STOCK_STYLES: Record<StockKind, { bg: string; label: string }> = {
-    in: { bg: 'bg-[#00E5FF] text-[#0B0D10]', label: 'In Stock' },
-    low: { bg: 'bg-[#00B8D4] text-[#0B0D10]', label: 'Low Stock' },
-    out: { bg: 'bg-[#6B7280] text-white', label: 'Out of Stock' },
-    unknown: { bg: 'bg-[#6B7280] text-white', label: 'Unknown' },
+    in: { bg: 'bg-blue-950 text-white', label: 'In Stock' },
+    low: { bg: 'bg-blue-900 text-white', label: 'Low Stock' },
+    out: { bg: 'bg-slate-400 text-white', label: 'Out of Stock' },
+    unknown: { bg: 'bg-slate-300 text-slate-700', label: 'Unknown' },
 };
 
 export default function NewArrivals() {
@@ -119,14 +118,14 @@ export default function NewArrivals() {
 
     if (loading && products.length === 0) {
         return (
-            <section className="bg-[#11161D] py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-[#0B0D10]">
+            <section className="bg-blue-950 py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-blue-900">
                 <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 lg:px-6">
                     <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-2 gap-1.5 sm:gap-2">
                         <div className="min-w-0">
                             <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-white">
                                 New Arrivals
                             </h2>
-                            <p className="text-[11px] xs:text-[12px] sm:text-sm text-white/75">
+                            <p className="text-[11px] xs:text-[12px] sm:text-sm text-slate-300">
                                 Explore the latest electronics added to our store.
                             </p>
                         </div>
@@ -137,11 +136,11 @@ export default function NewArrivals() {
                                 key={i}
                                 className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                             >
-                                <div className="aspect-[20/16] bg-[#F3F6F9]" />
+                                <div className="aspect-[20/16] bg-slate-100" />
                                 <div className="p-2 xs:p-3 space-y-1.5 xs:space-y-2">
-                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/2" />
-                                    <div className="h-3 xs:h-4 bg-[#F3F6F9] rounded w-3/4" />
-                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/3" />
+                                    <div className="h-2.5 xs:h-3 bg-slate-100 rounded w-1/2" />
+                                    <div className="h-3 xs:h-4 bg-slate-100 rounded w-3/4" />
+                                    <div className="h-2.5 xs:h-3 bg-slate-100 rounded w-1/3" />
                                 </div>
                             </div>
                         ))}
@@ -153,17 +152,17 @@ export default function NewArrivals() {
 
     if (hasLoadedOnce && error && products.length === 0) {
         return (
-            <section className="bg-[#11161D] py-10 xs:py-12 border-b border-[#0B0D10]">
+            <section className="bg-blue-950 py-10 xs:py-12 border-b border-blue-900">
                 <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 text-center">
                     <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white mb-1">
                         New Arrivals
                     </h2>
-                    <p className="text-[11px] xs:text-[12px] sm:text-xs text-white/75 mb-3">
+                    <p className="text-[11px] xs:text-[12px] sm:text-xs text-slate-300 mb-3">
                         {error}
                     </p>
                     <Link
                         href="/pages/new-arrivals"
-                        className="inline-flex items-center space-x-1 text-[12px] xs:text-[13px] sm:text-sm font-medium text-[#00E5FF] hover:text-[#00B8D4] hover:underline transition-colors"
+                        className="inline-flex items-center space-x-1 text-[12px] xs:text-[13px] sm:text-sm font-medium text-white hover:text-slate-300 hover:underline transition-colors"
                     >
                         <span>Browse All Products</span>
                         <ArrowRight className="w-3 h-3 xs:w-3.5 xs:h-3.5" />
@@ -175,17 +174,17 @@ export default function NewArrivals() {
 
     if (hasLoadedOnce && products.length === 0) {
         return (
-            <section className="bg-[#11161D] py-10 xs:py-12 border-b border-[#0B0D10]">
+            <section className="bg-blue-950 py-10 xs:py-12 border-b border-blue-900">
                 <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 text-center">
                     <h2 className="text-base xs:text-lg sm:text-xl font-bold text-white mb-1">
                         New Arrivals
                     </h2>
-                    <p className="text-[12px] xs:text-[13px] sm:text-sm text-white/75 mb-2">
+                    <p className="text-[12px] xs:text-[13px] sm:text-sm text-slate-300 mb-2">
                         No new products are available right now.
                     </p>
                     <Link
                         href="/pages/new-arrivals"
-                        className="inline-flex items-center space-x-1 text-[12px] xs:text-[13px] sm:text-sm font-medium text-[#00E5FF] hover:text-[#00B8D4] hover:underline transition-colors"
+                        className="inline-flex items-center space-x-1 text-[12px] xs:text-[13px] sm:text-sm font-medium text-white hover:text-slate-300 hover:underline transition-colors"
                     >
                         <span>Browse All Products</span>
                         <ArrowRight className="w-3 h-3 xs:w-3.5 xs:h-3.5" />
@@ -196,20 +195,20 @@ export default function NewArrivals() {
     }
 
     return (
-        <section className="bg-[#11161D] py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-[#0B0D10]">
+        <section className="bg-blue-950 py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-blue-900">
             <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 lg:px-6">
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-3 xs:mb-4 sm:mb-5 gap-1.5 sm:gap-2">
                     <div className="min-w-0">
                         <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-white">
-                            New <span className="text-[#00E5FF]">Arrivals</span>
+                            New <span className="text-slate-300">Arrivals</span>
                         </h2>
-                        <p className="text-[11px] xs:text-[12px] sm:text-xs md:text-sm text-white/75">
+                        <p className="text-[11px] xs:text-[12px] sm:text-xs md:text-sm text-slate-300">
                             Explore the latest electronics added to our store.
                         </p>
                     </div>
                     <Link
                         href="/pages/products/newarrivals"
-                        className="text-[11px] xs:text-[12px] sm:text-sm font-semibold text-white hover:text-[#00E5FF] hover:underline inline-flex items-center space-x-1 shrink-0 self-start sm:self-auto transition-colors"
+                        className="text-[11px] xs:text-[12px] sm:text-sm font-semibold text-white hover:text-slate-300 hover:underline inline-flex items-center space-x-1 shrink-0 self-start sm:self-auto transition-colors"
                     >
                         <span>View All</span>
                         <ArrowRight className="w-3 h-3 xs:w-3.5 xs:h-3.5" />
@@ -233,19 +232,18 @@ export default function NewArrivals() {
                             <Link
                                 key={product.id}
                                 href={`/pages/new-arrivals?open=${product.id}`}
-                                className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-[#00E5FF] hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
+                                className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-blue-950 hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
                             >
                                 <div>
-                                    <div className="aspect-[20/16] w-full bg-[#F3F6F9] overflow-hidden relative">
+                                    <div className="aspect-[20/16] w-full bg-slate-50 overflow-hidden relative">
                                         <img
                                             src={product.images[0] ?? '/placeholder.jpeg'}
                                             alt={product.name}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
 
-                                        {/* NEW ribbon — Electric Neon Cyan, bold black text */}
                                         <div className="absolute top-0 left-0 w-20 h-20 xs:w-24 xs:h-24 overflow-hidden pointer-events-none z-10">
-                                            <div className="absolute transform -rotate-45 bg-gradient-to-br from-[#00E5FF] via-[#00E5FF] to-[#00B8D4] text-[#0B0D10] font-extrabold text-[10px] xs:text-[11px] sm:text-[13px] py-1 left-[-42px] top-[14px] xs:top-[18px] w-[150px] text-center shadow-sm">
+                                            <div className="absolute transform -rotate-45 bg-gradient-to-br from-blue-950 via-blue-950 to-blue-900 text-white font-extrabold text-[10px] xs:text-[11px] sm:text-[13px] py-1 left-[-42px] top-[14px] xs:top-[18px] w-[150px] text-center shadow-sm">
                                                 NEW
                                             </div>
                                         </div>
@@ -273,21 +271,21 @@ export default function NewArrivals() {
                                     </div>
 
                                     <div className="p-1.5 xs:p-2 pb-1.5 xs:pb-2">
-                                        <p className="text-[10px] xs:text-[11px] sm:text-[12px] font-semibold text-[#6B7280] uppercase mb-0.5 xs:mb-1 truncate">
+                                        <p className="text-[10px] xs:text-[11px] sm:text-[12px] font-semibold text-slate-500 uppercase mb-0.5 xs:mb-1 truncate">
                                             {product.brand}
                                         </p>
 
-                                        <h3 className="text-[11px] xs:text-[12px] sm:text-sm font-semibold text-[#111827] group-hover:text-[#00B8D4] transition-colors line-clamp-2 mb-0.5 xs:mb-1">
+                                        <h3 className="text-[11px] xs:text-[12px] sm:text-sm font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mb-0.5 xs:mb-1">
                                             {product.name}
                                         </h3>
 
                                         {toNum(product.rating) > 0 && (
                                             <div className="flex items-center space-x-1 mb-0.5 xs:mb-1">
-                                                <Star className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 fill-[#00B8D4] text-[#00B8D4] shrink-0" />
-                                                <span className="text-[10px] xs:text-[11px] sm:text-xs font-medium text-[#111827]">
+                                                <Star className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 fill-blue-950 text-blue-950 shrink-0" />
+                                                <span className="text-[10px] xs:text-[11px] sm:text-xs font-medium text-slate-900">
                                                     {toNum(product.rating).toFixed(1)}
                                                 </span>
-                                                <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] truncate">
+                                                <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-slate-500 truncate">
                                                     ({product.reviewCount})
                                                 </span>
                                             </div>
@@ -297,11 +295,11 @@ export default function NewArrivals() {
 
                                 <div className="p-1.5 xs:p-2 sm:p-3 pt-0 mt-auto">
                                     <div className="flex items-baseline flex-wrap gap-x-1 xs:gap-x-1.5 sm:gap-x-2 gap-y-0.5 mb-1.5 xs:mb-2 sm:mb-3 min-w-0">
-                                        <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-[#111827] whitespace-nowrap">
+                                        <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-slate-900 whitespace-nowrap">
                                             {formatKES(price)}
                                         </span>
                                         {comparePrice !== null && (
-                                            <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] line-through whitespace-nowrap">
+                                            <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-slate-500 line-through whitespace-nowrap">
                                                 {formatKES(comparePrice)}
                                             </span>
                                         )}
@@ -311,7 +309,7 @@ export default function NewArrivals() {
                                         type="button"
                                         onClick={(e) => handleAddToCart(product, e)}
                                         disabled={isAdding || isOutOfStock}
-                                        className="w-full bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-1.5 xs:py-2 px-1.5 xs:px-2 sm:px-3 rounded text-[10px] xs:text-[11px] sm:text-sm transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 xs:space-x-1.5"
+                                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-bold py-1.5 xs:py-2 px-1.5 xs:px-2 sm:px-3 rounded text-[10px] xs:text-[11px] sm:text-sm transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 xs:space-x-1.5"
                                     >
                                         {isAdding ? (
                                             <span className="truncate">Adding...</span>

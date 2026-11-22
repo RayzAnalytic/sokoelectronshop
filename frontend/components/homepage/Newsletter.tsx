@@ -77,42 +77,39 @@ export default function NewsletterSection({
     const fieldErrorId = 'newsletter-email-error';
 
     return (
-        <section className="bg-[#F3F6F9] py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-slate-200">
+        <section className="bg-slate-50 py-4 xs:py-5 sm:py-6 lg:py-6 border-b border-slate-200">
             <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 lg:px-6">
                 <div className="bg-white border border-slate-200 rounded p-3 xs:p-4 sm:p-5 max-w-3xl mx-auto text-center">
 
-                    {/* Icon badge — Matte Carbon Black with Electric Neon Cyan icon */}
-                    <div className="inline-flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 bg-[#0B0D10] text-[#00E5FF] rounded mb-1.5 xs:mb-2">
+                    <div className="inline-flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 bg-blue-950 text-white rounded mb-1.5 xs:mb-2">
                         <Mail className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5" />
                     </div>
 
-                    <h2 className="text-base xs:text-lg sm:text-xl font-bold text-[#111827]">
+                    <h2 className="text-base xs:text-lg sm:text-xl font-bold text-slate-900">
                         {heading}
                     </h2>
-                    <p className="text-[11px] xs:text-[12px] sm:text-[13px] text-[#6B7280] mt-1 max-w-md mx-auto mb-3 xs:mb-4">
+                    <p className="text-[11px] xs:text-[12px] sm:text-[13px] text-slate-500 mt-1 max-w-md mx-auto mb-3 xs:mb-4">
                         {subheading}
                     </p>
 
-                    {/* Success — cyan tinted confirmation */}
                     {success && (
                         <div
                             role="status"
                             aria-live="polite"
-                            className="mb-3 xs:mb-4 p-2 xs:p-3 bg-[#00E5FF]/10 border border-[#00E5FF] rounded text-[11px] xs:text-[12px] sm:text-[13px] text-[#0B0D10] flex items-center justify-center space-x-2"
+                            className="mb-3 xs:mb-4 p-2 xs:p-3 bg-blue-950/10 border border-blue-950 rounded text-[11px] xs:text-[12px] sm:text-[13px] text-slate-900 flex items-center justify-center space-x-2"
                         >
-                            <CheckCircle className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-[#00B8D4] shrink-0" />
+                            <CheckCircle className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-blue-950 shrink-0" />
                             <span className="text-left">{success}</span>
                         </div>
                     )}
 
-                    {/* Error — cool gray emphasis (no red in palette) */}
                     {error && (
                         <div
                             role="alert"
                             aria-live="assertive"
-                            className="mb-4 xs:mb-5 sm:mb-6 p-2 xs:p-3 bg-[#F3F6F9] border border-[#6B7280] rounded text-[11px] xs:text-[12px] sm:text-[13px] text-[#111827] flex items-center justify-center space-x-2"
+                            className="mb-4 xs:mb-5 sm:mb-6 p-2 xs:p-3 bg-slate-50 border border-slate-400 rounded text-[11px] xs:text-[12px] sm:text-[13px] text-slate-900 flex items-center justify-center space-x-2"
                         >
-                            <AlertCircle className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-[#6B7280] shrink-0" />
+                            <AlertCircle className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-slate-500 shrink-0" />
                             <span className="text-left">{error}</span>
                         </div>
                     )}
@@ -139,15 +136,15 @@ export default function NewsletterSection({
                                     aria-invalid={fieldError ? true : undefined}
                                     aria-describedby={fieldError ? fieldErrorId : undefined}
                                     className={`w-full px-2.5 xs:px-3 py-1.5 xs:py-2 text-[12px] xs:text-[13px] bg-white border ${fieldError
-                                            ? 'border-[#6B7280] focus:ring-[#6B7280]'
-                                            : 'border-slate-300 focus:border-[#00B8D4] focus:ring-[#00B8D4]'
-                                        } rounded text-[#111827] placeholder-[#6B7280] focus:outline-none focus:ring-1 disabled:bg-[#F3F6F9] disabled:text-[#6B7280]`}
+                                        ? 'border-slate-400 focus:ring-slate-400'
+                                        : 'border-slate-300 focus:border-blue-950 focus:ring-blue-950'
+                                        } rounded text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-1 disabled:bg-slate-50 disabled:text-slate-500`}
                                 />
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-1.5 xs:py-2 px-4 xs:px-5 rounded text-[12px] xs:text-[13px] sm:text-[14px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
+                                className="bg-blue-950 hover:bg-blue-900 text-white font-bold py-1.5 xs:py-2 px-4 xs:px-5 rounded text-[12px] xs:text-[13px] sm:text-[14px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
                             >
                                 {loading ? (
                                     <>
@@ -163,7 +160,7 @@ export default function NewsletterSection({
                             <p
                                 id={fieldErrorId}
                                 role="alert"
-                                className="text-[11px] xs:text-[12px] sm:text-[13px] text-[#6B7280] mt-1.5 text-left"
+                                className="text-[11px] xs:text-[12px] sm:text-[13px] text-slate-500 mt-1.5 text-left"
                             >
                                 {fieldError}
                             </p>

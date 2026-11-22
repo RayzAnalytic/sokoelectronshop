@@ -50,14 +50,13 @@ function isLive(poster: Poster, now: number): boolean {
     return true;
 }
 
-/* Fallback gradients — all derived from Obsidian / Matte Black / Cyan palette */
 function gradientFor(seed: string): string {
     const gradients = [
-        'from-[#0B0D10] via-[#11161D] to-[#0B0D10]',
-        'from-[#11161D] via-[#0B0D10] to-[#00B8D4]/30',
-        'from-[#0B0D10] via-[#00B8D4]/25 to-[#11161D]',
-        'from-[#11161D] via-[#0B0D10] to-[#00E5FF]/25',
-        'from-[#0B0D10] via-[#11161D] to-[#00B8D4]/40',
+        'from-blue-950 via-slate-900 to-blue-950',
+        'from-slate-900 via-blue-950 to-blue-900/40',
+        'from-blue-950 via-blue-900/30 to-slate-900',
+        'from-slate-900 via-blue-950 to-blue-800/30',
+        'from-blue-950 via-slate-900 to-blue-900/50',
     ];
 
     let hash = 0;
@@ -133,10 +132,9 @@ export default function PosterStrip({
             aria-label="Promotions and featured collections"
             className={`poster-section relative overflow-hidden bg-white py-9 sm:py-12 ${className}`}
         >
-            {/* Decorative glow orbs — cyan on cyan */}
             <div className="pointer-events-none absolute inset-0">
-                <div className="absolute -left-32 top-0 h-72 w-72 rounded-full bg-[#00E5FF]/10 blur-3xl" />
-                <div className="absolute -right-32 bottom-0 h-80 w-80 rounded-full bg-[#00B8D4]/10 blur-3xl" />
+                <div className="absolute -left-32 top-0 h-72 w-72 rounded-full bg-blue-950/10 blur-3xl" />
+                <div className="absolute -right-32 bottom-0 h-80 w-80 rounded-full bg-slate-400/10 blur-3xl" />
             </div>
 
             <div className="relative mx-auto max-w-[1440px]">
@@ -305,7 +303,7 @@ function PosterCard({
                 href={poster.cta_href || '#'}
                 onClick={trackClick}
                 aria-label={`${poster.headline}. ${poster.cta_text || 'Explore offer'}`}
-                className="poster-card group relative block aspect-[16/9] overflow-hidden rounded-lg border border-slate-200 bg-[#11161D] shadow-[0_14px_40px_rgba(11,13,16,0.16)] outline-none transition duration-300 hover:-translate-y-1 hover:border-[#00E5FF] hover:shadow-[0_22px_55px_rgba(0,229,255,0.20)] focus-visible:ring-2 focus-visible:ring-[#00B8D4]/50"
+                className="poster-card group relative block aspect-[16/9] overflow-hidden rounded-lg border border-slate-200 bg-blue-950 shadow-[0_14px_40px_rgba(11,13,16,0.16)] outline-none transition duration-300 hover:-translate-y-1 hover:border-blue-950 hover:shadow-[0_22px_55px_rgba(23,37,84,0.25)] focus-visible:ring-2 focus-visible:ring-slate-400/50"
             >
                 {hasImage ? (
                     <picture>
@@ -327,23 +325,21 @@ function PosterCard({
                     <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
                 )}
 
-                {/* Overlay — Matte Carbon Black depth */}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#0B0D10]/95 via-[#11161D]/55 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0B0D10]/65 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-950/95 via-slate-900/55 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-blue-950/65 via-transparent to-transparent" />
 
-                {/* Decorative ring ornaments */}
-                <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full border border-[#00E5FF]/25 transition-transform duration-700 group-hover:scale-125" />
-                <div className="absolute -right-8 -top-16 h-48 w-48 rounded-full border border-[#00B8D4]/15" />
+                <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full border border-white/25 transition-transform duration-700 group-hover:scale-125" />
+                <div className="absolute -right-8 -top-16 h-48 w-48 rounded-full border border-slate-400/20" />
 
                 <div className="relative flex h-full max-w-[78%] flex-col items-start justify-end p-4 text-white sm:p-5">
                     {poster.sponsor_label && (
-                        <span className="mb-3 inline-flex rounded-full border border-[#00B8D4]/40 bg-[#00E5FF]/10 px-3 py-1 text-[9px] font-bold uppercase text-[#00E5FF] backdrop-blur-md sm:text-[10px]">
+                        <span className="mb-3 inline-flex rounded-full border border-white/40 bg-white/10 px-3 py-1 text-[9px] font-bold uppercase text-white backdrop-blur-md sm:text-[10px]">
                             {poster.sponsor_label}
                         </span>
                     )}
 
                     {poster.brand_name && (
-                        <span className="mb-1 text-[10px] font-bold uppercase text-white/70 sm:text-xs">
+                        <span className="mb-1 text-[10px] font-bold uppercase text-slate-300 sm:text-xs">
                             {poster.brand_name}
                         </span>
                     )}
@@ -353,21 +349,20 @@ function PosterCard({
                     </h3>
 
                     {poster.subheadline && (
-                        <p className="mt-2 line-clamp-2 max-w-[340px] text-xs text-white/75 sm:text-sm">
+                        <p className="mt-2 line-clamp-2 max-w-[340px] text-xs text-slate-300 sm:text-sm">
                             {poster.subheadline}
                         </p>
                     )}
 
                     {poster.cta_text && (
-                        <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00E5FF] px-4 py-2 text-xs font-bold text-[#0B0D10] transition-all duration-200 group-hover:gap-3 group-hover:bg-[#00B8D4] sm:text-sm">
+                        <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-blue-950 transition-all duration-200 group-hover:gap-3 group-hover:bg-slate-200 sm:text-sm">
                             {poster.cta_text}
                             <ArrowRight className="h-4 w-4" />
                         </span>
                     )}
                 </div>
 
-                {/* Floating arrow pill — Matte Black at rest, Cyan on hover */}
-                <span className="pointer-events-none absolute bottom-5 right-5 hidden h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-[#0B0D10]/50 text-[#00E5FF] backdrop-blur-md transition-all duration-300 group-hover:translate-x-1 group-hover:border-[#00E5FF] group-hover:bg-[#00E5FF] group-hover:text-[#0B0D10] sm:flex">
+                <span className="pointer-events-none absolute bottom-5 right-5 hidden h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-blue-950/50 text-white backdrop-blur-md transition-all duration-300 group-hover:translate-x-1 group-hover:border-white group-hover:bg-white group-hover:text-blue-950 sm:flex">
                     <ArrowRight className="h-5 w-5" />
                 </span>
             </Link>

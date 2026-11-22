@@ -40,12 +40,11 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200 w-full">
-      {/* Top Bar — Matte Carbon Black only */}
-      <div className="bg-[#0B0D10] text-white text-[11px] sm:text-[12px] py-1.5 px-2 sm:px-4 lg:px-6">
+      <div className="bg-blue-950 text-white text-[11px] sm:text-[12px] py-1.5 px-2 sm:px-4 lg:px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           <Link
             href="/stores"
-            className="flex items-center gap-1.5 hover:text-[#00E5FF] transition-colors shrink min-w-0"
+            className="flex items-center gap-1.5 hover:text-slate-300 transition-colors shrink min-w-0"
           >
             <svg
               className="w-3.5 h-3.5 text-white shrink-0"
@@ -67,15 +66,15 @@ export default function Navbar() {
               />
             </svg>
             <span className="truncate">
-              Havens Technologies
-              <span className="hidden sm:inline text-white/70"> | Feel the Quality</span>
+              RAZE STORE
+              <span className="hidden sm:inline text-slate-300"> | Feel the Quality</span>
             </span>
           </Link>
 
           <div className="flex items-center gap-2 xs:gap-3 sm:gap-x-5 shrink-0">
             <a
               href="tel:+254705479906"
-              className="flex items-center gap-1.5 hover:text-[#00E5FF] transition-colors"
+              className="flex items-center gap-1.5 hover:text-slate-300 transition-colors"
             >
               <svg
                 className="w-3.5 h-3.5 text-white shrink-0"
@@ -98,7 +97,7 @@ export default function Navbar() {
 
             <Link
               href="/pages/account/orders"
-              className="hover:text-[#00E5FF] transition-colors whitespace-nowrap text-[10px] xs:text-[11px] sm:text-[12px]"
+              className="hover:text-slate-300 transition-colors whitespace-nowrap text-[10px] xs:text-[11px] sm:text-[12px]"
             >
               Track Order
             </Link>
@@ -106,14 +105,13 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Main Nav — clean white */}
       <nav className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-4 w-full bg-white" aria-label="Top">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-1 sm:gap-2">
           <div className="flex items-center lg:hidden shrink-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 -ml-0.5 rounded text-[#111827] hover:text-[#00B8D4] hover:bg-[#00B8D4]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00B8D4]"
+              className="p-2 -ml-0.5 rounded text-slate-900 hover:text-blue-950 hover:bg-blue-950/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-950"
               aria-label="Toggle mobile menu"
               aria-expanded={mobileMenuOpen}
             >
@@ -133,15 +131,15 @@ export default function Navbar() {
             <Link
               href="/"
               className="flex items-center shrink-0"
-              aria-label="Havens Technologies — Feel the Quality"
+              aria-label="RAZE STORE — Feel the Quality"
             >
               <Image
-                src="/Pasted image (3).png"
-                alt="Havens Technologies"
+                src="/logo.jpeg"
+                alt="RAZE STORE"
                 width={400}
                 height={100}
                 priority
-                className="h-8 sm:h-10 mr-10 w-auto object-contain"
+                className="h-8 sm:h-10 w-auto object-contain"
               />
             </Link>
 
@@ -151,11 +149,11 @@ export default function Navbar() {
                   key={cat.name}
                   href={cat.href}
                   className={`flex items-center gap-1.5 text-[14px] font-medium transition-colors whitespace-nowrap ${cat.hot
-                      ? "text-[#00B8D4] hover:text-[#00E5FF]"
-                      : "text-[#111827] hover:text-[#00B8D4]"
+                    ? "text-blue-950 hover:text-blue-900"
+                    : "text-slate-900 hover:text-blue-950"
                     }`}
                 >
-                  {cat.hot && <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF]" />}
+                  {cat.hot && <span className="w-1.5 h-1.5 rounded-full bg-blue-950" />}
                   {cat.name}
                 </Link>
               ))}
@@ -169,10 +167,10 @@ export default function Navbar() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products..."
-                className="w-[180px] lg:w-[260px] xl:w-[340px] pl-9 pr-3 py-2 text-[13px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full text-[#111827] placeholder-[#6B7280] focus:outline-none focus:bg-white focus:border-[#00B8D4] focus:ring-2 focus:ring-[#00B8D4]/30"
+                className="w-[180px] lg:w-[260px] xl:w-[340px] pl-9 pr-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-full text-slate-900 placeholder-slate-500 focus:outline-none focus:bg-white focus:border-blue-950 focus:ring-2 focus:ring-blue-950/30"
               />
               <svg
-                className="w-4 h-4 text-[#6B7280] absolute left-3 pointer-events-none"
+                className="w-4 h-4 text-slate-500 absolute left-3 pointer-events-none"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -188,7 +186,7 @@ export default function Navbar() {
 
             <Link
               href="/auth/login"
-              className="inline-flex items-center gap-1 text-[13px] font-medium text-[#111827] hover:text-[#00B8D4] px-1.5 sm:px-2 py-1.5 rounded hover:bg-[#00B8D4]/10 transition-colors"
+              className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-900 hover:text-blue-950 px-1.5 sm:px-2 py-1.5 rounded hover:bg-blue-950/10 transition-colors"
               aria-label="Sign In"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -204,7 +202,7 @@ export default function Navbar() {
 
             <Link
               href="/pages/account/wishlist"
-              className="relative p-1.5 sm:p-2 text-[#111827] hover:text-[#00B8D4] rounded hover:bg-[#00B8D4]/10 transition-colors flex items-center"
+              className="relative p-1.5 sm:p-2 text-slate-900 hover:text-blue-950 rounded hover:bg-blue-950/10 transition-colors flex items-center"
               aria-label="Wishlist"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -216,7 +214,7 @@ export default function Navbar() {
                 />
               </svg>
               {wishlistCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
+                <span className="absolute -top-0.5 -right-0.5 bg-blue-950 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
                   {wishlistCount}
                 </span>
               )}
@@ -224,7 +222,7 @@ export default function Navbar() {
 
             <Link
               href="/pages/cart"
-              className="relative p-1.5 sm:p-2 text-[#111827] hover:text-[#00B8D4] rounded hover:bg-[#00B8D4]/10 transition-colors flex items-center"
+              className="relative p-1.5 sm:p-2 text-slate-900 hover:text-blue-950 rounded hover:bg-blue-950/10 transition-colors flex items-center"
               aria-label="Shopping Cart"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -236,7 +234,7 @@ export default function Navbar() {
                 />
               </svg>
               {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
+                <span className="absolute -top-0.5 -right-0.5 bg-blue-950 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
                   {cartCount}
                 </span>
               )}
@@ -252,10 +250,10 @@ export default function Navbar() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products..."
-                className="w-full pl-9 pr-3 py-2 text-[13px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full text-[#111827] placeholder-[#6B7280] focus:outline-none focus:bg-white focus:border-[#00B8D4] focus:ring-2 focus:ring-[#00B8D4]/30"
+                className="w-full pl-9 pr-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-full text-slate-900 placeholder-slate-500 focus:outline-none focus:bg-white focus:border-blue-950 focus:ring-2 focus:ring-blue-950/30"
               />
               <svg
-                className="w-4 h-4 text-[#6B7280] absolute left-4 top-2.5 pointer-events-none"
+                className="w-4 h-4 text-slate-500 absolute left-4 top-2.5 pointer-events-none"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -276,11 +274,11 @@ export default function Navbar() {
                   href={cat.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center gap-2 px-3 py-2 text-[13px] font-medium rounded transition-colors ${cat.hot
-                      ? "text-[#00B8D4] hover:bg-[#00E5FF]/10 hover:text-[#00E5FF]"
-                      : "text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4]"
+                    ? "text-blue-950 hover:bg-blue-950/10 hover:text-blue-900"
+                    : "text-slate-900 hover:bg-blue-950/10 hover:text-blue-950"
                     }`}
                 >
-                  {cat.hot && <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF]" />}
+                  {cat.hot && <span className="w-1.5 h-1.5 rounded-full bg-blue-950" />}
                   {cat.name}
                 </Link>
               ))}
@@ -290,7 +288,7 @@ export default function Navbar() {
               <Link
                 href="/pages/account/wishlist"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
+                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-slate-900 hover:bg-blue-950/10 hover:text-blue-950 rounded transition-colors"
               >
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -304,7 +302,7 @@ export default function Navbar() {
                   <span>Wishlist</span>
                 </span>
                 {wishlistCount > 0 && (
-                  <span className="bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] px-1.5 py-0.5 rounded-full">
+                  <span className="bg-blue-950 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full">
                     {wishlistCount}
                   </span>
                 )}
@@ -312,7 +310,7 @@ export default function Navbar() {
               <Link
                 href="/pages/cart"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
+                className="flex items-center justify-between gap-2 px-3 py-2 text-[13px] font-medium text-slate-900 hover:bg-blue-950/10 hover:text-blue-950 rounded transition-colors"
               >
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -326,7 +324,7 @@ export default function Navbar() {
                   <span>Cart</span>
                 </span>
                 {cartCount > 0 && (
-                  <span className="bg-[#00E5FF] text-[#0B0D10] font-bold text-[10px] px-1.5 py-0.5 rounded-full">
+                  <span className="bg-blue-950 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full">
                     {cartCount}
                   </span>
                 )}
@@ -334,7 +332,7 @@ export default function Navbar() {
               <Link
                 href="/stores"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-slate-900 hover:bg-blue-950/10 hover:text-blue-950 rounded transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -355,7 +353,7 @@ export default function Navbar() {
               <Link
                 href="/pages/account/orders"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-slate-900 hover:bg-blue-950/10 hover:text-blue-950 rounded transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -377,7 +375,7 @@ export default function Navbar() {
               <Link
                 href="/support"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-slate-900 hover:bg-blue-950/10 hover:text-blue-950 rounded transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -394,9 +392,9 @@ export default function Navbar() {
             <div className="pt-2 border-t border-slate-200 px-3 py-1">
               <a
                 href="tel:+254705479906"
-                className="flex items-center gap-2 text-[12px] text-[#111827] hover:text-[#00B8D4] transition-colors"
+                className="flex items-center gap-2 text-[12px] text-slate-900 hover:text-blue-950 transition-colors"
               >
-                <svg className="w-3.5 h-3.5 text-[#00B8D4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-blue-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -410,13 +408,13 @@ export default function Navbar() {
 
             <div className="pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 px-3 py-1">
               <div className="min-w-0">
-                <label className="block text-[10px] text-[#111827] uppercase font-semibold">
+                <label className="block text-[10px] text-slate-900 uppercase font-semibold">
                   Language
                 </label>
                 <select
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
-                  className="mt-1 w-full text-[12px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full px-3 py-1.5 text-[#111827] focus:outline-none focus:border-[#00B8D4] focus:ring-1 focus:ring-[#00B8D4]/30"
+                  className="mt-1 w-full text-[12px] bg-slate-50 border border-slate-200 rounded-full px-3 py-1.5 text-slate-900 focus:outline-none focus:border-blue-950 focus:ring-1 focus:ring-blue-950/30"
                 >
                   {languages.map((l) => (
                     <option key={l} value={l}>
@@ -426,13 +424,13 @@ export default function Navbar() {
                 </select>
               </div>
               <div className="min-w-0">
-                <label className="block text-[10px] text-[#111827] uppercase font-semibold">
+                <label className="block text-[10px] text-slate-900 uppercase font-semibold">
                   Currency
                 </label>
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  className="mt-1 w-full text-[12px] bg-[#F3F6F9] border border-[#E5E7EB] rounded-full px-3 py-1.5 text-[#111827] focus:outline-none focus:border-[#00B8D4] focus:ring-1 focus:ring-[#00B8D4]/30"
+                  className="mt-1 w-full text-[12px] bg-slate-50 border border-slate-200 rounded-full px-3 py-1.5 text-slate-900 focus:outline-none focus:border-blue-950 focus:ring-1 focus:ring-blue-950/30"
                 >
                   {currencies.map((c) => (
                     <option key={c} value={c}>
@@ -447,7 +445,7 @@ export default function Navbar() {
               <Link
                 href="/auth/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center space-x-2 px-3 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#00B8D4]/10 hover:text-[#00B8D4] rounded transition-colors"
+                className="flex items-center space-x-2 px-3 py-2 text-[13px] font-medium text-slate-900 hover:bg-blue-950/10 hover:text-blue-950 rounded transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path

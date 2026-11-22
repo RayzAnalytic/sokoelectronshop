@@ -141,28 +141,27 @@ export default function CategoriesSection() {
     }, [shouldMarquee]);
 
     return (
-        <section className="relative bg-[#11161D] py-4 sm:py-6 border-b border-[#0B0D10] overflow-hidden">
-            {/* Oversized brand watermark */}
+        <section className="relative bg-blue-950 py-4 sm:py-6 border-b border-blue-900 overflow-hidden">
             <span
                 aria-hidden="true"
                 className="pointer-events-none select-none absolute -right-8 sm:-right-16 top-1/2 -translate-y-1/2 text-[320px] sm:text-[520px] font-black leading-none text-white/[0.03] tracking-tighter"
             >
-                H
+                R
             </span>
 
             <div className="relative max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 mb-2 sm:mb-3">
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 sm:gap-0">
                     <div className="min-w-0">
                         <h2 className="text-base xs:text-lg sm:text-xl lg:text-2xl font-bold text-white">
-                            Shop by <span className="text-[#00E5FF]">Category</span>
+                            Shop by <span className="text-slate-300">Category</span>
                         </h2>
-                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] text-white/70 mt-1.5 sm:mt-2">
+                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] text-slate-300 mt-1.5 sm:mt-2">
                             Explore our wide range of premium electronics and hardware essentials.
                         </p>
                     </div>
                     <Link
                         href="/pages/categories"
-                        className="inline-flex items-center gap-1.5 shrink-0 self-start sm:self-auto bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] px-3.5 sm:px-4 py-2 rounded-full shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00B8D4]"
+                        className="inline-flex items-center gap-1.5 shrink-0 self-start sm:self-auto bg-white hover:bg-slate-100 text-blue-950 font-bold text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] px-3.5 sm:px-4 py-2 rounded-full shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                     >
                         View all categories
                         <span aria-hidden="true">→</span>
@@ -200,7 +199,7 @@ export default function CategoriesSection() {
                                     key={`${cat.slug}-${index}`}
                                     data-card
                                     href={cat.href || `/pages/categories/${cat.slug}`}
-                                    className="group/card relative overflow-hidden block w-[130px] h-[140px] xs:w-[150px] xs:h-[160px] sm:w-[230px] sm:h-[210px] rounded sm:rounded-[3px] shrink-0 ring-1 ring-[#00B8D4]/25 shadow hover:shadow-lg hover:ring-[#00E5FF] transition-all duration-300"
+                                    className="group/card relative overflow-hidden block w-[130px] h-[140px] xs:w-[150px] xs:h-[160px] sm:w-[230px] sm:h-[210px] rounded sm:rounded-[3px] shrink-0 ring-1 ring-slate-700/60 shadow hover:shadow-lg hover:ring-white transition-all duration-300"
                                 >
                                     {imageSrc ? (
                                         <img
@@ -209,33 +208,33 @@ export default function CategoriesSection() {
                                             className="absolute inset-0 w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500 ease-in-out"
                                         />
                                     ) : (
-                                        <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0B0D10] via-[#11161D] to-[#0B0D10] group-hover/card:scale-105 transition-transform duration-500 ease-in-out" />
+                                        <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-950 via-slate-900 to-blue-950 group-hover/card:scale-105 transition-transform duration-500 ease-in-out" />
                                     )}
 
                                     <span
                                         aria-hidden="true"
-                                        className="pointer-events-none select-none absolute top-0 right-1 text-[52px] sm:text-[72px] font-black leading-[0.85] text-white/[0.08] tracking-tighter group-hover/card:text-[#00E5FF]/25 transition-colors duration-300 z-[1]"
+                                        className="pointer-events-none select-none absolute top-0 right-1 text-[52px] sm:text-[72px] font-black leading-[0.85] text-white/[0.08] tracking-tighter group-hover/card:text-white/20 transition-colors duration-300 z-[1]"
                                     >
-                                        H
+                                        R
                                     </span>
 
-                                    <div className="absolute inset-x-0 bottom-0 h-2/3 sm:h-1/2 bg-gradient-to-t from-[#0B0D10]/95 via-[#11161D]/65 to-transparent" />
+                                    <div className="absolute inset-x-0 bottom-0 h-2/3 sm:h-1/2 bg-gradient-to-t from-slate-950/95 via-slate-900/70 to-transparent" />
 
                                     <div className="absolute inset-x-0 bottom-0 p-1.5 xs:p-2 sm:p-3.5 flex items-end justify-between text-white gap-1 z-10">
                                         <div className="flex flex-col gap-1 xs:gap-1 sm:flex-row sm:items-center sm:gap-2.5 min-w-0">
-                                            <div className="p-1.5 xs:p-1.5 sm:p-2 bg-[#0B0D10] ring-2 ring-[#00B8D4]/40 group-hover/card:bg-[#00E5FF] group-hover/card:ring-white/50 transition-all duration-300 w-fit shrink-0 rounded-full shadow-md">
-                                                <IconComponent className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-5 sm:h-5 text-[#00E5FF] group-hover/card:text-[#0B0D10] transition-colors duration-300" />
+                                            <div className="p-1.5 xs:p-1.5 sm:p-2 bg-slate-900 ring-2 ring-slate-700 group-hover/card:bg-white group-hover/card:ring-slate-300 transition-all duration-300 w-fit shrink-0 rounded-full shadow-md">
+                                                <IconComponent className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-5 sm:h-5 text-white group-hover/card:text-blue-950 transition-colors duration-300" />
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <h3 className="text-[11px] xs:text-[12px] sm:text-sm font-semibold text-white truncate">
                                                     {cat.name}
                                                 </h3>
-                                                <p className="text-[9px] xs:text-[10px] sm:text-xs text-white/70 font-medium opacity-90 group-hover/card:opacity-100 mt-0.5 truncate">
+                                                <p className="text-[9px] xs:text-[10px] sm:text-xs text-slate-300 font-medium opacity-90 group-hover/card:opacity-100 mt-0.5 truncate">
                                                     {cat.itemCount}
                                                 </p>
                                             </div>
                                         </div>
-                                        <span className="hidden sm:inline text-white/50 group-hover/card:text-[#00E5FF] text-lg transition-colors duration-300 shrink-0">
+                                        <span className="hidden sm:inline text-slate-400 group-hover/card:text-white text-lg transition-colors duration-300 shrink-0">
                                             ›
                                         </span>
                                     </div>

@@ -30,13 +30,12 @@ function formatRemaining(ms: number): string {
   return 'Less than a minute';
 }
 
-/* Urgency pill — Deep Teal / Cool Gray scale only (no red / amber) */
 function urgencyClass(ms: number): string {
-  if (ms <= 0) return 'bg-[#F3F6F9] text-[#6B7280] border-slate-200';
+  if (ms <= 0) return 'bg-slate-50 text-slate-500 border-slate-200';
   const hours = ms / 3_600_000;
-  if (hours < 6) return 'bg-[#00E5FF]/15 text-[#0B0D10] border-[#00E5FF]';
-  if (hours < 24) return 'bg-[#00B8D4]/15 text-[#00B8D4] border-[#00B8D4]/40';
-  return 'bg-[#F3F6F9] text-[#6B7280] border-slate-200';
+  if (hours < 6) return 'bg-blue-950/10 text-blue-950 border-blue-950/40';
+  if (hours < 24) return 'bg-slate-100 text-slate-700 border-slate-300';
+  return 'bg-slate-50 text-slate-500 border-slate-200';
 }
 
 type StockStatus = 'In Stock' | 'Low Stock' | 'Out of Stock';
@@ -47,11 +46,10 @@ const stockStatusFor = (deal: CatalogDealCard): StockStatus => {
   return 'In Stock';
 };
 
-/* Palette-locked stock badges */
 const STOCK_BADGE_STYLES: Record<StockStatus, string> = {
-  'In Stock': 'bg-[#00E5FF] text-[#0B0D10]',
-  'Low Stock': 'bg-[#00B8D4] text-[#0B0D10]',
-  'Out of Stock': 'bg-[#6B7280] text-white',
+  'In Stock': 'bg-blue-950 text-white',
+  'Low Stock': 'bg-blue-900 text-white',
+  'Out of Stock': 'bg-slate-400 text-white',
 };
 
 const DEALS_LIMIT = 4;
@@ -142,17 +140,17 @@ export default function DealsSection() {
       <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 lg:px-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-2 xs:mb-2 gap-1.5 sm:gap-0">
           <div className="min-w-0">
-            <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-[#111827]">
-              Special <span className="text-[#00B8D4]">Deals</span> &amp; Discounts
+            <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-slate-900">
+              Special <span className="text-blue-950">Deals</span> &amp; Discounts
             </h2>
-            <p className="text-[11px] xs:text-[12px] sm:text-[13px] text-[#6B7280] mt-1 ">
+            <p className="text-[11px] xs:text-[12px] sm:text-[13px] text-slate-500 mt-1 ">
               Save big on premium electronics with verified price drops and
               special offers.
             </p>
           </div>
           <Link
             href="/pages/products/specialdeals"
-            className="text-[11px] xs:text-[12px] sm:text-[13px] font-medium text-[#111827] hover:text-[#00B8D4] hover:underline mt-2 sm:mt-0 inline-flex items-center shrink-0 self-start sm:self-auto transition-colors"
+            className="text-[11px] xs:text-[12px] sm:text-[13px] font-medium text-slate-900 hover:text-blue-950 hover:underline mt-2 sm:mt-0 inline-flex items-center shrink-0 self-start sm:self-auto transition-colors"
           >
             View all deals →
           </Link>
@@ -165,11 +163,11 @@ export default function DealsSection() {
                 key={i}
                 className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
               >
-                <div className="aspect-square bg-[#F3F6F9]" />
+                <div className="aspect-square bg-slate-100" />
                 <div className="p-2 space-y-2">
-                  <div className="h-3 bg-[#F3F6F9] rounded w-1/2" />
-                  <div className="h-4 bg-[#F3F6F9] rounded w-3/4" />
-                  <div className="h-7 bg-[#F3F6F9] rounded mt-2" />
+                  <div className="h-3 bg-slate-100 rounded w-1/2" />
+                  <div className="h-4 bg-slate-100 rounded w-3/4" />
+                  <div className="h-7 bg-slate-100 rounded mt-2" />
                 </div>
               </div>
             ))}
@@ -177,12 +175,12 @@ export default function DealsSection() {
         )}
 
         {!loading && hasLoadedOnce && (error || activeDeals.length === 0) && (
-          <div className="bg-[#F3F6F9] border border-dashed border-slate-300 rounded p-6 xs:p-8 text-center">
-            <Clock className="w-7 h-7 xs:w-8 xs:h-8 text-[#00B8D4] mx-auto mb-1" />
-            <p className="text-[12px] xs:text-[13px] sm:text-sm font-medium text-[#111827]">
+          <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-6 xs:p-8 text-center">
+            <Clock className="w-7 h-7 xs:w-8 xs:h-8 text-blue-950 mx-auto mb-1" />
+            <p className="text-[12px] xs:text-[13px] sm:text-sm font-medium text-slate-900">
               {error ?? 'No active deals right now'}
             </p>
-            <p className="text-[11px] xs:text-[12px] text-[#6B7280] mt-1">
+            <p className="text-[11px] xs:text-[12px] text-slate-500 mt-1">
               Check back soon for new promotions.
             </p>
           </div>
@@ -208,10 +206,10 @@ export default function DealsSection() {
                 <Link
                   key={deal.id}
                   href={`/pages/products/specialdeals?open=${deal.productId}`}
-                  className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-[#00B8D4] hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
+                  className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-blue-950 hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
                 >
                   <div>
-                    <div className="aspect-square w-full bg-[#F3F6F9] overflow-hidden relative">
+                    <div className="aspect-square w-full bg-slate-50 overflow-hidden relative">
                       {deal.image ? (
                         <img
                           src={deal.image}
@@ -219,14 +217,13 @@ export default function DealsSection() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F3F6F9] to-slate-200">
-                          <ShoppingCart className="w-7 h-7 xs:w-8 xs:h-8 text-[#6B7280]" />
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200">
+                          <ShoppingCart className="w-7 h-7 xs:w-8 xs:h-8 text-slate-400" />
                         </div>
                       )}
 
-                      {/* Discount ribbon — Electric Neon Cyan with bold black text */}
                       <div className="absolute top-0 left-0 w-20 h-20 xs:w-24 xs:h-24 overflow-hidden pointer-events-none z-10">
-                        <div className="absolute transform -rotate-45 bg-[#00E5FF] text-[#0B0D10] font-bold text-[11px] xs:text-[11px] sm:text-[12px] py-1 left-[-42px] top-[14px] xs:top-[20px] w-[150px] text-center shadow-sm">
+                        <div className="absolute transform -rotate-45 bg-blue-950 text-white font-bold text-[11px] xs:text-[11px] sm:text-[12px] py-1 left-[-42px] top-[14px] xs:top-[20px] w-[150px] text-center shadow-sm">
                           {discountPct}% OFF
                         </div>
                       </div>
@@ -239,11 +236,11 @@ export default function DealsSection() {
                     </div>
 
                     <div className="p-1.5 xs:p-2">
-                      <p className="text-[11px] xs:text-[11px] sm:text-[12px] font-medium text-[#6B7280] uppercase truncate">
+                      <p className="text-[11px] xs:text-[11px] sm:text-[12px] font-medium text-slate-500 uppercase truncate">
                         {deal.brand}
                       </p>
 
-                      <h3 className="text-[11px] xs:text-[12px] font-semibold text-[#111827] group-hover:text-[#00B8D4] transition-colors line-clamp-2 mt-0.5 mb-1.5 xs:mb-2">
+                      <h3 className="text-[11px] xs:text-[12px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-2 mt-0.5 mb-1.5 xs:mb-2">
                         {deal.name}
                       </h3>
 
@@ -263,10 +260,10 @@ export default function DealsSection() {
                   <div className="p-1.5 xs:p-2 pt-0">
                     <div className="pt-1.5 xs:pt-2 border-t border-slate-200 mt-1">
                       <div className="flex items-baseline flex-wrap gap-1 xs:gap-1.5 mb-1.5 xs:mb-2 min-w-0">
-                        <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-[#111827] whitespace-nowrap">
+                        <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-slate-900 whitespace-nowrap">
                           {formatKES(price)}
                         </span>
-                        <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] line-through whitespace-nowrap">
+                        <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-slate-500 line-through whitespace-nowrap">
                           {formatKES(previousPrice)}
                         </span>
                       </div>
@@ -275,12 +272,12 @@ export default function DealsSection() {
                         type="button"
                         onClick={(e) => handleAddToCart(deal, e)}
                         disabled={isAdding || stockStatus === 'Out of Stock'}
-                        className="w-full bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-3 px-1.5 xs:px-2 rounded text-[12px] xs:text-[13px] sm:text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
+                        className="w-full bg-blue-950 hover:bg-blue-900 text-white font-bold py-3 px-1.5 xs:px-2 rounded text-[12px] xs:text-[13px] sm:text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
                       >
                         {isAdding ? (
                           <>
                             <svg
-                              className="animate-spin h-3 w-3 xs:h-3.5 xs:w-3.5 text-[#0B0D10] shrink-0"
+                              className="animate-spin h-3 w-3 xs:h-3.5 xs:w-3.5 text-white shrink-0"
                               fill="none"
                               viewBox="0 0 24 24"
                             >

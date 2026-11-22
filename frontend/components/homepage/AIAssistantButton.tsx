@@ -33,15 +33,14 @@ const formatKES = (value: number | string): string => {
     return `KES ${n.toLocaleString('en-KE')}`;
 };
 
-/* Palette-locked stock chips */
 const STOCK_STYLES: Record<string, string> = {
-    'In Stock': 'bg-[#00E5FF]/15 text-[#0B0D10]',
-    'Low Stock': 'bg-[#00B8D4]/15 text-[#00B8D4]',
-    'Out of Stock': 'bg-[#6B7280]/15 text-[#6B7280]',
+    'In Stock': 'bg-blue-950/10 text-blue-950',
+    'Low Stock': 'bg-slate-200 text-slate-700',
+    'Out of Stock': 'bg-slate-100 text-slate-400',
 };
 
 export default function AIAssistantButton({
-    shopName = 'Havens Technologies',
+    shopName = 'RAZE STORE',
     hidden = false,
     className = '',
     onOpenChange,
@@ -222,7 +221,7 @@ export default function AIAssistantButton({
                 <div
                     aria-hidden="true"
                     onClick={closePanel}
-                    className="fixed inset-0 z-40 bg-[#0B0D10]/50 backdrop-blur-sm transition-opacity duration-150"
+                    className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-150"
                 />
             )}
 
@@ -247,18 +246,17 @@ export default function AIAssistantButton({
                      w-[calc(100vw-0.5rem)] h-[calc(100dvh-0.5rem)]
                      md:w-[72vw] md:min-w-[620px] md:max-w-[860px] md:h-[88vh] md:min-h-[560px] md:max-h-[900px]"
                 >
-                    {/* Header — Matte Carbon Black */}
-                    <div className="bg-[#0B0D10] text-white px-4 py-3 flex items-center gap-2 shrink-0">
-                        <div className="relative h-9 w-9 rounded-full bg-[#00E5FF] text-[#0B0D10] flex items-center justify-center shrink-0">
+                    <div className="bg-blue-950 text-white px-4 py-3 flex items-center gap-2 shrink-0">
+                        <div className="relative h-9 w-9 rounded-full bg-white text-blue-950 flex items-center justify-center shrink-0">
                             <TbMessageChatbot className="h-4 w-4" />
-                            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[#00E5FF] border-2 border-[#0B0D10]" />
-                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#00B8D4] ring-2 ring-[#0B0D10]" />
+                            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-blue-950 border-2 border-white" />
+                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-slate-400 ring-2 ring-white" />
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-[14px] font-semibold truncate">
                                 {shopName}
                             </p>
-                            <p className="text-[11px] text-[#00E5FF] mt-0.5 tracking-wide uppercase">
+                            <p className="text-[11px] text-slate-300 mt-0.5 tracking-wide uppercase">
                                 Feel the Quality
                             </p>
                         </div>
@@ -266,16 +264,15 @@ export default function AIAssistantButton({
                             type="button"
                             onClick={closePanel}
                             aria-label="Close assistant"
-                            className="h-7 w-7 -mr-1 flex items-center justify-center rounded text-slate-200 hover:text-[#00E5FF] hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00E5FF]/70"
+                            className="h-7 w-7 -mr-1 flex items-center justify-center rounded text-slate-200 hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                         >
                             <LuX className="w-4 h-4" />
                         </button>
                     </div>
 
-                    {/* Message stream — Soft Light Gray */}
                     <div
                         ref={scrollRef}
-                        className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#F3F6F9]"
+                        className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-slate-50"
                     >
                         {messages.map((m) => (
                             <MessageBubble
@@ -309,25 +306,24 @@ export default function AIAssistantButton({
                                 onKeyDown={onInputKeyDown}
                                 placeholder="Ask about products, delivery, M-Pesa…"
                                 aria-label="Message the AI assistant"
-                                className="w-full bg-[#F3F6F9] border border-slate-200 rounded-sm pl-3 pr-14 py-3 text-[14px] text-[#111827] placeholder:text-[#6B7280] resize-none focus:outline-none focus:ring-1 focus:ring-[#00B8D4]/60 focus:border-[#00B8D4] min-h-[72px] max-h-40 leading-relaxed"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-sm pl-3 pr-14 py-3 text-[14px] text-slate-900 placeholder:text-slate-500 resize-none focus:outline-none focus:ring-1 focus:ring-blue-950/30 focus:border-blue-950/50 min-h-[72px] max-h-40 leading-relaxed"
                             />
                             <button
                                 type="submit"
                                 disabled={!input.trim() || typing}
                                 aria-label="Send message"
-                                className="absolute bottom-2.5 right-2 h-9 w-9 text-[#6B7280] hover:text-[#00B8D4] flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="absolute bottom-2.5 right-2 h-9 w-9 text-slate-500 hover:text-blue-950 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <LuSend className="w-4 h-4" />
                             </button>
                         </div>
-                        <p className="text-[12px] text-[#6B7280] text-center mt-1">
+                        <p className="text-[12px] text-slate-500 text-center mt-1">
                             Prices and stock update live from our catalog
                         </p>
                     </form>
                 </div>
             </div>
 
-            {/* FAB — Matte Carbon Black with Electric Neon Cyan icon */}
             <div
                 className={`fixed z-50 bottom-[5.5rem] right-6 transition-opacity duration-150 ${open ? 'opacity-0 pointer-events-none' : 'opacity-100'
                     }`}
@@ -339,17 +335,17 @@ export default function AIAssistantButton({
                     aria-label="Open AI assistant"
                     aria-expanded={open}
                     aria-controls={panelId}
-                    className="group relative h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#0B0D10] hover:bg-[#00B8D4] text-[#00E5FF] hover:text-[#0B0D10] shadow-[#0B0D10]/40 ring-2 ring-white/90 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#00B8D4]/40"
+                    className="group relative h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-blue-950 hover:bg-blue-900 text-white shadow-lg ring-2 ring-white/90 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-950/40"
                 >
                     <TbMessageChatbot className="w-5 h-5 sm:w-6 sm:h-6" />
-                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-[#00E5FF] ring-2 ring-white" />
+                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-white ring-2 ring-blue-950" />
                 </button>
 
                 <span
                     aria-hidden="true"
-                    className="hidden sm:block absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap bg-[#0B0D10] text-[#00E5FF] text-[11px] font-medium px-2.5 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                    className="hidden sm:block absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap bg-blue-950 text-white text-[11px] font-medium px-2.5 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
                 >
-                    Havens Assistant
+                    RAZE Store
                 </span>
             </div>
         </>
@@ -374,7 +370,7 @@ function MessageBubble({
     return (
         <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
             {!isUser && (
-                <span className="h-8 w-8 rounded-full bg-[#0B0D10] text-[#00E5FF] flex items-center justify-center shrink-0">
+                <span className="h-8 w-8 rounded-full bg-blue-950 text-white flex items-center justify-center shrink-0">
                     <LuBot className="w-4 h-4" />
                 </span>
             )}
@@ -383,11 +379,10 @@ function MessageBubble({
                 className={`max-w-[85%] space-y-2 ${isUser ? 'items-end' : 'items-start'
                     }`}
             >
-                {/* User bubble — Electric Neon Cyan with bold black text */}
                 <div
                     className={`${bubbleCorner} px-3.5 py-2.5 text-[13px] whitespace-pre-wrap ${isUser
-                        ? 'bg-[#00E5FF] text-[#0B0D10] font-semibold'
-                        : 'bg-white border border-slate-200 text-[#111827]'
+                        ? 'bg-blue-950 text-white font-semibold'
+                        : 'bg-white border border-slate-200 text-slate-900'
                         }`}
                 >
                     {message.text}
@@ -399,7 +394,7 @@ function MessageBubble({
                             const image = p.images?.[0] || '/placeholder.jpeg';
                             const stockClass =
                                 STOCK_STYLES[p.stock] ??
-                                'bg-[#6B7280]/15 text-[#6B7280]';
+                                'bg-slate-100 text-slate-400';
                             const showBrand = !!p.brand && p.brand !== p.name;
                             return (
                                 <li key={p.id}>
@@ -408,9 +403,9 @@ function MessageBubble({
                                             p.url ||
                                             `/pages/products?open=${p.id}`
                                         }
-                                        className="group flex items-center gap-3 bg-white border border-slate-200 hover:border-[#00B8D4] hover:shadow rounded p-2.5 transition-all"
+                                        className="group flex items-center gap-3 bg-white border border-slate-200 hover:border-blue-950 hover:shadow rounded p-2.5 transition-all"
                                     >
-                                        <div className="h-14 w-14 rounded-md bg-[#F3F6F9] border border-slate-100 overflow-hidden shrink-0">
+                                        <div className="h-14 w-14 rounded-md bg-slate-50 border border-slate-100 overflow-hidden shrink-0">
                                             <img
                                                 src={image}
                                                 alt=""
@@ -419,15 +414,15 @@ function MessageBubble({
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             {showBrand && (
-                                                <p className="text-[11px] uppercase text-[#6B7280] font-medium truncate">
+                                                <p className="text-[11px] uppercase text-slate-500 font-medium truncate">
                                                     {p.brand}
                                                 </p>
                                             )}
-                                            <p className="text-[13px] font-semibold text-[#111827] truncate group-hover:text-[#00B8D4] transition-colors">
+                                            <p className="text-[13px] font-semibold text-slate-900 truncate group-hover:text-blue-950 transition-colors">
                                                 {p.name}
                                             </p>
                                             <div className="flex items-baseline gap-1.5 mt-1">
-                                                <span className="text-[13px] font-bold text-[#111827]">
+                                                <span className="text-[13px] font-bold text-slate-900">
                                                     {formatKES(p.price)}
                                                 </span>
                                                 <span
@@ -452,7 +447,7 @@ function MessageBubble({
                                 type="button"
                                 onClick={() => onChip(c)}
                                 disabled={chipsDisabled}
-                                className="text-[12px] font-medium text-[#0B0D10] bg-[#00B8D4]/10 border border-[#00B8D4]/30 hover:bg-[#00E5FF]/20 hover:border-[#00E5FF] hover:text-[#0B0D10] px-3 py-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="text-[12px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-blue-950 hover:text-white hover:border-blue-950 px-3 py-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {c}
                             </button>
@@ -467,14 +462,14 @@ function MessageBubble({
 function TypingBubble() {
     return (
         <div className="flex gap-2">
-            <span className="h-8 w-8 rounded-full bg-[#0B0D10] text-[#00E5FF] flex items-center justify-center shrink-0">
+            <span className="h-8 w-8 rounded-full bg-blue-950 text-white flex items-center justify-center shrink-0">
                 <LuBot className="w-4 h-4" />
             </span>
             <div className="bg-white border border-slate-200 rounded-lg rounded-tl-none px-3.5 py-2.5 flex items-center gap-1">
                 {[0, 1, 2].map((i) => (
                     <span
                         key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-[#00B8D4] animate-bounce"
+                        className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
                         style={{ animationDelay: `${i * 120}ms` }}
                     />
                 ))}

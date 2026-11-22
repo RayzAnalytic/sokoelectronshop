@@ -35,12 +35,11 @@ function normalizeStock(raw: string | undefined): StockKind {
     return 'unknown';
 }
 
-/* Palette-locked stock chips */
 const STOCK_STYLES: Record<StockKind, { bg: string; dot: boolean; label: string }> = {
-    in: { bg: 'bg-[#00E5FF] text-[#0B0D10]', dot: false, label: 'In Stock' },
-    low: { bg: 'bg-[#00B8D4] text-[#0B0D10]', dot: false, label: 'Low Stock' },
-    out: { bg: 'bg-[#6B7280] text-white', dot: false, label: 'Out of Stock' },
-    unknown: { bg: 'bg-[#6B7280] text-white', dot: false, label: 'Unknown' },
+    in: { bg: 'bg-blue-950 text-white', dot: false, label: 'In Stock' },
+    low: { bg: 'bg-blue-900 text-white', dot: false, label: 'Low Stock' },
+    out: { bg: 'bg-slate-400 text-white', dot: false, label: 'Out of Stock' },
+    unknown: { bg: 'bg-slate-300 text-slate-700', dot: false, label: 'Unknown' },
 };
 
 function stockStyle(raw: string | undefined) {
@@ -128,25 +127,25 @@ export default function FeaturedProducts() {
 
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-4 xs:mb-5 sm:mb-6 gap-1.5 sm:gap-0">
                     <div className="min-w-0">
-                        <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-[#111827]">
-                            Featured <span className="text-[#00B8D4]">Electronics</span>
+                        <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-slate-900">
+                            Featured <span className="text-blue-950">Electronics</span>
                         </h2>
-                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] text-[#6B7280] mt-0.5">
+                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] text-slate-500 mt-0.5">
                             Top-rated hardware and audio essentials handpicked for
                             performance and reliability.
                         </p>
                     </div>
                     <Link
                         href="/pages/products"
-                        className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] font-medium text-[#111827] hover:text-[#00B8D4] hover:underline mt-1 sm:mt-0 inline-flex items-center shrink-0 self-start sm:self-auto transition-colors"
+                        className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] font-medium text-slate-900 hover:text-blue-950 hover:underline mt-1 sm:mt-0 inline-flex items-center shrink-0 self-start sm:self-auto transition-colors"
                     >
                         View all products →
                     </Link>
                 </div>
 
                 {error && !loading && (
-                    <div className="text-center py-8 xs:py-10 bg-[#F3F6F9] border border-slate-200 rounded">
-                        <p className="text-[12px] xs:text-[13px] text-[#6B7280]">{error}</p>
+                    <div className="text-center py-8 xs:py-10 bg-slate-50 border border-slate-200 rounded">
+                        <p className="text-[12px] xs:text-[13px] text-slate-500">{error}</p>
                     </div>
                 )}
 
@@ -157,12 +156,12 @@ export default function FeaturedProducts() {
                                 key={i}
                                 className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                             >
-                                <div className="aspect-[20/16] bg-[#F3F6F9]" />
+                                <div className="aspect-[20/16] bg-slate-100" />
                                 <div className="p-2 xs:p-3 space-y-1.5 xs:space-y-2">
-                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/3" />
-                                    <div className="h-3 xs:h-4 bg-[#F3F6F9] rounded w-3/4" />
-                                    <div className="h-2.5 xs:h-3 bg-[#F3F6F9] rounded w-1/2" />
-                                    <div className="h-7 xs:h-8 bg-[#F3F6F9] rounded mt-2 xs:mt-2" />
+                                    <div className="h-2.5 xs:h-3 bg-slate-100 rounded w-1/3" />
+                                    <div className="h-3 xs:h-4 bg-slate-100 rounded w-3/4" />
+                                    <div className="h-2.5 xs:h-3 bg-slate-100 rounded w-1/2" />
+                                    <div className="h-7 xs:h-8 bg-slate-100 rounded mt-2 xs:mt-2" />
                                 </div>
                             </div>
                         ))}
@@ -170,7 +169,7 @@ export default function FeaturedProducts() {
                 )}
 
                 {!loading && hasLoadedOnce && !error && products.length === 0 && (
-                    <p className="text-center py-8 xs:py-10 text-[12px] xs:text-[13px] text-[#6B7280]">
+                    <p className="text-center py-8 xs:py-10 text-[12px] xs:text-[13px] text-slate-500">
                         No featured products at the moment.
                     </p>
                 )}
@@ -201,10 +200,10 @@ export default function FeaturedProducts() {
                                 <Link
                                     key={product.id}
                                     href={`/pages/products?open=${product.id}`}
-                                    className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-[#00B8D4] hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
+                                    className="group bg-white border border-slate-200 rounded overflow-hidden hover:border-blue-950 hover:shadow-lg transition-all duration-150 flex flex-col justify-between"
                                 >
                                     <div>
-                                        <div className="aspect-[20/16] w-full bg-[#F3F6F9] overflow-hidden relative">
+                                        <div className="aspect-[20/16] w-full bg-slate-50 overflow-hidden relative">
                                             <img
                                                 src={product.images[0] ?? '/placeholder.jpeg'}
                                                 alt={product.name}
@@ -213,7 +212,7 @@ export default function FeaturedProducts() {
 
                                             <div className="absolute top-1 xs:top-1.5 sm:top-2 left-1 xs:left-1.5 sm:left-2 z-10 flex flex-col items-start gap-1 xs:gap-1.5">
                                                 {discountPercentage && (
-                                                    <span className="bg-[#00E5FF] text-[#0B0D10] font-bold text-[9px] xs:text-[10px] sm:text-[11px] px-1 xs:px-1.5 sm:px-2 py-0.5 rounded shadow">
+                                                    <span className="bg-blue-950 text-white font-bold text-[9px] xs:text-[10px] sm:text-[11px] px-1 xs:px-1.5 sm:px-2 py-0.5 rounded shadow">
                                                         -{discountPercentage}%
                                                     </span>
                                                 )}
@@ -249,27 +248,27 @@ export default function FeaturedProducts() {
 
                                         <div className="p-1.5 xs:p-2 pb-1.5 xs:pb-2">
                                             <div className="flex items-center justify-between gap-1">
-                                                <p className="text-[10px] xs:text-[11px] sm:text-[12px] font-medium text-[#6B7280] uppercase truncate">
+                                                <p className="text-[10px] xs:text-[11px] sm:text-[12px] font-medium text-slate-500 uppercase truncate">
                                                     {product.brand}
                                                 </p>
-                                                <p className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] truncate shrink-0">
+                                                <p className="text-[10px] xs:text-[11px] sm:text-[12px] text-slate-500 truncate shrink-0">
                                                     {product.category}
                                                 </p>
                                             </div>
 
-                                            <h3 className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-[#111827] group-hover:text-[#00B8D4] transition-colors line-clamp-1 mt-0.5 mb-1">
+                                            <h3 className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-slate-900 group-hover:text-blue-950 transition-colors line-clamp-1 mt-0.5 mb-1">
                                                 {product.name}
                                             </h3>
 
                                             {Number(product.rating) > 0 && (
                                                 <div className="flex items-center space-x-1 mb-1">
-                                                    <div className="flex items-center text-[#00B8D4]">
+                                                    <div className="flex items-center text-blue-950">
                                                         <Star className="w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 fill-current" />
                                                     </div>
-                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] font-medium text-[#111827]">
+                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] font-medium text-slate-900">
                                                         {toNum(product.rating).toFixed(1)}
                                                     </span>
-                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] truncate">
+                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-slate-500 truncate">
                                                         ({product.reviewCount})
                                                     </span>
                                                 </div>
@@ -280,11 +279,11 @@ export default function FeaturedProducts() {
                                     <div className="p-1.5 xs:p-2 pt-0 mt-auto">
                                         <div className="flex items-center justify-between mb-1.5 xs:mb-2 gap-1">
                                             <div className="flex items-baseline flex-wrap gap-x-1.5 xs:gap-x-2 gap-y-0.5 min-w-0">
-                                                <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-[#111827] whitespace-nowrap">
+                                                <span className="text-[11px] xs:text-[12px] sm:text-sm font-bold text-slate-900 whitespace-nowrap">
                                                     {formatKES(price)}
                                                 </span>
                                                 {comparePrice !== null && (
-                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-[#6B7280] line-through whitespace-nowrap">
+                                                    <span className="text-[10px] xs:text-[11px] sm:text-[12px] text-slate-500 line-through whitespace-nowrap">
                                                         {formatKES(comparePrice)}
                                                     </span>
                                                 )}
@@ -295,12 +294,12 @@ export default function FeaturedProducts() {
                                             type="button"
                                             onClick={(e) => handleAddToCart(product, e)}
                                             disabled={isAdding || isOutOfStock}
-                                            className="w-full bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold py-1.5 xs:py-2 px-2 xs:px-3 rounded text-[11px] xs:text-[12px] sm:text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 xs:space-x-1.5"
+                                            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-bold py-1.5 xs:py-2 px-2 xs:px-3 rounded text-[11px] xs:text-[12px] sm:text-[13px] transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1 xs:space-x-1.5"
                                         >
                                             {isAdding ? (
                                                 <>
                                                     <svg
-                                                        className="animate-spin h-3 w-3 xs:h-3.5 xs:w-3.5 text-[#0B0D10] shrink-0"
+                                                        className="animate-spin h-3 w-3 xs:h-3.5 xs:w-3.5 text-white shrink-0"
                                                         fill="none"
                                                         viewBox="0 0 24 24"
                                                     >

@@ -118,7 +118,7 @@ export default function Hero() {
         return (
             <section className="bg-white">
                 <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-                    <div className="rounded-lg sm:rounded-2xl lg:rounded-3xl bg-[#F3F6F9] animate-pulse aspect-[4/5] xs:aspect-[16/10] sm:aspect-[16/7]" />
+                    <div className="rounded-lg sm:rounded-2xl lg:rounded-3xl bg-slate-100 animate-pulse aspect-[4/5] xs:aspect-[16/10] sm:aspect-[16/7]" />
                 </div>
             </section>
         );
@@ -130,14 +130,14 @@ export default function Hero() {
     if (!currentSlide) return null;
 
     const isLight = currentSlide.overlay_style === 'LIGHT';
-    const textColor = isLight ? 'text-[#111827]' : 'text-white';
-    const subColor = isLight ? 'text-[#6B7280]' : 'text-white/80';
+    const textColor = isLight ? 'text-slate-900' : 'text-white';
+    const subColor = isLight ? 'text-slate-600' : 'text-slate-300';
 
     return (
         <section className="bg-white">
             <div className="max-w-7xl mx-auto px-2.5 xs:px-3 sm:px-6 lg:px-8 py-3 sm:py-6 lg:py-6">
                 <div
-                    className="relative bg-[#11161D] overflow-hidden rounded-md xs:rounded-lg border border-[#0B0D10]"
+                    className="relative bg-blue-950 overflow-hidden rounded-md xs:rounded-lg border border-blue-900"
                     onMouseEnter={() => setIsPaused(true)}
                     onMouseLeave={() => setIsPaused(false)}
                 >
@@ -178,12 +178,11 @@ export default function Hero() {
                         ))}
                     </div>
 
-                    {/* Watermark — Havens "H" */}
                     <span
                         aria-hidden="true"
                         className="pointer-events-none select-none absolute -right-4 sm:-right-10 top-1/2 -translate-y-1/2 z-10 text-[280px] sm:text-[420px] md:text-[520px] font-black leading-none text-white/[0.06] tracking-tighter"
                     >
-                        H
+                        R
                     </span>
 
                     <div className="relative z-20 px-3 xs:px-4 sm:px-8 md:px-10 py-5 xs:py-6 sm:py-8 md:py-10 lg:py-14">
@@ -192,8 +191,8 @@ export default function Hero() {
                                 {currentSlide.badge && (
                                     <span
                                         className={`inline-flex items-center gap-1.5 text-[10px] xs:text-[11px] sm:text-[12px] md:text-[13px] font-medium px-1.5 xs:px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-sm ${isLight
-                                            ? 'text-[#0B0D10] bg-[#00E5FF]'
-                                            : 'text-[#00E5FF] bg-[#00E5FF]/10 ring-1 ring-[#00E5FF]/30'
+                                            ? 'text-white bg-blue-950'
+                                            : 'text-white bg-white/10 ring-1 ring-white/30'
                                             }`}
                                     >
                                         {currentSlide.badge}
@@ -206,12 +205,11 @@ export default function Hero() {
                                     {currentSlide.headline}
                                 </h1>
 
-                                {/* Brand tagline — cyan on dark, deep teal on light */}
                                 <p
-                                    className={`text-[10px] xs:text-[11px] sm:text-[12px] md:text-[13px] font-semibold uppercase tracking-[0.18em] ${isLight ? 'text-[#00B8D4]' : 'text-[#00E5FF]'
+                                    className={`text-[10px] xs:text-[11px] sm:text-[12px] md:text-[13px] font-semibold uppercase tracking-[0.18em] ${isLight ? 'text-slate-600' : 'text-slate-300'
                                         }`}
                                 >
-                                    Havens Technologies — Feel the Quality
+                                    RAZE STORE — Feel the Quality
                                 </p>
 
                                 <p
@@ -225,7 +223,7 @@ export default function Hero() {
                                         <Link
                                             href={currentSlide.primary_cta_href || '#'}
                                             onClick={() => handleCtaClick(currentSlide.id)}
-                                            className="group inline-flex items-center justify-center gap-2 font-bold py-2 xs:py-2.5 px-4 xs:px-5 rounded-sm text-[12px] xs:text-[13px] bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] transition-colors"
+                                            className="group inline-flex items-center justify-center gap-2 font-bold py-2 xs:py-2.5 px-4 xs:px-5 rounded-sm text-[12px] xs:text-[13px] bg-white hover:bg-slate-100 text-blue-950 transition-colors"
                                         >
                                             <span>{currentSlide.primary_cta_text}</span>
                                             <ArrowRight className="w-3.5 h-3.5 xs:w-4 xs:h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
@@ -236,8 +234,8 @@ export default function Hero() {
                                             href={currentSlide.secondary_cta_href || '#'}
                                             onClick={() => handleCtaClick(currentSlide.id)}
                                             className={`inline-flex items-center justify-center bg-transparent font-medium py-2 xs:py-2.5 px-4 xs:px-5 rounded-sm text-[12px] xs:text-[13px] border transition-colors ${isLight
-                                                ? 'text-[#111827] border-[#111827]/30 hover:bg-[#111827]/5 hover:border-[#111827]/60'
-                                                : 'text-white border-[#00E5FF]/50 hover:bg-[#00E5FF]/10 hover:border-[#00E5FF]'
+                                                ? 'text-slate-900 border-slate-900/30 hover:bg-slate-900/5 hover:border-slate-900/60'
+                                                : 'text-white border-white/50 hover:bg-white/10 hover:border-white'
                                                 }`}
                                         >
                                             {currentSlide.secondary_cta_text}
@@ -253,19 +251,19 @@ export default function Hero() {
                                         >
                                             <div className="p-0.5 xs:p-1 sm:p-1.5 rounded-sm shrink-0">
                                                 <Icon
-                                                    className={`w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 ${isLight ? 'text-[#00B8D4]' : 'text-[#00E5FF]'
+                                                    className={`w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5 ${isLight ? 'text-slate-600' : 'text-slate-300'
                                                         }`}
                                                 />
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <p
-                                                    className={`text-[9px] xs:text-[10px] sm:text-[11px] font-semibold leading-tight truncate ${isLight ? 'text-[#111827]' : 'text-white'
+                                                    className={`text-[9px] xs:text-[10px] sm:text-[11px] font-semibold leading-tight truncate ${isLight ? 'text-slate-900' : 'text-white'
                                                         }`}
                                                 >
                                                     {label}
                                                 </p>
                                                 <p
-                                                    className={`text-[8px] xs:text-[9px] sm:text-[10px] leading-tight truncate mt-0.5 ${isLight ? 'text-[#6B7280]' : 'text-white/70'
+                                                    className={`text-[8px] xs:text-[9px] sm:text-[10px] leading-tight truncate mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'
                                                         }`}
                                                 >
                                                     {sub}
@@ -278,7 +276,7 @@ export default function Hero() {
                         </div>
 
                         <div
-                            className={`flex flex-row items-center justify-between mt-4 xs:mt-5 sm:mt-6 md:mt-8 pt-3 xs:pt-4 sm:pt-5 md:pt-6 border-t z-20 relative gap-2 sm:gap-0 ${isLight ? 'border-[#111827]/10' : 'border-white/10'
+                            className={`flex flex-row items-center justify-between mt-4 xs:mt-5 sm:mt-6 md:mt-8 pt-3 xs:pt-4 sm:pt-5 md:pt-6 border-t z-20 relative gap-2 sm:gap-0 ${isLight ? 'border-slate-900/10' : 'border-white/10'
                                 }`}
                         >
                             <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2">
@@ -288,10 +286,10 @@ export default function Hero() {
                                         type="button"
                                         onClick={() => setCurrentIndex(index)}
                                         className={`h-1 xs:h-1.5 rounded-full transition-all duration-300 ${currentIndex === index
-                                            ? `w-5 xs:w-6 sm:w-7 ${isLight ? 'bg-[#00B8D4]' : 'bg-[#00E5FF]'}`
+                                            ? `w-5 xs:w-6 sm:w-7 ${isLight ? 'bg-slate-700' : 'bg-white'}`
                                             : `w-1.5 xs:w-2 sm:w-2.5 ${isLight
-                                                ? 'bg-[#111827]/30 hover:bg-[#111827]/50'
-                                                : 'bg-white/40 hover:bg-[#00E5FF]/70'
+                                                ? 'bg-slate-900/30 hover:bg-slate-900/50'
+                                                : 'bg-white/40 hover:bg-white/70'
                                             }`
                                             }`}
                                         aria-label={`Go to slide ${index + 1}`}
@@ -303,7 +301,7 @@ export default function Hero() {
                                 <button
                                     type="button"
                                     onClick={handlePrev}
-                                    className={`p-1 xs:p-1.5 sm:p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00B8D4] bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10]`}
+                                    className={`p-1 xs:p-1.5 sm:p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white bg-white hover:bg-slate-100 text-blue-950`}
                                     aria-label="Previous slide"
                                 >
                                     <ChevronLeft className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
@@ -311,7 +309,7 @@ export default function Hero() {
                                 <button
                                     type="button"
                                     onClick={handleNext}
-                                    className={`p-1 xs:p-1.5 sm:p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00B8D4] bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10]`}
+                                    className={`p-1 xs:p-1.5 sm:p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white bg-white hover:bg-slate-100 text-blue-950`}
                                     aria-label="Next slide"
                                 >
                                     <ChevronRight className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />

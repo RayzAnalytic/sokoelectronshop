@@ -1,12 +1,7 @@
 'use client';
 
 import { Suspense } from "react";
-
-
-
-
-
-
+ 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';

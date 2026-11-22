@@ -62,13 +62,13 @@ export default function TrustSection() {
         <section className="bg-white py-4 xs:py-5 sm:py-6 border-b border-slate-200">
             <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-6">
                 <div className="text-center max-w-2xl mx-auto mb-2">
-                    <span className="inline-flex items-center text-[10px] xs:text-[11px] sm:text-[13px] font-semibold text-[#0B0D10] bg-[#00E5FF] border border-[#00E5FF] px-2 xs:px-2.5 py-0.5 xs:py-1 rounded mb-1">
+                    <span className="inline-flex items-center text-[10px] xs:text-[11px] sm:text-[13px] font-semibold text-white bg-blue-950 border border-blue-950 px-2 xs:px-2.5 py-0.5 xs:py-1 rounded mb-1">
                         Why Shop With Us
                     </span>
-                    <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-[#111827]">
-                        Built on <span className="text-[#00B8D4]">Trust</span> &amp; Reliability
+                    <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl font-bold text-slate-900">
+                        Built on <span className="text-blue-950">Trust</span> &amp; Reliability
                     </h2>
-                    <p className="text-[11px] xs:text-[12px] sm:text-[13px] text-[#6B7280] mt-1  ">
+                    <p className="text-[11px] xs:text-[12px] sm:text-[13px] text-slate-500 mt-1  ">
                         We provide a seamless, secure shopping experience with
                         verified guarantees you can depend on.
                     </p>
@@ -80,15 +80,15 @@ export default function TrustSection() {
                         return (
                             <div
                                 key={index}
-                                className="bg-white border border-slate-200 rounded p-2 xs:p-2.5 sm:p-3 hover:border-[#00B8D4] hover:shadow transition-all duration-150"
+                                className="bg-white border border-slate-200 rounded p-2 xs:p-2.5 sm:p-3 hover:border-blue-950 hover:shadow transition-all duration-150"
                             >
-                                <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded bg-[#0B0D10] text-[#00E5FF] flex items-center justify-center mb-1.5 xs:mb-2 sm:mb-2.5">
+                                <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded bg-blue-950 text-white flex items-center justify-center mb-1.5 xs:mb-2 sm:mb-2.5">
                                     <IconComponent className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4" />
                                 </div>
-                                <h3 className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-[#111827] mb-0.5 xs:mb-1 ">
+                                <h3 className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-slate-900 mb-0.5 xs:mb-1 ">
                                     {feature.title}
                                 </h3>
-                                <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-[#6B7280] ">
+                                <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-slate-500 ">
                                     {feature.description}
                                 </p>
                             </div>
@@ -96,23 +96,23 @@ export default function TrustSection() {
                     })}
                 </div>
 
-                <div className="bg-[#F3F6F9] border border-slate-200 rounded p-2.5 xs:p-3 mb-2 xs:mb-2 flex items-start gap-2 xs:gap-2">
-                    <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded bg-[#0B0D10] text-[#00E5FF] flex items-center justify-center shrink-0">
+                <div className="bg-slate-50 border border-slate-200 rounded p-2.5 xs:p-3 mb-2 xs:mb-2 flex items-start gap-2 xs:gap-2">
+                    <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded bg-blue-950 text-white flex items-center justify-center shrink-0">
                         <RotateCcw className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4" />
                     </div>
                     <div className="min-w-0">
-                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-[#111827] ">
+                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-slate-900 ">
                             30-Day Money-Back Guarantee
                         </p>
-                        <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-[#6B7280] mt-0.5 ">
+                        <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-slate-500 mt-0.5 ">
                             Not satisfied? Return any item within 30 days for a
                             full refund. No restocking fees, no questions asked.
                         </p>
                     </div>
                 </div>
 
-                <div className="bg-[#F3F6F9] border border-slate-200 rounded p-2.5 xs:p-3 mb-4 xs:mb-5 sm:mb-6">
-                    <h3 className="text-[10px] xs:text-[11px] sm:text-[13px] font-semibold text-[#6B7280] uppercase text-center mb-2 xs:mb-3">
+                <div className="bg-slate-50 border border-slate-200 rounded p-2.5 xs:p-3 mb-4 xs:mb-5 sm:mb-6">
+                    <h3 className="text-[10px] xs:text-[11px] sm:text-[13px] font-semibold text-slate-500 uppercase text-center mb-2 xs:mb-3">
                         Accepted Payment Methods
                     </h3>
                     <div className="flex flex-wrap justify-center gap-2 xs:gap-3">
@@ -121,9 +121,9 @@ export default function TrustSection() {
                             return (
                                 <div
                                     key={idx}
-                                    className="bg-white border border-slate-200 rounded px-2 xs:px-3 py-1.5 xs:py-2 flex items-center gap-2 xs:gap-3 hover:border-[#00B8D4] transition-colors max-w-full"
+                                    className="bg-white border border-slate-200 rounded px-2 xs:px-3 py-1.5 xs:py-2 flex items-center gap-2 xs:gap-3 hover:border-blue-950 transition-colors max-w-full"
                                 >
-                                    <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 relative rounded overflow-hidden bg-[#F3F6F9] flex items-center justify-center shrink-0 border border-slate-200">
+                                    <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 relative rounded overflow-hidden bg-slate-50 flex items-center justify-center shrink-0 border border-slate-200">
                                         {method.logo ? (
                                             <Image
                                                 src={method.logo}
@@ -133,14 +133,14 @@ export default function TrustSection() {
                                                 className="object-cover"
                                             />
                                         ) : IconComponent ? (
-                                            <IconComponent className="w-3.5 h-3.5 xs:w-4 xs:h-4 sm:w-5 sm:h-5 text-[#00B8D4]" />
+                                            <IconComponent className="w-3.5 h-3.5 xs:w-4 xs:h-4 sm:w-5 sm:h-5 text-blue-950" />
                                         ) : null}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-[#111827] truncate">
+                                        <p className="text-[11px] xs:text-[12px] sm:text-[13px] font-semibold text-slate-900 truncate">
                                             {method.name}
                                         </p>
-                                        <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-[#6B7280] truncate">
+                                        <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-slate-500 truncate">
                                             {method.description}
                                         </p>
                                     </div>
@@ -153,33 +153,33 @@ export default function TrustSection() {
                 <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-center gap-2 xs:gap-3 mb-2">
                     <Link
                         href="/pages/products"
-                        className="inline-flex items-center justify-center gap-2 bg-[#00E5FF] hover:bg-[#00B8D4] text-[#0B0D10] font-bold text-[11px] xs:text-[12px] sm:text-[13px] px-3 xs:px-4 py-1.5 xs:py-2 rounded transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#00B8D4]"
+                        className="inline-flex items-center justify-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-bold text-[11px] xs:text-[12px] sm:text-[13px] px-3 xs:px-4 py-1.5 xs:py-2 rounded transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-950"
                     >
                         Start Shopping
                         <ArrowRight className="w-3 h-3 xs:w-3.5 xs:h-3.5" />
                     </Link>
                     <Link
                         href="/support"
-                        className="inline-flex items-center justify-center gap-2 bg-white hover:bg-[#F3F6F9] text-[#111827] font-medium text-[11px] xs:text-[12px] sm:text-[13px] px-3 xs:px-4 py-1.5 xs:py-2 rounded border border-slate-200 hover:border-[#00B8D4] transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#00B8D4]"
+                        className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-900 font-medium text-[11px] xs:text-[12px] sm:text-[13px] px-3 xs:px-4 py-1.5 xs:py-2 rounded border border-slate-200 hover:border-blue-950 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-950"
                     >
                         Contact Support
                     </Link>
                 </div>
 
-                <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-[#6B7280] text-center">
+                <p className="text-[10px] xs:text-[11px] sm:text-[13px] text-slate-500 text-center">
                     Questions?{' '}
                     <Link
                         href="/support"
-                        className="text-[#111827] hover:text-[#00B8D4] hover:underline font-medium"
+                        className="text-slate-900 hover:text-blue-950 hover:underline font-medium"
                     >
                         Chat with us
                     </Link>{' '}
                     or email{' '}
                     <a
-                        href="mailto:support@havenstechnologies.co.ke"
-                        className="text-[#111827] hover:text-[#00B8D4] hover:underline font-medium break-all"
+                        href="mailto:support@razestore.co.ke"
+                        className="text-slate-900 hover:text-blue-950 hover:underline font-medium break-all"
                     >
-                        support@havenstechnologies.co.ke
+                        support@razestore.co.ke
                     </a>
                 </p>
             </div>

@@ -40,9 +40,8 @@ export default function Footer() {
     ];
 
     return (
-        <footer className="bg-[#0B0D10] text-white/70 text-[11px] xs:text-[12px] sm:text-[13px]">
-            {/* Top accent bar — Electric Neon Cyan */}
-            <div className="h-0.5 bg-[#00E5FF]" />
+        <footer className="bg-blue-950 text-slate-300 text-[11px] xs:text-[12px] sm:text-[13px]">
+            <div className="h-0.5 bg-white" />
 
             <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 py-6 xs:py-7 sm:py-8 lg:py-10">
 
@@ -52,28 +51,29 @@ export default function Footer() {
                         <Link
                             href="/"
                             className="flex flex-col items-start shrink-0"
-                            aria-label="Havens Technologies — Feel the Quality"
+                            aria-label="RAZE STORE — Feel the Quality"
                         >
                             <Image
-                                src="/Pasted image (3).png"
-                                alt="Havens Technologies"
+                                src="/logo.jpeg"
+                                alt="RAZE STORE"
                                 width={400}
                                 height={100}
+                                priority
                                 className="h-9 sm:h-10 w-auto object-contain"
                             />
-                            <span className="mt-1.5 text-[10px] xs:text-[11px] tracking-[0.18em] uppercase text-[#00E5FF] font-semibold">
+                            <span className="mt-1.5 text-[10px] xs:text-[11px] tracking-[0.18em] uppercase text-slate-300 font-semibold">
                                 Feel the Quality
                             </span>
                         </Link>
-                        <p className="text-white/70 max-w-xs text-[11px] xs:text-[12px] pt-1">
+                        <p className="text-slate-300 max-w-xs text-[11px] xs:text-[12px] pt-1">
                             Premium electronics and certified hardware, backed by comprehensive warranties.
                         </p>
                         <p className="text-[11px] xs:text-[12px] text-white pt-1 truncate">
-                            support@havenstechnologies.co.ke
+                            support@razestore.co.ke
                         </p>
                         <a
                             href="tel:+254705479906"
-                            className="block text-[11px] xs:text-[12px] text-white hover:text-[#00E5FF] transition-colors truncate"
+                            className="block text-[11px] xs:text-[12px] text-white hover:text-slate-300 transition-colors truncate"
                         >
                             0705 479 906
                         </a>
@@ -88,7 +88,7 @@ export default function Footer() {
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="text-white/70 hover:text-[#00E5FF] transition-colors inline-block truncate max-w-full"
+                                        className="text-slate-300 hover:text-white transition-colors inline-block truncate max-w-full"
                                     >
                                         {link.name}
                                     </Link>
@@ -106,7 +106,7 @@ export default function Footer() {
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="text-white/70 hover:text-[#00E5FF] transition-colors inline-block truncate max-w-full"
+                                        className="text-slate-300 hover:text-white transition-colors inline-block truncate max-w-full"
                                     >
                                         {link.name}
                                     </Link>
@@ -124,7 +124,7 @@ export default function Footer() {
                                 <li key={link.href}>
                                     <Link
                                         href={link.href}
-                                        className="text-white/70 hover:text-[#00E5FF] transition-colors inline-block truncate max-w-full"
+                                        className="text-slate-300 hover:text-white transition-colors inline-block truncate max-w-full"
                                     >
                                         {link.name}
                                     </Link>
@@ -137,8 +137,8 @@ export default function Footer() {
 
                 <div className="mt-6 xs:mt-7 sm:mt-8 pt-4 xs:pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 xs:gap-3">
 
-                    <p className="text-[#6B7280] text-[10px] xs:text-[11px] sm:text-[12px] order-2 sm:order-1 text-center sm:text-left">
-                        &copy; {currentYear} Havens Technologies. All rights reserved.
+                    <p className="text-slate-400 text-[10px] xs:text-[11px] sm:text-[12px] order-2 sm:order-1 text-center sm:text-left">
+                        &copy; {currentYear} RAZE STORE. All rights reserved.
                     </p>
 
                     <div className="flex flex-wrap items-center justify-center gap-x-3 xs:gap-x-4 sm:gap-x-5 gap-y-1.5 xs:gap-y-2 text-[10px] xs:text-[11px] sm:text-[12px] order-1 sm:order-2">
@@ -146,19 +146,19 @@ export default function Footer() {
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className="text-white/70 hover:text-[#00E5FF] transition-colors whitespace-nowrap"
+                                className="text-slate-300 hover:text-white transition-colors whitespace-nowrap"
                             >
                                 {link.name}
                             </Link>
                         ))}
-                        <span className="hidden sm:inline text-[#6B7280]">|</span>
+                        <span className="hidden sm:inline text-slate-500">|</span>
                         {socialLinks.map((social) => (
                             <a
                                 key={social.name}
                                 href={social.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-white/70 hover:text-[#00E5FF] transition-colors whitespace-nowrap"
+                                className="text-slate-300 hover:text-white transition-colors whitespace-nowrap"
                             >
                                 {social.name}
                             </a>
