@@ -24,7 +24,7 @@ urlpatterns = [
         name="zone-detail",
     ),
 
-    path("methods/", views.MethodListView.as_view(), name="method-list"),
+    path("methods/", views.MethodListCreateView.as_view(), name="method-list"),
     path(
         "methods/<int:pk>/toggle/",
         views.MethodToggleView.as_view(),
