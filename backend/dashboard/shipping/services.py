@@ -41,6 +41,30 @@ def create_zone(*, name: str, region: str, counties: list[str]) -> ShippingZone:
 
 
 @transaction.atomic
+def create_method(
+    *,
+    name: str,
+    description: str = "",
+    default_price,
+    eta: str = "",
+) -> ShippingMethod:
+    name = name.strip()
+    if not name:
+        raise ValueError("Method name cannot be blank.")
+
+    if ShippingMethod.objects.filter(name__iexact=name).exists():
+        raise ValueError(f"A delivery method named {name!r} already exists.")
+
+    return ShippingMethod.objects.create(
+        name=name,
+        description=(description or "").strip(),
+        default_price=default_price,
+        eta=(eta or "").strip(),
+        status=ShippingMethod.Status.ACTIVE,
+    )
+
+
+@transaction.atomic
 def add_rate(
     *,
     zone: ShippingZone,
