@@ -1,4 +1,4 @@
-import warnings
+# import warnings  # Uncommented only for the old SendGrid warning filter
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -62,8 +62,11 @@ env = environ.Env(
     OPENROUTER_MONTHLY_BUDGET_KES=(int, 2000),
     AI_KEY_ENC_KEY=(str, ""),
 
-    SENDGRID_API_KEY=(str, ""),
-    SENDGRID_SANDBOX_MODE=(bool, False),
+    # ─── SendGrid (commented out — replaced by Resend) ───────────────
+    # SENDGRID_API_KEY=(str, ""),
+    # SENDGRID_SANDBOX_MODE=(bool, False),
+    # ──────────────────────────────────────────────────────────────────
+    RESEND_API_KEY=(str, ""),
 
     SHOP_NAME=(str, "Racetech Hub"),
 
@@ -481,26 +484,49 @@ GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
 GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
 
 
+# ─── SendGrid (commented out — replaced by Resend) ────────────────────
+# EMAIL_BACKEND = env(
+#     "EMAIL_BACKEND",
+#     default="anymail.backends.sendgrid.EmailBackend",
+# )
+# DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+#
+# ANYMAIL = {
+#     "SENDGRID_API_KEY": env("SENDGRID_API_KEY"),
+# }
+#
+# SILENCED_SYSTEM_CHECKS = [
+#     "anymail.W003",
+#     "django_ratelimit.E003",
+#     "django_ratelimit.W001",
+# ]
+#
+# warnings.filterwarnings(
+#     "ignore",
+#     message="django-anymail has dropped official support for SendGrid",
+# )
+# ──────────────────────────────────────────────────────────────────────
+
+# ─── Resend (active) ──────────────────────────────────────────────────
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
-    default="anymail.backends.sendgrid.EmailBackend",
+    default="anymail.backends.resend.EmailBackend",
 )
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+DEFAULT_FROM_EMAIL = env(
+    "DEFAULT_FROM_EMAIL",
+    default="onboarding@resend.dev",  # Testing only — swap for verified domain
+)
 
 ANYMAIL = {
-    "SENDGRID_API_KEY": env("SENDGRID_API_KEY"),
+    "RESEND_API_KEY": env("RESEND_API_KEY"),
 }
 
+# Keep ratelimit silences; the SendGrid-specific check is gone.
 SILENCED_SYSTEM_CHECKS = [
-    "anymail.W003",
     "django_ratelimit.E003",
     "django_ratelimit.W001",
 ]
-
-warnings.filterwarnings(
-    "ignore",
-    message="django-anymail has dropped official support for SendGrid",
-)
+# ──────────────────────────────────────────────────────────────────────
 
 
 SHOP_NAME = env("SHOP_NAME")
