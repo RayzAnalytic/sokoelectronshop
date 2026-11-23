@@ -21,7 +21,7 @@ const STORE = {
     lat: -0.4215,
     lng: 36.9515,
     hours: 'Mon - Sat: 8:00 AM - 7:00 PM',
-    image: '/Pasted image (2).png',
+    image: '/raze.png',
 };
 
 export default function StoreLocator() {
