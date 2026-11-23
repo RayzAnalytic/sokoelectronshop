@@ -34,15 +34,27 @@ import { adminApi } from '@/lib/admin-api';
 
 const MAX_HERO_SLIDES = 10;
 
-const API_ORIGIN =
-    (typeof process !== 'undefined' &&
-        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '')) ||
-    'http://localhost:8000';
+const API_ORIGIN = (() => {
+    const configured =
+        typeof process !== 'undefined' &&
+        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+    if (configured) return configured;
+    if (
+        typeof process !== 'undefined' &&
+        process.env.NODE_ENV === 'production'
+    ) {
+        console.error(
+            '[banners] NEXT_PUBLIC_API_BASE_URL is not set — image URLs will 404.',
+        );
+    }
+    return 'http://localhost:8000';
+})();
 
 function resolveImageUrl(url: string): string {
     if (!url) return '';
     if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:')) return url;
-    return `${API_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`;
+    if (url.startsWith('/')) return `${API_ORIGIN}${url}`;
+    return `${API_ORIGIN}/media/${url}`;
 }
 
 function fmt(n: number): string {
@@ -95,8 +107,11 @@ async function uploadBannerImage(
     kind: 'desktop' | 'tablet' | 'mobile',
     signal?: AbortSignal,
 ): Promise<string> {
-    const { url } = await adminApi.banners.upload(file, kind, signal);
-    return url;
+    const res = await adminApi.banners.upload(file, kind, signal);
+    if (res.path) {
+        return `/media/${res.path.replace(/^\/?media\//, '')}`;
+    }
+    return res.url;
 }
 
 const STATUS_STYLES: Record<Status, string> = {
@@ -218,7 +233,7 @@ export default function BannersPage() {
             const s = await adminApi.banners.stats();
             setStats(s);
         } catch {
-            /* noop */
+            // ignore
         }
     }
 
@@ -725,8 +740,8 @@ function IconButton({
             aria-label={title}
             onClick={onClick}
             className={`p-1.5 rounded-sm transition ${danger
-                    ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                    : 'text-slate-500 hover:text-blue-950 hover:bg-slate-100'
+                ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                : 'text-slate-500 hover:text-blue-950 hover:bg-slate-100'
                 }`}
         >
             {children}
@@ -915,7 +930,6 @@ function SlideArt({ banner }: { banner: Banner }) {
     return (
         <>
             {banner.desktop_image ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                     src={resolveImageUrl(banner.desktop_image)}
                     alt=""
@@ -953,8 +967,8 @@ function SlideArtFull({ banner }: { banner: Banner }) {
                 {banner.badge && (
                     <span
                         className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded ${isLight
-                                ? 'bg-slate-900 text-white'
-                                : 'bg-white text-slate-900'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-white text-slate-900'
                             }`}
                     >
                         {banner.badge}
@@ -979,8 +993,8 @@ function SlideArtFull({ banner }: { banner: Banner }) {
                         {banner.secondary_cta_text && (
                             <span
                                 className={`inline-flex items-center justify-center font-medium py-2 px-3 rounded text-[13px] border ${isLight
-                                        ? 'text-slate-900 border-slate-900/30'
-                                        : 'text-white border-white/30'
+                                    ? 'text-slate-900 border-slate-900/30'
+                                    : 'text-white border-white/30'
                                     }`}
                             >
                                 {banner.secondary_cta_text}
@@ -1030,8 +1044,8 @@ function PreviewModal({
                                     key={d}
                                     onClick={() => setDevice(d)}
                                     className={`px-2 sm:px-2.5 py-1.5 text-[12px] rounded capitalize transition ${device === d
-                                            ? 'bg-white text-slate-900'
-                                            : 'text-slate-500 hover:text-slate-700'
+                                        ? 'bg-white text-slate-900'
+                                        : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     {d}
@@ -1197,10 +1211,10 @@ function BannerWizard({
                                     if (i <= step) setStep(i);
                                 }}
                                 className={`text-[12px] px-2 py-1 rounded-sm whitespace-nowrap transition shrink-0 ${i === step
-                                        ? 'bg-blue-950 text-white'
-                                        : i < step
-                                            ? 'text-blue-950 bg-blue-50'
-                                            : 'text-slate-400'
+                                    ? 'bg-blue-950 text-white'
+                                    : i < step
+                                        ? 'text-blue-950 bg-blue-50'
+                                        : 'text-slate-400'
                                     }`}
                             >
                                 {i + 1}. {label}
@@ -1707,8 +1721,8 @@ function ImageDrop({
                 }}
                 onClick={() => inputRef.current?.click()}
                 className={`group relative cursor-pointer rounded border-2 border-dashed transition ${dragging
-                        ? 'border-blue-950 bg-blue-50/40'
-                        : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
+                    ? 'border-blue-950 bg-blue-50/40'
+                    : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
                     }`}
             >
                 {value ? (
@@ -1716,11 +1730,18 @@ function ImageDrop({
                         className="relative w-full overflow-hidden rounded"
                         style={aspect ? { aspectRatio: aspect } : undefined}
                     >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src={resolveImageUrl(value)}
                             alt=""
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display =
+                                    'none';
+                            }}
+                            onLoad={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display =
+                                    '';
+                            }}
                         />
                         <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition flex items-center justify-center">
                             <span className="text-white text-[13px] font-medium opacity-0 group-hover:opacity-100 transition">
