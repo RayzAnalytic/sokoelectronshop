@@ -145,6 +145,8 @@ env = environ.Env(
 
     ANALYTICS_PAGEVIEW_ENABLED=(bool, True),
     ANALYTICS_PAGEVIEW_RETENTION_DAYS=(int, 90),
+
+    ADMIN_URL=(str, "ops-7f3k9z"),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -162,38 +164,26 @@ ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 
 
 # =====================================================================
-# ADDED: Production / Render reverse-proxy support
+# Production / Render reverse-proxy support
 # =====================================================================
-# Render terminates TLS at its edge and forwards HTTP to your app.
-# Without SECURE_PROXY_SSL_HEADER, request.build_absolute_uri() will
-# return http://... URLs and Google OAuth callbacks break.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Force HTTPS redirects in production only (disable if Render health
-# checks start failing — set env SECURE_SSL_REDIRECT=False).
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
 
-# HSTS — safe defaults, only active when DEBUG=False
-SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000 if not DEBUG else 0)
+SECURE_HSTS_SECONDS = env.int(
+    "SECURE_HSTS_SECONDS", default=31536000 if not DEBUG else 0
+)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
     "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=not DEBUG
 )
 SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
 
-# Modern browsers
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
-
-# Trust CSRF from the Vercel frontend (already augmented below,
-# but this captures it early so admin also works)
-CSRF_TRUSTED_ORIGINS = list(env.list("CSRF_TRUSTED_ORIGINS", default=[]))
 # =====================================================================
 
 
-# Safety: AUTH_DEV_FIXED_OTP must NEVER be active in production.
-# If someone accidentally copies it into a production environment,
-# the app refuses to boot rather than silently bypassing email verification.
 if AUTH_DEV_FIXED_OTP and not DEBUG:
     raise ImproperlyConfigured(
         "AUTH_DEV_FIXED_OTP is set but DEBUG=False. "
@@ -273,7 +263,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_otp.middleware.OTPMiddleware",
     "dashboard.analytics.middleware.PageViewMiddleware",
-    'config.middleware.BlockAdminMiddleware',
+    "config.middleware.BlockAdminMiddleware",
 ]
 
 
@@ -311,7 +301,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-LOGIN_URL = "/api/v1/auth/login/"
+# ── Where blocked /admin requests get sent ────────────────────────────
+# Point this at your FRONTEND login page, not the API. The middleware
+# uses redirect_to_login() which builds `?next=` around LOGIN_URL, so
+# it must be a browser-friendly page. You can also point it at a
+# Google SSO start endpoint if you use one.
+LOGIN_URL = env("LOGIN_URL", default="http://localhost:3000/login")
 
 
 SESSION_COOKIE_HTTPONLY = True
@@ -349,39 +344,21 @@ if CSRF_COOKIE_SAMESITE == "None" and not CSRF_COOKIE_SECURE:
 
 CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN") or None
 
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+# Only ONE assignment — the augmented version below adds FRONTEND_URL.
+CSRF_TRUSTED_ORIGINS = list(env.list("CSRF_TRUSTED_ORIGINS", default=[]))
 
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-#CACHES = {    "default": {        "BACKEND": "django_redis.cache.RedisCache",
-#        "LOCATION": REDIS_URL,
-#        "OPTIONS": {
-#            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-#        },
-#        "KEY_PREFIX": "myshop",
-#        "TIMEOUT": 300,
-#    }
-#}
-# settings.py
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "unique-snowflake",  # any unique name
+        "LOCATION": "unique-snowflake",
     }
 }
 RATELIMIT_USE_CACHE = "default"
 
 
-#DATABASES = {
-#    "default": {
-#        "ENGINE": "django.db.backends.postgresql",
-#        "NAME": env("DB_NAME"),
-#        "USER": env("DB_USER"),
-#        "PASSWORD": env("DB_PASSWORD"),
-#        "HOST": env("DB_HOST"),
-#        "PORT": env("DB_PORT"),
-#    }
-#}
 import dj_database_url
 
 DATABASES = {
@@ -514,12 +491,6 @@ ANYMAIL = {
     "SENDGRID_API_KEY": env("SENDGRID_API_KEY"),
 }
 
-# ── Silenced system checks ────────────────────────────────────────────
-# anymail.W003       : django-anymail dropped official SendGrid support
-# django_ratelimit.E003 : LocMemCache is not a "shared cache" — fine for
-#                         the single Gunicorn worker on Render's free tier
-# django_ratelimit.W001 : same reason, warning-level variant
-# ──────────────────────────────────────────────────────────────────────
 SILENCED_SYSTEM_CHECKS = [
     "anymail.W003",
     "django_ratelimit.E003",
@@ -660,16 +631,13 @@ PUBLIC_BASE_URL = env(
 MEDIA_URL_ABSOLUTE = f"{PUBLIC_BASE_URL.rstrip('/')}{MEDIA_URL}"
 
 
-# Admin uploads: base64-encoded images in JSON bodies and multipart files
-# both count against these limits. Defaults (2.5MB) are too small for
-# product galleries that carry several base64 images per save.
 DATA_UPLOAD_MAX_MEMORY_SIZE = env.int(
     "DATA_UPLOAD_MAX_MEMORY_SIZE",
-    default=50 * 1024 * 1024,  # 50 MB
+    default=50 * 1024 * 1024,
 )
 FILE_UPLOAD_MAX_MEMORY_SIZE = env.int(
     "FILE_UPLOAD_MAX_MEMORY_SIZE",
-    default=50 * 1024 * 1024,  # 50 MB
+    default=50 * 1024 * 1024,
 )
 DATA_UPLOAD_MAX_NUMBER_FIELDS = env.int(
     "DATA_UPLOAD_MAX_NUMBER_FIELDS",
@@ -686,43 +654,29 @@ if env.bool("USE_S3"):
     from storages.backends.s3 import S3Storage as _BaseS3Storage
 
     class B2Storage(_BaseS3Storage):
-        """S3Storage subclass tuned for Backblaze B2.
-
-        B2 mishandles the ``Expect: 100-continue`` header that botocore
-        adds to every ``PutObject`` request — it responds with a
-        malformed status line and closes the connection. This subclass
-        registers handlers on both ``before-call`` and ``before-send``
-        for ``PutObject`` to guarantee the header is stripped after
-        botocore's ``add_expect_header`` handler runs.
-        """
+        """S3Storage subclass tuned for Backblaze B2."""
 
         def __init__(self, **settings):
             super().__init__(**settings)
 
             conn = self.connection
-            # boto3's resource exposes the low-level client at .meta.client;
-            # some django-storages versions hand back a client directly.
             if hasattr(conn, "meta") and hasattr(conn.meta, "client"):
                 client = conn.meta.client
             else:
                 client = conn
 
             def _strip_expect_from_params(model, params, **kwargs):
-                # before-call handlers mutate params["headers"]
                 headers = params.setdefault("headers", {})
-                # Headers dict here may use either casing; drop both.
                 for key in list(headers.keys()):
                     if key.lower() == "expect":
                         headers.pop(key, None)
 
             def _strip_expect_from_request(request, **kwargs):
-                # before-send handlers mutate the prepared request
                 for key in list(request.headers.keys()):
                     if key.lower() == "expect":
                         request.headers.pop(key, None)
 
             events = client.meta.events
-            # register_last runs AFTER botocore's add_expect_header handler
             events.register_last(
                 "before-call.s3.PutObject", _strip_expect_from_params
             )
@@ -1028,12 +982,9 @@ ANALYTICS_PAGEVIEW_RETENTION_DAYS = env.int(
 
 AUTH_STRATEGY = env("AUTH_STRATEGY")
 
-# ⚠️ WARNING: This second LOGGING block overrides the LOGGING defined
-# above. That means the `authentication.google` and other per-app
-# loggers above will NOT be active while this block is present.
-# It's here because you asked to keep all code. Delete this whole
-# block once you have finished debugging the Google OAuth redirect.
-# TEMPORARY DEBUG LOGGING — remove after fixing
+# ⚠️ TEMPORARY DEBUG LOGGING — overrides the LOGGING above.
+# Removes per-app loggers and prints everything at DEBUG to console.
+# Delete this whole block once you finish debugging Google OAuth.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
