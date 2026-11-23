@@ -19,6 +19,8 @@ from rest_framework_simplejwt.views import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from django.views.defaults import page_not_found
+import logging
 
 from .google import (
     build_authorize_url,
@@ -74,7 +76,7 @@ DEFAULT_ADMIN_LOGIN_REDIRECT = "/admin"
 # whether the user logged in via password (JWT) or via Google (JWT) or via
 # Django admin (session).
 DUAL_AUTH = [JWTAuthentication, SessionAuthentication]
-
+logger = logging.getLogger(__name__)
 
 def _safe_next(raw: str | None) -> str | None:
     if not raw:
@@ -114,7 +116,14 @@ def _unauthorized() -> Response:
         {"detail": "Not authenticated."},
         status=status.HTTP_401_UNAUTHORIZED,
     )
-
+def log_404(request, exception):
+    logger.warning(
+        "404 RECEIVED: path=%r host=%r full_path=%r",
+        request.path,
+        request.get_host(),
+        request.get_full_path(),
+    )
+    return page_not_found(request, exception)
 
 def _display_name(user) -> str:
     first = getattr(user, "first_name", "") or ""
