@@ -169,7 +169,7 @@ export default function CategoriesSection() {
                 </div>
             </div>
 
-            <div className="relative w-full py-1 overflow-hidden">
+            <div className="category-carousel relative w-full py-1 overflow-hidden">
                 <div className="max-w-7xl mx-auto">
                     <div
                         ref={trackRef}
@@ -181,11 +181,12 @@ export default function CategoriesSection() {
                         style={
                             shouldMarquee
                                 ? {
-                                    transform: `translateX(${offset}px)`,
+                                    transform: `translate3d(${offset}px, 0, 0)`,
                                     transition: resetting
                                         ? 'none'
                                         : `transform ${STEP_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
                                     willChange: 'transform',
+                                    backfaceVisibility: 'hidden',
                                 }
                                 : undefined
                         }
@@ -199,13 +200,13 @@ export default function CategoriesSection() {
                                     key={`${cat.slug}-${index}`}
                                     data-card
                                     href={cat.href || `/pages/categories/${cat.slug}`}
-                                    className="group/card relative overflow-hidden block w-[130px] h-[140px] xs:w-[150px] xs:h-[160px] sm:w-[230px] sm:h-[210px] rounded sm:rounded-[3px] shrink-0 ring-1 ring-slate-700/60 shadow hover:shadow-lg hover:ring-white transition-all duration-300"
+                                    className="category-card group/card relative overflow-hidden block w-[130px] h-[140px] xs:w-[150px] xs:h-[160px] sm:w-[230px] sm:h-[210px] rounded sm:rounded-[3px] shrink-0 ring-1 ring-slate-700/60 shadow hover:shadow-lg hover:ring-white transition-all duration-300"
                                 >
                                     {imageSrc ? (
                                         <img
                                             src={imageSrc}
                                             alt={cat.name}
-                                            className="absolute inset-0 w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500 ease-in-out"
+                                            className="category-card-img absolute inset-0 w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500 ease-in-out"
                                         />
                                     ) : (
                                         <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-950 via-slate-900 to-blue-950 group-hover/card:scale-105 transition-transform duration-500 ease-in-out" />
