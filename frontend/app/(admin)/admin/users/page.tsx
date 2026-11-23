@@ -439,12 +439,13 @@ export default function UsersAndRolesPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 relative">
       {toastMessage && (
-        <div className="fixed bottom-3 right-3 z-[110] bg-slate-900 text-white px-2 py-2 rounded shadow-lg flex items-center gap-2 text-[13px]">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+        <div className="fixed bottom-3 left-3 right-3 sm:left-auto sm:bottom-3 sm:right-3 z-[110] bg-slate-900 text-white px-3 py-2.5 rounded shadow-lg flex items-start sm:items-center gap-2 text-[13px] max-w-full sm:max-w-md">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+          <span className="min-w-0 flex-1 break-words">{toastMessage}</span>
           <button
             onClick={() => setToastMessage(null)}
-            className="text-slate-400 hover:text-white"
+            className="text-slate-400 hover:text-white shrink-0 p-0.5 -mr-1"
+            aria-label="Dismiss"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -452,16 +453,18 @@ export default function UsersAndRolesPage() {
       )}
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1700px] mx-auto px-3 py-3 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-[15px] font-semibold text-slate-900">Users & Roles</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">
+        <div className="max-w-[1700px] mx-auto px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-slate-900 truncate">
+              Users & Roles
+            </h1>
+            <p className="text-[13px] text-slate-500 mt-0.5 break-words">
               Staff accounts and store-operation permissions
             </p>
           </div>
           <button
             onClick={() => setInviteOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px] transition"
+            className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] transition w-full sm:w-auto shrink-0"
           >
             <UserPlus className="w-3.5 h-3.5" />
             <span>Invite staff</span>
@@ -480,12 +483,12 @@ export default function UsersAndRolesPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
-                    ? 'border-blue-950 text-blue-950'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                className={`inline-flex items-center gap-1.5 px-3 py-2.5 sm:py-2 rounded text-[13px] font-medium border-b-2 transition whitespace-nowrap ${isActive
+                  ? 'border-blue-950 text-blue-950'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 active:bg-slate-100'
                   }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-blue-950' : 'text-slate-400'}`} />
                 {tab.label}
                 <span
                   className={`px-1.5 py-0.5 rounded text-[13px] ${isActive ? 'bg-blue-950 text-white' : 'bg-slate-100 text-slate-600'
@@ -500,10 +503,9 @@ export default function UsersAndRolesPage() {
       </header>
 
       <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
-        
 
         {loadError && (
-          <div className="bg-red-50 border border-red-200 rounded p-2 text-[13px] text-red-700">
+          <div className="bg-red-50 border border-red-200 rounded p-3 sm:p-2 text-[13px] text-red-700 break-words">
             {loadError}
           </div>
         )}
@@ -517,23 +519,23 @@ export default function UsersAndRolesPage() {
 
         {!loading && activeTab === 'users' && (
           <>
-            <div className="bg-white border border-slate-200 rounded p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
-              <div className="relative flex-1">
+            <div className="bg-white border border-slate-200 rounded p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+              <div className="relative flex-1 min-w-0">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search staff by name, email, department…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2.5 sm:py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex items-center gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5">
                 <button
                   onClick={() => setRoleFilter(null)}
-                  className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition ${roleFilter === null
-                      ? 'bg-blue-950 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap shrink-0 ${roleFilter === null
+                    ? 'bg-blue-950 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300'
                     }`}
                 >
                   All roles
@@ -542,9 +544,9 @@ export default function UsersAndRolesPage() {
                   <button
                     key={r}
                     onClick={() => setRoleFilter(r)}
-                    className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap ${roleFilter === r
-                        ? 'bg-blue-950 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    className={`px-2.5 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap shrink-0 ${roleFilter === r
+                      ? 'bg-blue-950 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300'
                       }`}
                   >
                     {r}
@@ -554,14 +556,14 @@ export default function UsersAndRolesPage() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded overflow-hidden">
-              <div className="px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <p className="text-[13px] font-medium text-slate-700">Staff accounts</p>
-                <p className="text-[13px] text-slate-500">
+              <div className="px-3 sm:px-2 py-2 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                <p className="text-[13px] font-medium text-slate-700 truncate">Staff accounts</p>
+                <p className="text-[13px] text-slate-500 shrink-0">
                   {totalUsersInFilter} staff
                 </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[13px]">
+              <div className="overflow-x-auto -mx-0">
+                <table className="w-full text-left border-collapse text-[13px] min-w-[720px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                       <th className="py-2 px-2 font-medium">User</th>
@@ -588,15 +590,15 @@ export default function UsersAndRolesPage() {
                                 {initialsOf(usr.name, usr.email)}
                               </div>
                               <div className="min-w-0">
-                                <p className="font-medium text-slate-900 truncate">{usr.name}</p>
-                                <p className="text-[13px] text-slate-400 truncate">{usr.email}</p>
+                                <p className="font-medium text-slate-900 truncate max-w-[180px]">{usr.name}</p>
+                                <p className="text-[13px] text-slate-400 truncate max-w-[180px]">{usr.email}</p>
                               </div>
                             </div>
                           </td>
-                          <td className="py-2 px-2 text-slate-600">{usr.department}</td>
+                          <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{usr.department}</td>
                           <td className="py-2 px-2">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded font-medium border ${roleBadgeColor(
+                              className={`inline-block px-2 py-0.5 rounded font-medium border whitespace-nowrap ${roleBadgeColor(
                                 usr.role,
                               )}`}
                             >
@@ -605,35 +607,35 @@ export default function UsersAndRolesPage() {
                           </td>
                           <td className="py-2 px-2">
                             <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium border ${statusBadge(
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-medium border whitespace-nowrap ${statusBadge(
                                 usr.status,
                               )}`}
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${usr.status === 'Active'
-                                    ? 'bg-emerald-500'
-                                    : usr.status === 'Invited'
-                                      ? 'bg-blue-500'
-                                      : 'bg-red-500'
+                                  ? 'bg-emerald-500'
+                                  : usr.status === 'Invited'
+                                    ? 'bg-blue-500'
+                                    : 'bg-red-500'
                                   }`}
                               />
                               {usr.status}
                             </span>
                           </td>
-                          <td className="py-2 px-2 text-slate-500">{usr.lastLogin}</td>
+                          <td className="py-2 px-2 text-slate-500 whitespace-nowrap">{usr.lastLogin}</td>
                           <td className="py-2 px-2">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 onClick={() => openEdit(usr)}
-                                className="px-2.5 py-2 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px]"
+                                className="px-2.5 py-2 rounded bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium text-[13px] whitespace-nowrap"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => toggleSuspend(usr)}
-                                className={`px-2.5 py-2 rounded font-medium text-[13px] border transition ${usr.status === 'Suspended'
-                                    ? 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                                    : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'
+                                className={`px-2.5 py-2 rounded font-medium text-[13px] border transition whitespace-nowrap ${usr.status === 'Suspended'
+                                  ? 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 active:bg-emerald-100'
+                                  : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50 active:bg-amber-100'
                                   }`}
                               >
                                 {usr.status === 'Suspended' ? 'Activate' : 'Suspend'}
@@ -643,8 +645,9 @@ export default function UsersAndRolesPage() {
                                   setUserToDelete(usr);
                                   setDeleteOpen(true);
                                 }}
-                                className="p-2 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50 transition"
+                                className="p-2 rounded bg-white border border-red-200 text-red-600 hover:bg-red-50 active:bg-red-100 transition shrink-0"
                                 title="Delete user"
+                                aria-label="Delete user"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -662,9 +665,9 @@ export default function UsersAndRolesPage() {
 
         {!loading && activeTab === 'roles' && (
           <div className="space-y-2">
-            <div className="bg-white border border-slate-200 rounded p-2">
+            <div className="bg-white border border-slate-200 rounded p-3 sm:p-2">
               <p className="text-[13px] font-semibold text-slate-900">Role catalogue</p>
-              <p className="text-[13px] text-slate-500">
+              <p className="text-[13px] text-slate-500 break-words">
                 {STAFF_ROLES.length} staff roles + 1 customer account type
               </p>
             </div>
@@ -675,7 +678,7 @@ export default function UsersAndRolesPage() {
                 return (
                   <div
                     key={role.id}
-                    className={`bg-white border rounded p-2 space-y-2 flex flex-col justify-between ${role.isCustomer ? 'border-slate-300 bg-slate-50/50' : 'border-slate-200'
+                    className={`bg-white border rounded p-3 sm:p-2 space-y-2 flex flex-col justify-between ${role.isCustomer ? 'border-slate-300 bg-slate-50/50' : 'border-slate-200'
                       }`}
                   >
                     <div>
@@ -697,18 +700,18 @@ export default function UsersAndRolesPage() {
                           {role.userCount} users
                         </span>
                       </div>
-                      <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">
+                      <p className="text-[13px] text-slate-600 mt-2 leading-relaxed break-words">
                         {role.description}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[13px] text-slate-400 font-mono">
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span className="text-[13px] text-slate-400 font-mono truncate">
                         {role.isCustomer ? 'Read-only · external' : 'Internal staff'}
                       </span>
                       <button
                         onClick={() => setActiveTab('permissions')}
-                        className="px-2 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[13px] transition"
+                        className="px-2 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium text-[13px] transition whitespace-nowrap shrink-0"
                       >
                         View permissions
                       </button>
@@ -722,17 +725,17 @@ export default function UsersAndRolesPage() {
 
         {!loading && activeTab === 'permissions' && (
           <div className="space-y-2">
-            <div className="bg-white border border-slate-200 rounded p-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div>
+            <div className="bg-white border border-slate-200 rounded p-3 sm:p-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-slate-900">Permission matrix</p>
-                <p className="text-[13px] text-slate-500">
+                <p className="text-[13px] text-slate-500 break-words">
                   Toggle access per module for each role. Administrator access is locked.
                 </p>
               </div>
               <button
                 onClick={savePermissions}
                 disabled={saving}
-                className="bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px] transition inline-flex items-center gap-1.5"
+                className="bg-blue-950 hover:bg-blue-900 active:bg-blue-950 disabled:opacity-60 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] transition inline-flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0"
               >
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Save matrix
@@ -789,9 +792,9 @@ export default function UsersAndRolesPage() {
                                     <button
                                       onClick={() => togglePermission(moduleIdx, role)}
                                       disabled={isAdmin}
-                                      className={`w-7 h-7 rounded inline-flex items-center justify-center border transition ${enabled
-                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                                          : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                                      className={`w-8 h-8 sm:w-7 sm:h-7 rounded inline-flex items-center justify-center border transition ${enabled
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 active:bg-emerald-200'
+                                        : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 active:bg-slate-200'
                                         } ${isAdmin ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
                                       title={
                                         isAdmin
@@ -866,13 +869,13 @@ export default function UsersAndRolesPage() {
               placeholder="david@sokoflow.co.ke"
               required
             />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <label className="block font-medium text-slate-700 mb-1">Assigned role</label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as AdminStaffUserRole)}
-                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2.5 sm:py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 >
                   {assignableRoles.map((r) => (
                     <option key={r} value={r}>
@@ -899,24 +902,24 @@ export default function UsersAndRolesPage() {
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded p-2">
-              <p className="text-blue-800 text-[13px]">
+              <p className="text-blue-800 text-[13px] break-words">
                 Staff will be able to access only the modules granted to their role
                 in the permission matrix.
               </p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={closeAll}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
+                className="bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] w-full sm:w-auto"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
+                className="bg-blue-950 hover:bg-blue-900 active:bg-blue-950 disabled:opacity-60 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] inline-flex items-center justify-center gap-1.5 w-full sm:w-auto"
               >
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Send invitation
@@ -945,11 +948,11 @@ export default function UsersAndRolesPage() {
                 type="email"
                 disabled
                 value={selectedUser.email}
-                className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-500 cursor-not-allowed"
+                className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2.5 sm:py-2 text-[13px] text-slate-500 cursor-not-allowed break-all"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="min-w-0">
                 <label className="block font-medium text-slate-700 mb-1">Assigned role</label>
                 <select
                   value={selectedUser.role}
@@ -959,7 +962,7 @@ export default function UsersAndRolesPage() {
                       role: e.target.value as AdminStaffUserRole,
                     })
                   }
-                  className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                  className="w-full bg-white border border-slate-200 rounded px-3 py-2.5 sm:py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                 >
                   {STAFF_ROLES.filter(
                     (r) =>
@@ -989,7 +992,7 @@ export default function UsersAndRolesPage() {
                     status: e.target.value as UserStatus,
                   })
                 }
-                className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                className="w-full bg-white border border-slate-200 rounded px-3 py-2.5 sm:py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
               >
                 <option value="Active">Active</option>
                 <option value="Invited">Invited</option>
@@ -999,24 +1002,24 @@ export default function UsersAndRolesPage() {
             <button
               type="button"
               onClick={resetPassword}
-              className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px]"
+              className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium py-2.5 sm:py-2 rounded text-[13px]"
             >
               <Key className="w-3.5 h-3.5 text-blue-950" />
               Reset password & send link
             </button>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={closeAll}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
+                className="bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] w-full sm:w-auto"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-blue-950 hover:bg-blue-900 disabled:opacity-60 text-white font-medium px-3 py-2 rounded text-[13px] inline-flex items-center gap-1.5"
+                className="bg-blue-950 hover:bg-blue-900 active:bg-blue-950 disabled:opacity-60 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] inline-flex items-center justify-center gap-1.5 w-full sm:w-auto"
               >
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Save changes
@@ -1036,23 +1039,23 @@ export default function UsersAndRolesPage() {
               <h3 className="text-[15px] font-semibold text-slate-900">
                 Remove staff account?
               </h3>
-              <p className="text-slate-500 mt-1">
+              <p className="text-slate-500 mt-1 break-words">
                 Remove{' '}
                 <span className="font-medium text-slate-800">{userToDelete.name}</span>?
                 Active orders and logs will be reassigned to the primary administrator.
               </p>
             </div>
-            <div className="flex justify-center gap-2 pt-1">
+            <div className="flex flex-col-reverse sm:flex-row justify-center gap-2 pt-1">
               <button
                 onClick={closeAll}
-                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded text-[13px]"
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium py-2.5 sm:py-2 rounded text-[13px]"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
                 disabled={saving}
-                className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-medium py-2 rounded text-[13px] inline-flex items-center justify-center gap-1.5"
+                className="flex-1 bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-60 text-white font-medium py-2.5 sm:py-2 rounded text-[13px] inline-flex items-center justify-center gap-1.5"
               >
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Confirm delete
@@ -1080,34 +1083,35 @@ function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
+      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3"
       onClick={onClose}
     >
       <div
-        className={`bg-white border border-slate-200 rounded w-full ${maxWidth} max-h-[90vh] flex flex-col shadow-xl`}
+        className={`bg-white border border-slate-200 rounded w-full ${maxWidth} max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex items-start justify-between px-2 py-2 border-b border-slate-200 shrink-0">
+          <div className="flex items-start justify-between gap-2 px-3 sm:px-2 py-3 sm:py-2 border-b border-slate-200 shrink-0">
             <div className="min-w-0">
               <h3 className="text-[15px] font-semibold text-slate-900 truncate">
                 {title}
               </h3>
               {subtitle && (
-                <p className="text-[13px] text-slate-500 mt-0.5 truncate">
+                <p className="text-[13px] text-slate-500 mt-0.5 break-words">
                   {subtitle}
                 </p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
+              className="h-8 w-8 rounded hover:bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-500 shrink-0"
+              aria-label="Close"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-3">{children}</div>
+        <div className="flex-1 overflow-y-auto p-3 sm:p-3">{children}</div>
       </div>
     </div>
   );
@@ -1129,7 +1133,7 @@ function Field({
   required?: boolean;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="block font-medium text-slate-700 mb-1">{label}</span>
       <input
         type={type}
@@ -1137,7 +1141,7 @@ function Field({
         required={required}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+        className="w-full bg-white border border-slate-200 rounded px-3 py-2.5 sm:py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
       />
     </label>
   );

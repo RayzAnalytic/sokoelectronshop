@@ -273,6 +273,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_otp.middleware.OTPMiddleware",
     "dashboard.analytics.middleware.PageViewMiddleware",
+    'config.middleware.BlockAdminMiddleware',
 ]
 
 

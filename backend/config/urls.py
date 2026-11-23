@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -9,9 +11,10 @@ from dashboard.social.views import OAuthCallbackView as SocialOAuthCallbackView
 from dashboard.settings import views as settings_views
 from dashboard.settings.urls import public_urls as settings_public_urls
 
+ADMIN_URL = os.environ.get("ADMIN_URL", "ops-7f3k9z")
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path(f"{ADMIN_URL}/", admin.site.urls),
 
     path("api/v1/auth/", include("authentication.urls")),
 
