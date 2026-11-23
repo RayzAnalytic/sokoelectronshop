@@ -22,16 +22,18 @@ function proxyTo(pathname: string, request: NextRequest): NextResponse {
     url.protocol = BACKEND.protocol;
     url.host = BACKEND.host;
     url.pathname = pathname;
+    url.search = request.nextUrl.search;
     return NextResponse.rewrite(url);
 }
 
 export function middleware(request: NextRequest) {
     try {
-        const { pathname } = request.nextUrl;
+        let { pathname } = request.nextUrl;
 
         if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-            const newPath = pathname.replace(/^\/admin/, `/${ADMIN_PATH_SECRET}`);
-            return proxyTo(newPath, request);
+            pathname = pathname.replace(/^\/admin/, `/${ADMIN_PATH_SECRET}`);
+            if (!pathname.endsWith("/")) pathname += "/";
+            return proxyTo(pathname, request);
         }
 
         if (
