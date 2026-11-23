@@ -445,7 +445,7 @@ function OrdersInner() {
         const ref = searchParams.get('ref');
         if (!ref) return;
         const match = orders.find((o) => o.reference === ref);
-        if (match) openDetail(ref, true); 
+        if (match) openDetail(ref, true);
     }, [orders, searchParams]);
 
     useEffect(() => {
@@ -663,26 +663,28 @@ function OrdersInner() {
     return (
         <div className="space-y-2">
             {toast && (
-                <div className="fixed bottom-2 right-2 z-[80] bg-blue-950 text-white text-[13px] px-2 py-2 rounded flex items-start gap-2 max-w-md no-print">
-                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="">{toast}</span>
+                <div className="fixed bottom-3 left-3 right-3 sm:left-auto sm:bottom-6 sm:right-6 z-[80] bg-blue-950 text-white text-[13px] px-3 py-2.5 rounded flex items-start sm:items-center gap-2 max-w-full sm:max-w-md shadow-lg no-print">
+                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+                    <span className="min-w-0 break-words">{toast}</span>
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded p-2 no-print">
-                <h1 className="text-[15px] font-semibold text-slate-900">My Orders</h1>
-                <p className="text-[13px] text-slate-500 mt-0.5">
+            <div className="bg-white border border-slate-200 rounded p-3 sm:p-2 no-print">
+                <h1 className="text-[15px] font-semibold text-slate-900 break-words">
+                    My Orders
+                </h1>
+                <p className="text-[13px] text-slate-500 mt-0.5 break-words">
                     Track, review, and manage all your purchases
                 </p>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded p-2 no-print">
+            <div className="bg-white border border-slate-200 rounded p-3 sm:p-2 no-print">
                 <div className="md:hidden space-y-2">
                     <select
                         value={activeTab}
                         onChange={(e) => setActiveTab(e.target.value as Tab)}
                         aria-label="Filter orders by status"
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-2 text-[13px] font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2.5 text-[13px] font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-950"
                     >
                         {TABS.map((tab) => (
                             <option key={tab} value={tab}>
@@ -695,7 +697,7 @@ function OrdersInner() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search orders or products…"
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                     />
                 </div>
 
@@ -729,9 +731,9 @@ function OrdersInner() {
             </div>
 
             {errorMessage && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded text-[13px] flex items-center gap-2 no-print">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    {errorMessage}
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-[13px] flex items-start gap-2 no-print">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span className="min-w-0 break-words">{errorMessage}</span>
                 </div>
             )}
 
@@ -741,12 +743,12 @@ function OrdersInner() {
                     Loading orders…
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded p-8 text-center no-print">
+                <div className="bg-white border border-slate-200 rounded p-6 sm:p-8 text-center no-print">
                     <ShoppingBag className="h-10 w-10 text-slate-300 mx-auto mb-1" />
                     <h2 className="text-[15px] font-semibold text-slate-900">
                         {orders.length === 0 ? 'No orders yet' : 'No orders found'}
                     </h2>
-                    <p className="text-[13px] text-slate-500 mt-1">
+                    <p className="text-[13px] text-slate-500 mt-1 break-words">
                         {orders.length === 0
                             ? 'Place your first order to see it here.'
                             : 'Try a different filter or search term.'}
@@ -754,7 +756,7 @@ function OrdersInner() {
                     {orders.length === 0 && (
                         <Link
                             href="/pages/products"
-                            className="mt-1 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px]"
+                            className="mt-3 inline-block bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-4 py-2.5 rounded-sm text-[13px]"
                         >
                             Browse Products
                         </Link>
@@ -769,9 +771,9 @@ function OrdersInner() {
                                 key={order.reference}
                                 className="bg-white border border-slate-200 rounded overflow-hidden"
                             >
-                                <div className="flex flex-wrap items-center justify-between gap-2 p-2 border-b border-slate-100 bg-slate-50">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-[13px] font-semibold text-slate-900 font-mono">
+                                <div className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-2 border-b border-slate-100 bg-slate-50">
+                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                        <span className="text-[13px] font-semibold text-slate-900 font-mono break-all">
                                             #{order.reference}
                                         </span>
                                         <span className={`text-[13px] font-medium px-2 py-0.5 rounded border ${statusColor(order.status)}`}>
@@ -788,7 +790,7 @@ function OrdersInner() {
                                     </div>
                                 </div>
 
-                                <div className="p-2">
+                                <div className="p-3 sm:p-2">
                                     {order.previewItems.length > 0 ? (
                                         <div className="flex items-center gap-2 overflow-x-auto">
                                             {order.previewItems.map((item, idx) => (
@@ -821,8 +823,8 @@ function OrdersInner() {
                                     )}
                                 </div>
 
-                                <div className="p-2 pt-0 flex flex-wrap items-center justify-between gap-2">
-                                    <div>
+                                <div className="p-3 sm:p-2 pt-0 sm:pt-0 flex flex-wrap items-center justify-between gap-2">
+                                    <div className="min-w-0">
                                         <p className="text-[13px] text-slate-500">Total</p>
                                         <p className="text-[15px] font-bold text-slate-900">
                                             {formatKES(order.total)}
@@ -831,7 +833,7 @@ function OrdersInner() {
                                     <button
                                         type="button"
                                         onClick={() => openDetail(order.reference)}
-                                        className="inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded-sm text-[13px] transition-colors"
+                                        className="inline-flex items-center justify-center gap-2 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-3 py-2.5 sm:py-2 rounded-sm text-[13px] transition-colors shrink-0"
                                     >
                                         <Eye className="h-3.5 w-3.5" />
                                         Details
@@ -845,33 +847,33 @@ function OrdersInner() {
 
             {detail && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/70 backdrop-blur-sm print:bg-transparent print:backdrop-blur-none"
+                    className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-slate-900/70 backdrop-blur-sm print:bg-transparent print:backdrop-blur-none"
                     onClick={() => !reordering && !claiming && !rejectOpen && closeDetail()}
                 >
                     <div
-                        className="bg-white w-full max-w-3xl rounded border border-slate-200 max-h-[90vh] overflow-hidden flex flex-col"
+                        className="bg-white w-full max-w-3xl rounded border border-slate-200 max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between p-2 border-b border-slate-200 bg-slate-50 shrink-0 no-print">
+                        <div className="flex items-start sm:items-center justify-between gap-2 p-3 sm:p-2 border-b border-slate-200 bg-slate-50 shrink-0 no-print">
                             <div className="min-w-0">
                                 <p className="text-[13px] uppercase font-semibold text-slate-500">
                                     Order
                                 </p>
-                                <h2 className="text-[15px] font-bold text-slate-900 font-mono truncate">
+                                <h2 className="text-[15px] font-bold text-slate-900 font-mono break-all">
                                     #{detail.reference}
                                 </h2>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                                 <span className={`text-[13px] font-medium px-2 py-1 rounded border ${statusColor(detail.status)}`}>
                                     {detail.status}
                                 </span>
                                 {detail.paymentStatus === 'refunded' && (
-                                    <span className="text-[13px] font-medium px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                    <span className="hidden sm:inline-block text-[13px] font-medium px-2 py-1 rounded border bg-indigo-50 text-indigo-700 border-indigo-200">
                                         Refunded
                                     </span>
                                 )}
                                 {detail.paymentStatus === 'failed' && (
-                                    <span className="text-[13px] font-medium px-2 py-1 rounded border bg-red-50 text-red-700 border-red-200">
+                                    <span className="hidden sm:inline-block text-[13px] font-medium px-2 py-1 rounded border bg-red-50 text-red-700 border-red-200">
                                         Payment failed
                                     </span>
                                 )}
@@ -879,7 +881,7 @@ function OrdersInner() {
                                     type="button"
                                     onClick={closeDetail}
                                     disabled={reordering || claiming}
-                                    className="h-8 w-8 flex items-center justify-center rounded hover:bg-slate-200 text-slate-500 disabled:opacity-40"
+                                    className="h-8 w-8 flex items-center justify-center rounded hover:bg-slate-200 active:bg-slate-300 text-slate-500 disabled:opacity-40"
                                     aria-label="Close"
                                 >
                                     <X className="h-4 w-4" />
@@ -887,7 +889,7 @@ function OrdersInner() {
                             </div>
                         </div>
 
-                        <div className="overflow-y-auto p-2 space-y-2">
+                        <div className="overflow-y-auto p-3 sm:p-2 space-y-2">
                             {detailLoading ? (
                                 <div className="py-8 text-center text-[13px] text-slate-500">
                                     <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
@@ -931,15 +933,15 @@ function OrdersInner() {
                                                                     <span className="w-px flex-1 bg-slate-200 my-2" />
                                                                 )}
                                                             </div>
-                                                            <div className="pb-2">
-                                                                <p className="text-[13px] font-semibold text-slate-900">
+                                                            <div className="pb-2 min-w-0">
+                                                                <p className="text-[13px] font-semibold text-slate-900 break-words">
                                                                     {step.status}
                                                                 </p>
                                                                 <p className="text-[13px] text-slate-500">
                                                                     {formatDateTime(step.date)}
                                                                 </p>
                                                                 {step.note && (
-                                                                    <p className="text-[13px] text-slate-600 mt-0.5 italic">
+                                                                    <p className="text-[13px] text-slate-600 mt-0.5 italic break-words">
                                                                         {step.note}
                                                                     </p>
                                                                 )}
@@ -952,34 +954,34 @@ function OrdersInner() {
                                     )}
 
                                     {(detail.trackingNumber || detail.courier || detail.estimatedDelivery) && (
-                                        <section className="bg-slate-50 border border-slate-200 rounded p-2 no-print">
+                                        <section className="bg-slate-50 border border-slate-200 rounded p-3 sm:p-2 no-print">
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[13px]">
                                                 {detail.courier && (
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <p className="text-slate-500 mb-0.5 flex items-center gap-2">
                                                             <Truck className="h-3 w-3" /> Courier
                                                         </p>
-                                                        <p className="font-semibold text-slate-900">
+                                                        <p className="font-semibold text-slate-900 break-words">
                                                             {detail.courier}
                                                         </p>
                                                     </div>
                                                 )}
                                                 {detail.trackingNumber && (
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <p className="text-slate-500 mb-0.5">
                                                             Tracking No.
                                                         </p>
-                                                        <p className="font-mono text-slate-900">
+                                                        <p className="font-mono text-slate-900 break-all">
                                                             {detail.trackingNumber}
                                                         </p>
                                                     </div>
                                                 )}
                                                 {detail.estimatedDelivery && (
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <p className="text-slate-500 mb-0.5 flex items-center gap-2">
                                                             <Clock className="h-3 w-3" /> ETA
                                                         </p>
-                                                        <p className="font-semibold text-slate-900">
+                                                        <p className="font-semibold text-slate-900 break-words">
                                                             {detail.estimatedDelivery}
                                                         </p>
                                                     </div>
@@ -994,17 +996,17 @@ function OrdersInner() {
                                         </h3>
                                         <ul className="divide-y divide-slate-100 border border-slate-200 rounded overflow-hidden">
                                             {detail.items.map((item) => (
-                                                <li key={item.key} className="flex items-center gap-2 p-2">
+                                                <li key={item.key} className="flex items-center gap-2 p-3 sm:p-2">
                                                     <img
                                                         src={item.image || '/placeholder.png'}
                                                         alt={item.name}
                                                         className="h-14 w-14 rounded object-cover border border-slate-200 shrink-0"
                                                     />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[13px] uppercase text-slate-500 font-medium">
+                                                        <p className="text-[13px] uppercase text-slate-500 font-medium truncate">
                                                             {item.brand}
                                                         </p>
-                                                        <p className="text-[13px] font-semibold text-slate-900 truncate">
+                                                        <p className="text-[13px] font-semibold text-slate-900 break-words">
                                                             {item.name}
                                                         </p>
                                                         <p className="text-[13px] text-slate-500 mt-0.5">
@@ -1025,11 +1027,11 @@ function OrdersInner() {
                                     </section>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 no-print">
-                                        <section className="border border-slate-200 rounded p-2">
+                                        <section className="border border-slate-200 rounded p-3 sm:p-2">
                                             <h3 className="text-[13px] font-semibold uppercase text-slate-500 mb-2 flex items-center gap-2">
                                                 <MapPin className="h-3.5 w-3.5" /> Shipping Address
                                             </h3>
-                                            <p className="text-[13px] text-slate-700">
+                                            <p className="text-[13px] text-slate-700 break-words">
                                                 <span className="font-semibold text-slate-900">
                                                     {detail.shippingAddress.name}
                                                 </span>
@@ -1045,8 +1047,8 @@ function OrdersInner() {
                                             </p>
                                         </section>
 
-                                        <section className="border border-slate-200 rounded p-2">
-                                            <h3 className="text-[13px] font-semibold uppercase  text-slate-500 mb-1 flex items-center gap-2">
+                                        <section className="border border-slate-200 rounded p-3 sm:p-2">
+                                            <h3 className="text-[13px] font-semibold uppercase text-slate-500 mb-1 flex items-center gap-2">
                                                 <CreditCard className="h-3.5 w-3.5" /> Payment
                                             </h3>
                                             <p className="text-[13px] text-slate-700">
@@ -1055,7 +1057,7 @@ function OrdersInner() {
                                                     {detail.paymentMethod}
                                                 </span>
                                             </p>
-                                            <p className="text-[13px] text-slate-700 mt-1">
+                                            <p className="text-[13px] text-slate-700 mt-1 break-all">
                                                 <span className="text-slate-500">Reference:</span>{' '}
                                                 <span className="font-mono text-slate-900">
                                                     {detail.paymentRef}
@@ -1076,41 +1078,43 @@ function OrdersInner() {
                                         </section>
                                     </div>
 
-                                    <section className="border border-slate-200 rounded p-2 space-y-2 text-[13px] no-print">
-                                        <div className="flex justify-between text-slate-700">
+                                    <section className="border border-slate-200 rounded p-3 sm:p-2 space-y-2 text-[13px] no-print">
+                                        <div className="flex justify-between text-slate-700 gap-2">
                                             <span>Subtotal</span>
-                                            <span className="font-medium">{formatKES(detail.subtotal)}</span>
+                                            <span className="font-medium shrink-0">{formatKES(detail.subtotal)}</span>
                                         </div>
                                         {detail.discount > 0 && (
-                                            <div className="flex justify-between text-emerald-700">
-                                                <span className="inline-flex items-center gap-2">
-                                                    <Tag className="h-3 w-3" />
-                                                    Discount
-                                                    {detail.coupon ? ` (${detail.coupon})` : ''}
+                                            <div className="flex justify-between text-emerald-700 gap-2">
+                                                <span className="inline-flex items-center gap-2 min-w-0">
+                                                    <Tag className="h-3 w-3 shrink-0" />
+                                                    <span className="min-w-0 truncate">
+                                                        Discount
+                                                        {detail.coupon ? ` (${detail.coupon})` : ''}
+                                                    </span>
                                                 </span>
-                                                <span className="font-medium">
+                                                <span className="font-medium shrink-0">
                                                     − {formatKES(detail.discount)}
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="flex justify-between text-slate-700">
+                                        <div className="flex justify-between text-slate-700 gap-2">
                                             <span>Shipping</span>
-                                            <span className="font-medium">
+                                            <span className="font-medium shrink-0">
                                                 {detail.shipping === 0 ? 'Free' : formatKES(detail.shipping)}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-slate-700">
+                                        <div className="flex justify-between text-slate-700 gap-2">
                                             <span>
                                                 VAT
                                                 {detail.vat > 0 && detail.taxRate > 0
                                                     ? ` (${detail.taxRate}%)`
                                                     : ''}
                                             </span>
-                                            <span className="font-medium">{formatKES(detail.vat)}</span>
+                                            <span className="font-medium shrink-0">{formatKES(detail.vat)}</span>
                                         </div>
-                                        <div className="flex justify-between pt-2 border-t border-slate-200 text-[13px]">
+                                        <div className="flex justify-between pt-2 border-t border-slate-200 text-[13px] gap-2">
                                             <span className="font-bold text-slate-900">Total</span>
-                                            <span className="font-bold text-slate-900">
+                                            <span className="font-bold text-slate-900 shrink-0">
                                                 {formatKES(detail.total)}
                                             </span>
                                         </div>
@@ -1118,7 +1122,7 @@ function OrdersInner() {
 
                                     {rawDetail && (
                                         <section className="pt-1 border-t border-slate-200">
-                                            <div className="flex items-center justify-between mb-1 flex-wrap gap-2 no-print">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 no-print">
                                                 <h3 className="text-[13px] font-semibold uppercase text-slate-500">
                                                     Receipt
                                                 </h3>
@@ -1127,7 +1131,7 @@ function OrdersInner() {
                                                         type="button"
                                                         onClick={() => handleDownloadPdf(detail.reference)}
                                                         disabled={pdfBusy}
-                                                        className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
+                                                        className="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] disabled:opacity-60 flex-1 sm:flex-initial"
                                                     >
                                                         {pdfBusy ? (
                                                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1139,7 +1143,7 @@ function OrdersInner() {
                                                     <button
                                                         type="button"
                                                         onClick={handlePrintReceipt}
-                                                        className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-2 py-2 rounded text-[13px]"
+                                                        className="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] flex-1 sm:flex-initial"
                                                     >
                                                         <Printer className="h-3 w-3" />
                                                         Print
@@ -1147,7 +1151,7 @@ function OrdersInner() {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleShareReceipt(detail)}
-                                                        className="inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px]"
+                                                        className="inline-flex items-center justify-center gap-2 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] flex-1 sm:flex-initial"
                                                     >
                                                         <Share2 className="h-3 w-3" />
                                                         Share
@@ -1165,12 +1169,12 @@ function OrdersInner() {
                             )}
                         </div>
 
-                        <div className="p-2 border-t border-slate-200 bg-slate-50 flex flex-wrap gap-2 shrink-0 no-print">
+                        <div className="p-3 sm:p-2 border-t border-slate-200 bg-slate-50 flex flex-wrap gap-2 shrink-0 no-print">
                             {detail.trackingNumber && (
                                 <button
                                     type="button"
                                     onClick={() => flash('Tracking link not available yet.')}
-                                    className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded text-[13px]"
+                                    className="inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 active:bg-slate-200 text-slate-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] flex-1 sm:flex-initial"
                                 >
                                     <Truck className="h-3.5 w-3.5" /> Track
                                 </button>
@@ -1182,7 +1186,7 @@ function OrdersInner() {
                                     onClick={() => handleReorder(detail.reference)}
                                     disabled={reordering}
                                     aria-busy={reordering}
-                                    className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
+                                    className="inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 active:bg-slate-200 text-slate-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] disabled:opacity-60 flex-1 sm:flex-initial"
                                 >
                                     {reordering ? (
                                         <>
@@ -1202,7 +1206,7 @@ function OrdersInner() {
                                     type="button"
                                     onClick={() => setRejectOpen(true)}
                                     disabled={reordering || claiming}
-                                    className="inline-flex items-center gap-2 bg-white border border-red-300 hover:bg-red-50 text-red-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
+                                    className="inline-flex items-center justify-center gap-2 bg-white border border-red-300 hover:bg-red-50 active:bg-red-100 text-red-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] disabled:opacity-60 flex-1 sm:flex-initial"
                                 >
                                     <Ban className="h-3.5 w-3.5" />
                                     Cancel Order
@@ -1215,7 +1219,7 @@ function OrdersInner() {
                                     onClick={() => handleClaim(detail.reference)}
                                     disabled={claiming}
                                     aria-busy={claiming}
-                                    className="inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
+                                    className="inline-flex items-center justify-center gap-2 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] disabled:opacity-60 flex-1 sm:flex-initial"
                                 >
                                     {claiming ? (
                                         <>
@@ -1236,7 +1240,7 @@ function OrdersInner() {
                                 onClick={() => handleSupport(detail.reference)}
                                 disabled={supportLoading}
                                 aria-busy={supportLoading}
-                                className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
+                                className="inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 active:bg-slate-200 text-slate-700 font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] disabled:opacity-60 flex-1 sm:flex-initial"
                             >
                                 {supportLoading ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1250,7 +1254,7 @@ function OrdersInner() {
                                 type="button"
                                 onClick={closeDetail}
                                 disabled={reordering || claiming}
-                                className="ml-auto inline-flex items-center gap-2 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2 py-2 rounded text-[13px] disabled:opacity-60"
+                                className="inline-flex items-center justify-center gap-2 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-[13px] disabled:opacity-60 w-full sm:w-auto sm:ml-auto mt-1 sm:mt-0"
                             >
                                 Close
                             </button>
@@ -1293,8 +1297,8 @@ const CustomerReceiptCard = React.forwardRef<
             ref={ref}
             className="receipt-printable bg-white border border-slate-200 rounded overflow-hidden print:border-0 print:shadow-none print:rounded-none print:w-full print:max-w-[190mm] print:mx-auto print:flex print:flex-col print:justify-between print:min-h-[277mm]"
         >
-            <div className="flex justify-between items-start gap-2 px-2 py-2 border-b-2 border-slate-100 print:border-slate-900 print:pb-2">
-                <div className="flex items-center gap-2 min-w-0">
+            <div className="flex flex-wrap justify-between items-start gap-2 px-3 sm:px-2 py-2 border-b-2 border-slate-100 print:border-slate-900 print:pb-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                     {SHOP.logo ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -1324,7 +1328,7 @@ const CustomerReceiptCard = React.forwardRef<
                     <p className="text-[13px] uppercase text-slate-400 font-semibold">
                         Receipt
                     </p>
-                    <p className="text-[13px] font-mono font-bold text-slate-900">
+                    <p className="text-[13px] font-mono font-bold text-slate-900 break-all">
                         #{order.reference}
                     </p>
                     <p className="text-[13px] text-slate-500 mt-0.5">
@@ -1343,23 +1347,23 @@ const CustomerReceiptCard = React.forwardRef<
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-2 sm:gap-8 my-2 px-2">
-                <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-2 sm:gap-8 my-2 px-3 sm:px-2">
+                <div className="min-w-0">
                     <p className="text-[13px] uppercase text-slate-400 font-semibold mb-2">
                         Shipped to
                     </p>
                     <div className="space-y-2 text-[13px]">
-                        <p className="font-semibold text-slate-900">
+                        <p className="font-semibold text-slate-900 break-words">
                             {order.full_name || 'Walk-in customer'}
                         </p>
                         {order.phone && (
-                            <p className="text-slate-600 font-mono flex items-center gap-2">
+                            <p className="text-slate-600 font-mono flex items-center gap-2 min-w-0">
                                 <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                {order.phone}
+                                <span className="break-all">{order.phone}</span>
                             </p>
                         )}
                         {order.email && (
-                            <p className="text-slate-600 flex items-center gap-2">
+                            <p className="text-slate-600 flex items-center gap-2 min-w-0">
                                 <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                 <span className="truncate">{order.email}</span>
                             </p>
@@ -1367,7 +1371,7 @@ const CustomerReceiptCard = React.forwardRef<
                         {order.address_street && (
                             <p className="text-slate-500 flex items-start gap-2 pt-2">
                                 <MapPin className="w-2.5 h-2.5 text-slate-400 mt-0.5 shrink-0" />
-                                <span className="min-w-0">
+                                <span className="min-w-0 break-words">
                                     {order.address_street}, {order.address_town},{' '}
                                     {order.address_county}
                                 </span>
@@ -1376,7 +1380,7 @@ const CustomerReceiptCard = React.forwardRef<
                     </div>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                     <p className="text-[13px] uppercase text-slate-400 font-semibold mb-2">
                         Payment profile
                     </p>
@@ -1388,7 +1392,7 @@ const CustomerReceiptCard = React.forwardRef<
                             </dd>
                         </div>
                         <div className="flex items-baseline justify-between gap-2">
-                            <dt className="text-slate-500">M-Pesa ref</dt>
+                            <dt className="text-slate-500 shrink-0">M-Pesa ref</dt>
                             <dd className="font-mono font-semibold text-blue-950 text-right truncate">
                                 {mpesaRef}
                             </dd>
@@ -1403,17 +1407,17 @@ const CustomerReceiptCard = React.forwardRef<
                 </div>
             </div>
 
-            <div className="px-2">
+            <div className="px-3 sm:px-2">
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-slate-200 print:border-slate-900">
                             <th className="py-2 pr-2 text-[13px] uppercase text-slate-400 font-semibold">
                                 Item
                             </th>
-                            <th className="py-2 px-2 text-[13px] uppercase text-slate-400 font-semibold text-center w-16">
+                            <th className="py-2 px-2 text-[13px] uppercase text-slate-400 font-semibold text-center w-12 sm:w-16">
                                 Qty
                             </th>
-                            <th className="py-2 pl-2 text-[13px] uppercase text-slate-400 font-semibold text-right w-28">
+                            <th className="py-2 pl-2 text-[13px] uppercase text-slate-400 font-semibold text-right w-24 sm:w-28">
                                 Total
                             </th>
                         </tr>
@@ -1429,7 +1433,7 @@ const CustomerReceiptCard = React.forwardRef<
                                 >
                                     <td className="py-2 pr-2">
                                         <div className="flex items-start gap-2">
-                                            {item.image ? ( 
+                                            {item.image ? (
                                                 <img
                                                     src={item.image}
                                                     alt=""
@@ -1439,22 +1443,22 @@ const CustomerReceiptCard = React.forwardRef<
                                                 <span className="w-9 h-9 rounded bg-slate-100 border border-slate-200 shrink-0" />
                                             )}
                                             <div className="min-w-0">
-                                                <p className="text-[13px] font-semibold text-slate-900">
+                                                <p className="text-[13px] font-semibold text-slate-900 break-words">
                                                     {item.name}
                                                 </p>
                                                 {item.brand && (
-                                                    <p className="text-[13px] text-slate-500">
+                                                    <p className="text-[13px] text-slate-500 break-words">
                                                         {item.brand}
                                                     </p>
                                                 )}
                                                 <div className="flex flex-wrap gap-2 mt-0.5">
                                                     {item.serial_number && (
-                                                        <span className="inline-block px-2 py-0.5 rounded bg-white border border-slate-200 text-[13px] font-mono text-slate-600">
+                                                        <span className="inline-block px-2 py-0.5 rounded bg-white border border-slate-200 text-[13px] font-mono text-slate-600 break-all">
                                                             S/N {item.serial_number}
                                                         </span>
                                                     )}
                                                     {item.imei && (
-                                                        <span className="inline-block px-2 py-0.5 rounded bg-white border border-slate-200 text-[13px] font-mono text-slate-600">
+                                                        <span className="inline-block px-2 py-0.5 rounded bg-white border border-slate-200 text-[13px] font-mono text-slate-600 break-all">
                                                             IMEI {item.imei}
                                                         </span>
                                                     )}
@@ -1480,8 +1484,8 @@ const CustomerReceiptCard = React.forwardRef<
                 </table>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row print:flex-row items-stretch sm:items-end print:items-end justify-between gap-2 px-2 py-2 mt-auto border-t border-slate-200 print:border-slate-900">
-                <div className="flex items-center gap-2 min-w-0">
+            <div className="flex flex-col-reverse sm:flex-row print:flex-row items-stretch sm:items-end print:items-end justify-between gap-2 px-3 sm:px-2 py-2 mt-auto border-t border-slate-200 print:border-slate-900">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                     <div className="p-1.5 rounded border border-slate-200 bg-white shrink-0">
                         <QRCodeSVG
                             value={qrValue}
@@ -1491,25 +1495,25 @@ const CustomerReceiptCard = React.forwardRef<
                             fgColor="#0f172a"
                         />
                     </div>
-                    <div className="text-[12px] text-slate-500 space-y-0.5 min-w-0">
-                        <p className="font-semibold text-slate-800 text-[13px]">
+                    <div className="text-[12px] text-slate-500 space-y-0.5 min-w-0 flex-1">
+                        <p className="font-semibold text-slate-800 text-[13px] break-words">
                             Thank you for shopping with {SHOP.name}!
                         </p>
-                        <p>
+                        <p className="break-words">
                             Warranty valid for 12 months on all electronics.
                             Keep this receipt for returns and service.
                         </p>
                         <p className="text-slate-400 break-words pt-0.5">
                             {SHOP.website} · {SHOP.email} · {SHOP.phone}
                         </p>
-                        <p className="text-slate-400">VAT PIN: {SHOP.vatPin}</p>
+                        <p className="text-slate-400 break-words">VAT PIN: {SHOP.vatPin}</p>
                     </div>
                 </div>
 
                 <div className="w-full sm:w-64 shrink-0 space-y-1.5">
                     <div className="flex justify-between gap-2 text-[13px] text-slate-600">
                         <span>Subtotal</span>
-                        <span className="font-medium text-slate-800">
+                        <span className="font-medium text-slate-800 whitespace-nowrap">
                             {formatKES(order.subtotal)}
                         </span>
                     </div>
@@ -1583,29 +1587,29 @@ function RejectModal({
 
     return (
         <div
-            className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 no-print"
+            className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 no-print"
             onClick={() => !submitting && onClose()}
         >
             <div
                 className="bg-white w-full max-w-md rounded shadow-xl border border-slate-200"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="p-2 border-b border-slate-200 flex items-start gap-2">
+                <div className="p-3 sm:p-2 border-b border-slate-200 flex items-start gap-2">
                     <span className="w-8 h-8 rounded bg-red-50 text-red-600 flex items-center justify-center shrink-0">
                         <Ban className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
-                        <h3 className="text-[15px] font-bold text-slate-900">
+                        <h3 className="text-[15px] font-bold text-slate-900 break-words">
                             Cancel order #{reference}?
                         </h3>
-                        <p className="text-[13px] text-slate-600 mt-1">
+                        <p className="text-[13px] text-slate-600 mt-1 break-words">
                             This cannot be undone. If the order has already shipped, contact
                             support instead.
                         </p>
                     </div>
                 </div>
 
-                <div className="p-2 space-y-2">
+                <div className="p-3 sm:p-2 space-y-2">
                     <label className="block">
                         <span className="block text-[13px] font-medium text-slate-700 mb-2">
                             Reason (optional)
@@ -1617,24 +1621,24 @@ function RejectModal({
                             rows={3}
                             maxLength={500}
                             placeholder="Changed my mind, ordered by mistake…"
-                            className="w-full border border-slate-200 rounded px-2 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60"
+                            className="w-full border border-slate-200 rounded px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:opacity-60"
                         />
                     </label>
 
                     {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-2 py-2 rounded text-[13px] flex items-start gap-2">
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-[13px] flex items-start gap-2">
                             <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                            <span>{error}</span>
+                            <span className="min-w-0 break-words">{error}</span>
                         </div>
                     )}
                 </div>
 
-                <div className="p-2 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <div className="p-3 sm:p-2 border-t border-slate-200 bg-slate-50 flex flex-col-reverse sm:flex-row justify-end gap-2">
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={submitting}
-                        className="text-[13px] font-medium px-2 py-2 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
+                        className="text-[13px] font-medium px-4 py-2.5 sm:py-2 rounded border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 w-full sm:w-auto"
                     >
                         Keep order
                     </button>
@@ -1642,7 +1646,7 @@ function RejectModal({
                         type="button"
                         onClick={submit}
                         disabled={submitting}
-                        className="text-[13px] font-medium px-2 py-2 rounded bg-red-600 hover:bg-red-500 text-white inline-flex items-center gap-2 disabled:opacity-60"
+                        className="text-[13px] font-medium px-4 py-2.5 sm:py-2 rounded bg-red-600 hover:bg-red-500 active:bg-red-700 text-white inline-flex items-center justify-center gap-2 disabled:opacity-60 w-full sm:w-auto"
                     >
                         {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         Cancel order

@@ -158,19 +158,21 @@ export default function WishlistPage() {
     return (
         <div className="space-y-2">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs px-3 py-3 rounded flex items-center gap-2 max-w-sm">
-                    <Check className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span className="truncate">{toast}</span>
+                <div className="fixed bottom-3 left-3 right-3 sm:left-auto sm:bottom-6 sm:right-6 z-50 bg-slate-900 text-white text-xs px-3 py-3 rounded flex items-start sm:items-center gap-2 max-w-full sm:max-w-sm shadow-lg">
+                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+                    <span className="min-w-0 line-clamp-2 sm:line-clamp-none sm:truncate break-words">
+                        {toast}
+                    </span>
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+            <div className="bg-white border border-slate-200 rounded p-3 sm:p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0">
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <Heart className="h-5 w-5 text-rose-600" />
-                        My Wishlist
+                        <Heart className="h-5 w-5 text-rose-600 shrink-0" />
+                        <span className="truncate">My Wishlist</span>
                     </h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5 break-words">
                         {isLoading
                             ? 'Loading…'
                             : items.length === 0
@@ -182,7 +184,7 @@ export default function WishlistPage() {
                     <button
                         onClick={handleAddAllToCart}
                         disabled={!hasInStock || isAddingAll}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-xs transition disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto shrink-0"
                     >
                         {isAddingAll ? (
                             <>
@@ -207,17 +209,17 @@ export default function WishlistPage() {
                             className="bg-white border border-slate-200 rounded overflow-hidden animate-pulse"
                         >
                             <div className="aspect-[16/10] w-full bg-slate-200" />
-                            <div className="p-2 space-y-2">
+                            <div className="p-3 sm:p-2 space-y-2">
                                 <div className="h-3 w-16 bg-slate-200 rounded" />
                                 <div className="h-3 w-3/4 bg-slate-200 rounded" />
                                 <div className="h-3 w-1/3 bg-slate-200 rounded" />
-                                <div className="h-8 w-full bg-slate-200 rounded mt-4" />
+                                <div className="h-9 w-full bg-slate-200 rounded mt-4" />
                             </div>
                         </div>
                     ))}
                 </div>
             ) : items.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded p-12 text-center">
+                <div className="bg-white border border-slate-200 rounded p-6 sm:p-12 text-center">
                     <Heart className="h-10 w-10 text-slate-300 mx-auto mb-2" />
                     <h2 className="text-sm font-semibold text-slate-900">
                         Your wishlist is empty
@@ -227,7 +229,7 @@ export default function WishlistPage() {
                     </p>
                     <Link
                         href="/pages/products"
-                        className="mt-2 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-3 rounded text-xs transition"
+                        className="mt-3 inline-block bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-4 py-2.5 rounded text-xs transition"
                     >
                         Browse Products
                     </Link>
@@ -264,7 +266,7 @@ export default function WishlistPage() {
                                         />
                                     </Link>
                                     {discount !== null && (
-                                        <span className="absolute top-2 left-2 bg-red-600 text-white font-semibold text-[10px] px-2 py-0.5 rounded  ">
+                                        <span className="absolute top-2 left-2 bg-red-600 text-white font-semibold text-[10px] px-2 py-0.5 rounded">
                                             -{discount}%
                                         </span>
                                     )}
@@ -272,7 +274,7 @@ export default function WishlistPage() {
                                         onClick={() => handleRemove(item)}
                                         disabled={isRemoving}
                                         aria-label="Remove from wishlist"
-                                        className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 hover:bg-white text-slate-600 hover:text-red-600 flex items-center justify-center  transition-colors disabled:opacity-60"
+                                        className="absolute top-2 right-2 h-8 w-8 sm:h-7 sm:w-7 rounded-full bg-white/90 hover:bg-white active:bg-white text-slate-600 hover:text-red-600 flex items-center justify-center transition-colors disabled:opacity-60"
                                     >
                                         {isRemoving ? (
                                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -282,35 +284,35 @@ export default function WishlistPage() {
                                     </button>
                                     {item.stock && (
                                         <span
-                                            className={`absolute bottom-2 left-2 text-[12px] font-medium px-1.5 py-0.5 rounded ${stockBadgeClass(item.stock)}`}
+                                            className={`absolute bottom-2 left-2 text-[11px] sm:text-[12px] font-medium px-1.5 py-0.5 rounded ${stockBadgeClass(item.stock)}`}
                                         >
                                             {item.stock}
                                         </span>
                                     )}
                                 </div>
 
-                                <div className="p-2 flex-1 flex flex-col">
+                                <div className="p-3 sm:p-2 flex-1 flex flex-col min-w-0">
                                     {item.product_brand && (
-                                        <p className="text-[12px] uppercase text-slate-500 font-medium">
+                                        <p className="text-[11px] sm:text-[12px] uppercase text-slate-500 font-medium truncate">
                                             {item.product_brand}
                                         </p>
                                     )}
                                     <Link
                                         href={href}
-                                        className="text-xs font-semibold text-slate-900 hover:text-blue-950 line-clamp-2 mt-0.5"
+                                        className="text-xs font-semibold text-slate-900 hover:text-blue-950 line-clamp-2 mt-0.5 break-words"
                                     >
                                         {item.product_name}
                                     </Link>
 
                                     {item.variant_name &&
                                         item.variant_name !== 'Default' && (
-                                            <p className="text-[10px] text-slate-500 mt-0.5">
+                                            <p className="text-[10px] text-slate-500 mt-0.5 truncate">
                                                 {item.variant_name}
                                             </p>
                                         )}
 
                                     <div className="flex items-center gap-1 mt-1">
-                                        <Star className="h-3 w-3 text-amber-500 fill-current" />
+                                        <Star className="h-3 w-3 text-amber-500 fill-current shrink-0" />
                                         <span className="text-[11px] font-medium text-slate-700">
                                             {Number.isFinite(rating) && rating > 0
                                                 ? rating.toFixed(1)
@@ -321,12 +323,12 @@ export default function WishlistPage() {
                                         </span>
                                     </div>
 
-                                    <div className="flex items-baseline gap-1.5 mt-1 mb-2">
+                                    <div className="flex items-baseline gap-1.5 mt-1 mb-2 flex-wrap">
                                         <span className="text-sm font-bold text-slate-900">
                                             {formatKES(item.unit_price)}
                                         </span>
                                         {item.compare_at_price != null && (
-                                            <span className="text-[12px] text-slate-400 line-through">
+                                            <span className="text-[11px] sm:text-[12px] text-slate-400 line-through">
                                                 {formatKES(item.compare_at_price)}
                                             </span>
                                         )}
@@ -335,7 +337,7 @@ export default function WishlistPage() {
                                     <div className="mt-auto grid grid-cols-2 gap-1.5">
                                         <Link
                                             href={href}
-                                            className="text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium py-2 rounded text-[12px] transition-colors"
+                                            className="text-center bg-slate-100 hover:bg-slate-200 active:bg-slate-200 text-slate-800 font-medium py-2.5 sm:py-2 rounded text-[12px] transition-colors"
                                         >
                                             View
                                         </Link>
@@ -346,7 +348,7 @@ export default function WishlistPage() {
                                                 isAddingAll ||
                                                 item.stock === 'Out of Stock'
                                             }
-                                            className="bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 rounded text-[12px] transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                                            className="bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium py-2.5 sm:py-2 rounded text-[12px] transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                                         >
                                             {isAdding ? (
                                                 <>

@@ -166,7 +166,7 @@ export default function AccountOverview() {
     if (isLoading) {
         return (
             <div className="space-y-2">
-                <div className="bg-white border border-slate-200 rounded p-2">
+                <div className="bg-white border border-slate-200 rounded p-3 sm:p-2">
                     <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
                     <div className="h-6 w-48 bg-slate-200 rounded mt-1 animate-pulse" />
                 </div>
@@ -174,7 +174,7 @@ export default function AccountOverview() {
                     {[0, 1, 2, 3].map((i) => (
                         <div
                             key={i}
-                            className="bg-white border border-slate-200 rounded p-2 space-y-2 animate-pulse"
+                            className="bg-white border border-slate-200 rounded p-3 sm:p-2 space-y-2 animate-pulse"
                         >
                             <div className="w-9 h-9 rounded bg-slate-200" />
                             <div className="h-5 w-12 bg-slate-200 rounded" />
@@ -193,28 +193,28 @@ export default function AccountOverview() {
     return (
         <div className="space-y-2">
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-center gap-2">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    {loadError}
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-start gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span className="min-w-0 break-words">{loadError}</span>
                 </div>
             )}
 
             {pendingReviews > 0 && (
                 <Link
                     href="/pages/account/reviews"
-                    className="block bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 rounded p-2 transition-colors group"
+                    className="block bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 active:border-amber-300 rounded p-3 sm:p-2 transition-colors group"
                 >
                     <div className="flex items-start gap-2">
                         <span className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                             <Sparkles className="h-4 w-4" />
                         </span>
                         <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className="text-sm font-semibold text-slate-900 break-words">
                                 {pendingReviews === 1
                                     ? '1 item is waiting for your review'
                                     : `${pendingReviews} items are waiting for your review`}
                             </p>
-                            <p className="text-xs text-slate-600 mt-0.5">
+                            <p className="text-xs text-slate-600 mt-0.5 break-words">
                                 Share your experience and help other shoppers decide.
                             </p>
                         </div>
@@ -223,10 +223,10 @@ export default function AccountOverview() {
                 </Link>
             )}
 
-            <div className="bg-white border border-slate-200 rounded p-2">
+            <div className="bg-white border border-slate-200 rounded p-3 sm:p-2">
                 <p className="text-sm text-slate-500">Welcome back,</p>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    Hi, {displayName} 👋
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5 break-words">
+                    Hi, {displayName}
                 </h1>
                 {memberSince && (
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -240,7 +240,7 @@ export default function AccountOverview() {
                     <Link
                         key={label}
                         href={href}
-                        className="bg-white border border-slate-200 rounded p-2 hover:border-blue-200 hover:shadow transition-all"
+                        className="bg-white border border-slate-200 rounded p-3 sm:p-2 hover:border-blue-200 hover:shadow active:border-blue-300 transition-all"
                     >
                         <div className="flex items-center justify-between mb-1">
                             <span
@@ -252,33 +252,35 @@ export default function AccountOverview() {
                         <p className="text-xl font-bold text-slate-900">
                             {value.toLocaleString()}
                         </p>
-                        <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">
+                            {label}
+                        </p>
                     </Link>
                 ))}
             </div>
 
             <div className="bg-white border border-slate-200 rounded">
-                <div className="flex items-center justify-between p-2 border-b border-slate-100">
+                <div className="flex items-center justify-between p-3 sm:p-2 border-b border-slate-100 gap-2">
                     <h2 className="text-sm font-semibold text-slate-900">
                         Recent Orders
                     </h2>
                     <Link
                         href="/pages/account/orders"
-                        className="text-xs font-medium text-blue-950 hover:underline inline-flex items-center gap-1"
+                        className="text-xs font-medium text-blue-950 hover:underline inline-flex items-center gap-1 shrink-0"
                     >
                         View all <ArrowRight className="h-3 w-3" />
                     </Link>
                 </div>
 
                 {recentOrders.length === 0 ? (
-                    <div className="p-3 text-center">
+                    <div className="p-4 sm:p-3 text-center">
                         <Package className="h-8 w-8 text-slate-300 mx-auto mb-1" />
                         <p className="text-xs text-slate-500">
                             You haven&apos;t placed any orders yet.
                         </p>
                         <Link
                             href="/pages/products"
-                            className="mt-1 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
+                            className="mt-2 inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded-sm text-xs transition"
                         >
                             Browse Products
                         </Link>
@@ -288,11 +290,11 @@ export default function AccountOverview() {
                         {recentOrders.map((order) => (
                             <li
                                 key={order.id}
-                                className="p-3 flex items-center justify-between gap-2"
+                                className="p-3 sm:p-2 flex items-center justify-between gap-2"
                             >
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-semibold text-slate-900 font-mono">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-xs font-semibold text-slate-900 font-mono break-all">
                                             #{order.id}
                                         </span>
                                         <span
@@ -334,15 +336,15 @@ export default function AccountOverview() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <div className="bg-white border border-slate-200 rounded p-2">
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-slate-500" /> Default
-                            Address
+                <div className="bg-white border border-slate-200 rounded p-3 sm:p-2">
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                        <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2 min-w-0">
+                            <MapPin className="h-4 w-4 text-slate-500 shrink-0" />
+                            <span className="truncate">Default Address</span>
                         </h2>
                         <Link
                             href="/pages/account/addresses"
-                            className="text-xs text-blue-950 hover:underline"
+                            className="text-xs text-blue-950 hover:underline shrink-0"
                         >
                             Edit
                         </Link>
@@ -350,7 +352,7 @@ export default function AccountOverview() {
 
                     {defaultAddress ? (
                         <>
-                            <p className="text-xs text-slate-700">
+                            <p className="text-xs text-slate-700 break-words">
                                 <span className="font-semibold text-slate-900">
                                     {defaultAddress.full_name}
                                 </span>
@@ -366,7 +368,8 @@ export default function AccountOverview() {
                                     : ''}
                             </p>
                             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                                <Phone className="h-3 w-3" /> {defaultAddress.phone}
+                                <Phone className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{defaultAddress.phone}</span>
                             </p>
                         </>
                     ) : (
@@ -382,31 +385,33 @@ export default function AccountOverview() {
                     )}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded p-2">
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-sm font-semibold text-slate-900">
+                <div className="bg-white border border-slate-200 rounded p-3 sm:p-2">
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                        <h2 className="text-sm font-semibold text-slate-900 truncate">
                             Account Details
                         </h2>
                         <Link
                             href="/pages/account/settings"
-                            className="text-xs text-blue-950 hover:underline"
+                            className="text-xs text-blue-950 hover:underline shrink-0"
                         >
                             Edit
                         </Link>
                     </div>
                     <ul className="space-y-2 text-xs text-slate-700">
-                        <li className="flex items-center gap-2">
+                        <li className="flex items-center gap-2 min-w-0">
                             <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{userEmail || '—'}</span>
+                            <span className="truncate min-w-0">
+                                {userEmail || '—'}
+                            </span>
                         </li>
-                        <li className="flex items-center gap-2">
+                        <li className="flex items-center gap-2 min-w-0">
                             <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                             {userPhone ? (
-                                <span>{userPhone}</span>
+                                <span className="truncate min-w-0">{userPhone}</span>
                             ) : (
                                 <Link
                                     href="/pages/account/settings"
-                                    className="text-blue-950 hover:underline"
+                                    className="text-blue-950 hover:underline truncate"
                                 >
                                     Add a phone number
                                 </Link>

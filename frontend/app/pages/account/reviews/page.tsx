@@ -344,19 +344,19 @@ function ReviewsPageContent() {
     return (
         <div className="space-y-3">
             {toast && (
-                <div className="fixed bottom-6 right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded flex items-start gap-2 max-w-md">
-                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="">{toast}</span>
+                <div className="fixed bottom-3 left-3 right-3 sm:left-auto sm:bottom-6 sm:right-6 z-[80] bg-slate-900 text-white text-xs px-3 py-3 rounded flex items-start sm:items-center gap-2 max-w-full sm:max-w-md shadow-lg">
+                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+                    <span className="min-w-0 break-words">{toast}</span>
                 </div>
             )}
 
             <div className="bg-white border border-slate-200 rounded p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                     <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <MessageSquare className="h-5 w-5 text-blue-950" />
-                        My Reviews
+                        <MessageSquare className="h-5 w-5 text-blue-950 shrink-0" />
+                        <span className="truncate">My Reviews</span>
                     </h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5 break-words">
                         {isLoading
                             ? 'Loading…'
                             : pending.length > 0
@@ -366,7 +366,7 @@ function ReviewsPageContent() {
                 </div>
                 <Link
                     href="/pages/products"
-                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-xs transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-4 py-2.5 sm:py-2 rounded text-xs transition-colors w-full sm:w-auto shrink-0"
                 >
                     <ShoppingBag className="h-3.5 w-3.5" />
                     Shop Products
@@ -374,13 +374,13 @@ function ReviewsPageContent() {
             </div>
 
             {loadError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-center gap-2">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    {loadError}
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-3 rounded text-xs flex items-start gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span className="min-w-0 break-words">{loadError}</span>
                 </div>
             )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
                 <SummaryCard
                     label="Total Reviews"
                     value={stats.total.toLocaleString()}
@@ -414,9 +414,9 @@ function ReviewsPageContent() {
 
             {!isLoading && pending.length > 0 && (
                 <section className="space-y-2">
-                    <div className="flex items-center gap-2 px-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                        <h2 className="text-sm font-semibold text-slate-900">
+                    <div className="flex items-center gap-2 px-1 flex-wrap">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />
+                        <h2 className="text-sm font-semibold text-slate-900 truncate">
                             Awaiting Your Review
                         </h2>
                         <span className="text-[11px] text-slate-500">
@@ -450,12 +450,12 @@ function ReviewsPageContent() {
                         ))}
                     </div>
                 ) : reviews.length === 0 ? (
-                    <div className="bg-white border border-slate-200 rounded p-12 text-center">
+                    <div className="bg-white border border-slate-200 rounded p-6 sm:p-12 text-center">
                         <MessageSquare className="h-10 w-10 text-slate-300 mx-auto mb-2" />
                         <h2 className="text-sm font-semibold text-slate-900">
                             You haven&apos;t written any reviews yet.
                         </h2>
-                        <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                        <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto break-words">
                             {pending.length > 0
                                 ? 'Pick one of the items above to get started.'
                                 : 'Shop products and share your experience with other customers.'}
@@ -463,7 +463,7 @@ function ReviewsPageContent() {
                         {pending.length === 0 && (
                             <Link
                                 href="/pages/products"
-                                className="mt-3 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-xs transition-colors"
+                                className="mt-3 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-4 py-2.5 rounded text-xs transition-colors"
                             >
                                 <ShoppingBag className="h-3.5 w-3.5" />
                                 Start Shopping
@@ -491,7 +491,7 @@ function ReviewsPageContent() {
                                     onClick={() =>
                                         setVisibleCount((c) => c + PAGE_SIZE)
                                     }
-                                    className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-sm text-xs transition"
+                                    className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-4 py-2.5 sm:py-2 rounded-sm text-xs transition w-full sm:w-auto justify-center"
                                 >
                                     Load more reviews
                                 </button>
@@ -540,16 +540,16 @@ function SummaryCard({
     sub?: React.ReactNode;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded p-2">
+        <div className="bg-white border border-slate-200 rounded p-3 sm:p-2">
             <div className="flex items-center justify-between mb-2">
                 <span
-                    className={`w-9 h-9 rounded flex items-center justify-center ${tint}`}
+                    className={`w-9 h-9 rounded flex items-center justify-center shrink-0 ${tint}`}
                 >
                     {icon}
                 </span>
             </div>
             <p className="text-xl font-bold text-slate-900">{value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+            <p className="text-xs text-slate-500 mt-0.5 truncate">{label}</p>
             {sub && <div className="mt-1.5">{sub}</div>}
         </div>
     );
@@ -596,19 +596,19 @@ function PendingCard({
     onWrite: () => void;
 }) {
     return (
-        <article className="bg-white border border-slate-200 rounded p-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+        <article className="bg-white border border-slate-200 rounded p-3 sm:p-2 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-2">
             <img
                 src={item.product_image || '/placeholder.png'}
                 alt={item.product_name}
                 className="w-16 h-16 rounded object-cover border border-slate-200 shrink-0"
             />
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 w-full">
                 {item.product_brand && (
-                    <p className="text-[10px] uppercase text-slate-500 font-medium">
+                    <p className="text-[10px] uppercase text-slate-500 font-medium truncate">
                         {item.product_brand}
                     </p>
                 )}
-                <p className="text-sm font-semibold text-slate-900 truncate">
+                <p className="text-sm font-semibold text-slate-900 break-words">
                     {item.product_name}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
@@ -629,7 +629,7 @@ function PendingCard({
             <button
                 type="button"
                 onClick={onWrite}
-                className="shrink-0 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-xs transition"
+                className="shrink-0 inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-3 py-2.5 sm:py-2 rounded text-xs transition w-full sm:w-auto"
             >
                 <Pencil className="h-3 w-3" />
                 Write Review
@@ -652,8 +652,8 @@ function ReviewCard({
         : `/pages/products?q=${encodeURIComponent(review.productName)}`;
 
     return (
-        <article className="bg-white border border-slate-200 rounded p-2">
-            <div className="flex flex-col sm:flex-row gap-4">
+        <article className="bg-white border border-slate-200 rounded p-3 sm:p-2">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <Link
                     href={productHref}
                     className="shrink-0 self-start"
@@ -668,22 +668,22 @@ function ReviewCard({
 
                 <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <Link
                                 href={productHref}
-                                className="text-sm font-semibold text-slate-900 hover:text-blue-950 line-clamp-1"
+                                className="text-sm font-semibold text-slate-900 hover:text-blue-950 line-clamp-2 sm:line-clamp-1 break-words"
                             >
                                 {review.productName}
                             </Link>
                             {review.productVariant && (
-                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                <p className="text-[11px] text-slate-500 mt-0.5 break-words">
                                     {review.productVariant}
                                 </p>
                             )}
                         </div>
 
                         <span
-                            className={`inline-flex items-center gap-1 text-[12px] font-medium px-2 py-0.5 rounded border ${statusStyle(
+                            className={`inline-flex items-center gap-1 text-[12px] font-medium px-2 py-0.5 rounded border shrink-0 ${statusStyle(
                                 review.status,
                             )}`}
                         >
@@ -706,13 +706,13 @@ function ReviewCard({
                     </div>
 
                     {review.title && (
-                        <p className="text-[13px] font-semibold text-slate-900 mt-1">
+                        <p className="text-[13px] font-semibold text-slate-900 mt-1 break-words">
                             {review.title}
                         </p>
                     )}
 
                     {review.body && (
-                        <p className="text-xs text-slate-600 mt-1 whitespace-pre-line">
+                        <p className="text-xs text-slate-600 mt-1 whitespace-pre-line break-words">
                             {review.body}
                         </p>
                     )}
@@ -741,38 +741,38 @@ function ReviewCard({
                     {review.status === 'Rejected' && review.rejectionReason && (
                         <div className="mt-1 bg-red-50 border border-red-100 rounded px-3 py-2 flex items-start gap-2">
                             <AlertCircle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
-                            <p className="text-[11px] text-red-800">
+                            <p className="text-[11px] text-red-800 min-w-0 break-words">
                                 {review.rejectionReason}
                             </p>
                         </div>
                     )}
 
-                    <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <p className="text-[11px] text-slate-500">
                             Reviewed {formatDate(review.date)}
                         </p>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <button
                                 type="button"
                                 onClick={onEdit}
-                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded text-[11px] transition"
+                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-3 py-2 sm:py-1.5 rounded text-[11px] transition flex-1 sm:flex-initial justify-center"
                             >
                                 <Pencil className="h-3 w-3" />
-                                Edit Review
+                                Edit
                             </button>
                             <Link
                                 href={productHref}
-                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded text-[11px] transition"
+                                className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-3 py-2 sm:py-1.5 rounded text-[11px] transition flex-1 sm:flex-initial justify-center"
                             >
                                 <ExternalLink className="h-3 w-3" />
-                                View Product
+                                View
                             </Link>
                             <button
                                 type="button"
                                 onClick={onDelete}
                                 aria-label="Delete review"
-                                className="inline-flex items-center justify-center h-7 w-7 rounded border border-slate-200 hover:bg-red-50 hover:border-red-200 text-red-600 transition"
+                                className="inline-flex items-center justify-center h-9 w-9 sm:h-7 sm:w-7 rounded border border-slate-200 hover:bg-red-50 hover:border-red-200 active:bg-red-100 text-red-600 transition shrink-0"
                             >
                                 <Trash2 className="h-3 w-3" />
                             </button>
@@ -786,10 +786,10 @@ function ReviewCard({
 
 function ReviewSkeleton() {
     return (
-        <div className="bg-white border border-slate-200 rounded p-2 animate-pulse">
+        <div className="bg-white border border-slate-200 rounded p-3 sm:p-2 animate-pulse">
             <div className="flex gap-2">
                 <div className="w-20 h-20 rounded bg-slate-200 shrink-0" />
-                <div className="flex-1 space-y-2">
+                <div className="flex-1 space-y-2 min-w-0">
                     <div className="h-3 w-1/3 bg-slate-200 rounded" />
                     <div className="h-3 w-1/2 bg-slate-200 rounded" />
                     <div className="h-3 w-full bg-slate-200 rounded" />
@@ -920,43 +920,43 @@ function ReviewEditor({
 
     return (
         <div
-            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
+            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3"
             onClick={() => !busy && onCancel()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="review-editor-title"
         >
             <div
-                className="bg-white border border-slate-200 rounded w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+                className="bg-white border border-slate-200 rounded w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <header className="flex items-center justify-between px-3 py-3 border-b border-slate-100 shrink-0">
+                <header className="flex items-center justify-between px-3 py-3 border-b border-slate-100 shrink-0 gap-2">
                     <h2
                         id="review-editor-title"
-                        className="text-sm font-semibold text-slate-900"
+                        className="text-sm font-semibold text-slate-900 truncate"
                     >
                         {title}
                     </h2>
                     <button
                         type="button"
                         onClick={() => !busy && onCancel()}
-                        className="h-7 w-7 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                        className="h-8 w-8 shrink-0 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition"
                         aria-label="Close"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </header>
 
-                <div className="p-2 overflow-y-auto space-y-2">
+                <div className="p-3 sm:p-2 overflow-y-auto space-y-3 sm:space-y-2">
                     <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded">
                         <img
                             src={preview.image || '/placeholder.png'}
                             alt={preview.name}
                             className="w-12 h-12 rounded object-cover border border-slate-200 shrink-0"
                         />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             {preview.brand && (
-                                <p className="text-[10px] uppercase text-slate-500 font-medium">
+                                <p className="text-[10px] uppercase text-slate-500 font-medium truncate">
                                     {preview.brand}
                                 </p>
                             )}
@@ -990,12 +990,12 @@ function ReviewEditor({
                     </div>
 
                     <div>
-                        <div className="flex items-baseline justify-between mb-1">
-                            <label className="block text-[11px] font-semibold uppercase  text-slate-500">
+                        <div className="flex items-baseline justify-between mb-1 gap-2">
+                            <label className="block text-[11px] font-semibold uppercase text-slate-500">
                                 Title
                             </label>
                             <span
-                                className={`text-[12px] ${draft.title.length > TITLE_MAX
+                                className={`text-[12px] shrink-0 ${draft.title.length > TITLE_MAX
                                     ? 'text-red-600'
                                     : 'text-slate-400'
                                     }`}
@@ -1011,7 +1011,7 @@ function ReviewEditor({
                             }
                             placeholder="Summarize your experience"
                             maxLength={TITLE_MAX + 20}
-                            className={`w-full bg-slate-50 border rounded py-2 px-3 text-xs text-slate-900 focus:outline-none focus:ring-1 ${errors.title
+                            className={`w-full bg-slate-50 border rounded py-2.5 sm:py-2 px-3 text-xs text-slate-900 focus:outline-none focus:ring-1 ${errors.title
                                 ? 'border-red-400 focus:ring-red-600'
                                 : 'border-slate-200 focus:ring-blue-950'
                                 }`}
@@ -1024,12 +1024,12 @@ function ReviewEditor({
                     </div>
 
                     <div>
-                        <div className="flex items-baseline justify-between mb-1">
+                        <div className="flex items-baseline justify-between mb-1 gap-2">
                             <label className="block text-[11px] font-semibold uppercase text-slate-500">
                                 Review <span className="text-red-500">*</span>
                             </label>
                             <span
-                                className={`text-[10px] ${draft.body.length > BODY_MAX
+                                className={`text-[10px] shrink-0 ${draft.body.length > BODY_MAX
                                     ? 'text-red-600'
                                     : 'text-slate-400'
                                     }`}
@@ -1044,7 +1044,7 @@ function ReviewEditor({
                             }
                             rows={5}
                             placeholder="Share what you liked or didn't like…"
-                            className={`w-full bg-slate-50 border rounded py-2 px-3 text-xs text-slate-900 resize-none focus:outline-none focus:ring-1 ${errors.body
+                            className={`w-full bg-slate-50 border rounded py-2.5 sm:py-2 px-3 text-xs text-slate-900 resize-none focus:outline-none focus:ring-1 ${errors.body
                                 ? 'border-red-400 focus:ring-red-600'
                                 : 'border-slate-200 focus:ring-blue-950'
                                 }`}
@@ -1073,7 +1073,7 @@ function ReviewEditor({
                                         type="button"
                                         onClick={() => removeImage(idx)}
                                         disabled={uploading}
-                                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40"
+                                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity disabled:opacity-40"
                                         aria-label="Remove image"
                                     >
                                         <X className="h-3 w-3" />
@@ -1086,7 +1086,7 @@ function ReviewEditor({
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={uploading}
-                                    className="w-20 h-20 rounded border border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/30 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-blue-950 transition disabled:opacity-60 disabled:cursor-wait"
+                                    className="w-20 h-20 rounded border border-dashed border-slate-300 hover:border-blue-950 hover:bg-blue-50/30 active:bg-blue-50/50 flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-blue-950 transition disabled:opacity-60 disabled:cursor-wait"
                                 >
                                     {uploading ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1111,25 +1111,25 @@ function ReviewEditor({
                             className="hidden"
                         />
 
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[10px] text-slate-400 break-words">
                             JPG, PNG, or WEBP. Max {MAX_IMAGE_SIZE_MB}MB each, up
                             to {MAX_IMAGES} photos.
                         </p>
 
                         {errors.images && (
-                            <p className="text-[11px] text-red-600 mt-1">
+                            <p className="text-[11px] text-red-600 mt-1 break-words">
                                 {errors.images}
                             </p>
                         )}
                     </div>
                 </div>
 
-                <footer className="px-3 py-3 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 shrink-0">
+                <footer className="px-3 py-3 border-t border-slate-100 bg-slate-50 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 shrink-0">
                     <button
                         type="button"
                         onClick={onCancel}
                         disabled={busy}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-4 py-2.5 sm:py-3 rounded text-xs transition disabled:opacity-60 w-full sm:w-auto"
                     >
                         Cancel
                     </button>
@@ -1138,7 +1138,7 @@ function ReviewEditor({
                         onClick={handleSubmit}
                         disabled={busy}
                         aria-busy={submitting}
-                        className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 active:bg-blue-950 text-white font-medium px-4 py-2.5 sm:py-2 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                         {submitting ? (
                             <>
@@ -1172,7 +1172,7 @@ function StarSelector({
 
     return (
         <div
-            className="flex items-center gap-1"
+            className="flex items-center gap-1 flex-wrap"
             role="radiogroup"
             aria-label="Rating"
         >
@@ -1186,7 +1186,7 @@ function StarSelector({
                     onMouseEnter={() => setHover(n)}
                     onMouseLeave={() => setHover(0)}
                     onClick={() => onChange(n)}
-                    className="p-0.5 transition-transform hover:scale-110"
+                    className="p-1 sm:p-0.5 transition-transform hover:scale-110 active:scale-95"
                 >
                     <Star
                         className={`h-6 w-6 ${n <= active
@@ -1235,24 +1235,24 @@ function DeleteConfirm({
 
     return (
         <div
-            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
+            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3"
             onClick={() => !deleting && onCancel()}
             role="dialog"
             aria-modal="true"
         >
             <div
-                className="bg-white border border-slate-200 rounded w-full max-w-md p-2"
+                className="bg-white border border-slate-200 rounded w-full max-w-md p-3 sm:p-2 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start gap-2">
                     <span className="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
                         <Trash2 className="h-4 w-4" />
                     </span>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-bold text-slate-900">
                             Delete this review?
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-slate-500 mt-1 break-words">
                             Your review of{' '}
                             <span className="font-medium text-slate-700">
                                 {review.productName}
@@ -1262,12 +1262,12 @@ function DeleteConfirm({
                     </div>
                 </div>
 
-                <div className="mt-2 flex justify-end gap-2">
+                <div className="mt-3 sm:mt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                     <button
                         type="button"
                         onClick={onCancel}
                         disabled={deleting}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium px-4 py-2.5 sm:py-3 rounded text-xs transition disabled:opacity-60 w-full sm:w-auto"
                     >
                         Cancel
                     </button>
@@ -1276,7 +1276,7 @@ function DeleteConfirm({
                         onClick={handleConfirm}
                         disabled={deleting}
                         aria-busy={deleting}
-                        className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-3 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 active:bg-red-700 text-white font-medium px-4 py-2.5 sm:py-3 rounded text-xs transition disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                         {deleting ? (
                             <>
@@ -1293,9 +1293,9 @@ function DeleteConfirm({
     );
 }
 export default function ReviewsPage(props: any) {
-  return (
-    <Suspense fallback={<div style={{ padding: 20, textAlign: "center" }}>Loading…</div>}>
-      <ReviewsPageContent {...props} />
-    </Suspense>
-  );
+    return (
+        <Suspense fallback={<div style={{ padding: 20, textAlign: 'center' }}>Loading…</div>}>
+            <ReviewsPageContent {...props} />
+        </Suspense>
+    );
 }
