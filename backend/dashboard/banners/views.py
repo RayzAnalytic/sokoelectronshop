@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db.models import F, Max, Q, Sum
 from rest_framework import status as http
@@ -71,7 +72,14 @@ class BannerAdminViewSet(ModelViewSet):
             )
 
         path = default_storage.save(f'banners/{kind}/{f.name}', f)
-        url = request.build_absolute_uri(default_storage.url(path))
+
+        url = default_storage.url(path)
+        if not url.startswith(('http://', 'https://')):
+            url = request.build_absolute_uri(url)
+
+        if not settings.DEBUG and ('localhost' in url or '127.0.0.1' in url):
+            url = f"{settings.MEDIA_URL_ABSOLUTE}{path}"
+
         return Response(
             {'url': url},
             status=http.HTTP_201_CREATED,
@@ -162,7 +170,17 @@ class HeroSlidesView(APIView):
         for row in data:
             for field in ('desktop_image', 'tablet_image', 'mobile_image'):
                 val = row.get(field) or ''
-                if val and not val.startswith(('http://', 'https://', 'data:')):
+                if not val:
+                    continue
+
+                if 'localhost' in val or '127.0.0.1' in val:
+                    marker = '/media/'
+                    if marker in val:
+                        path = val.split(marker, 1)[1]
+                        row[field] = f"{settings.MEDIA_URL}{path}"
+                        continue
+
+                if not val.startswith(('http://', 'https://', 'data:')):
                     row[field] = request.build_absolute_uri(val)
 
         return Response(data)
