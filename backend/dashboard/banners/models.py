@@ -2,6 +2,17 @@ from django.db import models
 from django.utils import timezone
 
 
+def _extract_path(value: str) -> str:
+    if not value:
+        return ''
+    path = value.split('?', 1)[0]
+    if '/mysokoelectronicshop/' in path:
+        path = path.split('/mysokoelectronicshop/', 1)[1]
+    elif '/media/' in path:
+        path = path.split('/media/', 1)[1]
+    return path
+
+
 class Placement(models.TextChoices):
     HOME_HERO = 'HOME_HERO', 'Homepage hero'
     CATEGORY_HERO = 'CATEGORY_HERO', 'Category hero'
@@ -97,6 +108,13 @@ class Banner(models.Model):
 
     def __str__(self):
         return f'{self.name} [{self.placement}]'
+
+    def save(self, *args, **kwargs):
+        for field in ('desktop_image', 'tablet_image', 'mobile_image'):
+            value = getattr(self, field) or ''
+            if value:
+                setattr(self, field, _extract_path(value))
+        super().save(*args, **kwargs)
 
     @property
     def ctr(self):

@@ -73,15 +73,13 @@ class BannerAdminViewSet(ModelViewSet):
 
         path = default_storage.save(f'banners/{kind}/{f.name}', f)
 
-        url = default_storage.url(path)
-        if not url.startswith(('http://', 'https://')):
-            url = request.build_absolute_uri(url)
-
-        if not settings.DEBUG and ('localhost' in url or '127.0.0.1' in url):
-            url = f"{settings.MEDIA_URL_ABSOLUTE}{path}"
+        try:
+            url = default_storage.url(path)
+        except Exception:
+            url = path
 
         return Response(
-            {'url': url},
+            {'url': url, 'path': path},
             status=http.HTTP_201_CREATED,
         )
 
@@ -166,23 +164,6 @@ class HeroSlidesView(APIView):
     def get(self, request):
         qs = Banner.objects.hero()
         data = BannerSerializer(qs, many=True).data
-
-        for row in data:
-            for field in ('desktop_image', 'tablet_image', 'mobile_image'):
-                val = row.get(field) or ''
-                if not val:
-                    continue
-
-                if 'localhost' in val or '127.0.0.1' in val:
-                    marker = '/media/'
-                    if marker in val:
-                        path = val.split(marker, 1)[1]
-                        row[field] = f"{settings.MEDIA_URL}{path}"
-                        continue
-
-                if not val.startswith(('http://', 'https://', 'data:')):
-                    row[field] = request.build_absolute_uri(val)
-
         return Response(data)
 
 

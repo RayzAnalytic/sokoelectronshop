@@ -1,6 +1,16 @@
+from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from .models import Banner, Placement, Status
+
+
+def _to_url(path: str) -> str:
+    if not path:
+        return ''
+    try:
+        return default_storage.url(path)
+    except Exception:
+        return path
 
 
 class BannerSerializer(serializers.ModelSerializer):
@@ -26,6 +36,12 @@ class BannerSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         )
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field in ('desktop_image', 'tablet_image', 'mobile_image'):
+            data[field] = _to_url(data.get(field) or '')
+        return data
+
 
 class BannerAdminSerializer(serializers.ModelSerializer):
     ctr = serializers.FloatField(read_only=True)
@@ -50,6 +66,12 @@ class BannerAdminSerializer(serializers.ModelSerializer):
             'impressions', 'clicks', 'conversions',
             'created_at', 'updated_at',
         )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field in ('desktop_image', 'tablet_image', 'mobile_image'):
+            data[field] = _to_url(data.get(field) or '')
+        return data
 
     def validate_name(self, value):
         if not value.strip():

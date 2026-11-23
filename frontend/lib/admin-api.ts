@@ -1717,12 +1717,6 @@ export const adminApi = {
         stats: (signal?: AbortSignal) =>
             request<BannerStats>('/api/v1/admin/banners/stats/', { signal }),
 
-        reset: () =>
-            request<{ ok: boolean; count: number }>(
-                '/api/v1/admin/banners/reset/',
-                { method: 'POST' },
-            ),
-
         upload: (
             file: File,
             kind: 'desktop' | 'tablet' | 'mobile',
@@ -1731,13 +1725,12 @@ export const adminApi = {
             const form = new FormData();
             form.append('file', file);
             form.append('kind', kind);
-            return request<{ url: string }>(
+            return request<{ url: string; path?: string }>(
                 '/api/v1/admin/banners/uploads/',
                 { method: 'POST', body: form, signal },
             );
         },
     },
-
     newsletter: {
         subscribers: {
             list: async (

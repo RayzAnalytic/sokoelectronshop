@@ -78,8 +78,13 @@ function localInputToIso(local: string): string | null {
 function toWriteInput(b: Banner | BannerWriteInput): BannerWriteInput {
     if (!('impressions' in b)) return b as BannerWriteInput;
     const {
-        impressions, clicks, conversions, ctr, cvr,
-        created_at, updated_at,
+        impressions,
+        clicks,
+        conversions,
+        ctr,
+        cvr,
+        created_at,
+        updated_at,
         ...write
     } = b as Banner;
     return write.id ? write : (({ id: _ignored, ...rest }) => rest)(write);
@@ -213,6 +218,7 @@ export default function BannersPage() {
             const s = await adminApi.banners.stats();
             setStats(s);
         } catch {
+            /* noop */
         }
     }
 
@@ -384,77 +390,112 @@ export default function BannersPage() {
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10 relative">
             <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-                <div className="max-w-[1700px] mx-auto px-2 py-2 flex items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-slate-900">Banners</h1>
-                        <p className="text-[13px] text-slate-500 mt-0.5">
-                            Manage homepage hero slides · {heroActive}/{MAX_HERO_SLIDES} active · {banners.length} total
+                <div className="max-w-[1700px] mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                        <h1 className="text-[14px] sm:text-[15px] font-semibold text-slate-900">
+                            Banners
+                        </h1>
+                        <p className="text-[11px] sm:text-[13px] text-slate-500 mt-0.5 truncate">
+                            {heroActive}/{MAX_HERO_SLIDES} active · {banners.length} total
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <div className="inline-flex bg-slate-100 p-0.5 rounded border border-slate-200">
                             <button
                                 onClick={() => setView('grid')}
-                                className={`p-1.5 rounded transition ${view === 'grid' ? 'bg-white text-blue-950 ' : 'text-slate-500 hover:text-slate-900'}`}
+                                className={`p-1.5 rounded transition ${view === 'grid' ? 'bg-white text-blue-950' : 'text-slate-500 hover:text-slate-900'}`}
                                 title="Grid view"
+                                aria-label="Grid view"
                             >
                                 <LayoutGrid className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => setView('table')}
-                                className={`p-1.5 rounded transition ${view === 'table' ? 'bg-white text-blue-950 ' : 'text-slate-500 hover:text-slate-900'}`}
+                                className={`p-1.5 rounded transition ${view === 'table' ? 'bg-white text-blue-950' : 'text-slate-500 hover:text-slate-900'}`}
                                 title="Table view"
+                                aria-label="Table view"
                             >
                                 <List className="w-4 h-4" />
                             </button>
                         </div>
                         <button
                             onClick={() => setEditing(blank())}
-                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
+                            className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-2.5 sm:px-3 py-2 rounded text-[13px] transition"
                         >
                             <Plus className="w-3.5 h-3.5" />
-                            <span>New banner</span>
+                            <span className="hidden xs:inline sm:inline">New banner</span>
                         </button>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-[1700px] mx-auto px-0.5 py-2 space-y-2">
+            <main className="max-w-[1700px] mx-auto px-2 sm:px-3 py-2 space-y-2">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                        { label: 'Active banners', value: (stats?.active ?? 0).toString(), icon: Power, color: 'text-emerald-700 bg-emerald-50' },
-                        { label: 'Impressions', value: fmt(stats?.impressions ?? 0), icon: Eye, color: 'text-blue-950 bg-blue-50' },
-                        { label: 'Clicks', value: fmt(stats?.clicks ?? 0), icon: ArrowRight, color: 'text-indigo-700 bg-indigo-50' },
-                        { label: 'Conversions', value: fmt(stats?.conversions ?? 0), icon: Copy, color: 'text-amber-700 bg-amber-50' },
+                        {
+                            label: 'Active banners',
+                            value: (stats?.active ?? 0).toString(),
+                            icon: Power,
+                            color: 'text-emerald-700 bg-emerald-50',
+                        },
+                        {
+                            label: 'Impressions',
+                            value: fmt(stats?.impressions ?? 0),
+                            icon: Eye,
+                            color: 'text-blue-950 bg-blue-50',
+                        },
+                        {
+                            label: 'Clicks',
+                            value: fmt(stats?.clicks ?? 0),
+                            icon: ArrowRight,
+                            color: 'text-indigo-700 bg-indigo-50',
+                        },
+                        {
+                            label: 'Conversions',
+                            value: fmt(stats?.conversions ?? 0),
+                            icon: Copy,
+                            color: 'text-amber-700 bg-amber-50',
+                        },
                     ].map((s) => (
-                        <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
-                            <div className="flex items-center gap-1.5">
-                                <span className={`w-6 h-6 rounded flex items-center justify-center ${s.color}`}>
+                        <div
+                            key={s.label}
+                            className="bg-white border border-slate-200 rounded p-2 space-y-1.5 min-w-0"
+                        >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span
+                                    className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${s.color}`}
+                                >
                                     <s.icon className="w-3.5 h-3.5" />
                                 </span>
-                                <span className="text-[13px] font-medium text-slate-500 truncate">{s.label}</span>
+                                <span className="text-[11px] sm:text-[13px] font-medium text-slate-500 truncate">
+                                    {s.label}
+                                </span>
                             </div>
-                            <div className="text-[15px] font-bold text-slate-900">{s.value}</div>
+                            <div className="text-[14px] sm:text-[15px] font-bold text-slate-900 truncate">
+                                {s.value}
+                            </div>
                         </div>
                     ))}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded p-0.5 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+                <div className="bg-white border border-slate-200 rounded p-2 flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
                     <div className="relative flex-1 min-w-0">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                         <input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search banners by name, headline, or badge…"
+                            placeholder="Search banners…"
                             className="w-full bg-white border border-slate-200 rounded pl-9 pr-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid grid-cols-3 lg:flex lg:flex-wrap items-center gap-2">
                         <select
                             value={placement}
-                            onChange={(e) => setPlacement(e.target.value as typeof placement)}
-                            className={selectCls}
+                            onChange={(e) =>
+                                setPlacement(e.target.value as typeof placement)
+                            }
+                            className={selectCls + ' w-full lg:w-auto'}
                         >
                             <option value="ALL">All placements</option>
                             <option value="HOME_HERO">Homepage hero</option>
@@ -465,7 +506,7 @@ export default function BannersPage() {
                         <select
                             value={status}
                             onChange={(e) => setStatus(e.target.value as typeof status)}
-                            className={selectCls}
+                            className={selectCls + ' w-full lg:w-auto'}
                         >
                             <option value="ALL">All statuses</option>
                             <option value="ACTIVE">Active</option>
@@ -477,7 +518,7 @@ export default function BannersPage() {
                         <select
                             value={sort}
                             onChange={(e) => setSort(e.target.value as typeof sort)}
-                            className={selectCls}
+                            className={selectCls + ' w-full lg:w-auto'}
                         >
                             <option value="order">Slide order</option>
                             <option value="recent">Recently updated</option>
@@ -525,37 +566,43 @@ export default function BannersPage() {
             )}
 
             {previewing && (
-                <PreviewModal banner={previewing} onClose={() => setPreviewing(null)} />
+                <PreviewModal
+                    banner={previewing}
+                    onClose={() => setPreviewing(null)}
+                />
             )}
 
             {confirmDelete && (
                 <div
-                    className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2"
+                    className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3"
                     onClick={() => setConfirmDelete(null)}
                 >
                     <div
-                        className="bg-white border border-slate-200 rounded max-w-md w-full p-2  "
+                        className="bg-white border border-slate-200 rounded max-w-md w-full p-3"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-2">
-                            <span className="w-9 h-9 rounded bg-red-50 text-red-600 flex items-center justify-center">
+                            <span className="w-9 h-9 rounded bg-red-50 text-red-600 flex items-center justify-center shrink-0">
                                 <Trash2 className="w-4 h-4" />
                             </span>
-                            <h3 className="text-[15px] font-semibold text-slate-900">Delete banner?</h3>
+                            <h3 className="text-[15px] font-semibold text-slate-900">
+                                Delete banner?
+                            </h3>
                         </div>
-                        <p className="text-[13px] text-slate-500 mt-1">
-                            &ldquo;{confirmDelete.name}&rdquo; will be permanently removed. This cannot be undone.
+                        <p className="text-[13px] text-slate-500 mt-2">
+                            &ldquo;{confirmDelete.name}&rdquo; will be permanently
+                            removed. This cannot be undone.
                         </p>
-                        <div className="flex justify-end gap-2 mt-1">
+                        <div className="flex justify-end gap-2 mt-3">
                             <button
                                 onClick={() => setConfirmDelete(null)}
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded-sm text-[13px]"
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={() => void remove(confirmDelete)}
-                                className="bg-red-600 hover:bg-red-500 text-white font-medium px-3 py-2 rounded-sm text-[13px]"
+                                className="bg-red-600 hover:bg-red-500 text-white font-medium px-3 py-2 rounded text-[13px]"
                             >
                                 Delete
                             </button>
@@ -565,7 +612,7 @@ export default function BannersPage() {
             )}
 
             {toast && (
-                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-2 py-2.5 rounded">
+                <div className="fixed bottom-4 right-4 z-[110] bg-slate-900 text-white text-[13px] px-3 py-2.5 rounded shadow-lg">
                     {toast}
                 </div>
             )}
@@ -589,39 +636,39 @@ function BannerCard({
     onDelete: () => void;
 }) {
     return (
-        <div className="bg-white border border-slate-200 rounded p-0.5 space-y-1 relative">
+        <div className="bg-white border border-slate-200 rounded p-2 space-y-2 relative">
             <div className="relative aspect-[4/3] rounded overflow-hidden bg-slate-950 border border-slate-200">
                 <SlideArt banner={banner} />
-                <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[13px] px-2 py-0.5 rounded">
+                <span className="absolute top-2 right-2 bg-blue-950 text-white font-medium text-[11px] px-2 py-0.5 rounded">
                     {banner.status}
                 </span>
-                <span className="absolute top-2 left-2 bg-white/90 text-slate-700 font-medium text-[13px] px-2 py-0.5 rounded border border-slate-200">
+                <span className="absolute top-2 left-2 bg-white/90 text-slate-700 font-medium text-[11px] px-2 py-0.5 rounded border border-slate-200">
                     #{banner.order}
                 </span>
             </div>
 
-            <div className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-medium text-blue-950 uppercase truncate">
-                        {PLACEMENT_LABEL[banner.placement]}
-                    </span>
-                </div>
+            <div className="space-y-1 min-w-0">
+                <span className="text-[11px] font-medium text-blue-950 uppercase truncate block">
+                    {PLACEMENT_LABEL[banner.placement]}
+                </span>
                 <h3 className="text-[13px] font-medium text-slate-900 line-clamp-1">
                     {banner.name || 'Untitled banner'}
                 </h3>
-                <p className="text-[13px] text-slate-400 line-clamp-2">
+                <p className="text-[12px] text-slate-400 line-clamp-2">
                     {banner.headline || '—'}
                 </p>
-                <p className="text-[13px] text-slate-400">Updated {fmtDate(banner.updated_at)}</p>
+                <p className="text-[11px] text-slate-400">
+                    Updated {fmtDate(banner.updated_at)}
+                </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-100">
+            <div className="grid grid-cols-3 gap-1 pt-2 border-t border-slate-100">
                 <MiniStat label="Impr." value={fmt(banner.impressions)} />
                 <MiniStat label="CTR" value={`${banner.ctr.toFixed(1)}%`} />
                 <MiniStat label="Conv." value={fmt(banner.conversions)} />
             </div>
 
-            <div className="flex items-center gap-0.5 pt-1 border-t border-slate-100">
+            <div className="flex items-center gap-0.5 pt-2 border-t border-slate-100">
                 <IconButton title="Edit" onClick={onEdit}>
                     <Pencil className="w-3.5 h-3.5" />
                 </IconButton>
@@ -649,11 +696,11 @@ function BannerCard({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
     return (
-        <div className="text-center">
-            <div className="text-[13px] uppercase text-slate-400 font-medium">
+        <div className="text-center min-w-0">
+            <div className="text-[10px] uppercase text-slate-400 font-medium truncate">
                 {label}
             </div>
-            <div className="text-[13px] font-semibold text-slate-800 mt-0.5">
+            <div className="text-[12px] font-semibold text-slate-800 mt-0.5 truncate">
                 {value}
             </div>
         </div>
@@ -675,10 +722,11 @@ function IconButton({
         <button
             type="button"
             title={title}
+            aria-label={title}
             onClick={onClick}
             className={`p-1.5 rounded-sm transition ${danger
-                ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                : 'text-slate-500 hover:text-blue-950 hover:bg-slate-100'
+                    ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                    : 'text-slate-500 hover:text-blue-950 hover:bg-slate-100'
                 }`}
         >
             {children}
@@ -704,7 +752,7 @@ function BannerTable({
     return (
         <div className="bg-white border border-slate-200 rounded overflow-hidden">
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[13px]">
+                <table className="w-full text-left border-collapse text-[13px] min-w-[720px]">
                     <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                             <th className="py-2 px-2 font-medium w-16">Order</th>
@@ -715,13 +763,20 @@ function BannerTable({
                             <th className="py-2 px-2 font-medium text-right">Impr.</th>
                             <th className="py-2 px-2 font-medium text-right">CTR</th>
                             <th className="py-2 px-2 font-medium text-right">Conv.</th>
-                            <th className="py-2 px-2 font-medium text-right w-40">Actions</th>
+                            <th className="py-2 px-2 font-medium text-right w-40">
+                                Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {banners.map((b) => (
-                            <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="py-2 px-2 text-slate-500">#{b.order}</td>
+                            <tr
+                                key={b.id}
+                                className="hover:bg-slate-50 transition-colors"
+                            >
+                                <td className="py-2 px-2 text-slate-500">
+                                    #{b.order}
+                                </td>
                                 <td className="py-2 px-2">
                                     <div className="flex items-center gap-2">
                                         <div className="relative w-14 h-9 rounded overflow-hidden bg-slate-950 border border-slate-200 shrink-0">
@@ -762,22 +817,39 @@ function BannerTable({
                                 </td>
                                 <td className="py-2 px-2">
                                     <div className="flex items-center justify-end gap-0.5">
-                                        <IconButton title="Edit" onClick={() => onEdit(b)}>
+                                        <IconButton
+                                            title="Edit"
+                                            onClick={() => onEdit(b)}
+                                        >
                                             <Pencil className="w-3.5 h-3.5" />
                                         </IconButton>
-                                        <IconButton title="Preview" onClick={() => onPreview(b)}>
+                                        <IconButton
+                                            title="Preview"
+                                            onClick={() => onPreview(b)}
+                                        >
                                             <Eye className="w-3.5 h-3.5" />
                                         </IconButton>
-                                        <IconButton title="Duplicate" onClick={() => onDuplicate(b)}>
+                                        <IconButton
+                                            title="Duplicate"
+                                            onClick={() => onDuplicate(b)}
+                                        >
                                             <Copy className="w-3.5 h-3.5" />
                                         </IconButton>
                                         <IconButton
-                                            title={b.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                                            title={
+                                                b.status === 'ACTIVE'
+                                                    ? 'Deactivate'
+                                                    : 'Activate'
+                                            }
                                             onClick={() => onToggle(b)}
                                         >
                                             <Power className="w-3.5 h-3.5" />
                                         </IconButton>
-                                        <IconButton title="Delete" onClick={() => onDelete(b)} danger>
+                                        <IconButton
+                                            title="Delete"
+                                            onClick={() => onDelete(b)}
+                                            danger
+                                        >
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </IconButton>
                                     </div>
@@ -793,7 +865,7 @@ function BannerTable({
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
     return (
-        <div className="bg-white border border-slate-200 rounded py-16 text-center">
+        <div className="bg-white border border-slate-200 rounded py-16 px-3 text-center">
             <div className="w-12 h-12 mx-auto rounded bg-blue-50 text-blue-950 flex items-center justify-center">
                 <svg
                     className="w-6 h-6"
@@ -816,7 +888,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
             </p>
             <button
                 onClick={onCreate}
-                className="mt-1 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
+                className="mt-3 inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition"
             >
                 <Plus className="w-3.5 h-3.5" />
                 New banner
@@ -849,7 +921,8 @@ function SlideArt({ banner }: { banner: Banner }) {
                     alt=""
                     className="absolute inset-0 w-full h-full object-cover"
                     onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        (e.currentTarget as HTMLImageElement).style.display =
+                            'none';
                     }}
                 />
             ) : (
@@ -875,26 +948,28 @@ function SlideArtFull({ banner }: { banner: Banner }) {
         <div className="absolute inset-0">
             <SlideArt banner={banner} />
             <div
-                className={`absolute inset-0 flex flex-col justify-center ${align} p-4 sm:p-4`}
+                className={`absolute inset-0 flex flex-col justify-center ${align} p-4 sm:p-6`}
             >
                 {banner.badge && (
                     <span
-                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded  ${isLight ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
+                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded ${isLight
+                                ? 'bg-slate-900 text-white'
+                                : 'bg-white text-slate-900'
                             }`}
                     >
                         {banner.badge}
                     </span>
                 )}
                 <h3
-                    className={`mt-1 text-2xl sm:text-3xl font-extrabold ${textColor}`}
+                    className={`mt-2 text-xl sm:text-3xl font-extrabold leading-tight ${textColor}`}
                 >
                     {banner.headline || 'Your headline here'}
                 </h3>
-                <p className={`mt-1 text-sm max-w-xl ${subColor}`}>
+                <p className={`mt-1.5 text-xs sm:text-sm max-w-xl ${subColor}`}>
                     {banner.description}
                 </p>
                 {(banner.primary_cta_text || banner.secondary_cta_text) && (
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-3">
                         {banner.primary_cta_text && (
                             <span className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 font-semibold py-2 px-4 rounded text-[13px]">
                                 {banner.primary_cta_text}
@@ -902,7 +977,12 @@ function SlideArtFull({ banner }: { banner: Banner }) {
                             </span>
                         )}
                         {banner.secondary_cta_text && (
-                            <span className="inline-flex items-center justify-center bg-transparent text-white font-medium py-2 px-2 rounded text-[13px] border border-white/30">
+                            <span
+                                className={`inline-flex items-center justify-center font-medium py-2 px-3 rounded text-[13px] border ${isLight
+                                        ? 'text-slate-900 border-slate-900/30'
+                                        : 'text-white border-white/30'
+                                    }`}
+                            >
                                 {banner.secondary_cta_text}
                             </span>
                         )}
@@ -930,28 +1010,28 @@ function PreviewModal({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2">
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3">
             <div
                 className={`w-full ${widths[device]} bg-white rounded border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] transition-all duration-200`}
             >
-                <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 shrink-0">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200 shrink-0">
                     <div className="min-w-0">
                         <h2 className="text-[15px] font-semibold text-slate-900 truncate">
                             {banner.name}
                         </h2>
-                        <p className="text-[13px] text-slate-500 truncate">
-                            {PLACEMENT_LABEL[banner.placement]} · Live preview
+                        <p className="text-[12px] text-slate-500 truncate">
+                            {PLACEMENT_LABEL[banner.placement]}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <div className="inline-flex bg-slate-100 border border-slate-200 rounded p-0.5">
                             {(['desktop', 'tablet', 'mobile'] as const).map((d) => (
                                 <button
                                     key={d}
                                     onClick={() => setDevice(d)}
-                                    className={`px-2.5 py-1.5 text-[12px] rounded capitalize transition ${device === d
-                                        ? 'bg-white text-slate-900'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    className={`px-2 sm:px-2.5 py-1.5 text-[12px] rounded capitalize transition ${device === d
+                                            ? 'bg-white text-slate-900'
+                                            : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     {d}
@@ -960,14 +1040,15 @@ function PreviewModal({
                         </div>
                         <button
                             onClick={onClose}
-                            className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
+                            aria-label="Close preview"
+                            className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto bg-slate-100 p-2 flex justify-center">
+                <div className="flex-1 overflow-auto bg-slate-100 p-2 sm:p-3 flex justify-center">
                     <div className="w-full">
                         <div className="relative bg-slate-950 overflow-hidden rounded border border-slate-200">
                             <div className="relative aspect-[16/9] sm:aspect-[16/7]">
@@ -981,9 +1062,15 @@ function PreviewModal({
                 </div>
 
                 <div className="grid grid-cols-3 divide-x divide-slate-200 border-t border-slate-200 shrink-0">
-                    <PreviewStat label="Impressions" value={fmt(banner.impressions)} />
+                    <PreviewStat
+                        label="Impressions"
+                        value={fmt(banner.impressions)}
+                    />
                     <PreviewStat label="CTR" value={`${banner.ctr.toFixed(2)}%`} />
-                    <PreviewStat label="Conversions" value={fmt(banner.conversions)} />
+                    <PreviewStat
+                        label="Conversions"
+                        value={fmt(banner.conversions)}
+                    />
                 </div>
             </div>
         </div>
@@ -992,11 +1079,11 @@ function PreviewModal({
 
 function PreviewStat({ label, value }: { label: string; value: string }) {
     return (
-        <div className="p-2 text-center">
-            <div className="text-[13px] uppercase text-slate-400">
+        <div className="p-2 text-center min-w-0">
+            <div className="text-[11px] uppercase text-slate-400 truncate">
                 {label}
             </div>
-            <div className="text-[14px] font-semibold text-slate-900 mt-0.5">
+            <div className="text-[14px] font-semibold text-slate-900 mt-0.5 truncate">
                 {value}
             </div>
         </div>
@@ -1052,7 +1139,11 @@ function BannerWizard({
             alert('Add a name or headline before saving as draft.');
             return;
         }
-        void onSave({ ...draft, status: 'DRAFT', updated_at: new Date().toISOString() });
+        void onSave({
+            ...draft,
+            status: 'DRAFT',
+            updated_at: new Date().toISOString(),
+        });
     }
 
     function submit() {
@@ -1071,32 +1162,33 @@ function BannerWizard({
 
     return (
         <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-slate-900/60 backdrop-blur-sm">
-            <div className="w-full max-w-3xl bg-white flex flex-col">
-                <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 shrink-0">
-                    <div>
+            <div className="w-full sm:max-w-3xl bg-white flex flex-col">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 shrink-0">
+                    <div className="min-w-0">
                         <h2 className="text-[15px] font-semibold text-slate-900">
                             {initial.id ? 'Edit banner' : 'New banner'}
                         </h2>
-                        <p className="text-[13px] text-slate-500 mt-0.5">
+                        <p className="text-[12px] text-slate-500 mt-0.5">
                             Step {step + 1} of {total} · {steps[step]}
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500"
+                        aria-label="Close"
+                        className="h-8 w-8 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"
                     >
                         <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                <div className="px-2 pt-2 shrink-0">
+                <div className="px-3 pt-2 shrink-0">
                     <div className="h-1 bg-slate-100 rounded overflow-hidden">
                         <div
                             className="h-full bg-blue-950 transition-all"
                             style={{ width: `${progress}%` }}
                         />
                     </div>
-                    <div className="flex items-center gap-1 pt-2 overflow-x-auto">
+                    <div className="flex items-center gap-1 pt-2 overflow-x-auto -mx-1 px-1">
                         {steps.map((label, i) => (
                             <button
                                 key={label}
@@ -1104,11 +1196,11 @@ function BannerWizard({
                                 onClick={() => {
                                     if (i <= step) setStep(i);
                                 }}
-                                className={`text-[12px] px-2 py-1 rounded-sm whitespace-nowrap transition ${i === step
-                                    ? 'bg-blue-950 text-white'
-                                    : i < step
-                                        ? 'text-blue-950 bg-blue-50'
-                                        : 'text-slate-400'
+                                className={`text-[12px] px-2 py-1 rounded-sm whitespace-nowrap transition shrink-0 ${i === step
+                                        ? 'bg-blue-950 text-white'
+                                        : i < step
+                                            ? 'text-blue-950 bg-blue-50'
+                                            : 'text-slate-400'
                                     }`}
                             >
                                 {i + 1}. {label}
@@ -1117,7 +1209,7 @@ function BannerWizard({
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto p-2 space-y-2 text-[13px]">
+                <div className="flex-1 overflow-auto p-3 space-y-3 text-[13px]">
                     {step === 0 && (
                         <>
                             <Field label="Banner name (internal)">
@@ -1134,12 +1226,17 @@ function BannerWizard({
                                     <select
                                         value={draft.placement}
                                         onChange={(e) =>
-                                            update('placement', e.target.value as Placement)
+                                            update(
+                                                'placement',
+                                                e.target.value as Placement,
+                                            )
                                         }
                                         className={inputCls}
                                     >
                                         <option value="HOME_HERO">Homepage hero</option>
-                                        <option value="CATEGORY_HERO">Category hero</option>
+                                        <option value="CATEGORY_HERO">
+                                            Category hero
+                                        </option>
                                         <option value="PROMO_STRIP">Promo strip</option>
                                     </select>
                                 </Field>
@@ -1150,14 +1247,17 @@ function BannerWizard({
                                         max={MAX_HERO_SLIDES}
                                         value={draft.order}
                                         onChange={(e) =>
-                                            update('order', parseInt(e.target.value) || 1)
+                                            update(
+                                                'order',
+                                                parseInt(e.target.value) || 1,
+                                            )
                                         }
                                         className={inputCls}
                                     />
                                 </Field>
                             </div>
 
-                            <Field label="Badge (small label above headline)">
+                            <Field label="Badge">
                                 <input
                                     value={draft.badge}
                                     onChange={(e) => update('badge', e.target.value)}
@@ -1169,7 +1269,9 @@ function BannerWizard({
                             <Field label="Headline">
                                 <input
                                     value={draft.headline}
-                                    onChange={(e) => update('headline', e.target.value)}
+                                    onChange={(e) =>
+                                        update('headline', e.target.value)
+                                    }
                                     placeholder="Experience Tech In Person."
                                     className={inputCls}
                                 />
@@ -1178,18 +1280,25 @@ function BannerWizard({
                             <Field label="Description">
                                 <textarea
                                     value={draft.description}
-                                    onChange={(e) => update('description', e.target.value)}
+                                    onChange={(e) =>
+                                        update('description', e.target.value)
+                                    }
                                     rows={3}
                                     placeholder="Walk in, try before you buy…"
                                     className={inputCls + ' resize-none'}
                                 />
                             </Field>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <Field label="Primary CTA text">
                                     <input
                                         value={draft.primary_cta_text}
-                                        onChange={(e) => update('primary_cta_text', e.target.value)}
+                                        onChange={(e) =>
+                                            update(
+                                                'primary_cta_text',
+                                                e.target.value,
+                                            )
+                                        }
                                         placeholder="Find A Store"
                                         className={inputCls}
                                     />
@@ -1197,7 +1306,12 @@ function BannerWizard({
                                 <Field label="Primary CTA link">
                                     <input
                                         value={draft.primary_cta_href}
-                                        onChange={(e) => update('primary_cta_href', e.target.value)}
+                                        onChange={(e) =>
+                                            update(
+                                                'primary_cta_href',
+                                                e.target.value,
+                                            )
+                                        }
                                         placeholder="/stores"
                                         className={inputCls}
                                     />
@@ -1206,7 +1320,10 @@ function BannerWizard({
                                     <input
                                         value={draft.secondary_cta_text}
                                         onChange={(e) =>
-                                            update('secondary_cta_text', e.target.value)
+                                            update(
+                                                'secondary_cta_text',
+                                                e.target.value,
+                                            )
                                         }
                                         placeholder="Talk To Us"
                                         className={inputCls}
@@ -1216,7 +1333,10 @@ function BannerWizard({
                                     <input
                                         value={draft.secondary_cta_href}
                                         onChange={(e) =>
-                                            update('secondary_cta_href', e.target.value)
+                                            update(
+                                                'secondary_cta_href',
+                                                e.target.value,
+                                            )
                                         }
                                         placeholder="/support"
                                         className={inputCls}
@@ -1273,7 +1393,10 @@ function BannerWizard({
                                     <select
                                         value={draft.text_alignment}
                                         onChange={(e) =>
-                                            update('text_alignment', e.target.value as Alignment)
+                                            update(
+                                                'text_alignment',
+                                                e.target.value as Alignment,
+                                            )
                                         }
                                         className={inputCls}
                                     >
@@ -1286,7 +1409,10 @@ function BannerWizard({
                                     <select
                                         value={draft.overlay_style}
                                         onChange={(e) =>
-                                            update('overlay_style', e.target.value as Overlay)
+                                            update(
+                                                'overlay_style',
+                                                e.target.value as Overlay,
+                                            )
                                         }
                                         className={inputCls}
                                     >
@@ -1298,14 +1424,19 @@ function BannerWizard({
                                 </Field>
                             </div>
 
-                            <Field label={`Overlay opacity — ${draft.overlay_opacity}%`}>
+                            <Field
+                                label={`Overlay opacity — ${draft.overlay_opacity}%`}
+                            >
                                 <input
                                     type="range"
                                     min={0}
                                     max={100}
                                     value={draft.overlay_opacity}
                                     onChange={(e) =>
-                                        update('overlay_opacity', parseInt(e.target.value))
+                                        update(
+                                            'overlay_opacity',
+                                            parseInt(e.target.value),
+                                        )
                                     }
                                     className="w-full accent-blue-950"
                                 />
@@ -1327,7 +1458,9 @@ function BannerWizard({
                             <Field label="Status">
                                 <select
                                     value={draft.status}
-                                    onChange={(e) => update('status', e.target.value as Status)}
+                                    onChange={(e) =>
+                                        update('status', e.target.value as Status)
+                                    }
                                     className={inputCls}
                                 >
                                     <option value="DRAFT">Draft</option>
@@ -1337,13 +1470,16 @@ function BannerWizard({
                                 </select>
                             </Field>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <Field label="Start date & time">
                                     <input
                                         type="datetime-local"
                                         value={isoToLocalInput(draft.start_at)}
                                         onChange={(e) =>
-                                            update('start_at', localInputToIso(e.target.value))
+                                            update(
+                                                'start_at',
+                                                localInputToIso(e.target.value),
+                                            )
                                         }
                                         className={inputCls}
                                     />
@@ -1353,16 +1489,19 @@ function BannerWizard({
                                         type="datetime-local"
                                         value={isoToLocalInput(draft.end_at)}
                                         onChange={(e) =>
-                                            update('end_at', localInputToIso(e.target.value))
+                                            update(
+                                                'end_at',
+                                                localInputToIso(e.target.value),
+                                            )
                                         }
                                         className={inputCls}
                                     />
                                 </Field>
                             </div>
 
-                            <p className="text-[13px] text-slate-500">
-                                Leave end date empty to run indefinitely. Set status to
-                                Scheduled to start automatically at the start date.
+                            <p className="text-[12px] text-slate-500">
+                                Leave end date empty to run indefinitely. Set status
+                                to Scheduled to start automatically.
                             </p>
                         </>
                     )}
@@ -1371,16 +1510,17 @@ function BannerWizard({
                         <>
                             {draft.status === 'DRAFT' && (
                                 <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[12px] px-2 py-1.5 rounded">
-                                    This banner will be saved as a <strong>draft</strong> and will not
-                                    appear on the storefront. Go back to <strong>4. Schedule</strong> and
-                                    set the status to <strong>Active</strong> to publish it.
+                                    This banner will be saved as a{' '}
+                                    <strong>draft</strong> and will not appear on the
+                                    storefront.
                                 </div>
                             )}
 
                             {draft.status === 'SCHEDULED' && (
                                 <div className="bg-blue-50 border border-blue-200 text-blue-800 text-[12px] px-2 py-1.5 rounded">
-                                    This banner is <strong>scheduled</strong>. It will appear on the
-                                    storefront once the start date is reached.
+                                    This banner is <strong>scheduled</strong>. It
+                                    will appear on the storefront once the start date
+                                    is reached.
                                 </div>
                             )}
 
@@ -1388,28 +1528,61 @@ function BannerWizard({
                                 <SlideArtFull banner={draft} />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <ReviewRow label="Name" value={draft.name || '—'} />
-                                <ReviewRow label="Placement" value={PLACEMENT_LABEL[draft.placement]} />
-                                <ReviewRow label="Slide order" value={`#${draft.order}`} />
+                                <ReviewRow
+                                    label="Placement"
+                                    value={PLACEMENT_LABEL[draft.placement]}
+                                />
+                                <ReviewRow
+                                    label="Slide order"
+                                    value={`#${draft.order}`}
+                                />
                                 <ReviewRow label="Status" value={draft.status} />
-                                <ReviewRow label="Headline" value={draft.headline || '—'} />
+                                <ReviewRow
+                                    label="Headline"
+                                    value={draft.headline || '—'}
+                                />
                                 <ReviewRow label="Badge" value={draft.badge || '—'} />
-                                <ReviewRow label="Primary CTA" value={draft.primary_cta_text || '—'} />
-                                <ReviewRow label="Secondary CTA" value={draft.secondary_cta_text || '—'} />
-                                <ReviewRow label="Starts" value={draft.start_at ? fmtDate(draft.start_at) : '—'} />
-                                <ReviewRow label="Ends" value={draft.end_at ? fmtDate(draft.end_at) : '—'} />
-                                <ReviewRow label="Overlay" value={`${draft.overlay_style} · ${draft.overlay_opacity}%`} />
-                                <ReviewRow label="Alignment" value={draft.text_alignment} />
+                                <ReviewRow
+                                    label="Primary CTA"
+                                    value={draft.primary_cta_text || '—'}
+                                />
+                                <ReviewRow
+                                    label="Secondary CTA"
+                                    value={draft.secondary_cta_text || '—'}
+                                />
+                                <ReviewRow
+                                    label="Starts"
+                                    value={
+                                        draft.start_at
+                                            ? fmtDate(draft.start_at)
+                                            : '—'
+                                    }
+                                />
+                                <ReviewRow
+                                    label="Ends"
+                                    value={
+                                        draft.end_at ? fmtDate(draft.end_at) : '—'
+                                    }
+                                />
+                                <ReviewRow
+                                    label="Overlay"
+                                    value={`${draft.overlay_style} · ${draft.overlay_opacity}%`}
+                                />
+                                <ReviewRow
+                                    label="Alignment"
+                                    value={draft.text_alignment}
+                                />
                             </div>
                         </>
                     )}
                 </div>
 
-                <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-slate-200 bg-white shrink-0">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-200 bg-white shrink-0">
                     <button
                         onClick={onClose}
-                        className="text-[13px] text-slate-600 hover:text-slate-900 px-3 py-2"
+                        className="text-[13px] text-slate-600 hover:text-slate-900 px-2 py-2"
                     >
                         Cancel
                     </button>
@@ -1434,7 +1607,7 @@ function BannerWizard({
                                 <button
                                     disabled={saving}
                                     onClick={saveDraft}
-                                    className="text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded transition disabled:opacity-50"
+                                    className="hidden sm:inline-block text-[13px] font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded transition disabled:opacity-50"
                                 >
                                     Save as draft
                                 </button>
@@ -1493,7 +1666,9 @@ function ImageDrop({
                 onChange(url);
             } catch (err) {
                 setError(
-                    err instanceof Error ? err.message : 'Upload failed. Try another file.',
+                    err instanceof Error
+                        ? err.message
+                        : 'Upload failed. Try another file.',
                 );
             } finally {
                 setBusy(false);
@@ -1504,7 +1679,7 @@ function ImageDrop({
 
     return (
         <div className="space-y-1">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
                 <label className="block text-[13px] font-medium text-slate-700">
                     {label}
                 </label>
@@ -1512,7 +1687,7 @@ function ImageDrop({
                     <button
                         type="button"
                         onClick={() => onChange('')}
-                        className="text-[13px] text-slate-500 hover:text-rose-600"
+                        className="text-[12px] text-slate-500 hover:text-rose-600"
                     >
                         Remove
                     </button>
@@ -1532,8 +1707,8 @@ function ImageDrop({
                 }}
                 onClick={() => inputRef.current?.click()}
                 className={`group relative cursor-pointer rounded border-2 border-dashed transition ${dragging
-                    ? 'border-blue-950 bg-blue-50/40'
-                    : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
+                        ? 'border-blue-950 bg-blue-50/40'
+                        : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
                     }`}
             >
                 {value ? (
@@ -1554,10 +1729,10 @@ function ImageDrop({
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-3 px-3 text-center">
+                    <div className="flex flex-col items-center justify-center py-6 px-3 text-center">
                         {busy ? (
                             <svg
-                                className="animate-spin w-5 h-5 text-slate-400 mb-1"
+                                className="animate-spin w-5 h-5 text-slate-400 mb-2"
                                 fill="none"
                                 viewBox="0 0 24 24"
                             >
@@ -1592,7 +1767,9 @@ function ImageDrop({
                             {busy ? 'Uploading…' : 'Click to upload or drag & drop'}
                         </p>
                         {hint && (
-                            <p className="text-[13px] text-slate-400 mt-0.5">{hint}</p>
+                            <p className="text-[12px] text-slate-400 mt-0.5">
+                                {hint}
+                            </p>
                         )}
                     </div>
                 )}
@@ -1606,7 +1783,7 @@ function ImageDrop({
                 onChange={(e) => void handleFiles(e.target.files)}
             />
 
-            {error && <p className="text-[13px] text-rose-600">{error}</p>}
+            {error && <p className="text-[12px] text-rose-600">{error}</p>}
         </div>
     );
 }
@@ -1631,8 +1808,12 @@ function Field({
 function ReviewRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="bg-slate-50 border border-slate-100 rounded px-2 py-1.5 min-w-0">
-            <div className="text-[11px] uppercase text-slate-400 font-medium">{label}</div>
-            <div className="text-[13px] text-slate-900 truncate mt-0.5">{value}</div>
+            <div className="text-[11px] uppercase text-slate-400 font-medium">
+                {label}
+            </div>
+            <div className="text-[13px] text-slate-900 truncate mt-0.5">
+                {value}
+            </div>
         </div>
     );
 }
