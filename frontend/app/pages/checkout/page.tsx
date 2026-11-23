@@ -687,8 +687,8 @@ function CheckoutInner() {
 
   if (checkoutItems.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex items-center justify-center p-2">
-        <div className="max-w-md w-full bg-white border border-slate-200 rounded p-6 text-center space-y-2">
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex items-center justify-center p-3">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded p-4 sm:p-6 text-center space-y-2">
           <div className="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
             <ShoppingCart className="w-6 h-6" />
           </div>
@@ -700,7 +700,7 @@ function CheckoutInner() {
           </p>
           <Link
             href="/pages/cart"
-            className="inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-4 rounded text-[13px] transition"
+            className="inline-block bg-blue-950 hover:bg-blue-900 text-white font-medium py-2.5 px-4 rounded text-[13px] transition"
           >
             Back to cart
           </Link>
@@ -1177,25 +1177,28 @@ function CheckoutInner() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-3 h-14 flex items-center justify-between gap-2">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/"
+            className="flex items-center gap-2 shrink-0 min-w-0"
+          >
             <img
               src="/logo.jpeg"
               alt="Logo"
-              className="w-10 h-10 rounded-sm object-contain"
+              className="w-10 h-10 rounded-sm object-contain shrink-0"
             />
-            <span className="text-[13px] font-semibold text-slate-900">
+            <span className="text-[13px] font-semibold text-slate-900 truncate">
               Secure checkout
             </span>
           </Link>
 
-          <div className="hidden sm:flex items-center gap-1.5 text-[13px] text-emerald-700">
+          <div className="hidden sm:flex items-center gap-1.5 text-[13px] text-emerald-700 shrink-0">
             <Lock className="w-3.5 h-3.5" />
             <span>256-bit SSL encrypted</span>
           </div>
 
           <Link
             href="/pages/cart"
-            className="text-[13px] font-medium text-blue-950 hover:underline"
+            className="text-[13px] font-medium text-blue-950 hover:underline shrink-0"
           >
             Back to cart
           </Link>
@@ -1205,7 +1208,7 @@ function CheckoutInner() {
       <main className="max-w-6xl mx-auto px-3 py-3 space-y-2">
         {me && (
           <div className="bg-emerald-50 border border-emerald-100 rounded p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p className="text-[13px] text-emerald-900">
+            <p className="text-[13px] text-emerald-900 min-w-0 break-words">
               Signed in as{" "}
               <span className="font-medium">
                 {`${me.first_name ?? ""} ${me.last_name ?? ""}`.trim() ||
@@ -1215,7 +1218,7 @@ function CheckoutInner() {
             </p>
             <Link
               href="/pages/account"
-              className="text-[13px] font-medium text-emerald-900 hover:underline"
+              className="text-[13px] font-medium text-emerald-900 hover:underline shrink-0"
             >
               Manage account
             </Link>
@@ -1225,9 +1228,9 @@ function CheckoutInner() {
         <StepIndicator current={step} />
 
         {errorMessage && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-center gap-2 text-[13px]">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            <span>{errorMessage}</span>
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-start gap-2 text-[13px]">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span className="min-w-0 break-words">{errorMessage}</span>
           </div>
         )}
 
@@ -1235,10 +1238,10 @@ function CheckoutInner() {
           onSubmit={handlePlaceOrder}
           className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-start"
         >
-          <div className="lg:col-span-7 space-y-2">
+          <div className="lg:col-span-7 space-y-2 min-w-0">
             {step === 1 && (
               <>
-                <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                <section className="bg-white border border-slate-200 rounded p-3 sm:p-2 space-y-2">
                   <SectionHeader
                     icon={<User className="w-3.5 h-3.5" />}
                     title="Your details"
@@ -1284,7 +1287,7 @@ function CheckoutInner() {
                   </div>
                 </section>
 
-                <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                <section className="bg-white border border-slate-200 rounded p-3 sm:p-2 space-y-2">
                   <SectionHeader
                     icon={<MapPin className="w-3.5 h-3.5" />}
                     title="Delivery address"
@@ -1315,7 +1318,7 @@ function CheckoutInner() {
                       <label className="block font-medium text-slate-700 mb-1">
                         County
                       </label>
-                      <div className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-[13px] text-slate-700">
+                      <div className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2.5 text-[13px] text-slate-700">
                         {formData.county}
                       </div>
                       <p className="text-[12px] text-slate-400 mt-1">
@@ -1337,7 +1340,7 @@ function CheckoutInner() {
 
             {step === 2 && phase === "idle" && (
               <>
-                <section className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                <section className="bg-white border border-slate-200 rounded p-3 sm:p-2 space-y-2">
                   <SectionHeader
                     icon={<CreditCard className="w-3.5 h-3.5" />}
                     title="How would you like to pay?"
@@ -1353,15 +1356,15 @@ function CheckoutInner() {
                           paymentChoice: "pay-on-delivery",
                         }))
                       }
-                      className={`p-3 border rounded text-left transition flex items-start gap-2 ${formData.paymentChoice === "pay-on-delivery"
-                        ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
-                        : "border-slate-200 hover:bg-slate-50"
+                      className={`p-3 border rounded text-left transition flex items-start gap-2.5 ${formData.paymentChoice === "pay-on-delivery"
+                          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
+                          : "border-slate-200 hover:bg-slate-50"
                         }`}
                     >
                       <span
                         className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${formData.paymentChoice === "pay-on-delivery"
-                          ? "bg-blue-950 text-white"
-                          : "bg-slate-100 text-slate-500"
+                            ? "bg-blue-950 text-white"
+                            : "bg-slate-100 text-slate-500"
                           }`}
                       >
                         <Banknote className="w-4 h-4" />
@@ -1369,13 +1372,13 @@ function CheckoutInner() {
                       <span className="min-w-0">
                         <span
                           className={`block text-[13px] font-medium ${formData.paymentChoice === "pay-on-delivery"
-                            ? "text-blue-950"
-                            : "text-slate-800"
+                              ? "text-blue-950"
+                              : "text-slate-800"
                             }`}
                         >
                           Pay on delivery
                         </span>
-                        <span className="block text-[13px] text-slate-500 mt-0.5">
+                        <span className="block text-[13px] text-slate-500 mt-0.5 break-words">
                           Cash or M-Pesa at the doorstep
                         </span>
                       </span>
@@ -1386,15 +1389,15 @@ function CheckoutInner() {
                       onClick={() =>
                         setFormData((p) => ({ ...p, paymentChoice: "pay-now" }))
                       }
-                      className={`p-2 border rounded text-left transition flex items-start gap-2.5 ${formData.paymentChoice === "pay-now"
-                        ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
-                        : "border-slate-200 hover:bg-slate-50"
+                      className={`p-3 border rounded text-left transition flex items-start gap-2.5 ${formData.paymentChoice === "pay-now"
+                          ? "border-blue-950 bg-blue-50 ring-1 ring-blue-950"
+                          : "border-slate-200 hover:bg-slate-50"
                         }`}
                     >
                       <span
                         className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${formData.paymentChoice === "pay-now"
-                          ? "bg-blue-950 text-white"
-                          : "bg-slate-100 text-slate-500"
+                            ? "bg-blue-950 text-white"
+                            : "bg-slate-100 text-slate-500"
                           }`}
                       >
                         <Wallet className="w-4 h-4" />
@@ -1402,13 +1405,13 @@ function CheckoutInner() {
                       <span className="min-w-0">
                         <span
                           className={`block text-[13px] font-medium ${formData.paymentChoice === "pay-now"
-                            ? "text-blue-950"
-                            : "text-slate-800"
+                              ? "text-blue-950"
+                              : "text-slate-800"
                             }`}
                         >
                           Pay now
                         </span>
-                        <span className="block text-[13px] text-slate-500 mt-0.5">
+                        <span className="block text-[13px] text-slate-500 mt-0.5 break-words">
                           M-Pesa Express (STK push)
                         </span>
                       </span>
@@ -1416,7 +1419,7 @@ function CheckoutInner() {
                   </div>
 
                   {formData.paymentChoice === "pay-now" && (
-                    <div className="bg-emerald-50 border border-emerald-100 rounded p-2 space-y-2 text-[13px]">
+                    <div className="bg-emerald-50 border border-emerald-100 rounded p-3 sm:p-2 space-y-2 text-[13px]">
                       <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
                         <Smartphone className="w-3.5 h-3.5" />
                         M-Pesa Express (STK push)
@@ -1431,7 +1434,7 @@ function CheckoutInner() {
                         }
                         error={fieldErrors.mpesaPhone}
                       />
-                      <p className="text-[13px] text-slate-600">
+                      <p className="text-[13px] text-slate-600 break-words">
                         We&apos;ll send an STK push to this number. Enter your
                         PIN to complete the payment. If you leave this blank, we
                         use the contact number above.
@@ -1440,12 +1443,12 @@ function CheckoutInner() {
                   )}
 
                   {formData.paymentChoice === "pay-on-delivery" && (
-                    <div className="bg-slate-50 border border-slate-200 rounded p-2 space-y-2 text-[13px]">
+                    <div className="bg-slate-50 border border-slate-200 rounded p-3 sm:p-2 space-y-2 text-[13px]">
                       <div className="flex items-center gap-1.5 text-slate-800 font-medium">
                         <Banknote className="w-3.5 h-3.5" />
                         Cash or M-Pesa on delivery
                       </div>
-                      <p className="text-slate-600">
+                      <p className="text-slate-600 break-words">
                         Pay the rider in cash or via M-Pesa when your order is
                         delivered. Please have the exact amount or your phone
                         ready.
@@ -1454,16 +1457,16 @@ function CheckoutInner() {
                   )}
                 </section>
 
-                <section className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+                <section className="bg-white border border-slate-200 rounded-sm p-3 sm:p-2 space-y-2">
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       name="agreeTerms"
                       checked={formData.agreeTerms}
                       onChange={handleChange}
-                      className="mt-0.5 h-4 w-4 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
                     />
-                    <span className="text-[13px] text-slate-700">
+                    <span className="text-[13px] text-slate-700 min-w-0 break-words">
                       I agree to the{" "}
                       <Link
                         href="/terms"
@@ -1493,9 +1496,9 @@ function CheckoutInner() {
                       name="subscribe"
                       checked={formData.subscribe}
                       onChange={handleChange}
-                      className="mt-0.5 h-4 w-4 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded-sm border-slate-300 text-blue-950 focus:ring-blue-950"
                     />
-                    <span className="text-[13px] text-slate-700">
+                    <span className="text-[13px] text-slate-700 min-w-0 break-words">
                       Email me exclusive deals and new arrivals
                     </span>
                   </label>
@@ -1524,12 +1527,12 @@ function CheckoutInner() {
             )}
 
             {phase === "idle" && (
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
                 {step > 1 ? (
                   <button
                     type="button"
                     onClick={goBack}
-                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
+                    className="inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2.5 rounded text-[13px] w-full sm:w-auto"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     Back
@@ -1537,7 +1540,7 @@ function CheckoutInner() {
                 ) : (
                   <Link
                     href="/pages/cart"
-                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px]"
+                    className="inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2.5 rounded text-[13px] w-full sm:w-auto"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     Return to cart
@@ -1548,7 +1551,7 @@ function CheckoutInner() {
                   <button
                     type="button"
                     onClick={goNext}
-                    className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2 rounded text-[13px] transition"
+                    className="inline-flex items-center justify-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white font-medium px-4 py-2.5 rounded text-[13px] transition w-full sm:w-auto"
                   >
                     Continue
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1558,8 +1561,8 @@ function CheckoutInner() {
             )}
           </div>
 
-          <aside className="lg:col-span-5 space-y-2 lg:sticky lg:top-16">
-            <div className="bg-white border border-slate-200 rounded-sm p-2 space-y-2">
+          <aside className="lg:col-span-5 space-y-2 lg:sticky lg:top-16 min-w-0">
+            <div className="bg-white border border-slate-200 rounded-sm p-3 sm:p-2 space-y-2">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h2 className="text-[15px] font-semibold text-slate-900">
                   Order summary
@@ -1567,18 +1570,18 @@ function CheckoutInner() {
                 {phase === "idle" && (
                   <Link
                     href="/pages/cart"
-                    className="text-[13px] font-medium text-blue-950 hover:underline"
+                    className="text-[13px] font-medium text-blue-950 hover:underline shrink-0"
                   >
                     Edit cart
                   </Link>
                 )}
               </div>
 
-              <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto -mx-2">
+              <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto -mx-3 sm:-mx-2">
                 {checkoutItems.map((item) => (
                   <li
                     key={item.id}
-                    className="flex items-center gap-2 px-2 py-2"
+                    className="flex items-center gap-2 px-3 sm:px-2 py-2"
                   >
                     <img
                       src={item.image}
@@ -1589,7 +1592,7 @@ function CheckoutInner() {
                       <p className="text-[13px] font-medium text-slate-900 truncate">
                         {item.name}
                       </p>
-                      <p className="text-[13px] text-slate-500">
+                      <p className="text-[13px] text-slate-500 truncate">
                         Qty {item.quantity} × {formatKES(item.price)}
                       </p>
                     </div>
@@ -1603,16 +1606,18 @@ function CheckoutInner() {
               {phase === "idle" && (
                 <div className="pt-2 border-t border-slate-100">
                   {appliedCoupon ? (
-                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
-                      <span className="text-[13px] font-medium text-emerald-700 inline-flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5" />
-                        {appliedCoupon} — {Math.round(appliedDiscountPct * 100)}
-                        % off
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5 gap-2">
+                      <span className="text-[13px] font-medium text-emerald-700 inline-flex items-center gap-1.5 min-w-0">
+                        <Tag className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {appliedCoupon} —{" "}
+                          {Math.round(appliedDiscountPct * 100)}% off
+                        </span>
                       </span>
                       <button
                         type="button"
                         onClick={removeCoupon}
-                        className="text-emerald-700 hover:text-emerald-900 p-1"
+                        className="text-emerald-700 hover:text-emerald-900 p-1.5 shrink-0"
                         aria-label="Remove coupon"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -1620,7 +1625,7 @@ function CheckoutInner() {
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <div className="relative flex-1">
+                      <div className="relative flex-1 min-w-0">
                         <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                         <input
                           type="text"
@@ -1633,14 +1638,14 @@ function CheckoutInner() {
                             }
                           }}
                           placeholder="Coupon code"
-                          className="w-full bg-white border border-slate-200 rounded pl-8 pr-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
+                          className="w-full bg-white border border-slate-200 rounded pl-8 pr-3 py-2.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950"
                         />
                       </div>
                       <button
                         type="button"
                         onClick={handleApplyCoupon}
                         disabled={couponChecking}
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2 rounded text-[13px] disabled:opacity-50"
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-3 py-2.5 rounded text-[13px] disabled:opacity-50 shrink-0 min-w-[72px] inline-flex items-center justify-center"
                       >
                         {couponChecking ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1652,7 +1657,7 @@ function CheckoutInner() {
                   )}
                   {couponMessage && (
                     <p
-                      className={`text-[13px] mt-1 ${couponValid ? "text-emerald-600" : "text-red-600"
+                      className={`text-[13px] mt-1 break-words ${couponValid ? "text-emerald-600" : "text-red-600"
                         }`}
                     >
                       {couponMessage}
@@ -1688,7 +1693,7 @@ function CheckoutInner() {
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                 <span className="text-[15px] font-semibold text-slate-900">
                   Total
                 </span>
@@ -1697,9 +1702,9 @@ function CheckoutInner() {
                 </span>
               </div>
 
-              <div className="flex items-center justify-between text-[13px] text-slate-600 pt-1">
+              <div className="flex items-center justify-between text-[13px] text-slate-600 pt-1 gap-2">
                 <span>Payment</span>
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-slate-900 text-right">
                   {paymentLabel}
                 </span>
               </div>
@@ -1741,7 +1746,7 @@ function CheckoutInner() {
                 </button>
               )}
 
-              <p className="text-[13px] text-slate-500 text-center">
+              <p className="text-[13px] text-slate-500 text-center break-words">
                 By placing your order you authorize us to charge your selected
                 payment method.
               </p>
@@ -1763,7 +1768,7 @@ function PinWaitingScreen({
   onCancel: () => void;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded p-6 space-y-2 text-center">
+    <section className="bg-white border border-slate-200 rounded p-4 sm:p-6 space-y-2 text-center">
       <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
         <Smartphone className="w-6 h-6" />
       </div>
@@ -1772,22 +1777,24 @@ function PinWaitingScreen({
         <h2 className="text-[15px] font-semibold text-slate-900">
           Check your phone
         </h2>
-        <p className="text-[13px] text-slate-500">
+        <p className="text-[13px] text-slate-500 break-words">
           We sent an M-Pesa request to{" "}
-          <span className="font-mono text-slate-700">{phone}</span>
+          <span className="font-mono text-slate-700 break-all">{phone}</span>
         </p>
       </div>
 
       <div className="bg-slate-50 border border-slate-200 rounded p-2 text-left text-[13px] space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-slate-500">Amount</span>
           <span className="font-semibold text-slate-900">
             {formatKES(amount)}
           </span>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-slate-500">Reference</span>
-          <span className="font-mono text-slate-700">Order payment</span>
+          <span className="font-mono text-slate-700 text-right truncate">
+            Order payment
+          </span>
         </div>
       </div>
 
@@ -1803,7 +1810,7 @@ function PinWaitingScreen({
       <button
         type="button"
         onClick={onCancel}
-        className="text-[13px] font-medium text-slate-500 hover:text-slate-800 underline underline-offset-2"
+        className="text-[13px] font-medium text-slate-500 hover:text-slate-800 underline underline-offset-2 py-1"
       >
         Cancel payment
       </button>
@@ -1821,7 +1828,7 @@ function PaymentFailedScreen({
   onChangeMethod: () => void;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded p-6 space-y-2 text-center">
+    <section className="bg-white border border-slate-200 rounded p-4 sm:p-6 space-y-2 text-center">
       <div className="w-14 h-14 mx-auto rounded-full bg-red-50 text-red-600 flex items-center justify-center">
         <AlertCircle className="w-6 h-6" />
       </div>
@@ -1830,7 +1837,7 @@ function PaymentFailedScreen({
         <h2 className="text-[15px] font-semibold text-slate-900">
           Payment failed
         </h2>
-        <p className="text-[13px] text-slate-600 max-w-md mx-auto">
+        <p className="text-[13px] text-slate-600 max-w-md mx-auto break-words">
           {message || "The M-Pesa request could not be completed."}
         </p>
       </div>
@@ -1853,7 +1860,7 @@ function PaymentFailedScreen({
         </button>
       </div>
 
-      <p className="text-[12px] text-slate-400">
+      <p className="text-[12px] text-slate-400 break-words">
         If money was deducted, it will be refunded automatically within 24
         hours.
       </p>
@@ -1872,30 +1879,30 @@ function StepIndicator({ current }: { current: Step }) {
         const isComplete = current > s.n;
         const isActive = current === s.n;
         return (
-          <li key={s.n} className="flex items-center gap-2 flex-1">
+          <li key={s.n} className="flex items-center gap-2 flex-1 min-w-0">
             <span
               className={`w-6 h-6 rounded flex items-center justify-center text-[13px] font-medium shrink-0 ${isComplete
-                ? "bg-emerald-500 text-white"
-                : isActive
-                  ? "bg-blue-950 text-white"
-                  : "bg-slate-100 text-slate-500"
+                  ? "bg-emerald-500 text-white"
+                  : isActive
+                    ? "bg-blue-950 text-white"
+                    : "bg-slate-100 text-slate-500"
                 }`}
             >
               {isComplete ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.n}
             </span>
             <span
               className={`text-[13px] font-medium truncate ${isActive
-                ? "text-blue-950"
-                : isComplete
-                  ? "text-emerald-700"
-                  : "text-slate-500"
+                  ? "text-blue-950"
+                  : isComplete
+                    ? "text-emerald-700"
+                    : "text-slate-500"
                 }`}
             >
               {s.label}
             </span>
             {idx < steps.length - 1 && (
               <span
-                className={`flex-1 h-px ${isComplete ? "bg-emerald-500" : "bg-slate-200"
+                className={`flex-1 h-px min-w-[16px] ${isComplete ? "bg-emerald-500" : "bg-slate-200"
                   }`}
               />
             )}
@@ -1954,7 +1961,7 @@ function Field({
   mono?: boolean;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="block font-medium text-slate-700 mb-1">{label}</span>
       <div className="relative">
         {icon && (
@@ -1968,7 +1975,7 @@ function Field({
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full bg-white border rounded py-2 text-[13px] focus:outline-none focus:ring-1 ${icon ? "pl-8 pr-3" : "px-3"
+          className={`w-full bg-white border rounded py-2.5 text-[13px] focus:outline-none focus:ring-1 ${icon ? "pl-8 pr-3" : "px-3"
             } ${error
               ? "border-red-500 focus:ring-red-500"
               : "border-slate-200 focus:border-blue-950 focus:ring-blue-950"
@@ -1996,13 +2003,15 @@ function Row({
   return (
     <div className="flex items-center justify-between gap-2">
       <span
-        className={emphasis ? "text-slate-900 font-medium" : "text-slate-500"}
+        className={`min-w-0 break-words ${emphasis ? "text-slate-900 font-medium" : "text-slate-500"
+          }`}
       >
         {label}
       </span>
       <span
-        className={`${emphasis ? "text-slate-900 font-semibold" : ""} ${success ? "text-emerald-600 font-medium" : ""
-          } ${mono ? "font-mono" : ""}`}
+        className={`shrink-0 text-right ${emphasis ? "text-slate-900 font-semibold" : ""
+          } ${success ? "text-emerald-600 font-medium" : ""} ${mono ? "font-mono" : ""
+          }`}
       >
         {value}
       </span>

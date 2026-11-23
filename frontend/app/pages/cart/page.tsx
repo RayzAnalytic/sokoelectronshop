@@ -46,34 +46,18 @@ import {
 } from '@/lib/api';
 
 interface CartConfig {
-  deliveryFees: Record<DeliveryMethod, number>;
-  freeDeliveryThreshold: number;
   taxEnabled: boolean;
   taxRate: number;
   pricesIncludeTax: boolean;
 }
 
 const DEFAULT_CONFIG: CartConfig = {
-  deliveryFees: {
-    express: 500,
-    standard: 300,
-    pickup: 0,
-  },
-  freeDeliveryThreshold: 5000,
   taxEnabled: true,
   taxRate: 0.16,
   pricesIncludeTax: true,
 };
 
-function parseFeesFromConfig(raw: {
-  delivery_fees?: {
-    express_guest?: string;
-    express_member?: string;
-    standard?: string;
-    pickup?: string;
-  };
-  your_express_fee?: string;
-  free_delivery_threshold?: string;
+function parseTaxFromConfig(raw: {
   tax?: {
     enabled?: boolean;
     rate?: string | number;
@@ -102,29 +86,7 @@ function parseFeesFromConfig(raw: {
     pricesIncludeTax = false;
   }
 
-  return {
-    deliveryFees: {
-      express: parseNum(
-        raw.your_express_fee,
-        DEFAULT_CONFIG.deliveryFees.express,
-      ),
-      standard: parseNum(
-        raw.delivery_fees?.standard,
-        DEFAULT_CONFIG.deliveryFees.standard,
-      ),
-      pickup: parseNum(
-        raw.delivery_fees?.pickup,
-        DEFAULT_CONFIG.deliveryFees.pickup,
-      ),
-    },
-    freeDeliveryThreshold: parseNum(
-      raw.free_delivery_threshold,
-      DEFAULT_CONFIG.freeDeliveryThreshold,
-    ),
-    taxEnabled,
-    taxRate,
-    pricesIncludeTax,
-  };
+  return { taxEnabled, taxRate, pricesIncludeTax };
 }
 
 function formatKES(amount: number): string {
@@ -234,7 +196,6 @@ export default function CartPage() {
   const [loadError, setLoadError] = useState(false);
 
   const [cartConfig, setCartConfig] = useState<CartConfig>(DEFAULT_CONFIG);
-  const [configResolved, setConfigResolved] = useState(false);
 
   const [serverCart, setServerCart] = useState<ServerCart | null>(null);
 
@@ -270,10 +231,8 @@ export default function CartPage() {
       try {
         const cfg = await checkoutApi.config();
         if (cancelled) return;
-        setCartConfig(parseFeesFromConfig(cfg));
+        setCartConfig(parseTaxFromConfig(cfg));
       } catch {
-      } finally {
-        if (!cancelled) setConfigResolved(true);
       }
     })();
 
@@ -781,14 +740,14 @@ export default function CartPage() {
           <span className="text-slate-900 font-medium">Shopping Cart</span>
         </nav>
 
-        <div className="bg-white border border-slate-200 rounded px-3 py-3 flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h1 className="text-[15px] font-semibold text-slate-900">Shopping cart</h1>
             <p className="text-[13px] text-slate-500 mt-0.5">
               Manage your selected items and proceed to secure checkout.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {items.length > 0 && (
               <button
                 onClick={handleClearCart}
@@ -799,7 +758,7 @@ export default function CartPage() {
                 Clear cart
               </button>
             )}
-            <span className="text-[13px] font-medium bg-blue-50 text-blue-950 px-2 py-0.5 rounded border border-blue-100">
+            <span className="text-[13px] font-medium bg-blue-50 text-blue-950 px-2 py-0.5 rounded border border-blue-100 whitespace-nowrap">
               {totalUnits} item{totalUnits !== 1 ? 's' : ''}
             </span>
           </div>
@@ -856,7 +815,7 @@ export default function CartPage() {
                 </div>
               )}
 
-              <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2">
+              <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-between gap-2 flex-wrap">
                 <button
                   onClick={handleSelectAll}
                   className="inline-flex items-center gap-2 text-[13px] text-slate-700 hover:text-slate-900"
@@ -870,7 +829,7 @@ export default function CartPage() {
                 </button>
                 {selectedItems.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] text-slate-500">
+                    <span className="text-[13px] text-slate-500 whitespace-nowrap">
                       {selectedItems.length} selected
                     </span>
                     <button
@@ -894,7 +853,7 @@ export default function CartPage() {
                       className={`p-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 transition-colors ${isBusy ? 'opacity-50' : 'hover:bg-slate-50/50'
                         }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
                         <button
                           onClick={() => handleToggleSelect(item.id)}
                           className="shrink-0"
@@ -908,7 +867,7 @@ export default function CartPage() {
                         </button>
                         <Link
                           href={`/pages/products?open=${item.productId}`}
-                          className="w-16 h-16 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200 block"
+                          className="w-14 h-14 sm:w-16 sm:h-16 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200 block"
                         >
                           <img
                             src={item.image || '/placeholder.jpeg'}
@@ -916,7 +875,7 @@ export default function CartPage() {
                             className="w-full h-full object-cover"
                           />
                         </Link>
-                        <div className="space-y-0.5 min-w-0">
+                        <div className="space-y-0.5 min-w-0 flex-1">
                           {item.brand && (
                             <span className="text-[13px] font-medium text-blue-950 uppercase">
                               {item.brand}
@@ -950,20 +909,20 @@ export default function CartPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 gap-3">
+                      <div className="flex items-center justify-between w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 gap-2 sm:gap-3">
                         <button
                           onClick={() => {
                             handleRemoveItem(item.id);
                             alert(`"${item.name}" saved to your wishlist.`);
                           }}
                           disabled={isBusy}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 transition disabled:opacity-50"
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 transition disabled:opacity-50 shrink-0"
                           title="Save for later"
                         >
                           <Heart className="w-4 h-4" />
                         </button>
 
-                        <div className="flex items-center border border-slate-200 rounded overflow-hidden bg-white">
+                        <div className="flex items-center border border-slate-200 rounded overflow-hidden bg-white shrink-0">
                           <button
                             onClick={() =>
                               handleUpdateQuantity(item, item.quantity - 1)
@@ -993,7 +952,7 @@ export default function CartPage() {
                           </button>
                         </div>
 
-                        <div className="text-right min-w-[90px]">
+                        <div className="text-right min-w-[70px] sm:min-w-[90px] shrink-0">
                           <span className="text-[13px] font-bold text-slate-900">
                             {formatKES(item.unitPrice * item.quantity)}
                           </span>
@@ -1002,7 +961,7 @@ export default function CartPage() {
                         <button
                           onClick={() => handleRemoveItem(item.id)}
                           disabled={isBusy}
-                          className="text-slate-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 transition disabled:opacity-50"
+                          className="text-slate-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 transition disabled:opacity-50 shrink-0"
                           aria-label="Remove item"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1081,17 +1040,17 @@ export default function CartPage() {
                       placeholder="Enter coupon code"
                       disabled={couponValidating}
                       autoFocus
-                      className="flex-1 bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
+                      className="flex-1 min-w-0 bg-white border border-slate-200 rounded px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-950 disabled:bg-slate-50 disabled:text-slate-500"
                     />
                     <button
                       type="submit"
                       disabled={couponValidating || !couponCode.trim()}
-                      className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                      className="bg-blue-950 hover:bg-blue-900 text-white font-medium px-3 py-2 rounded text-[13px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 shrink-0"
                     >
                       {couponValidating ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Checking…
+                          <span className="hidden sm:inline">Checking…</span>
                         </>
                       ) : (
                         'Apply'
@@ -1103,7 +1062,7 @@ export default function CartPage() {
                         setPromoOpen(false);
                         setCouponMessage('');
                       }}
-                      className="text-slate-400 hover:text-slate-700 px-1"
+                      className="text-slate-400 hover:text-slate-700 px-1 shrink-0"
                       aria-label="Cancel"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -1317,7 +1276,7 @@ export default function CartPage() {
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
 
-                <div className="flex items-center justify-center gap-2 pt-1">
+                <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
                   <PaymentChip
                     icon={<Smartphone className="w-3.5 h-3.5" />}
                     label="M-Pesa"
