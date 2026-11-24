@@ -5,18 +5,14 @@ import { useEffect, useRef } from 'react'
 export default function Loading() {
     const videoRef = useRef<HTMLVideoElement>(null)
 
-    // Force-play, lock muted, and prevent any pause/stop/unmute interaction.
     useEffect(() => {
         const video = videoRef.current
         if (!video) return
 
-        // Lock audio off — always muted, no sound
         video.muted = true
         video.volume = 0
 
-        // Try to play immediately
         video.play().catch(() => {
-            // If blocked, retry on any user interaction
             const onInteract = () => {
                 video.muted = true
                 video.volume = 0
@@ -30,7 +26,6 @@ export default function Loading() {
             document.addEventListener('keydown', onInteract)
         })
 
-        // If anything tries to pause or end it, immediately resume
         const preventPause = () => {
             if (video.paused) {
                 video.muted = true
@@ -41,18 +36,15 @@ export default function Loading() {
         video.addEventListener('pause', preventPause)
         video.addEventListener('ended', preventPause)
 
-        // If anything tries to change volume or unmute, force it back
         const forceMute = () => {
             video.muted = true
             video.volume = 0
         }
         video.addEventListener('volumechange', forceMute)
 
-        // Block right-click context menu
         const preventContext = (e: Event) => e.preventDefault()
         video.addEventListener('contextmenu', preventContext)
 
-        // Block spacebar (could pause when video focused)
         const preventKey = (e: KeyboardEvent) => {
             if (e.code === 'Space' && document.activeElement === video) {
                 e.preventDefault()
@@ -71,10 +63,6 @@ export default function Loading() {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-blue-950">
-            {/*
-        SVG wraps the video in a <foreignObject> and applies the text mask natively.
-        This guarantees the video is clipped to the letter shapes on ALL browsers.
-      */}
             <svg
                 viewBox="0 0 1600 600"
                 className="w-full max-w-6xl"
@@ -83,17 +71,15 @@ export default function Loading() {
             >
                 <defs>
                     <mask
-                        id="raze-text-mask"
+                        id="raze-text-mask-loading"
                         maskUnits="userSpaceOnUse"
                         x="0"
                         y="0"
                         width="1600"
                         height="600"
                     >
-                        {/* Black = fully hidden */}
                         <rect width="1600" height="600" fill="black" />
 
-                        {/* RAZESTORE — huge, uppercase, black weight */}
                         <text
                             x="800"
                             y="250"
@@ -109,7 +95,6 @@ export default function Loading() {
                             RAZESTORE
                         </text>
 
-                        {/* Tagline — uppercase, bold, smaller */}
                         <text
                             x="800"
                             y="390"
@@ -127,13 +112,12 @@ export default function Loading() {
                     </mask>
                 </defs>
 
-                {/* Video clipped to the letter shapes */}
                 <foreignObject
                     x="0"
                     y="0"
                     width="1600"
                     height="600"
-                    mask="url(#raze-text-mask)"
+                    mask="url(#raze-text-mask-loading)"
                 >
                     <div className="h-full w-full">
                         <video
@@ -149,13 +133,12 @@ export default function Loading() {
                             className="pointer-events-none h-full w-full object-cover"
                         >
                             {/* 👇 Replace with your video file in /public */}
-                            <source src="/349590_medium.mp4" type="video/mp4" />
+                            <source src="/loader-bg.mp4" type="video/mp4" />
                         </video>
                     </div>
                 </foreignObject>
             </svg>
 
-            {/* Subtle loading dots */}
             <div className="absolute bottom-12 flex gap-2">
                 <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]" />
                 <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-300 [animation-delay:-0.15s]" />
