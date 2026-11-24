@@ -6,24 +6,25 @@ export default function SplashScreen() {
     const videoRef = useRef<HTMLVideoElement>(null)
     const [visible, setVisible] = useState(true)
     const [fading, setFading] = useState(false)
+    const [videoReady, setVideoReady] = useState(false)
 
-    // Hide after 2.5s (with a fade-out)
-    useEffect(() => {
-        const fadeTimer = setTimeout(() => setFading(true), 3700)
-        const hideTimer = setTimeout(() => setVisible(false), 4000)
-        return () => {
-            clearTimeout(fadeTimer)
-            clearTimeout(hideTimer)
-        }
-    }, [])
-
-    // Force-play, lock muted, prevent pause/stop/unmute
+    // Force-play, lock muted, prevent pause/stop/unmute, and signal readiness
     useEffect(() => {
         const video = videoRef.current
         if (!video) return
 
         video.muted = true
         video.volume = 0
+
+        const markReady = () => setVideoReady(true)
+
+        // If already buffered enough, mark ready immediately
+        if (video.readyState >= 3) {
+            markReady()
+        } else {
+            video.addEventListener('canplay', markReady, { once: true })
+            video.addEventListener('playing', markReady, { once: true })
+        }
 
         video.play().catch(() => {
             const onInteract = () => {
@@ -66,6 +67,8 @@ export default function SplashScreen() {
         document.addEventListener('keydown', preventKey)
 
         return () => {
+            video.removeEventListener('canplay', markReady)
+            video.removeEventListener('playing', markReady)
             video.removeEventListener('pause', preventPause)
             video.removeEventListener('ended', preventPause)
             video.removeEventListener('volumechange', forceMute)
@@ -74,6 +77,18 @@ export default function SplashScreen() {
         }
     }, [])
 
+    // Start the hide timers ONLY after the video is ready
+    useEffect(() => {
+        if (!videoReady) return
+
+        const fadeTimer = setTimeout(() => setFading(true), 3700)
+        const hideTimer = setTimeout(() => setVisible(false), 4000)
+        return () => {
+            clearTimeout(fadeTimer)
+            clearTimeout(hideTimer)
+        }
+    }, [videoReady])
+
     if (!visible) return null
 
     return (
@@ -81,6 +96,9 @@ export default function SplashScreen() {
             className={`fixed inset-0 z-[999] flex items-center justify-center overflow-hidden bg-blue-950 transition-opacity duration-300 ${fading ? 'opacity-0' : 'opacity-100'
                 }`}
         >
+            {/* Preload hint so the video starts buffering the moment the page opens */}
+            <link rel="preload" as="video" href="/349590_medium.mp4" type="video/mp4" />
+
             <svg
                 viewBox="0 0 1600 600"
                 className="w-full max-w-6xl"
@@ -150,18 +168,19 @@ export default function SplashScreen() {
                             disableRemotePlayback
                             className="pointer-events-none h-full w-full object-cover"
                         >
-                            {/* 👇 Replace with your video file in /public */}
                             <source src="/349590_medium.mp4" type="video/mp4" />
                         </video>
                     </div>
                 </foreignObject>
             </svg>
 
-            <div className="absolute bottom-12 flex gap-2">
-                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]" />
-                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-300 [animation-delay:-0.15s]" />
-                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-200" />
-            </div>
+            {videoReady && (
+                <div className="absolute bottom-12 flex gap-2">
+                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]" />
+                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-300 [animation-delay:-0.15s]" />
+                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-200" />
+                </div>
+            )}
         </div>
     )
 }
