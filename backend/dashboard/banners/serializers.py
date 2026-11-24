@@ -67,6 +67,12 @@ class BannerAdminSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         )
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field in ('desktop_image', 'tablet_image', 'mobile_image'):
+            data[field] = _to_url(data.get(field) or '')
+        return data
+
     def validate_name(self, value):
         if not value.strip():
             raise serializers.ValidationError('Name is required.')
