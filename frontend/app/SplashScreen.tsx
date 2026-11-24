@@ -9,8 +9,8 @@ export default function SplashScreen() {
 
     // Hide after 2.5s (with a fade-out)
     useEffect(() => {
-        const fadeTimer = setTimeout(() => setFading(true), 2200)
-        const hideTimer = setTimeout(() => setVisible(false), 2500)
+        const fadeTimer = setTimeout(() => setFading(true), 3700)
+        const hideTimer = setTimeout(() => setVisible(false), 4000)
         return () => {
             clearTimeout(fadeTimer)
             clearTimeout(hideTimer)
