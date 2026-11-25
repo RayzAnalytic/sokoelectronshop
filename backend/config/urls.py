@@ -13,10 +13,12 @@ from dashboard.settings.urls import public_urls as settings_public_urls
 
 ADMIN_URL = os.environ.get("ADMIN_URL", "ops-7f3k9z")
 
-admin.site.site_header = "Racetech Hub Administration"
-admin.site.site_title = "Racetech Hub Admin"
+admin.site.site_header = "Raze Store Administration"
+admin.site.site_title = "Raze Store Admin"
 admin.site.index_title = "Dashboard"
 admin.site.login_template = "admin/login.html"
+
+admin.site.root_path = ADMIN_URL.rstrip("/")
 
 urlpatterns = [
     path(f"{ADMIN_URL}/", admin.site.urls),
