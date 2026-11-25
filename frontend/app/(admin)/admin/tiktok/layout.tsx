@@ -22,7 +22,7 @@ type NavItem = {
 const BASE = '/admin/tiktok';
 
 const NAV: NavItem[] = [
-    { id: 'overview', label: 'Overview', href: `${BASE}/BusinessOverview`, icon: LayoutDashboard },
+    { id: 'overview', label: 'Overview', href: `${BASE}/`, icon: LayoutDashboard },
     { id: 'customers', label: 'Customers', href: `${BASE}/CustomersLeadsInbox`, icon: Users },
     { id: 'orders', label: 'Orders', href: `${BASE}/OrdersProductsFulfillment`, icon: ShoppingBag },
     { id: 'creators', label: 'Creators', href: `${BASE}/CreatorsAffiliates`, icon: UserRound },
