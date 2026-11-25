@@ -13,46 +13,39 @@ from dashboard.settings.urls import public_urls as settings_public_urls
 
 ADMIN_URL = os.environ.get("ADMIN_URL", "ops-7f3k9z")
 
+admin.site.site_header = "Racetech Hub Administration"
+admin.site.site_title = "Racetech Hub Admin"
+admin.site.index_title = "Dashboard"
+admin.site.login_template = "admin/login.html"
+
 urlpatterns = [
     path(f"{ADMIN_URL}/", admin.site.urls),
 
     path("api/v1/auth/", include("authentication.urls")),
-
     path("api/catalog/", include("catalog.urls")),
-
     path("api/ai/", include("ai.urls")),
-
     path("api/admin/ai/", include("dashboard.aiautomations.urls", namespace="aiadmin")),
-
     path("api/v1/checkout/", include("checkout.urls")),
-
     path("api/v1/account/", include("account.urls")),
-
     path("api/v1/newsletter/", include("newsletter.urls")),
 
     path("api/v1/admin/products/",   include("dashboard.products.urls")),
     path("api/v1/admin/categories/", include("dashboard.categories.urls")),
     path("api/v1/admin/brands/",     include("dashboard.brands.urls")),
-
     path("api/v1/admin/orders/",     include("dashboard.orders.urls")),
-
     path("api/v1/admin/newsletter/", include("dashboard.newsletter.urls")),
     path("api/v1/admin/customers/",  include("dashboard.customers.urls")),
     path("api/v1/admin/suppliers/",  include("dashboard.suppliers.urls")),
     path("api/v1/admin/inventory/",  include("dashboard.inventory.urls")),
-
     path("api/v1/admin/reviews/",    include("dashboard.reviews.urls")),
     path("api/v1/admin/discounts/",  include("dashboard.discounts.urls")),
     path(
         "api/v1/admin/reports/",
         include("dashboard.reports.urls", namespace="reports"),
     ),
-
     path("api/v1/admin/users/",   include("dashboard.users.urls")),
     path("api/v1/admin/invites/", include("dashboard.users.invites_urls")),
-
     path("api/v1/staff-invites/", include("dashboard.users.urls_public")),
-
     path("api/v1/admin/settings/", include("dashboard.settings.urls")),
 
     path("api/v1/", include(settings_public_urls)),
@@ -63,24 +56,13 @@ urlpatterns = [
         name="mpesa-callback",
     ),
 
-    path(
-        "api/v1/dashboard/returns/",
-        include("dashboard.returns.urls"),
-    ),
-
+    path("api/v1/dashboard/returns/", include("dashboard.returns.urls")),
     path("api/v1/dashboard/transactions/", include("dashboard.transactions.urls")),
     path("api/v1/dashboard/shipping/",     include("dashboard.shipping.urls")),
-
     path("api/v1/", include("dashboard.banners.urls")),
-
     path("api/v1/", include("dashboard.posters.urls")),
-
     path("api/v1/admin/social/", include("dashboard.social.urls")),
-
-    path(
-        "api/v1/dashboard/payments/",
-        include("dashboard.payments.urls"),
-    ),
+    path("api/v1/dashboard/payments/", include("dashboard.payments.urls")),
 
     path(
         "api/v1/social/oauth/<str:platform>/callback/",
@@ -89,14 +71,11 @@ urlpatterns = [
     ),
 
     path("api/", include("whatsapfloat.urls")),
-
     path("api/v1/whatsapp/", include("dashboard.whatsapp.urls")),
-
     path(
         "api/v1/dashboard/direct-orders/",
         include("dashboard.direct_orders.urls"),
     ),
-
     path('api/v1/admin/campaigns/', include('dashboard.campaigns.urls')),
 
     path(

@@ -150,6 +150,10 @@ env = environ.Env(
     ANALYTICS_PAGEVIEW_RETENTION_DAYS=(int, 90),
 
     ADMIN_URL=(str, "ops-7f3k9z"),
+
+    ADMIN_ALLOWED_IPS=(list, []),
+
+    ADMIN_LOGIN_URL=(str, "/admin/login/"),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -311,6 +315,13 @@ AUTH_PASSWORD_VALIDATORS = [
 # Google SSO start endpoint if you use one.
 LOGIN_URL = env("LOGIN_URL", default="http://localhost:3000/login")
 
+# Django admin's own login URL (served by Django, not the frontend).
+ADMIN_LOGIN_URL = env("ADMIN_LOGIN_URL", default="/admin/login/")
+
+# Comma-separated list of IPs allowed to reach /<ADMIN_URL>/.
+# Empty list => no IP restriction (rely on web-server / Nginx rules).
+ADMIN_ALLOWED_IPS = env.list("ADMIN_ALLOWED_IPS", default=[])
+
 
 SESSION_COOKIE_HTTPONLY = True
 _session_samesite = env("SESSION_COOKIE_SAMESITE")
@@ -412,6 +423,7 @@ REST_FRAMEWORK = {
         "staff_invite_create": "10/hour",
         "staff_invite_accept": "10/hour",
         "staff_password_reset": "10/hour",
+        "admin_login": "5/min",
     },
 }
 
