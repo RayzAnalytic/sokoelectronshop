@@ -5586,11 +5586,15 @@ export interface AnalyticsTrafficResponse {
     funnel: AnalyticsFunnelStage[];
     devices: AnalyticsDevice[];
     counties: AnalyticsCounty[];
+    cart_abandonment: AnalyticsCartAbandonment;
     abandoned_carts: AnalyticsAbandonedCart[];
     abandoned_trend: AnalyticsAbandonedTrendPoint[];
     error?: string;
 }
-
+export interface AnalyticsCartAbandonment {
+    rate: number;
+    potential_lost: number;
+}
 export interface AnalyticsSalesSummary {
     gross: number;
     net: number;

@@ -1,11 +1,6 @@
 'use client';
 
-import React, {
-  Suspense,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import {
   Calendar,
   ArrowUpRight,
@@ -32,9 +27,7 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
-
 import { FaInstagram, FaFacebook } from 'react-icons/fa';
-
 import {
   ResponsiveContainer,
   AreaChart,
@@ -98,10 +91,7 @@ const PRODUCT_STATUS_LABELS: Record<AnalyticsProductStatus, string> = {
   abandoned: 'Abandoned',
 };
 
-const CHANNEL_ICON_MAP: Record<
-  string,
-  React.ComponentType<{ className?: string }>
-> = {
+const CHANNEL_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Website: Globe,
   WhatsApp: MessageCircle,
   Instagram: FaInstagram,
@@ -227,6 +217,9 @@ function AnalyticsPageInner() {
   const abandonedCarts: AnalyticsAbandonedCart[] = traffic?.abandoned_carts ?? [];
   const abandonedTrend = traffic?.abandoned_trend ?? [];
 
+  const cartAbandonmentRate = traffic?.cart_abandonment?.rate ?? 0;
+  const cartPotentialLost = traffic?.cart_abandonment?.potential_lost ?? 0;
+
   const filteredCarts = selectedCartDay
     ? abandonedCarts.filter((c) => c.date === selectedCartDay)
     : abandonedCarts;
@@ -348,14 +341,16 @@ function AnalyticsPageInner() {
                     key={cart.id}
                     className="p-2 bg-slate-50 border border-slate-200 rounded flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
                   >
-                    <div className="space-y-1 min-w-0">
+                    <div className="space-y-1 min-w-0 w-full sm:w-auto">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-slate-900">{cart.customer}</span>
-                        <span className="text-[13px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono">
-                          {cart.phone}
-                        </span>
+                        <span className="font-medium text-slate-900 truncate">{cart.customer}</span>
+                        {cart.phone && (
+                          <span className="text-[13px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono">
+                            {cart.phone}
+                          </span>
+                        )}
                       </div>
-                      <div className="text-slate-600">
+                      <div className="text-slate-600 truncate">
                         {cart.items} • <span className="font-medium text-emerald-600">{cart.value}</span>
                       </div>
                       <div className="text-[13px] text-slate-400">
@@ -364,7 +359,7 @@ function AnalyticsPageInner() {
                     </div>
 
                     <button
-                      onClick={() => showToast(`WhatsApp reminder sent to ${cart.customer} (${cart.phone})`)}
+                      onClick={() => showToast(`WhatsApp reminder sent to ${cart.customer} (${cart.phone || 'no phone'})`)}
                       className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded transition shrink-0 text-[13px] w-full sm:w-auto justify-center"
                     >
                       <Send className="w-3.5 h-3.5" />
@@ -381,7 +376,7 @@ function AnalyticsPageInner() {
                   setCartModalOpen(false);
                   setSelectedCartDay(null);
                 }}
-                className="px-3 py-2 bg-slate-900 text-white font-medium rounded hover:bg-slate-800 transition text-[13px]"
+                className="px-3 py-2 bg-slate-900 text-white font-medium rounded hover:bg-slate-800 transition text-[13px] w-full sm:w-auto"
               >
                 Close
               </button>
@@ -458,7 +453,7 @@ function AnalyticsPageInner() {
             <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="font-medium text-red-700">Couldn&apos;t load this report</p>
-              <p className="text-red-600 mt-0.5">{error}</p>
+              <p className="text-red-600 mt-0.5 break-words">{error}</p>
             </div>
             <button
               onClick={handleRefresh}
@@ -505,10 +500,10 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
-                  <div className="lg:col-span-8 bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <div className="lg:col-span-8 bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-[13px] font-semibold text-slate-900">Traffic Overview</h3>
-                      <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded overflow-x-auto">
+                      <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded overflow-x-auto max-w-full">
                         {(['sessions', 'visitors', 'pageviews'] as AreaMetric[]).map((m) => (
                           <button
                             key={m}
@@ -550,7 +545,7 @@ function AnalyticsPageInner() {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-4 bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <div className="lg:col-span-4 bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
                     <h3 className="text-[13px] font-semibold text-slate-900">Traffic Sources</h3>
 
                     <div className="h-44 sm:h-48 w-full">
@@ -594,7 +589,7 @@ function AnalyticsPageInner() {
                 <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
                   <h3 className="text-[13px] font-semibold text-slate-900">Conversion Funnel</h3>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                     {funnelStages.map((stage, idx) => (
                       <div
                         key={stage.stage}
@@ -612,7 +607,7 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
-                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
                     <h3 className="text-[13px] font-semibold text-slate-900">Device Breakdown</h3>
 
                     <div className="h-52 sm:h-60 w-full">
@@ -647,7 +642,7 @@ function AnalyticsPageInner() {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
                     <h3 className="text-[13px] font-semibold text-slate-900">Top Locations</h3>
 
                     <div className="space-y-2 pt-1">
@@ -676,9 +671,12 @@ function AnalyticsPageInner() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="space-y-1 min-w-0">
                       <div className="text-[13px] font-medium text-red-600">Cart Abandonment Rate</div>
-                      <div className="text-[15px] font-bold text-slate-900">28.4%</div>
+                      <div className="text-[15px] font-bold text-slate-900">{cartAbandonmentRate.toFixed(1)}%</div>
                       <p className="text-[13px] text-slate-500">
-                        Potential lost: <span className="font-medium text-slate-800 font-mono">KES 142,500</span>
+                        Potential lost:{' '}
+                        <span className="font-medium text-slate-800 font-mono">
+                          {formatKES(cartPotentialLost)}
+                        </span>
                       </p>
                     </div>
 
@@ -687,7 +685,7 @@ function AnalyticsPageInner() {
                         setSelectedCartDay(null);
                         setCartModalOpen(true);
                       }}
-                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2 py-2 rounded transition text-[13px]"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2 py-2 rounded transition text-[13px] w-full sm:w-auto justify-center"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>Recover ({abandonedCarts.length})</span>
@@ -814,7 +812,7 @@ function AnalyticsPageInner() {
                     { title: 'Sales by Category', data: sales.by_category },
                     { title: 'Sales by Brand', data: sales.by_brand },
                   ].map((block) => (
-                    <div key={block.title} className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                    <div key={block.title} className="bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
                       <h3 className="text-[13px] font-semibold text-slate-900">{block.title}</h3>
                       <div className="space-y-1">
                         {block.data.length === 0 ? (
@@ -1082,7 +1080,7 @@ function AnalyticsPageInner() {
                     return (
                       <div
                         key={ch.name}
-                        className="bg-white border border-slate-200 rounded p-2 space-y-2"
+                        className="bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -1153,7 +1151,7 @@ function AnalyticsPageInner() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                  <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <div className="bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
                     <h3 className="text-[13px] font-semibold text-slate-900">Social Activity</h3>
                     <div className="space-y-1">
                       {channels.social_activity.length === 0 ? (
@@ -1185,7 +1183,7 @@ function AnalyticsPageInner() {
                     </div>
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded p-2 space-y-2">
+                  <div className="bg-white border border-slate-200 rounded p-2 space-y-2 min-w-0">
                     <h3 className="text-[13px] font-semibold text-slate-900">Platform Attribution</h3>
                     <div className="space-y-2">
                       {channels.attribution.map((p, idx) => (
