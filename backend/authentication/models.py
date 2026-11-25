@@ -201,10 +201,10 @@ class EmailVerificationCode(models.Model):
 
         cls.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
 
-        plaintext = (
-            settings.AUTH_DEV_FIXED_OTP
-            or f"{secrets.randbelow(10 ** cls.CODE_LENGTH):0{cls.CODE_LENGTH}d}"
-        )
+        if settings.AUTH_DEV_FIXED_OTP:
+            plaintext = settings.AUTH_DEV_FIXED_OTP
+        else:
+            plaintext = f"{secrets.randbelow(10 ** cls.CODE_LENGTH):0{cls.CODE_LENGTH}d}"
 
         row = cls.objects.create(
             user=user,
