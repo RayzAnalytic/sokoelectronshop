@@ -1,15 +1,14 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.apps import apps
+from django.utils import timezone
 
 
 @receiver(post_save, sender="catalog.Product")
 def ensure_direct_product_wrapper(sender, instance, created, **kwargs):
     if not created:
         return
-
     DirectProduct = apps.get_model("direct_orders", "DirectProduct")
-
     DirectProduct.objects.get_or_create(
         product=instance,
         defaults={
@@ -61,15 +60,22 @@ def apply_inventory_movement(sender, instance, created, **kwargs):
     if not instance.product_id:
         return
     try:
+        DirectProduct = apps.get_model("direct_orders", "DirectProduct")
+        wrapper = DirectProduct.objects.filter(pk=instance.product_id).first()
+        if not wrapper or not wrapper.product_id:
+            return
         Product = apps.get_model("catalog", "Product")
-        product = Product.objects.get(pk=instance.product_id)
+        product = Product.objects.filter(pk=wrapper.product_id).first()
+        if not product:
+            return
+        if not hasattr(product, "stock_quantity"):
+            return
         current = getattr(product, "stock_quantity", 0) or 0
         new_qty = current + int(instance.quantity or 0)
         if new_qty < 0:
             new_qty = 0
-        if hasattr(product, "stock_quantity"):
-            product.stock_quantity = new_qty
-            product.save(update_fields=["stock_quantity"])
+        product.stock_quantity = new_qty
+        product.save(update_fields=["stock_quantity"])
     except Exception:
         pass
 
@@ -111,6 +117,22 @@ def attach_sale_to_payout(sender, instance, **kwargs):
         pass
 
 
+@receiver(post_save, sender="direct_orders.CreatorSale")
+def sync_payout_amount_from_sales(sender, instance, **kwargs):
+    if not instance.payout_id:
+        return
+    try:
+        PayoutBatch = apps.get_model("direct_orders", "PayoutBatch")
+        batch = PayoutBatch.objects.filter(pk=instance.payout_id).first()
+        if not batch:
+            return
+        if not batch.amount:
+            batch.amount = batch.total_amount or 0
+            batch.save(update_fields=["amount", "updated_at"])
+    except Exception:
+        pass
+
+
 @receiver(post_save, sender="direct_orders.ReturnRequest")
 def handle_return_restock(sender, instance, **kwargs):
     if not instance.restock or instance.restocked_at is not None:
@@ -118,7 +140,6 @@ def handle_return_restock(sender, instance, **kwargs):
     if instance.status not in ("Received", "Refunded"):
         return
     try:
-        from django.utils import timezone
         InventoryMovement = apps.get_model("direct_orders", "InventoryMovement")
         order = instance.order
         for item in order.items.select_related("product").all():
@@ -170,6 +191,7 @@ def log_payout_audit(sender, instance, **kwargs):
             diff={
                 "status": instance.status,
                 "total": str(instance.total_amount),
+                "amount": str(instance.amount),
                 "items": instance.items_count,
             },
         )
@@ -337,7 +359,6 @@ def bump_conversation_on_message(sender, instance, created, **kwargs):
     if not created:
         return
     try:
-        from django.utils import timezone
         InboxConversation = apps.get_model("direct_orders", "InboxConversation")
         convo = InboxConversation.objects.filter(
             pk=instance.conversation_id,
@@ -361,7 +382,6 @@ def stamp_team_member_joined(sender, instance, created, **kwargs):
     if instance.status != "Active":
         return
     try:
-        from django.utils import timezone
         if instance.joined_at is None:
             instance.joined_at = timezone.now()
             instance.save(update_fields=["joined_at"])
@@ -438,5 +458,330 @@ def log_order_status_change(sender, instance, created, **kwargs):
                 "payment_status": instance.payment_status,
             },
         )
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.Lead")
+def log_lead_conversion(sender, instance, **kwargs):
+    if instance.status != "Converted":
+        return
+    if not instance.converted_order_id:
+        return
+    try:
+        AuditLog = apps.get_model("direct_orders", "AuditLog")
+        AuditLog.objects.create(
+            action="status_change",
+            entity="Lead",
+            entity_id=str(instance.pk),
+            summary=f"Lead {instance.name} converted → {instance.converted_order_id}",
+            diff={"status": "Converted"},
+        )
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.SupportTicket")
+def log_ticket_resolution(sender, instance, **kwargs):
+    if instance.status not in ("Resolved", "Closed"):
+        return
+    if instance.resolved_at is not None:
+        return
+    try:
+        instance.resolved_at = timezone.now()
+        instance.save(update_fields=["resolved_at"])
+        AuditLog = apps.get_model("direct_orders", "AuditLog")
+        AuditLog.objects.create(
+            action="status_change",
+            entity="SupportTicket",
+            entity_id=str(instance.pk),
+            summary=f"Ticket {instance.reference}: {instance.status}",
+            diff={"status": instance.status, "priority": instance.priority},
+        )
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.Integration")
+def log_integration_change(sender, instance, created, **kwargs):
+    if created:
+        return
+    try:
+        AuditLog = apps.get_model("direct_orders", "AuditLog")
+        AuditLog.objects.create(
+            action="status_change",
+            entity="Integration",
+            entity_id=str(instance.pk),
+            summary=f"{instance.name} → {instance.status}",
+            diff={"status": instance.status, "account": instance.account_name},
+        )
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.AdCampaign")
+def sync_campaign_spend(sender, instance, **kwargs):
+    if not instance.spend:
+        return
+    try:
+        Campaign = apps.get_model("direct_orders", "Campaign")
+        matched = Campaign.objects.filter(slug=instance.campaign_id).first()
+        if not matched:
+            return
+        matched.actual_spend = instance.spend
+        matched.save(update_fields=["actual_spend", "updated_at"])
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.CreatorApplication")
+def handle_creator_application_decision(sender, instance, **kwargs):
+    if instance.status != "Approved":
+        return
+    if not instance.creator_id:
+        return
+    try:
+        Creator = apps.get_model("direct_orders", "Creator")
+        creator = Creator.objects.filter(pk=instance.creator_id).first()
+        if not creator:
+            return
+        if creator.status != "Active":
+            creator.status = "Active"
+            creator.save(update_fields=["status", "updated_at"])
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.CreatorSample")
+def log_sample_dispatch(sender, instance, created, **kwargs):
+    if created:
+        return
+    if instance.status != "Dispatched":
+        return
+    if instance.dispatched_at is not None:
+        return
+    try:
+        instance.dispatched_at = timezone.now()
+        instance.save(update_fields=["dispatched_at", "updated_at"])
+        AuditLog = apps.get_model("direct_orders", "AuditLog")
+        AuditLog.objects.create(
+            action="status_change",
+            entity="CreatorSample",
+            entity_id=str(instance.pk),
+            summary=f"Sample dispatched to {instance.creator_id}",
+            diff={"status": "Dispatched"},
+        )
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.Customer")
+def auto_segment_customer_on_change(sender, instance, created, **kwargs):
+    if created:
+        return
+    try:
+        if instance.segment in ("VIP", "Repeat", "New", "Regular"):
+            if instance.lifetime_spend >= 50000 or instance.total_orders >= 5:
+                target = "VIP"
+            elif instance.total_orders >= 2:
+                target = "Repeat"
+            elif instance.total_orders == 0:
+                target = "New"
+            else:
+                target = "Regular"
+            if instance.segment != target:
+                instance.segment = target
+                instance.save(update_fields=["segment"])
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.DirectOrder")
+def link_order_to_customer(sender, instance, created, **kwargs):
+    if not created:
+        return
+    if instance.customer_id:
+        return
+    phone = (instance.customer_phone or "").strip()
+    if not phone:
+        return
+    try:
+        Customer = apps.get_model("direct_orders", "Customer")
+        customer, _ = Customer.objects.get_or_create(
+            phone=phone,
+            defaults={
+                "name": instance.customer_name,
+                "email": instance.customer_email or "",
+            },
+        )
+        instance.customer = customer
+        instance.save(update_fields=["customer", "updated_at"])
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.DirectOrder")
+def credit_creator_commission_on_paid(sender, instance, created, **kwargs):
+    if created:
+        return
+    if not instance.creator_id:
+        return
+    if instance.status not in ("Paid", "Awaiting Shipment", "Shipped", "Delivered"):
+        return
+    try:
+        CreatorSale = apps.get_model("direct_orders", "CreatorSale")
+        Order = apps.get_model("checkout", "Order")
+        creator_obj = None
+        try:
+            Creator = apps.get_model("direct_orders", "Creator")
+            creator_obj = Creator.objects.filter(pk=instance.creator_id).first()
+        except Exception:
+            creator_obj = None
+        if not creator_obj:
+            return
+        rate = creator_obj.commission_rate or 0
+        amount = (instance.total or 0) * (rate / 100)
+        if amount <= 0:
+            return
+        sale, _ = CreatorSale.objects.get_or_create(
+            creator_id=instance.creator_id,
+            order=instance,
+            defaults={
+                "commission_rate": rate,
+                "commission_amount": amount,
+                "status": "Pending",
+            },
+        )
+        if sale.status == "Pending":
+            sale.status = "Approved"
+            sale.save(update_fields=["status"])
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.PayoutBatch")
+def mark_sales_paid_on_payout_paid(sender, instance, created, **kwargs):
+    if instance.status != "Paid":
+        return
+    try:
+        CreatorSale = apps.get_model("direct_orders", "CreatorSale")
+        CreatorSale.objects.filter(payout_id=instance.pk, paid=False).update(
+            paid=True,
+            paid_at=timezone.now(),
+            status="Paid",
+            payout_reference=instance.reference,
+        )
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.ContentPost")
+def notify_on_content_published(sender, instance, created, **kwargs):
+    if instance.status != "Posted":
+        return
+    if not created and instance.updated_at and (timezone.now() - instance.updated_at).total_seconds() > 60:
+        return
+    try:
+        Notification = apps.get_model("direct_orders", "Notification")
+        TeamMember = apps.get_model("direct_orders", "TeamMember")
+        recipients = TeamMember.objects.filter(
+            status="Active",
+            role__in=["Owner", "Admin", "Content"],
+        )
+        notes = [
+            Notification(
+                title=f"Content posted: {instance.title}",
+                body=f"Platform: {instance.platform}",
+                kind="success",
+                link="/tiktok-business?tab=Content",
+                recipient_id=member.user_id or None,
+            )
+            for member in recipients
+        ]
+        if notes:
+            Notification.objects.bulk_create(notes, ignore_conflicts=True)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.ReturnRequest")
+def notify_on_return_requested(sender, instance, created, **kwargs):
+    if not created:
+        return
+    try:
+        Notification = apps.get_model("direct_orders", "Notification")
+        TeamMember = apps.get_model("direct_orders", "TeamMember")
+        recipients = TeamMember.objects.filter(
+            status="Active",
+            role__in=["Owner", "Admin", "Support", "Finance"],
+        )
+        notes = [
+            Notification(
+                title=f"Return requested: {instance.reference}",
+                body=f"Order {instance.order.reference}",
+                kind="warning",
+                link="/tiktok-business?tab=Returns",
+                recipient_id=member.user_id or None,
+            )
+            for member in recipients
+        ]
+        if notes:
+            Notification.objects.bulk_create(notes, ignore_conflicts=True)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.Lead")
+def notify_on_new_lead(sender, instance, created, **kwargs):
+    if not created:
+        return
+    try:
+        Notification = apps.get_model("direct_orders", "Notification")
+        TeamMember = apps.get_model("direct_orders", "TeamMember")
+        recipients = TeamMember.objects.filter(
+            status="Active",
+            role__in=["Owner", "Admin", "Support", "Operations"],
+        )
+        notes = [
+            Notification(
+                title=f"New lead: {instance.name}",
+                body=f"Source: {instance.source}",
+                kind="info",
+                link="/tiktok-business?tab=Leads",
+                recipient_id=member.user_id or None,
+            )
+            for member in recipients
+        ]
+        if notes:
+            Notification.objects.bulk_create(notes, ignore_conflicts=True)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender="direct_orders.InboxConversation")
+def notify_on_converted_conversation(sender, instance, created, **kwargs):
+    if created:
+        return
+    if instance.status != "converted":
+        return
+    try:
+        Notification = apps.get_model("direct_orders", "Notification")
+        TeamMember = apps.get_model("direct_orders", "TeamMember")
+        recipients = TeamMember.objects.filter(
+            status="Active",
+            role__in=["Owner", "Admin", "Support"],
+        )
+        notes = [
+            Notification(
+                title=f"Conversation converted: {instance.contact_name or 'Unknown'}",
+                body=f"Channel: {instance.channel}",
+                kind="success",
+                link="/tiktok-business?tab=Inbox",
+                recipient_id=member.user_id or None,
+            )
+            for member in recipients
+        ]
+        if notes:
+            Notification.objects.bulk_create(notes, ignore_conflicts=True)
     except Exception:
         pass

@@ -7,21 +7,15 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 
-
-SOCIAL_PLATFORM_CHOICES = [
-    ("TikTok", "TikTok"),
-    ("Instagram", "Instagram"),
-    ("YouTube", "YouTube"),
-    ("Facebook", "Facebook"),
-]
-
 ORDER_SOURCE_CHOICES = [
+    ("tiktok_dm", "TikTok DM"),
+    ("tiktok_comment", "TikTok Comment"),
+    ("live", "TikTok LIVE"),
+    ("video_dm", "Video DM"),
+    ("bio_link", "Bio Link"),
     ("whatsapp", "WhatsApp"),
     ("phone", "Phone"),
-    ("admin", "Admin / DM"),
-    ("live", "LIVE comment"),
-    ("video_dm", "Video DM"),
-    ("bio_link", "Bio link"),
+    ("admin", "Admin / Manual"),
 ]
 
 ORDER_STATUS_CHOICES = [
@@ -42,20 +36,29 @@ PAYMENT_STATUS_CHOICES = [
     ("refunded", "Refunded"),
 ]
 
+PAYMENT_METHOD_CHOICES = [
+    ("mpesa", "M-Pesa"),
+    ("bank", "Bank Transfer"),
+    ("card", "Card"),
+    ("cod", "Cash on Delivery"),
+    ("cash", "Cash"),
+]
+
 CUSTOMER_SEGMENT_CHOICES = [
     ("New", "New"),
     ("Repeat", "Repeat"),
     ("VIP", "VIP"),
+    ("Regular", "Regular"),
     ("Wholesale", "Wholesale"),
     ("COD Risk", "COD Risk"),
     ("Inactive", "Inactive"),
 ]
 
 INBOX_CHANNEL_CHOICES = [
-    ("whatsapp", "WhatsApp"),
     ("tiktok_dm", "TikTok DM"),
     ("tiktok_comment", "TikTok Comment"),
     ("instagram_dm", "Instagram DM"),
+    ("whatsapp", "WhatsApp"),
     ("phone", "Phone"),
     ("email", "Email"),
 ]
@@ -88,8 +91,10 @@ PAYOUT_STATUS_CHOICES = [
     ("Draft", "Draft"),
     ("Pending", "Pending"),
     ("Approved", "Approved"),
+    ("Processing", "Processing"),
     ("Paid", "Paid"),
     ("Failed", "Failed"),
+    ("Reversed", "Reversed"),
 ]
 
 RETURN_STATUS_CHOICES = [
@@ -231,30 +236,208 @@ LOCATION_KIND_CHOICES = [
     ("pickup", "Pickup Point"),
 ]
 
+INTEGRATION_STATUS_CHOICES = [
+    ("connected", "Connected"),
+    ("disconnected", "Disconnected"),
+    ("error", "Error"),
+    ("expired", "Expired"),
+]
+
+LEAD_STATUS_CHOICES = [
+    ("New", "New"),
+    ("Contacted", "Contacted"),
+    ("Interested", "Interested"),
+    ("Negotiating", "Negotiating"),
+    ("Awaiting Decision", "Awaiting Decision"),
+    ("Converted", "Converted"),
+    ("Lost", "Lost"),
+]
+
+LEAD_SOURCE_CHOICES = [
+    ("tiktok_dm", "TikTok DM"),
+    ("tiktok_comment", "TikTok Comment"),
+    ("live", "TikTok LIVE"),
+    ("whatsapp", "WhatsApp"),
+    ("phone", "Phone"),
+    ("bio_link", "Bio Link"),
+]
+
+TICKET_STATUS_CHOICES = [
+    ("Open", "Open"),
+    ("In Progress", "In Progress"),
+    ("Waiting for Customer", "Waiting for Customer"),
+    ("Waiting for Staff", "Waiting for Staff"),
+    ("Resolved", "Resolved"),
+    ("Closed", "Closed"),
+]
+
+TICKET_PRIORITY_CHOICES = [
+    ("Low", "Low"),
+    ("Normal", "Normal"),
+    ("High", "High"),
+    ("Urgent", "Urgent"),
+]
+
+FOLLOWUP_TYPE_CHOICES = [
+    ("Call", "Call"),
+    ("Message", "Message"),
+    ("Email", "Email"),
+    ("Visit", "Visit"),
+]
+
+FOLLOWUP_STATUS_CHOICES = [
+    ("Upcoming", "Upcoming"),
+    ("Today", "Today"),
+    ("Overdue", "Overdue"),
+    ("Completed", "Completed"),
+    ("Cancelled", "Cancelled"),
+]
+
+CREATOR_APPLICATION_STATUS_CHOICES = [
+    ("New", "New"),
+    ("Under Review", "Under Review"),
+    ("Approved", "Approved"),
+    ("Rejected", "Rejected"),
+    ("Invited", "Invited"),
+    ("Accepted", "Accepted"),
+    ("Declined", "Declined"),
+]
+
+PARTNERSHIP_STATUS_CHOICES = [
+    ("Active", "Active"),
+    ("Paused", "Paused"),
+    ("Completed", "Completed"),
+    ("Cancelled", "Cancelled"),
+]
+
+SAMPLE_STATUS_CHOICES = [
+    ("Requested", "Requested"),
+    ("Approved", "Approved"),
+    ("Dispatched", "Dispatched"),
+    ("Delivered", "Delivered"),
+    ("Rejected", "Rejected"),
+]
+
+COMMISSION_STATUS_CHOICES = [
+    ("Pending", "Pending"),
+    ("Under Review", "Under Review"),
+    ("Approved", "Approved"),
+    ("Payable", "Payable"),
+    ("Paid", "Paid"),
+    ("Reversed", "Reversed"),
+    ("Cancelled", "Cancelled"),
+]
+
+AD_CAMPAIGN_STATUS_CHOICES = [
+    ("Draft", "Draft"),
+    ("Active", "Active"),
+    ("Paused", "Paused"),
+    ("Ended", "Ended"),
+]
+
+CONTENT_TYPE_CHOICES = [
+    ("Video", "Video"),
+    ("Photo Carousel", "Photo Carousel"),
+    ("LIVE Promo", "LIVE Promo"),
+]
+
+CONTENT_STATUS_CHOICES = [
+    ("Idea", "Idea"),
+    ("Draft", "Draft"),
+    ("In Review", "In Review"),
+    ("Approved", "Approved"),
+    ("Scheduled", "Scheduled"),
+    ("Posted", "Posted"),
+    ("Failed", "Failed"),
+    ("Archived", "Archived"),
+]
+
+CONTENT_PLATFORM_CHOICES = [
+    ("TikTok", "TikTok"),
+    ("Instagram", "Instagram"),
+    ("YouTube", "YouTube"),
+]
+
+LIVE_STATUS_CHOICES = [
+    ("Scheduled", "Scheduled"),
+    ("Live", "Live"),
+    ("Ended", "Ended"),
+    ("Cancelled", "Cancelled"),
+]
+
+PRODUCT_STATUS_CHOICES = [
+    ("Draft", "Draft"),
+    ("Active", "Active"),
+    ("Archived", "Archived"),
+]
+
+CREATOR_STATUS_CHOICES = [
+    ("Active", "Active"),
+    ("Inactive", "Inactive"),
+    ("Pending", "Pending"),
+    ("Invited", "Invited"),
+    ("Paused", "Paused"),
+]
+
+CREATOR_PLATFORM_CHOICES = [
+    ("TikTok", "TikTok"),
+    ("Instagram", "Instagram"),
+    ("YouTube", "YouTube"),
+]
+
+
+class Supplier(models.Model):
+    name = models.CharField(max_length=255)
+    phone = models.CharField(max_length=32, blank=True)
+    email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    contact_person = models.CharField(max_length=128, blank=True)
+    payment_terms = models.CharField(max_length=128, blank=True)
+    tax_pin = models.CharField(max_length=32, blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Location(models.Model):
+    name = models.CharField(max_length=128)
+    kind = models.CharField(max_length=16, choices=LOCATION_KIND_CHOICES, default="warehouse")
+    address = models.TextField(blank=True)
+    county = models.CharField(max_length=64, blank=True)
+    is_default = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
 
 class DirectProduct(models.Model):
-    STATUS = [
-        ("Draft", "Draft"),
-        ("Active", "Active"),
-        ("Archived", "Archived"),
-    ]
-
     product = models.OneToOneField(
         "catalog.Product",
         on_delete=models.CASCADE,
         related_name="direct_listing",
     )
-    status = models.CharField(max_length=16, choices=STATUS, default="Draft")
+    status = models.CharField(max_length=16, choices=PRODUCT_STATUS_CHOICES, default="Draft")
     viral = models.BooleanField(default=False)
     video_link = models.URLField(max_length=500, blank=True)
     low_stock_threshold = models.PositiveIntegerField(default=5)
     linked_to_website = models.BooleanField(default=True)
 
-    cost_price = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     supplier = models.ForeignKey(
-        "Supplier",
+        Supplier,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -278,9 +461,7 @@ class DirectProduct(models.Model):
     seo_description = models.TextField(blank=True)
 
     direct_sales_count = models.PositiveIntegerField(default=0)
-    direct_revenue = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    direct_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -318,49 +499,26 @@ class DirectProduct(models.Model):
     def recompute_sales_stats(self, save: bool = True) -> None:
         from django.db.models import Count, Sum
 
-        agg = (
-            DirectOrderItem.objects.filter(
-                product=self,
-                order__status__in=[
-                    "Paid",
-                    "Awaiting Shipment",
-                    "Shipped",
-                    "Delivered",
-                ],
-            ).aggregate(
-                count=Count("id"),
-                revenue=Sum("subtotal"),
-            )
-        )
+        agg = DirectOrderItem.objects.filter(
+            product=self,
+            order__status__in=["Paid", "Awaiting Shipment", "Shipped", "Delivered"],
+        ).aggregate(count=Count("id"), revenue=Sum("subtotal"))
         self.direct_sales_count = agg["count"] or 0
         self.direct_revenue = agg["revenue"] or Decimal("0.00")
         if save:
-            self.save(
-                update_fields=[
-                    "direct_sales_count",
-                    "direct_revenue",
-                    "updated_at",
-                ]
-            )
+            self.save(update_fields=["direct_sales_count", "direct_revenue", "updated_at"])
 
 
 class ProductVariant(models.Model):
-    product = models.ForeignKey(
-        DirectProduct,
-        on_delete=models.CASCADE,
-        related_name="variants",
-    )
+    product = models.ForeignKey(DirectProduct, on_delete=models.CASCADE, related_name="variants")
     name = models.CharField(max_length=128)
     sku = models.CharField(max_length=64, blank=True)
     size = models.CharField(max_length=32, blank=True)
     color = models.CharField(max_length=32, blank=True)
-    price_delta = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    price_delta = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     stock_quantity = models.IntegerField(default=0)
     image_url = models.URLField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -371,52 +529,16 @@ class ProductVariant(models.Model):
         return f"{self.product.product.name} — {self.name}"
 
 
-class Supplier(models.Model):
-    name = models.CharField(max_length=255)
-    phone = models.CharField(max_length=32, blank=True)
-    email = models.EmailField(blank=True)
-    address = models.TextField(blank=True)
-    contact_person = models.CharField(max_length=128, blank=True)
-    payment_terms = models.CharField(max_length=128, blank=True)
-    tax_pin = models.CharField(max_length=32, blank=True)
-    is_active = models.BooleanField(default=True)
-    notes = models.TextField(blank=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-
-
 class PurchaseOrder(models.Model):
     reference = models.CharField(max_length=32, unique=True, db_index=True)
-    supplier = models.ForeignKey(
-        Supplier,
-        on_delete=models.PROTECT,
-        related_name="purchase_orders",
-    )
-    status = models.CharField(
-        max_length=24,
-        choices=PURCHASE_ORDER_STATUS_CHOICES,
-        default="Draft",
-    )
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="purchase_orders")
+    status = models.CharField(max_length=24, choices=PURCHASE_ORDER_STATUS_CHOICES, default="Draft")
     expected_at = models.DateField(null=True, blank=True)
     received_at = models.DateTimeField(null=True, blank=True)
-    subtotal = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-    shipping = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-    total = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    shipping = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     notes = models.TextField(blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -437,11 +559,7 @@ class PurchaseOrder(models.Model):
 
 
 class PurchaseOrderItem(models.Model):
-    purchase_order = models.ForeignKey(
-        PurchaseOrder,
-        on_delete=models.CASCADE,
-        related_name="items",
-    )
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(
         DirectProduct,
         null=True,
@@ -462,34 +580,8 @@ class PurchaseOrderItem(models.Model):
         return f"{self.quantity}× {self.product_name}"
 
 
-class Location(models.Model):
-    name = models.CharField(max_length=128)
-    kind = models.CharField(
-        max_length=16,
-        choices=LOCATION_KIND_CHOICES,
-        default="warehouse",
-    )
-    address = models.TextField(blank=True)
-    county = models.CharField(max_length=64, blank=True)
-    is_default = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-
-
 class InventoryMovement(models.Model):
-    product = models.ForeignKey(
-        DirectProduct,
-        on_delete=models.CASCADE,
-        related_name="movements",
-    )
+    product = models.ForeignKey(DirectProduct, on_delete=models.CASCADE, related_name="movements")
     variant = models.ForeignKey(
         ProductVariant,
         null=True,
@@ -504,18 +596,11 @@ class InventoryMovement(models.Model):
         on_delete=models.SET_NULL,
         related_name="movements",
     )
-    kind = models.CharField(
-        max_length=16,
-        choices=INVENTORY_MOVEMENT_CHOICES,
-        default="adjustment",
-    )
+    kind = models.CharField(max_length=16, choices=INVENTORY_MOVEMENT_CHOICES, default="adjustment")
     quantity = models.IntegerField()
-    unit_cost = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     reference = models.CharField(max_length=64, blank=True)
     notes = models.TextField(blank=True)
-
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -540,15 +625,12 @@ class Customer(models.Model):
     name = models.CharField(max_length=128)
     phone = models.CharField(max_length=32, db_index=True)
     email = models.EmailField(blank=True)
+    username = models.CharField(max_length=64, blank=True)
     county = models.CharField(max_length=64, blank=True)
     estate = models.CharField(max_length=64, blank=True)
     address = models.TextField(blank=True)
 
-    segment = models.CharField(
-        max_length=16,
-        choices=CUSTOMER_SEGMENT_CHOICES,
-        default="New",
-    )
+    segment = models.CharField(max_length=16, choices=CUSTOMER_SEGMENT_CHOICES, default="New")
     tags = models.JSONField(default=list, blank=True)
     whatsapp_opt_in = models.BooleanField(default=True)
     sms_opt_in = models.BooleanField(default=False)
@@ -556,16 +638,11 @@ class Customer(models.Model):
     birthday = models.DateField(null=True, blank=True)
 
     total_orders = models.PositiveIntegerField(default=0)
-    lifetime_spend = models.DecimalField(
-        max_digits=14, decimal_places=2, default=Decimal("0.00")
-    )
-    avg_order_value = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    lifetime_spend = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    avg_order_value = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     last_order_at = models.DateTimeField(null=True, blank=True)
 
     notes = models.TextField(blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -616,17 +693,9 @@ class Customer(models.Model):
 
 
 class Creator(models.Model):
-    STATUS = [
-        ("Active", "Active"),
-        ("Inactive", "Inactive"),
-    ]
-
     name = models.CharField(max_length=128)
-    handle = models.CharField(
-        max_length=64,
-        unique=True,
-        help_text="TikTok handle without @",
-    )
+    handle = models.CharField(max_length=64, unique=True)
+    platform = models.CharField(max_length=32, choices=CREATOR_PLATFORM_CHOICES, default="TikTok")
     followers = models.PositiveIntegerField(default=0)
     niche = models.CharField(max_length=64, blank=True)
     commission_rate = models.DecimalField(
@@ -635,15 +704,10 @@ class Creator(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
     start_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=STATUS, default="Active")
+    status = models.CharField(max_length=16, choices=CREATOR_STATUS_CHOICES, default="Active")
     notes = models.TextField(blank=True)
 
     avatar_url = models.URLField(max_length=500, blank=True)
-    platform = models.CharField(
-        max_length=32,
-        choices=SOCIAL_PLATFORM_CHOICES,
-        default="TikTok",
-    )
 
     phone = models.CharField(max_length=32, blank=True)
     email = models.EmailField(blank=True)
@@ -651,11 +715,7 @@ class Creator(models.Model):
     payout_method = models.CharField(max_length=32, default="M-Pesa")
     payout_phone = models.CharField(max_length=32, blank=True)
 
-    engagement_rate = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal("0.00"),
-    )
+    engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
     avg_views = models.PositiveIntegerField(default=0)
 
     user = models.ForeignKey(
@@ -684,9 +744,7 @@ class Creator(models.Model):
         from django.db.models import Sum
 
         return (
-            self.sales.filter(paid=False).aggregate(
-                total=Sum("commission_amount")
-            )["total"]
+            self.sales.filter(paid=False).aggregate(total=Sum("commission_amount"))["total"]
             or Decimal("0.00")
         )
 
@@ -695,9 +753,7 @@ class Creator(models.Model):
         from django.db.models import Sum
 
         return (
-            self.sales.filter(paid=True).aggregate(
-                total=Sum("commission_amount")
-            )["total"]
+            self.sales.filter(paid=True).aggregate(total=Sum("commission_amount"))["total"]
             or Decimal("0.00")
         )
 
@@ -705,10 +761,7 @@ class Creator(models.Model):
     def revenue(self) -> Decimal:
         from django.db.models import Sum
 
-        return (
-            self.sales.aggregate(total=Sum("order__total"))["total"]
-            or Decimal("0.00")
-        )
+        return self.sales.aggregate(total=Sum("order__total"))["total"] or Decimal("0.00")
 
     @property
     def orders_count(self) -> int:
@@ -716,16 +769,8 @@ class Creator(models.Model):
 
 
 class CreatorSale(models.Model):
-    creator = models.ForeignKey(
-        Creator,
-        on_delete=models.CASCADE,
-        related_name="sales",
-    )
-    order = models.ForeignKey(
-        "checkout.Order",
-        on_delete=models.PROTECT,
-        related_name="creator_sales",
-    )
+    creator = models.ForeignKey(Creator, on_delete=models.CASCADE, related_name="sales")
+    order = models.ForeignKey("checkout.Order", on_delete=models.PROTECT, related_name="creator_sales")
     attributed_at = models.DateTimeField(auto_now_add=True)
 
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2)
@@ -744,13 +789,12 @@ class CreatorSale(models.Model):
         related_name="sales",
     )
 
+    status = models.CharField(max_length=16, choices=COMMISSION_STATUS_CHOICES, default="Pending")
+
     class Meta:
         ordering = ["-attributed_at"]
         constraints = [
-            models.UniqueConstraint(
-                fields=["creator", "order"],
-                name="one_sale_per_creator_per_order",
-            ),
+            models.UniqueConstraint(fields=["creator", "order"], name="one_sale_per_creator_per_order"),
         ]
 
     def __str__(self):
@@ -759,17 +803,21 @@ class CreatorSale(models.Model):
 
 class PayoutBatch(models.Model):
     reference = models.CharField(max_length=32, unique=True, db_index=True)
-    status = models.CharField(
-        max_length=16,
-        choices=PAYOUT_STATUS_CHOICES,
-        default="Draft",
-    )
-    total_amount = models.DecimalField(
-        max_digits=14, decimal_places=2, default=Decimal("0.00")
-    )
+    status = models.CharField(max_length=16, choices=PAYOUT_STATUS_CHOICES, default="Draft")
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     items_count = models.PositiveIntegerField(default=0)
     payout_method = models.CharField(max_length=32, default="M-Pesa")
 
+    creator = models.ForeignKey(
+        Creator,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="payouts",
+    )
+
+    transaction_reference = models.CharField(max_length=64, blank=True)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -794,218 +842,23 @@ class PayoutBatch(models.Model):
     def recompute_totals(self, save: bool = True) -> None:
         from django.db.models import Sum, Count
 
-        agg = self.sales.aggregate(
-            total=Sum("commission_amount"),
-            count=Count("id"),
-        )
+        agg = self.sales.aggregate(total=Sum("commission_amount"), count=Count("id"))
         self.total_amount = agg["total"] or Decimal("0.00")
         self.items_count = agg["count"] or 0
         if save:
-            self.save(
-                update_fields=["total_amount", "items_count", "updated_at"]
-            )
-
-
-class DirectOrder(models.Model):
-    reference = models.CharField(max_length=32, unique=True, db_index=True)
-    customer_name = models.CharField(max_length=128)
-    customer_phone = models.CharField(max_length=32, blank=True)
-    customer_email = models.EmailField(blank=True)
-    customer = models.ForeignKey(
-        Customer,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="orders",
-    )
-
-    source = models.CharField(
-        max_length=16,
-        choices=ORDER_SOURCE_CHOICES,
-        default="whatsapp",
-    )
-    status = models.CharField(
-        max_length=32,
-        choices=ORDER_STATUS_CHOICES,
-        default="New",
-    )
-
-    payment_method = models.CharField(max_length=32, default="M-Pesa")
-    payment_status = models.CharField(
-        max_length=16,
-        choices=PAYMENT_STATUS_CHOICES,
-        default="unpaid",
-    )
-    payment_reference = models.CharField(max_length=64, blank=True)
-
-    subtotal = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-    shipping = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-    discount = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-    total = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-
-    creator = models.ForeignKey(
-        Creator,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="direct_orders",
-    )
-    commission = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-
-    campaign = models.ForeignKey(
-        "Campaign",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="orders",
-    )
-    attribution = models.ForeignKey(
-        "AttributionLink",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="orders",
-    )
-
-    courier = models.CharField(
-        max_length=32,
-        choices=COURIER_CHOICES,
-        blank=True,
-    )
-    tracking_number = models.CharField(max_length=64, blank=True)
-    shipping_zone = models.CharField(
-        max_length=32,
-        choices=SHIPPING_ZONE_CHOICES,
-        blank=True,
-    )
-
-    cod_risk = models.CharField(max_length=16, blank=True)
-    priority = models.CharField(max_length=16, default="normal")
-    assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="assigned_orders",
-    )
-
-    notes = models.TextField(blank=True)
-    tags = models.JSONField(default=list, blank=True)
-
-    delivered_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["status"]),
-            models.Index(fields=["source"]),
-            models.Index(fields=["-created_at"]),
-            models.Index(fields=["payment_status"]),
-        ]
-
-    def __str__(self):
-        return f"{self.reference} — {self.customer_name}"
-
-    @property
-    def item_count(self) -> int:
-        return sum(item.quantity for item in self.items.all())
-
-    def recompute_totals(self, save: bool = True) -> None:
-        from django.db.models import Sum
-
-        agg = self.items.aggregate(sub=Sum("subtotal"))
-        self.subtotal = agg["sub"] or Decimal("0.00")
-        self.total = self.subtotal + self.shipping - self.discount
-        if save:
-            self.save(update_fields=["subtotal", "total", "updated_at"])
-
-        for item in self.items.select_related("product"):
-            if item.product_id:
-                item.product.recompute_sales_stats(save=True)
-
-    @staticmethod
-    def generate_reference() -> str:
-        import random
-
-        for _ in range(20):
-            ref = f"#TT-{random.randint(10000, 99999)}"
-            if not DirectOrder.objects.filter(reference=ref).exists():
-                return ref
-        return f"#TT-{int(timezone.now().timestamp())}"
-
-
-class DirectOrderItem(models.Model):
-    order = models.ForeignKey(
-        DirectOrder,
-        on_delete=models.CASCADE,
-        related_name="items",
-    )
-    product = models.ForeignKey(
-        DirectProduct,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="order_items",
-    )
-    variant = models.ForeignKey(
-        ProductVariant,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="order_items",
-    )
-
-    product_name = models.CharField(max_length=255)
-    sku = models.CharField(max_length=64, blank=True)
-    image = models.URLField(max_length=500, blank=True)
-
-    quantity = models.PositiveIntegerField(default=1)
-    price = models.DecimalField(max_digits=12, decimal_places=2)
-    subtotal = models.DecimalField(max_digits=12, decimal_places=2)
-
-    cost_price = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-
-    class Meta:
-        ordering = ["id"]
-
-    def __str__(self):
-        return f"{self.quantity}× {self.product_name}"
-
-    def save(self, *args, **kwargs):
-        self.subtotal = Decimal(self.quantity) * Decimal(self.price)
-        super().save(*args, **kwargs)
+            self.save(update_fields=["total_amount", "items_count", "updated_at"])
 
 
 class Campaign(models.Model):
     name = models.CharField(max_length=128)
     slug = models.SlugField(max_length=64, unique=True)
-    status = models.CharField(
-        max_length=16,
-        choices=CAMPAIGN_STATUS_CHOICES,
-        default="Draft",
-    )
+    status = models.CharField(max_length=16, choices=CAMPAIGN_STATUS_CHOICES, default="Draft")
     starts_at = models.DateTimeField(null=True, blank=True)
     ends_at = models.DateTimeField(null=True, blank=True)
-    budget = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    budget = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    actual_spend = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     objective = models.CharField(max_length=128, blank=True)
     notes = models.TextField(blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1017,11 +870,7 @@ class Campaign(models.Model):
 
 
 class AttributionLink(models.Model):
-    kind = models.CharField(
-        max_length=16,
-        choices=ATTRIBUTION_KIND_CHOICES,
-        default="link",
-    )
+    kind = models.CharField(max_length=16, choices=ATTRIBUTION_KIND_CHOICES, default="link")
     code = models.CharField(max_length=64, unique=True, db_index=True)
     label = models.CharField(max_length=128, blank=True)
     url = models.URLField(max_length=500, blank=True)
@@ -1060,9 +909,7 @@ class AttributionLink(models.Model):
 
     clicks = models.PositiveIntegerField(default=0)
     conversions = models.PositiveIntegerField(default=0)
-    revenue = models.DecimalField(
-        max_digits=14, decimal_places=2, default=Decimal("0.00")
-    )
+    revenue = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
 
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1075,28 +922,172 @@ class AttributionLink(models.Model):
         return f"{self.code} → {self.label or 'untitled'}"
 
 
-class ContentPost(models.Model):
-    TYPE = [
-        ("Video", "Video"),
-        ("Photo Carousel", "Photo Carousel"),
-        ("LIVE Promo", "LIVE Promo"),
-    ]
-    STATUS = [
-        ("Draft", "Draft"),
-        ("Scheduled", "Scheduled"),
-        ("Posted", "Posted"),
-        ("Archived", "Archived"),
-    ]
-
-    title = models.CharField(max_length=255)
-    content_type = models.CharField(max_length=20, choices=TYPE, default="Video")
-    status = models.CharField(max_length=16, choices=STATUS, default="Draft")
-
-    platform = models.CharField(
-        max_length=32,
-        choices=SOCIAL_PLATFORM_CHOICES,
-        default="TikTok",
+class DirectOrder(models.Model):
+    reference = models.CharField(max_length=32, unique=True, db_index=True)
+    customer_name = models.CharField(max_length=128)
+    customer_phone = models.CharField(max_length=32, blank=True)
+    customer_email = models.EmailField(blank=True)
+    customer = models.ForeignKey(
+        Customer,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="orders",
     )
+
+    source = models.CharField(max_length=24, choices=ORDER_SOURCE_CHOICES, default="tiktok_dm")
+    status = models.CharField(max_length=32, choices=ORDER_STATUS_CHOICES, default="New")
+
+    payment_method = models.CharField(max_length=32, choices=PAYMENT_METHOD_CHOICES, default="mpesa")
+    payment_status = models.CharField(max_length=16, choices=PAYMENT_STATUS_CHOICES, default="unpaid")
+    payment_reference = models.CharField(max_length=64, blank=True)
+    mpesa_reference = models.CharField(max_length=64, blank=True)
+    verification_status = models.CharField(max_length=16, default="unverified")
+
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    shipping = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    creator = models.ForeignKey(
+        Creator,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="direct_orders",
+    )
+    commission = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    campaign = models.ForeignKey(
+        Campaign,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="orders",
+    )
+    attribution = models.ForeignKey(
+        AttributionLink,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="orders",
+    )
+
+    courier = models.CharField(max_length=32, choices=COURIER_CHOICES, blank=True)
+    tracking_number = models.CharField(max_length=64, blank=True)
+    shipping_zone = models.CharField(max_length=32, choices=SHIPPING_ZONE_CHOICES, blank=True)
+
+    cod_risk = models.CharField(max_length=16, blank=True)
+    priority = models.CharField(max_length=16, default="normal")
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_orders",
+    )
+
+    notes = models.TextField(blank=True)
+    tags = models.JSONField(default=list, blank=True)
+
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["source"]),
+            models.Index(fields=["-created_at"]),
+            models.Index(fields=["payment_status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} — {self.customer_name}"
+
+    @property
+    def item_count(self) -> int:
+        return sum(item.quantity for item in self.items.all())
+
+    @property
+    def payment_method_label(self) -> str:
+        mapping = {
+            "mpesa": "M-Pesa",
+            "cod": "Cash on delivery",
+            "bank": "Bank transfer",
+            "card": "Card",
+            "cash": "Cash",
+        }
+        return mapping.get(self.payment_method, self.payment_method)
+
+    def recompute_totals(self, save: bool = True) -> None:
+        from django.db.models import Sum
+
+        agg = self.items.aggregate(sub=Sum("subtotal"))
+        self.subtotal = agg["sub"] or Decimal("0.00")
+        self.total = self.subtotal + self.shipping - self.discount
+        if save:
+            self.save(update_fields=["subtotal", "total", "updated_at"])
+
+        for item in self.items.select_related("product"):
+            if item.product_id:
+                item.product.recompute_sales_stats(save=True)
+
+    @staticmethod
+    def generate_reference() -> str:
+        import random
+
+        for _ in range(20):
+            ref = f"#TT-{random.randint(10000, 99999)}"
+            if not DirectOrder.objects.filter(reference=ref).exists():
+                return ref
+        return f"#TT-{int(timezone.now().timestamp())}"
+
+
+class DirectOrderItem(models.Model):
+    order = models.ForeignKey(DirectOrder, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(
+        DirectProduct,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_items",
+    )
+    variant = models.ForeignKey(
+        ProductVariant,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_items",
+    )
+
+    product_name = models.CharField(max_length=255)
+    sku = models.CharField(max_length=64, blank=True)
+    image = models.URLField(max_length=500, blank=True)
+
+    quantity = models.PositiveIntegerField(default=1)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2)
+
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.quantity}× {self.product_name}"
+
+    def save(self, *args, **kwargs):
+        self.subtotal = Decimal(self.quantity) * Decimal(self.price)
+        super().save(*args, **kwargs)
+
+
+class ContentPost(models.Model):
+    title = models.CharField(max_length=255)
+    platform = models.CharField(max_length=32, choices=CONTENT_PLATFORM_CHOICES, default="TikTok")
+    content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES, default="Video")
+    status = models.CharField(max_length=16, choices=CONTENT_STATUS_CHOICES, default="Draft")
 
     scheduled_at = models.DateTimeField(null=True, blank=True)
 
@@ -1134,9 +1125,7 @@ class ContentPost(models.Model):
     saves = models.PositiveIntegerField(default=0)
 
     orders_attributed = models.PositiveIntegerField(default=0)
-    revenue_attributed = models.DecimalField(
-        max_digits=14, decimal_places=2, default=Decimal("0.00")
-    )
+    revenue_attributed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1145,7 +1134,6 @@ class ContentPost(models.Model):
         ordering = ["-scheduled_at", "-created_at"]
         indexes = [
             models.Index(fields=["status"]),
-            models.Index(fields=["platform"]),
         ]
 
     def __str__(self):
@@ -1167,18 +1155,11 @@ class ContentPost(models.Model):
 
 
 class LiveSession(models.Model):
-    STATUS = [
-        ("Scheduled", "Scheduled"),
-        ("Live", "Live"),
-        ("Ended", "Ended"),
-        ("Cancelled", "Cancelled"),
-    ]
-
     title = models.CharField(max_length=255)
     scheduled_start = models.DateTimeField()
     scheduled_end = models.DateTimeField(null=True, blank=True)
     duration_min = models.PositiveIntegerField(default=60)
-    status = models.CharField(max_length=16, choices=STATUS, default="Scheduled")
+    status = models.CharField(max_length=16, choices=LIVE_STATUS_CHOICES, default="Scheduled")
 
     host_name = models.CharField(max_length=128, blank=True)
     cohost_name = models.CharField(max_length=128, blank=True)
@@ -1205,9 +1186,7 @@ class LiveSession(models.Model):
     peak_viewers = models.PositiveIntegerField(default=0)
     total_viewers = models.PositiveIntegerField(default=0)
     orders_generated = models.PositiveIntegerField(default=0)
-    revenue = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     top_product = models.CharField(max_length=255, blank=True)
     replay_url = models.URLField(max_length=500, blank=True)
 
@@ -1226,16 +1205,8 @@ class LiveSession(models.Model):
 
 
 class InboxConversation(models.Model):
-    channel = models.CharField(
-        max_length=24,
-        choices=INBOX_CHANNEL_CHOICES,
-        default="whatsapp",
-    )
-    status = models.CharField(
-        max_length=16,
-        choices=INBOX_STATUS_CHOICES,
-        default="open",
-    )
+    channel = models.CharField(max_length=24, choices=INBOX_CHANNEL_CHOICES, default="tiktok_dm")
+    status = models.CharField(max_length=16, choices=INBOX_STATUS_CHOICES, default="open")
     subject = models.CharField(max_length=255, blank=True)
 
     customer = models.ForeignKey(
@@ -1287,11 +1258,7 @@ class InboxMessage(models.Model):
         ("out", "Outgoing"),
     ]
 
-    conversation = models.ForeignKey(
-        InboxConversation,
-        on_delete=models.CASCADE,
-        related_name="messages",
-    )
+    conversation = models.ForeignKey(InboxConversation, on_delete=models.CASCADE, related_name="messages")
     direction = models.CharField(max_length=4, choices=DIRECTION, default="in")
     body = models.TextField()
     attachment_url = models.URLField(max_length=500, blank=True)
@@ -1328,16 +1295,8 @@ class TeamMember(models.Model):
     name = models.CharField(max_length=128)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=32, blank=True)
-    role = models.CharField(
-        max_length=16,
-        choices=TEAM_ROLE_CHOICES,
-        default="Support",
-    )
-    status = models.CharField(
-        max_length=16,
-        choices=TEAM_STATUS_CHOICES,
-        default="Invited",
-    )
+    role = models.CharField(max_length=16, choices=TEAM_ROLE_CHOICES, default="Support")
+    status = models.CharField(max_length=16, choices=TEAM_STATUS_CHOICES, default="Invited")
 
     permissions = models.JSONField(default=dict, blank=True)
     location = models.ForeignKey(
@@ -1364,26 +1323,12 @@ class TeamMember(models.Model):
 
 class ReturnRequest(models.Model):
     reference = models.CharField(max_length=32, unique=True, db_index=True)
-    order = models.ForeignKey(
-        DirectOrder,
-        on_delete=models.CASCADE,
-        related_name="returns",
-    )
-    status = models.CharField(
-        max_length=16,
-        choices=RETURN_STATUS_CHOICES,
-        default="Requested",
-    )
-    reason = models.CharField(
-        max_length=32,
-        choices=RETURN_REASON_CHOICES,
-        default="other",
-    )
+    order = models.ForeignKey(DirectOrder, on_delete=models.CASCADE, related_name="returns")
+    status = models.CharField(max_length=16, choices=RETURN_STATUS_CHOICES, default="Requested")
+    reason = models.CharField(max_length=32, choices=RETURN_REASON_CHOICES, default="other")
     reason_detail = models.TextField(blank=True)
 
-    refund_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    refund_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     restock = models.BooleanField(default=False)
     restocked_at = models.DateTimeField(null=True, blank=True)
 
@@ -1411,11 +1356,7 @@ class ReturnRequest(models.Model):
 
 class Expense(models.Model):
     title = models.CharField(max_length=255)
-    category = models.CharField(
-        max_length=16,
-        choices=EXPENSE_CATEGORY_CHOICES,
-        default="other",
-    )
+    category = models.CharField(max_length=16, choices=EXPENSE_CATEGORY_CHOICES, default="other")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     paid_on = models.DateField(default=timezone.localdate)
     payment_method = models.CharField(max_length=32, default="M-Pesa")
@@ -1447,19 +1388,9 @@ class Expense(models.Model):
 
 class Automation(models.Model):
     name = models.CharField(max_length=128)
-    trigger = models.CharField(
-        max_length=32,
-        choices=AUTOMATION_TRIGGER_CHOICES,
-    )
-    action = models.CharField(
-        max_length=16,
-        choices=AUTOMATION_ACTION_CHOICES,
-    )
-    status = models.CharField(
-        max_length=16,
-        choices=AUTOMATION_STATUS_CHOICES,
-        default="Draft",
-    )
+    trigger = models.CharField(max_length=32, choices=AUTOMATION_TRIGGER_CHOICES)
+    action = models.CharField(max_length=16, choices=AUTOMATION_ACTION_CHOICES)
+    status = models.CharField(max_length=16, choices=AUTOMATION_STATUS_CHOICES, default="Draft")
 
     channel = models.CharField(max_length=32, blank=True)
     template = models.TextField(blank=True)
@@ -1482,11 +1413,7 @@ class Automation(models.Model):
 class Notification(models.Model):
     title = models.CharField(max_length=255)
     body = models.TextField(blank=True)
-    kind = models.CharField(
-        max_length=16,
-        choices=NOTIFICATION_KIND_CHOICES,
-        default="info",
-    )
+    kind = models.CharField(max_length=16, choices=NOTIFICATION_KIND_CHOICES, default="info")
     link = models.CharField(max_length=255, blank=True)
 
     recipient = models.ForeignKey(
@@ -1572,11 +1499,7 @@ class Review(models.Model):
     body = models.TextField(blank=True)
     media_url = models.URLField(max_length=500, blank=True)
 
-    status = models.CharField(
-        max_length=16,
-        choices=REVIEW_STATUS_CHOICES,
-        default="Pending",
-    )
+    status = models.CharField(max_length=16, choices=REVIEW_STATUS_CHOICES, default="Pending")
     is_ugc = models.BooleanField(default=False)
     rights_granted = models.BooleanField(default=False)
 
@@ -1594,12 +1517,8 @@ class DeliveryZone(models.Model):
     name = models.CharField(max_length=128)
     zone = models.CharField(max_length=32, choices=SHIPPING_ZONE_CHOICES)
     counties = models.JSONField(default=list, blank=True)
-    base_fee = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-    free_over = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    base_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    free_over = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     eta_days_min = models.PositiveSmallIntegerField(default=1)
     eta_days_max = models.PositiveSmallIntegerField(default=3)
     is_active = models.BooleanField(default=True)
@@ -1623,12 +1542,8 @@ class Coupon(models.Model):
         default=Decimal("0.00"),
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
-    amount_off = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
-    min_order_value = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00")
-    )
+    amount_off = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    min_order_value = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     starts_at = models.DateTimeField(null=True, blank=True)
     ends_at = models.DateTimeField(null=True, blank=True)
     max_uses = models.PositiveIntegerField(default=0)
@@ -1643,3 +1558,301 @@ class Coupon(models.Model):
 
     def __str__(self):
         return self.code
+
+
+class Lead(models.Model):
+    name = models.CharField(max_length=128)
+    handle = models.CharField(max_length=64, blank=True)
+    phone = models.CharField(max_length=32, blank=True)
+    email = models.EmailField(blank=True)
+    interest = models.CharField(max_length=255, blank=True)
+    estimated_value = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    source = models.CharField(max_length=24, choices=LEAD_SOURCE_CHOICES, default="tiktok_dm")
+    status = models.CharField(max_length=24, choices=LEAD_STATUS_CHOICES, default="New")
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_leads",
+    )
+    notes = models.TextField(blank=True)
+    converted_customer = models.ForeignKey(
+        Customer,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="converted_leads",
+    )
+    converted_order = models.ForeignKey(
+        DirectOrder,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="converted_leads",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["source"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.status})"
+
+
+class FollowUp(models.Model):
+    lead = models.ForeignKey(
+        Lead,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="followups",
+    )
+    customer = models.ForeignKey(
+        Customer,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="followups",
+    )
+    name = models.CharField(max_length=128)
+    phone = models.CharField(max_length=32, blank=True)
+    type = models.CharField(max_length=16, choices=FOLLOWUP_TYPE_CHOICES, default="Call")
+    date = models.DateTimeField()
+    status = models.CharField(max_length=16, choices=FOLLOWUP_STATUS_CHOICES, default="Upcoming")
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_followups",
+    )
+    notes = models.TextField(blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.name} — {self.type} on {self.date}"
+
+
+class SupportTicket(models.Model):
+    reference = models.CharField(max_length=32, unique=True, db_index=True)
+    customer = models.ForeignKey(
+        Customer,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tickets",
+    )
+    customer_name = models.CharField(max_length=128, blank=True)
+    order = models.ForeignKey(
+        DirectOrder,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tickets",
+    )
+    subject = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    priority = models.CharField(max_length=16, choices=TICKET_PRIORITY_CHOICES, default="Normal")
+    status = models.CharField(max_length=24, choices=TICKET_STATUS_CHOICES, default="Open")
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_tickets",
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["priority"]),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} — {self.subject}"
+
+
+class CustomerSegment(models.Model):
+    name = models.CharField(max_length=128)
+    slug = models.SlugField(max_length=64, unique=True)
+    description = models.TextField(blank=True)
+    rule = models.JSONField(default=dict, blank=True)
+    color = models.CharField(max_length=16, default="#172554")
+    is_dynamic = models.BooleanField(default=True)
+    member_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Integration(models.Model):
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    name = models.CharField(max_length=128)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=16, choices=INTEGRATION_STATUS_CHOICES, default="disconnected")
+    account_name = models.CharField(max_length=128, blank=True)
+    permissions = models.CharField(max_length=255, blank=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.status})"
+
+
+class AdCampaign(models.Model):
+    campaign_id = models.CharField(max_length=64, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    status = models.CharField(max_length=16, choices=AD_CAMPAIGN_STATUS_CHOICES, default="Draft")
+    currency = models.CharField(max_length=8, default="KES")
+    budget = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    spend = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    attributed_revenue = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    impressions = models.PositiveIntegerField(default=0)
+    clicks = models.PositiveIntegerField(default=0)
+    conversions = models.PositiveIntegerField(default=0)
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def cpa(self) -> Decimal:
+        if self.conversions <= 0:
+            return Decimal("0.00")
+        return self.spend / Decimal(self.conversions)
+
+    @property
+    def roas(self) -> Decimal:
+        if self.spend <= 0:
+            return Decimal("0.00")
+        return self.attributed_revenue / self.spend
+
+
+class CreatorApplication(models.Model):
+    creator = models.ForeignKey(
+        Creator,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="applications",
+    )
+    name = models.CharField(max_length=128)
+    handle = models.CharField(max_length=64)
+    phone = models.CharField(max_length=32, blank=True)
+    email = models.EmailField(blank=True)
+    followers = models.PositiveIntegerField(default=0)
+    niche = models.CharField(max_length=64, blank=True)
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=24, choices=CREATOR_APPLICATION_STATUS_CHOICES, default="New")
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_creator_applications",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} (@{self.handle}) — {self.status}"
+
+
+class Partnership(models.Model):
+    creator = models.ForeignKey(Creator, on_delete=models.CASCADE, related_name="partnerships")
+    status = models.CharField(max_length=16, choices=PARTNERSHIP_STATUS_CHOICES, default="Active")
+    commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("10.00"))
+    start_date = models.DateField(default=timezone.localdate)
+    end_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-start_date"]
+
+    def __str__(self):
+        return f"{self.creator.name} — {self.status}"
+
+
+class CreatorSample(models.Model):
+    creator = models.ForeignKey(Creator, on_delete=models.CASCADE, related_name="samples")
+    product = models.ForeignKey(DirectProduct, on_delete=models.CASCADE, related_name="creator_samples")
+    quantity = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=16, choices=SAMPLE_STATUS_CHOICES, default="Requested")
+    tracking_number = models.CharField(max_length=64, blank=True)
+    notes = models.TextField(blank=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+
+    def __str__(self):
+        return f"{self.creator.name} — {self.product.product.name}"
+
+
+class PermissionGroup(models.Model):
+    name = models.CharField(max_length=64, unique=True)
+    description = models.TextField(blank=True)
+    permissions = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class NotificationSetting(models.Model):
+    key = models.CharField(max_length=64, unique=True)
+    label = models.CharField(max_length=128)
+    description = models.TextField(blank=True)
+    enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self):
+        return f"{self.label} ({'on' if self.enabled else 'off'})"

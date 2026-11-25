@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from checkout.models import Order, OrderItem
 from .models import (
+    AdCampaign,
     AttributionLink,
     AuditLog,
     Automation,
@@ -12,28 +13,65 @@ from .models import (
     ContentPost,
     Coupon,
     Creator,
+    CreatorApplication,
     CreatorSale,
+    CreatorSample,
     Customer,
+    CustomerSegment,
     DeliveryZone,
     DirectOrder,
     DirectOrderItem,
     DirectProduct,
     Expense,
+    FollowUp,
     InboxConversation,
     InboxMessage,
+    Integration,
     InventoryMovement,
+    Lead,
     LiveSession,
     Location,
     Notification,
+    NotificationSetting,
+    Partnership,
     PayoutBatch,
+    PermissionGroup,
     ProductVariant,
     PurchaseOrder,
     PurchaseOrderItem,
     ReturnRequest,
     Review,
     Supplier,
+    SupportTicket,
     TeamMember,
 )
+
+
+PAYMENT_METHOD_IN = {
+    "M-Pesa": "mpesa",
+    "Mpesa": "mpesa",
+    "mpesa": "mpesa",
+    "MPESA": "mpesa",
+    "Cash on delivery": "cod",
+    "Cash on Delivery": "cod",
+    "COD": "cod",
+    "cod": "cod",
+    "Bank transfer": "bank",
+    "Bank Transfer": "bank",
+    "bank": "bank",
+    "Card": "card",
+    "card": "card",
+    "Cash": "cash",
+    "cash": "cash",
+}
+
+PAYMENT_METHOD_OUT = {
+    "mpesa": "M-Pesa",
+    "cod": "Cash on delivery",
+    "bank": "Bank transfer",
+    "card": "Card",
+    "cash": "Cash",
+}
 
 
 def _absolute_url(request, url: str | None) -> str:
@@ -330,21 +368,33 @@ class CustomerSerializer(serializers.ModelSerializer):
     lastOrderAt = serializers.DateTimeField(
         source="last_order_at", read_only=True,
     )
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = Customer
         fields = (
-            "id", "name", "phone", "email",
+            "id", "name", "phone", "email", "username",
             "county", "estate", "address",
             "segment", "tags",
             "whatsappOptIn", "smsOptIn", "emailOptIn", "birthday",
             "totalOrders", "lifetimeSpend", "avgOrderValue", "lastOrderAt",
-            "notes", "created_at", "updated_at",
+            "notes", "createdAt", "created_at", "updated_at",
         )
         read_only_fields = (
             "id", "totalOrders", "lifetimeSpend", "avgOrderValue",
-            "lastOrderAt", "created_at", "updated_at",
+            "lastOrderAt", "createdAt", "created_at", "updated_at",
         )
+
+
+class CustomerStatsSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    vip = serializers.IntegerField()
+    repeat = serializers.IntegerField()
+    new = serializers.IntegerField()
+    inactive = serializers.IntegerField()
+    repeatRate = serializers.FloatField()
+    avgSpend = serializers.DecimalField(max_digits=14, decimal_places=2)
+    totalSpend = serializers.DecimalField(max_digits=14, decimal_places=2)
 
 
 class DirectOrderItemSerializer(serializers.ModelSerializer):
@@ -379,16 +429,13 @@ class DirectOrderItemSerializer(serializers.ModelSerializer):
 
     def get_image(self, obj):
         request = self.context.get("request")
-
         for attr in ("image_url", "image"):
             v = getattr(obj, attr, None)
             if v:
                 return _absolute_url(request, str(v))
-
         product = getattr(obj, "product", None)
         if product is not None:
             return _absolute_url(request, _first_image_url(product))
-
         return ""
 
 
@@ -465,10 +512,12 @@ class DirectOrderSerializer(serializers.ModelSerializer):
             return obj.source
         origin = (obj.channel_meta or {}).get("origin")
         if origin == "tiktok_video":
-            return "admin"
-        if origin in ("tiktok_live", "tiktok_dm"):
-            return "whatsapp"
-        return "whatsapp"
+            return "video_dm"
+        if origin == "tiktok_live":
+            return "live"
+        if origin == "tiktok_dm":
+            return "tiktok_dm"
+        return "tiktok_dm"
 
     def get_itemCount(self, obj):
         try:
@@ -519,6 +568,7 @@ class DirectOrderItemWriteSerializer(serializers.ModelSerializer):
     sku = serializers.CharField(required=False, allow_blank=True, default="")
     image = serializers.SerializerMethodField()
     qty = serializers.IntegerField(source="quantity", required=False, default=1)
+    quantity = serializers.IntegerField(required=False)
     price = serializers.DecimalField(max_digits=12, decimal_places=2)
     subtotal = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True,
@@ -532,27 +582,26 @@ class DirectOrderItemWriteSerializer(serializers.ModelSerializer):
         model = DirectOrderItem
         fields = (
             "productId", "variantId", "productName", "sku", "image",
-            "qty", "price", "subtotal", "costPrice",
+            "qty", "quantity", "price", "subtotal", "costPrice",
         )
 
     def get_image(self, obj):
         request = self.context.get("request")
-
         v = getattr(obj, "image", None)
         if v:
             return _absolute_url(request, str(v))
-
         product = getattr(obj, "product", None)
         if product is not None:
             catalog_product = getattr(product, "product", None)
             if catalog_product is not None:
                 return _absolute_url(request, _first_image_url(catalog_product))
-
         return ""
 
     def to_internal_value(self, data):
         data = dict(data)
         image = data.pop("image", None)
+        if "quantity" not in data and "qty" in data:
+            data["quantity"] = data.pop("qty")
         validated = super().to_internal_value(data)
         if image is not None:
             validated["image"] = image
@@ -573,8 +622,11 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
         source="customer_id", required=False, allow_null=True,
     )
     source = serializers.ChoiceField(
-        choices=["whatsapp", "phone", "admin", "live", "video_dm", "bio_link"],
-        default="whatsapp",
+        choices=[
+            "tiktok_dm", "tiktok_comment", "live",
+            "video_dm", "bio_link", "whatsapp", "phone", "admin",
+        ],
+        default="tiktok_dm",
     )
     status = serializers.ChoiceField(
         choices=[
@@ -585,7 +637,9 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
         default="New",
     )
     paymentMethod = serializers.CharField(
-        source="payment_method", required=False, default="M-Pesa",
+        source="payment_method",
+        required=False,
+        default="mpesa",
     )
     paymentStatus = serializers.ChoiceField(
         source="payment_status",
@@ -597,9 +651,15 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
         source="payment_reference",
         required=False, allow_blank=True, default="",
     )
-    courier = serializers.CharField(
+    mpesaReference = serializers.CharField(
+        source="mpesa_reference",
         required=False, allow_blank=True, default="",
     )
+    verificationStatus = serializers.CharField(
+        source="verification_status",
+        required=False, allow_blank=True, default="unverified",
+    )
+    courier = serializers.CharField(required=False, allow_blank=True, default="")
     trackingNumber = serializers.CharField(
         source="tracking_number",
         required=False, allow_blank=True, default="",
@@ -636,7 +696,6 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
         required=False,
         default=list,
     )
-
     items = DirectOrderItemWriteSerializer(many=True)
 
     class Meta:
@@ -646,6 +705,7 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
             "customerName", "customerPhone", "customerEmail", "customerId",
             "source", "status",
             "paymentMethod", "paymentStatus", "paymentReference",
+            "mpesaReference", "verificationStatus",
             "shipping", "discount",
             "courier", "trackingNumber", "shippingZone", "priority",
             "assignedTo", "creatorId", "commission",
@@ -654,10 +714,16 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("reference",)
 
+    def to_internal_value(self, data):
+        data = dict(data)
+        pm = data.get("paymentMethod")
+        if isinstance(pm, str) and pm in PAYMENT_METHOD_IN:
+            data["paymentMethod"] = PAYMENT_METHOD_IN[pm]
+        return super().to_internal_value(data)
+
     @transaction.atomic
     def create(self, validated):
         items_data = validated.pop("items", [])
-
         validated["reference"] = DirectOrder.generate_reference()
         order = DirectOrder.objects.create(**validated)
 
@@ -709,7 +775,6 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated):
         items_data = validated.pop("items", None)
-
         for k, v in validated.items():
             setattr(instance, k, v)
         instance.save()
@@ -746,7 +811,6 @@ class DirectOrderWriteSerializer(serializers.ModelSerializer):
                     cost_price=item.get("cost_price", 0),
                 )
             instance.recompute_totals()
-
         return instance
 
 
@@ -770,9 +834,15 @@ class DirectOrderReadSerializer(serializers.ModelSerializer):
     status = serializers.CharField(read_only=True)
     backendStatus = serializers.CharField(source="status", read_only=True)
     paymentStatus = serializers.CharField(source="payment_status", read_only=True)
-    paymentMethod = serializers.CharField(source="payment_method", read_only=True)
+    paymentMethod = serializers.SerializerMethodField()
     paymentReference = serializers.CharField(
         source="payment_reference", read_only=True,
+    )
+    mpesaReference = serializers.CharField(
+        source="mpesa_reference", read_only=True,
+    )
+    verificationStatus = serializers.CharField(
+        source="verification_status", read_only=True,
     )
 
     courier = serializers.CharField(read_only=True)
@@ -809,7 +879,8 @@ class DirectOrderReadSerializer(serializers.ModelSerializer):
             "source", "items", "itemCount",
             "subtotal", "shipping", "discount", "total",
             "status", "backendStatus", "paymentStatus",
-            "paymentMethod", "paymentReference",
+            "paymentMethod", "paymentReference", "mpesaReference",
+            "verificationStatus",
             "courier", "trackingNumber", "shippingZone", "priority",
             "creatorId", "creatorName", "commission",
             "campaignId", "attributionId",
@@ -820,6 +891,9 @@ class DirectOrderReadSerializer(serializers.ModelSerializer):
 
     def get_creatorName(self, obj):
         return obj.creator.name if obj.creator_id else ""
+
+    def get_paymentMethod(self, obj):
+        return PAYMENT_METHOD_OUT.get(obj.payment_method, obj.payment_method)
 
 
 class DirectOrderStatusSerializer(serializers.Serializer):
@@ -840,11 +914,7 @@ class CreatorSerializer(serializers.ModelSerializer):
         source="start_date", required=False, allow_null=True,
     )
     avatar = serializers.SerializerMethodField()
-    platform = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        default="TikTok",
-    )
+    platform = serializers.CharField(required=False, default="TikTok")
     payoutMethod = serializers.CharField(
         source="payout_method",
         required=False,
@@ -883,22 +953,23 @@ class CreatorSerializer(serializers.ModelSerializer):
         max_digits=12, decimal_places=2, read_only=True,
     )
     ordersCount = serializers.IntegerField(source="orders_count", read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = Creator
         fields = (
-            "id", "name", "handle", "followers", "niche",
+            "id", "name", "handle", "platform", "followers", "niche",
             "commissionRate", "startDate", "status",
-            "avatar", "platform",
+            "avatar",
             "phone", "email", "taxPin",
             "payoutMethod", "payoutPhone",
             "engagementRate", "avgViews",
             "salesDriven", "commissionOwed", "commissionPaid",
             "revenue", "ordersCount",
-            "notes", "created_at", "updated_at",
+            "notes", "createdAt", "created_at", "updated_at",
         )
         read_only_fields = (
-            "id", "created_at", "updated_at",
+            "id", "createdAt", "created_at", "updated_at",
             "salesDriven", "commissionOwed", "commissionPaid",
             "revenue", "ordersCount",
         )
@@ -949,7 +1020,7 @@ class CreatorSaleSerializer(serializers.ModelSerializer):
         model = CreatorSale
         fields = (
             "id", "creatorId", "creatorName", "order", "orderReference",
-            "commissionRate", "commissionAmount",
+            "commissionRate", "commissionAmount", "status",
             "paid", "paidAt", "payoutReference", "payoutId",
             "notes", "attributedAt",
         )
@@ -957,6 +1028,9 @@ class CreatorSaleSerializer(serializers.ModelSerializer):
 
 
 class PayoutBatchSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(
+        max_digits=14, decimal_places=2, required=False, default=0,
+    )
     totalAmount = serializers.DecimalField(
         source="total_amount", max_digits=14, decimal_places=2, read_only=True,
     )
@@ -967,6 +1041,16 @@ class PayoutBatchSerializer(serializers.ModelSerializer):
         allow_blank=True,
         default="M-Pesa",
     )
+    creatorId = serializers.IntegerField(
+        source="creator_id", required=False, allow_null=True,
+    )
+    creatorName = serializers.CharField(source="creator.name", read_only=True)
+    transactionReference = serializers.CharField(
+        source="transaction_reference",
+        required=False,
+        allow_blank=True,
+        default="",
+    )
     approvedBy = serializers.IntegerField(
         source="approved_by_id", read_only=True,
     )
@@ -974,19 +1058,21 @@ class PayoutBatchSerializer(serializers.ModelSerializer):
         source="approved_at", read_only=True,
     )
     paidAt = serializers.DateTimeField(source="paid_at", read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = PayoutBatch
         fields = (
             "id", "reference", "status",
-            "totalAmount", "itemsCount", "payoutMethod",
+            "amount", "totalAmount", "itemsCount", "payoutMethod",
+            "creatorId", "creatorName", "transactionReference",
             "approvedBy", "approvedAt", "paidAt",
-            "notes", "created_at", "updated_at",
+            "notes", "createdAt", "created_at", "updated_at",
         )
         read_only_fields = (
             "id", "reference", "totalAmount", "itemsCount",
-            "approvedBy", "approvedAt", "paidAt",
-            "created_at", "updated_at",
+            "creatorName", "approvedBy", "approvedAt", "paidAt",
+            "createdAt", "created_at", "updated_at",
         )
 
 
@@ -997,15 +1083,50 @@ class CampaignSerializer(serializers.ModelSerializer):
     endsAt = serializers.DateTimeField(
         source="ends_at", required=False, allow_null=True,
     )
+    actualSpend = serializers.DecimalField(
+        source="actual_spend", max_digits=12, decimal_places=2,
+        required=False, default=0,
+    )
 
     class Meta:
         model = Campaign
         fields = (
             "id", "name", "slug", "status",
-            "startsAt", "endsAt", "budget", "objective",
+            "startsAt", "endsAt", "budget", "actualSpend", "objective",
             "notes", "created_at", "updated_at",
         )
         read_only_fields = ("id", "created_at", "updated_at")
+
+
+class AdCampaignSerializer(serializers.ModelSerializer):
+    campaignId = serializers.CharField(source="campaign_id", read_only=True)
+    attributedRevenue = serializers.DecimalField(
+        source="attributed_revenue", max_digits=14, decimal_places=2,
+        required=False, default=0,
+    )
+    startedAt = serializers.DateTimeField(
+        source="started_at", required=False, allow_null=True,
+    )
+    endedAt = serializers.DateTimeField(
+        source="ended_at", required=False, allow_null=True,
+    )
+    cpa = serializers.DecimalField(
+        max_digits=14, decimal_places=2, read_only=True,
+    )
+    roas = serializers.DecimalField(
+        max_digits=14, decimal_places=2, read_only=True,
+    )
+
+    class Meta:
+        model = AdCampaign
+        fields = (
+            "id", "campaignId", "name", "status", "currency",
+            "budget", "spend", "attributedRevenue",
+            "impressions", "clicks", "conversions",
+            "startedAt", "endedAt", "cpa", "roas",
+            "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "cpa", "roas", "created_at", "updated_at")
 
 
 class AttributionLinkSerializer(serializers.ModelSerializer):
@@ -1047,28 +1168,35 @@ class AttributionLinkSerializer(serializers.ModelSerializer):
 
 
 class ContentPostSerializer(serializers.ModelSerializer):
-    STATUS_MAP = {
-        "Draft": "IDEA",
-        "Scheduled": "SCRIPTED",
-        "Posted": "POSTED",
-        "Archived": "POSTED",
+    STATUS_OUT = {
+        "Draft": "Draft",
+        "Scheduled": "Scheduled",
+        "Posted": "Posted",
+        "Archived": "Archived",
+        "Idea": "Idea",
+        "In Review": "In Review",
+        "Approved": "Approved",
+        "Failed": "Failed",
     }
-    STATUS_MAP_REVERSE = {
-        "IDEA": "Draft",
-        "SCRIPTED": "Scheduled",
-        "FILMED": "Scheduled",
-        "POSTED": "Posted",
+    STATUS_IN = {
+        "Idea": "Idea",
+        "Draft": "Draft",
+        "In Review": "In Review",
+        "Approved": "Approved",
+        "Scheduled": "Scheduled",
+        "Posted": "Posted",
+        "Failed": "Failed",
+        "Archived": "Archived",
     }
 
-    TYPE_MAP = {
-        "Video": "VIDEO",
-        "Photo carousel": "PHOTO_CAROUSEL",
-        "LIVE promotion": "LIVE_PROMO",
+    TYPE_OUT = {
+        "Video": "Video",
+        "Photo Carousel": "Photo Carousel",
+        "LIVE Promo": "LIVE Promo",
     }
-    TYPE_MAP_REVERSE = {v: k for k, v in TYPE_MAP.items()}
+    TYPE_IN = {v: k for k, v in TYPE_OUT.items()}
 
-    type = serializers.SerializerMethodField()
-    status = serializers.SerializerMethodField()
+    platform = serializers.CharField(required=False, default="TikTok")
 
     scheduledAt = serializers.DateTimeField(
         source="scheduled_at",
@@ -1080,7 +1208,6 @@ class ContentPostSerializer(serializers.ModelSerializer):
     videoUrl = serializers.SerializerMethodField()
 
     caption = serializers.CharField(required=False, allow_blank=True, default="")
-    platform = serializers.CharField(required=False, allow_blank=True, default="TikTok")
     hook = serializers.CharField(required=False, allow_blank=True, default="")
     sound = serializers.CharField(required=False, allow_blank=True, default="")
 
@@ -1111,30 +1238,25 @@ class ContentPostSerializer(serializers.ModelSerializer):
         source="revenue_per_1k_views",
         max_digits=14, decimal_places=2, read_only=True,
     )
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = ContentPost
         fields = (
-            "id", "title", "type", "status",
-            "platform", "scheduledAt",
+            "id", "title", "platform", "content_type", "status",
+            "scheduledAt",
             "hook", "script", "caption", "hashtags", "sound",
             "postedUrl", "thumbnailUrl", "videoUrl",
             "creatorId", "campaignId",
             "products", "productName",
             "views", "likes", "comments", "shares", "saves",
             "ordersAttributed", "revenueAttributed", "revenuePer1kViews",
-            "created_at", "updated_at",
+            "createdAt", "created_at", "updated_at",
         )
         read_only_fields = (
-            "id", "created_at", "updated_at", "productName",
+            "id", "createdAt", "created_at", "updated_at", "productName",
             "revenueAttributed", "revenuePer1kViews",
         )
-
-    def get_type(self, obj):
-        return self.TYPE_MAP_REVERSE.get(obj.content_type, obj.content_type)
-
-    def get_status(self, obj):
-        return self.STATUS_MAP_REVERSE.get(obj.status, obj.status)
 
     def get_productName(self, obj):
         if not obj.products:
@@ -1157,12 +1279,15 @@ class ContentPostSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         data = dict(data)
 
-        if "type" in data:
-            data["content_type"] = self.TYPE_MAP.get(data.pop("type"))
+        if "contentType" in data and "content_type" not in data:
+            data["content_type"] = data.pop("contentType")
+        if "content_type" in data:
+            raw = data["content_type"]
+            data["content_type"] = self.TYPE_IN.get(raw, raw)
 
         if "status" in data:
-            raw = data.pop("status")
-            data["status"] = self.STATUS_MAP.get(raw, raw)
+            raw = data["status"]
+            data["status"] = self.STATUS_IN.get(raw, raw)
 
         if "thumbnail" in data:
             data["thumbnail_url"] = data.pop("thumbnail")
@@ -1183,20 +1308,13 @@ class ContentPostSerializer(serializers.ModelSerializer):
 
 
 class LiveSessionSerializer(serializers.ModelSerializer):
-    STATUS_MAP = {
-        "Scheduled": "SCHEDULED",
-        "Live": "LIVE",
-        "Ended": "COMPLETED",
-        "Cancelled": "CANCELLED",
+    STATUS_OUT = {
+        "Scheduled": "Scheduled",
+        "Live": "Live",
+        "Ended": "Ended",
+        "Cancelled": "Cancelled",
     }
-    STATUS_MAP_REVERSE = {
-        "SCHEDULED": "Scheduled",
-        "LIVE": "Live",
-        "COMPLETED": "Ended",
-        "CANCELLED": "Cancelled",
-    }
-
-    status = serializers.SerializerMethodField()
+    STATUS_IN = {v: k for k, v in STATUS_OUT.items()}
 
     scheduledAt = serializers.DateTimeField(source="scheduled_start")
     scheduledEnd = serializers.DateTimeField(
@@ -1244,6 +1362,7 @@ class LiveSessionSerializer(serializers.ModelSerializer):
     replayUrl = serializers.CharField(
         source="replay_url", required=False, allow_blank=True, default="",
     )
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = LiveSession
@@ -1254,24 +1373,22 @@ class LiveSessionSerializer(serializers.ModelSerializer):
             "products", "runSheet", "couponCode",
             "peakViewers", "totalViewers",
             "ordersGenerated", "revenue", "topProduct", "replayUrl",
-            "created_at", "updated_at",
+            "createdAt", "created_at", "updated_at",
         )
-        read_only_fields = ("id", "created_at", "updated_at")
-
-    def get_status(self, obj):
-        return self.STATUS_MAP_REVERSE.get(obj.status, obj.status)
+        read_only_fields = ("id", "createdAt", "created_at", "updated_at")
 
     def to_internal_value(self, data):
         data = dict(data)
         if "status" in data:
-            raw = data.pop("status")
-            data["status"] = self.STATUS_MAP.get(raw, raw)
+            raw = data["status"]
+            data["status"] = self.STATUS_IN.get(raw, raw)
         return super().to_internal_value(data)
 
 
 class DirectProductSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="product.name", read_only=True)
-    sku = serializers.CharField(source="product.sku", read_only=True)
+    slug = serializers.CharField(source="product.slug", read_only=True)
+    sku = serializers.CharField(source="product.slug", read_only=True)
     image = serializers.SerializerMethodField()
     price = serializers.DecimalField(
         source="product.price", max_digits=12, decimal_places=2, read_only=True,
@@ -1279,7 +1396,10 @@ class DirectProductSerializer(serializers.ModelSerializer):
     compareAtPrice = serializers.SerializerMethodField()
     stockQuantity = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
+    categoryId = serializers.SerializerMethodField()
     brand = serializers.SerializerMethodField()
+    brandId = serializers.SerializerMethodField()
+    isActive = serializers.SerializerMethodField()
 
     directSalesCount = serializers.IntegerField(
         source="direct_sales_count", read_only=True,
@@ -1341,8 +1461,8 @@ class DirectProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = DirectProduct
         fields = (
-            "id", "name", "sku", "image", "price", "compareAtPrice",
-            "stockQuantity", "category", "brand",
+            "id", "name", "slug", "sku", "image", "price", "compareAtPrice",
+            "stockQuantity", "category", "categoryId", "brand", "brandId", "isActive",
             "directSalesCount", "directRevenue",
             "lowStockThreshold", "status", "viral",
             "videoLink", "linkedToWebsite",
@@ -1354,8 +1474,9 @@ class DirectProductSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         )
         read_only_fields = (
-            "id", "name", "sku", "price", "stockQuantity",
-            "category", "brand", "directSalesCount", "directRevenue",
+            "id", "name", "slug", "sku", "price", "stockQuantity",
+            "category", "categoryId", "brand", "brandId", "isActive",
+            "directSalesCount", "directRevenue",
             "margin", "marginPercent",
             "created_at", "updated_at",
         )
@@ -1378,9 +1499,20 @@ class DirectProductSerializer(serializers.ModelSerializer):
         cat = getattr(obj.product, "category", None)
         return getattr(cat, "name", "") if cat else ""
 
+    def get_categoryId(self, obj):
+        cat = getattr(obj.product, "category", None)
+        return getattr(cat, "id", None) if cat else None
+
     def get_brand(self, obj):
         b = getattr(obj.product, "brand", None)
         return getattr(b, "name", "") if b else ""
+
+    def get_brandId(self, obj):
+        b = getattr(obj.product, "brand", None)
+        return getattr(b, "id", None) if b else None
+
+    def get_isActive(self, obj):
+        return getattr(obj.product, "is_active", True)
 
 
 class ProductCreateSerializer(serializers.Serializer):
@@ -1393,13 +1525,16 @@ class ProductCreateSerializer(serializers.Serializer):
     )
     stockQuantity = serializers.IntegerField(required=False, default=0)
     category = serializers.CharField(required=False, allow_blank=True, default="")
+    categoryId = serializers.IntegerField(required=False, allow_null=True)
     brand = serializers.CharField(required=False, allow_blank=True, default="")
+    brandId = serializers.IntegerField(required=False, allow_null=True)
     commissionRate = serializers.DecimalField(
         max_digits=5, decimal_places=2, required=False, default=0,
     )
     costPrice = serializers.DecimalField(
         max_digits=12, decimal_places=2, required=False, default=0,
     )
+    lowStockThreshold = serializers.IntegerField(required=False, default=5)
     supplierId = serializers.IntegerField(required=False, allow_null=True)
     reorderPoint = serializers.IntegerField(required=False, default=5)
     reorderQuantity = serializers.IntegerField(required=False, default=10)
@@ -1411,10 +1546,11 @@ class ProductCreateSerializer(serializers.Serializer):
         required=False,
         default=list,
     )
-    seoTitle = serializers.CharField(
+    seoTitle = serializers.CharField(required=False, allow_blank=True, default="")
+    seoDescription = serializers.CharField(
         required=False, allow_blank=True, default="",
     )
-    seoDescription = serializers.CharField(
+    description = serializers.CharField(
         required=False, allow_blank=True, default="",
     )
     status = serializers.ChoiceField(
@@ -1422,9 +1558,9 @@ class ProductCreateSerializer(serializers.Serializer):
     )
 
     STATUS_MAP = {
-        "Draft": "DRAFT",
-        "Active": "ACTIVE",
-        "Archived": "PAUSED",
+        "Draft": "Draft",
+        "Active": "Active",
+        "Archived": "Archived",
     }
 
     @transaction.atomic
@@ -1434,23 +1570,31 @@ class ProductCreateSerializer(serializers.Serializer):
         Category = apps.get_model("catalog", "Category")
 
         brand_obj = None
-        if validated.get("brand"):
-            brand_obj, _ = Brand.objects.get_or_create(
-                name=validated["brand"],
-            )
+        if validated.get("brandId"):
+            try:
+                brand_obj = Brand.objects.get(pk=validated["brandId"])
+            except Brand.DoesNotExist:
+                brand_obj = None
+        if brand_obj is None and validated.get("brand"):
+            brand_obj, _ = Brand.objects.get_or_create(name=validated["brand"])
 
         category_obj = None
-        if validated.get("category"):
-            category_obj, _ = Category.objects.get_or_create(
-                name=validated["category"],
-            )
+        if validated.get("categoryId"):
+            try:
+                category_obj = Category.objects.get(pk=validated["categoryId"])
+            except Category.DoesNotExist:
+                category_obj = None
+        if category_obj is None and validated.get("category"):
+            category_obj, _ = Category.objects.get_or_create(name=validated["category"])
 
         product_kwargs = {
             "name": validated["name"],
             "price": validated["price"],
         }
+        if validated.get("description"):
+            product_kwargs["description"] = validated["description"]
         if validated.get("sku"):
-            product_kwargs["sku"] = validated["sku"]
+            product_kwargs["slug"] = validated["sku"]
         if validated.get("compareAtPrice") is not None:
             product_kwargs["compare_at_price"] = validated["compareAtPrice"]
         if validated.get("stockQuantity") is not None:
@@ -1478,6 +1622,7 @@ class ProductCreateSerializer(serializers.Serializer):
         wrapper_kwargs = {
             "product": product,
             "status": self.STATUS_MAP[validated["status"]],
+            "low_stock_threshold": validated.get("lowStockThreshold", 5),
             "cost_price": validated.get("costPrice", 0),
             "reorder_point": validated.get("reorderPoint", 5),
             "reorder_quantity": validated.get("reorderQuantity", 10),
@@ -1553,23 +1698,22 @@ class InboxMessageSerializer(serializers.ModelSerializer):
         allow_blank=True,
         default="",
     )
-    sentBy = serializers.IntegerField(
-        source="sent_by_id", read_only=True,
-    )
+    sentBy = serializers.IntegerField(source="sent_by_id", read_only=True)
     externalId = serializers.CharField(
         source="external_id",
         required=False,
         allow_blank=True,
         default="",
     )
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = InboxMessage
         fields = (
             "id", "direction", "body", "attachmentUrl",
-            "sentBy", "externalId", "created_at",
+            "sentBy", "externalId", "createdAt", "created_at",
         )
-        read_only_fields = ("id", "sentBy", "created_at")
+        read_only_fields = ("id", "sentBy", "createdAt", "created_at")
 
 
 class InboxConversationSerializer(serializers.ModelSerializer):
@@ -1595,6 +1739,7 @@ class InboxConversationSerializer(serializers.ModelSerializer):
         source="last_message_at", read_only=True,
     )
     messages = InboxMessageSerializer(many=True, read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model = InboxConversation
@@ -1604,9 +1749,9 @@ class InboxConversationSerializer(serializers.ModelSerializer):
             "assignedTo", "convertedOrder",
             "unreadCount", "lastMessageAt", "tags",
             "messages",
-            "created_at", "updated_at",
+            "createdAt", "created_at", "updated_at",
         )
-        read_only_fields = ("id", "lastMessageAt", "created_at", "updated_at")
+        read_only_fields = ("id", "lastMessageAt", "createdAt", "created_at", "updated_at")
 
 
 class TeamMemberSerializer(serializers.ModelSerializer):
@@ -1743,6 +1888,13 @@ class NotificationSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "recipientId", "readAt", "created_at")
 
 
+class NotificationSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationSetting
+        fields = ("id", "key", "label", "description", "enabled", "updated_at")
+        read_only_fields = ("id", "updated_at")
+
+
 class AuditLogSerializer(serializers.ModelSerializer):
     entityId = serializers.CharField(source="entity_id", read_only=True)
     actorId = serializers.IntegerField(source="actor_id", read_only=True)
@@ -1866,3 +2018,252 @@ class CouponSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         )
         read_only_fields = ("id", "uses", "created_at", "updated_at")
+
+
+class LeadSerializer(serializers.ModelSerializer):
+    estimatedValue = serializers.DecimalField(
+        source="estimated_value", max_digits=12, decimal_places=2,
+        required=False, default=0,
+    )
+    assignedTo = serializers.IntegerField(
+        source="assigned_to_id", required=False, allow_null=True,
+    )
+    convertedCustomer = serializers.IntegerField(
+        source="converted_customer_id", required=False, allow_null=True,
+    )
+    convertedOrder = serializers.IntegerField(
+        source="converted_order_id", required=False, allow_null=True,
+    )
+
+    class Meta:
+        model = Lead
+        fields = (
+            "id", "name", "handle", "phone", "email",
+            "interest", "estimatedValue", "source", "status",
+            "assignedTo", "notes",
+            "convertedCustomer", "convertedOrder",
+            "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+
+class FollowUpSerializer(serializers.ModelSerializer):
+    leadId = serializers.IntegerField(
+        source="lead_id", required=False, allow_null=True,
+    )
+    customerId = serializers.IntegerField(
+        source="customer_id", required=False, allow_null=True,
+    )
+    assignedTo = serializers.IntegerField(
+        source="assigned_to_id", required=False, allow_null=True,
+    )
+    completedAt = serializers.DateTimeField(
+        source="completed_at", read_only=True,
+    )
+
+    class Meta:
+        model = FollowUp
+        fields = (
+            "id", "leadId", "customerId", "name", "phone",
+            "type", "date", "status", "assignedTo", "notes",
+            "completedAt", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "completedAt", "created_at", "updated_at")
+
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    customerId = serializers.IntegerField(
+        source="customer_id", required=False, allow_null=True,
+    )
+    customerName = serializers.CharField(
+        source="customer_name", required=False, allow_blank=True, default="",
+    )
+    orderId = serializers.IntegerField(
+        source="order_id", required=False, allow_null=True,
+    )
+    assignedTo = serializers.IntegerField(
+        source="assigned_to_id", required=False, allow_null=True,
+    )
+    resolvedAt = serializers.DateTimeField(
+        source="resolved_at", read_only=True,
+    )
+
+    class Meta:
+        model = SupportTicket
+        fields = (
+            "id", "reference", "customerId", "customerName", "orderId",
+            "subject", "description", "priority", "status",
+            "assignedTo", "resolvedAt",
+            "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "reference", "resolvedAt", "created_at", "updated_at")
+
+    def to_internal_value(self, data):
+        data = dict(data)
+        cust = data.get("customer")
+        if isinstance(cust, str) and cust and not data.get("customerName"):
+            data["customerName"] = cust
+            data.pop("customer", None)
+        return super().to_internal_value(data)
+
+
+class CustomerSegmentSerializer(serializers.ModelSerializer):
+    isDynamic = serializers.BooleanField(
+        source="is_dynamic", required=False, default=True,
+    )
+    memberCount = serializers.IntegerField(
+        source="member_count", required=False, default=0,
+    )
+
+    class Meta:
+        model = CustomerSegment
+        fields = (
+            "id", "name", "slug", "description", "rule", "color",
+            "isDynamic", "memberCount", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+
+class IntegrationSerializer(serializers.ModelSerializer):
+    account = serializers.CharField(
+        source="account_name", required=False, allow_blank=True, default="",
+    )
+    accountName = serializers.CharField(
+        source="account_name", required=False, allow_blank=True, default="",
+    )
+    lastSync = serializers.DateTimeField(source="last_sync_at", read_only=True)
+    lastSyncAt = serializers.DateTimeField(source="last_sync_at", read_only=True)
+    error = serializers.CharField(
+        source="error_message", required=False, allow_blank=True, default="",
+    )
+    errorMessage = serializers.CharField(
+        source="error_message", required=False, allow_blank=True, default="",
+    )
+
+    class Meta:
+        model = Integration
+        fields = (
+            "id", "key", "name", "description", "status",
+            "account", "accountName", "permissions",
+            "lastSync", "lastSyncAt",
+            "error", "errorMessage", "metadata",
+            "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+
+class CreatorApplicationSerializer(serializers.ModelSerializer):
+    creatorId = serializers.IntegerField(
+        source="creator_id", required=False, allow_null=True,
+    )
+    reviewedBy = serializers.IntegerField(
+        source="reviewed_by_id", read_only=True,
+    )
+    reviewedAt = serializers.DateTimeField(
+        source="reviewed_at", read_only=True,
+    )
+
+    class Meta:
+        model = CreatorApplication
+        fields = (
+            "id", "creatorId", "name", "handle", "phone", "email",
+            "followers", "niche", "message", "status",
+            "reviewedBy", "reviewedAt",
+            "created_at", "updated_at",
+        )
+        read_only_fields = (
+            "id", "reviewedBy", "reviewedAt",
+            "created_at", "updated_at",
+        )
+
+
+class PartnershipSerializer(serializers.ModelSerializer):
+    creatorId = serializers.IntegerField(source="creator_id")
+    creatorName = serializers.CharField(source="creator.name", read_only=True)
+    handle = serializers.CharField(source="creator.handle", read_only=True)
+    commissionRate = serializers.DecimalField(
+        source="commission_rate", max_digits=5, decimal_places=2,
+        required=False, default=10,
+    )
+    startDate = serializers.DateField(
+        source="start_date", required=False,
+    )
+    endDate = serializers.DateField(
+        source="end_date", required=False, allow_null=True,
+    )
+    orders = serializers.SerializerMethodField()
+    revenue = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Partnership
+        fields = (
+            "id", "creatorId", "creatorName", "handle", "status",
+            "commissionRate", "startDate", "endDate",
+            "orders", "revenue", "notes",
+            "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "creatorName", "handle", "orders", "revenue", "created_at", "updated_at")
+
+    def get_orders(self, obj):
+        try:
+            return obj.creator.orders_count
+        except Exception:
+            return 0
+
+    def get_revenue(self, obj):
+        try:
+            return str(obj.creator.revenue)
+        except Exception:
+            return "0"
+
+
+class CreatorSampleSerializer(serializers.ModelSerializer):
+    creatorId = serializers.IntegerField(source="creator_id")
+    creatorName = serializers.CharField(source="creator.name", read_only=True)
+    productId = serializers.IntegerField(source="product_id")
+    productName = serializers.SerializerMethodField()
+    productImage = serializers.SerializerMethodField()
+    trackingNumber = serializers.CharField(
+        source="tracking_number", required=False, allow_blank=True, default="",
+    )
+    requestedAt = serializers.DateTimeField(
+        source="requested_at", read_only=True,
+    )
+    dispatchedAt = serializers.DateTimeField(
+        source="dispatched_at", read_only=True,
+    )
+    deliveredAt = serializers.DateTimeField(
+        source="delivered_at", read_only=True,
+    )
+
+    class Meta:
+        model = CreatorSample
+        fields = (
+            "id", "creatorId", "creatorName", "productId", "productName",
+            "productImage", "quantity", "status", "trackingNumber", "notes",
+            "requestedAt", "dispatchedAt", "deliveredAt", "updated_at",
+        )
+        read_only_fields = (
+            "id", "creatorName", "productName", "productImage",
+            "requestedAt", "dispatchedAt", "deliveredAt", "updated_at",
+        )
+
+    def get_productName(self, obj):
+        try:
+            return obj.product.product.name
+        except Exception:
+            return ""
+
+    def get_productImage(self, obj):
+        try:
+            request = self.context.get("request")
+            return _absolute_url(request, _first_image_url(obj.product.product))
+        except Exception:
+            return ""
+
+
+class PermissionGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PermissionGroup
+        fields = ("id", "name", "description", "permissions", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")

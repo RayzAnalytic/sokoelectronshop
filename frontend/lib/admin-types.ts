@@ -344,14 +344,197 @@ export interface AdminAnalyticsSummary {
 }
 
 export type AdminCustomerStatus = 'Active' | 'Blocked';
-
-export type AdminCustomerSegment =
+// 1. Rename the union type to reflect that it's a label/tier
+export type CustomerSegmentName =
     | 'VIP'
     | 'Loyal'
     | 'New'
     | 'At Risk'
     | 'Churned'
     | 'Regular';
+export interface AdminIntegration {
+    id: number;
+    key: string;
+    name: string;
+    description: string;
+    status: 'connected' | 'disconnected' | 'error' | 'expired';
+    account: string;
+    accountName: string;
+    permissions: string;
+    lastSync: string | null;
+    lastSyncAt: string | null;
+    error: string;
+    errorMessage: string;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminNotificationSetting {
+    id: number;
+    key: string;
+    label: string;
+    description: string;
+    enabled: boolean;
+    updatedAt: string;
+}
+
+export interface AdminAuditLog {
+    id: number;
+    action: string;
+    entity: string;
+    entityId: string;
+    summary: string;
+    diff: Record<string, unknown>;
+    actorId: number | null;
+    actorName: string;
+    ipAddress: string | null;
+    userAgent: string;
+    createdAt: string;
+}
+
+
+export interface AdminFinanceSummaryResponse {
+    grossRevenue: string;
+    creatorCommissions: string;
+    withholdingTax: string;
+    expenses: string;
+    netRevenue: string;
+    refunds: string;
+    advertisingSpend: string;
+    grossProfit?: string;
+}
+
+export interface AdminAnalyticsSummaryResponse {
+    monthOrders: number;
+    monthRevenue: string;
+    conversionRate: number;
+    customers: { total: number; new30d: number; returning: number };
+    marketing: { adSpend: string; attributedRevenue: string; roas: number };
+    fulfillment: { delivered: number; shipped: number; cancelled: number; returned: number };
+    pendingShipment: number;
+    activeCreators: number;
+    bySource: Array<{ source: string; count: number; revenue: string | null }>;
+    byStatus: Array<{ status: string; count: number }>;
+    daily: Array<{ day: string; date: string; orders: number; revenue: string }>;
+}
+
+export interface AdminDirectOrder {
+    id: string;
+    reference: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail: string;
+    source: AdminDirectOrderSource;
+    status: AdminDirectOrderStatus;
+    backendStatus: string;
+    paymentStatus: string;
+    paymentMethod: string;
+    subtotal: string;
+    shipping: string;
+    discount: string;
+    total: string;
+    itemCount: number;
+    items: AdminDirectOrderItem[];
+    creatorId: number | null;
+    creatorName: string;
+    commission: string;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+    deliveredAt: string | null;
+    mpesaReference: string;
+    verificationStatus: 'unverified' | 'verified' | 'failed';
+    courier: string;
+    trackingNumber: string;
+    shippingZone: string;
+    priority: string;
+    assignedTo: number | null;
+    codRisk: string;
+    campaignId: number | null;
+    attributionId: number | null;
+    tags: string[];
+}
+
+export interface AdminDirectCreator {
+    id: number;
+    name: string;
+    handle: string;
+    platform: 'TikTok' | 'Instagram' | 'YouTube';
+    phone: string;
+    email: string;
+    taxPin: string;
+    payoutMethod: string;
+    payoutPhone: string;
+    engagementRate: number;
+    avgViews: number;
+    avatar: string;
+    followers: number;
+    niche: string;
+    commissionRate: number;
+    commissionOwed: string;
+    commissionPaid: string;
+    revenue: string;
+    salesDriven: number;
+    ordersCount: number;
+    status: AdminDirectCreatorStatus;
+    startDate: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminPayoutBatch {
+    id: number;
+    reference: string;
+    status: 'Draft' | 'Pending' | 'Approved' | 'Processing' | 'Paid' | 'Failed' | 'Reversed';
+    amount: string;
+    creatorId: number | null;
+    creatorName: string;
+    transactionReference: string;
+    totalAmount: string;
+    itemsCount: number;
+    payoutMethod: string;
+    approvedBy: number | null;
+    approvedAt: string | null;
+    paidAt: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminReturnRequest {
+    id: number;
+    reference: string;
+    orderId: number;
+    orderReference: string;
+    status: 'Requested' | 'Approved' | 'Rejected' | 'Received' | 'Refunded';
+    reason: 'damaged' | 'wrong_item' | 'not_as_described' | 'late_delivery' | 'changed_mind' | 'other';
+    reasonDetail: string;
+    refundAmount: string;
+    restock: boolean;
+    restockedAt: string | null;
+    resolvedBy: number | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+
+// 2. Keep the main entity interface as AdminCustomerSegment
+export interface AdminCustomerSegment {
+    id: number;
+    name: CustomerSegmentName | string; // Can be strictly typed or allow custom names
+    slug: string;
+    description: string;
+    rule: Record<string, unknown>;
+    color: string;
+    isDynamic: boolean;
+    memberCount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
 
 export type AdminMarketingConsent =
     | 'Subscribed'
@@ -1548,17 +1731,52 @@ export interface AdminReturnItem {
     image: string;
     condition: AdminReturnItemCondition;
 }
+export interface AdminProduct {
+    id: string;
+    name: string;
+    slug: string;
+    description: string;
+    brand: AdminBrandRef;
+    category: AdminCategoryRef;
+    price: string;
+    compare_at_price: string | null;
+    stock_quantity: number;
+    low_stock_threshold: number;
+    featured: boolean;
+    best_seller: boolean;
+    sales_volume: string;
+    sales_count: number;
+    promo_end_date: string | null;
+    is_active: boolean;
+    rating_avg: string;
+    review_count: number;
+    images: AdminProductImage[];
+    features: AdminProductFeature[];
+    specs: AdminProductSpec[];
+    created_at: string;
+    updated_at: string;
+}
+  
+export type AdminDirectContentStatus =
+    | 'Idea'
+    | 'Draft'
+    | 'In Review'
+    | 'Approved'
+    | 'Scheduled'
+    | 'Posted'
+    | 'Failed'
+    | 'Archived';
 
 export interface AdminReturnRequest {
     id: number;
     code: string;
-    orderId: string;
+     
     customer: AdminReturnCustomer;
-    reason: string;
+     
     reasonId: number | null;
     notes: string;
     internalNotes: string;
-    status: AdminReturnStatus;
+     
     refundStatus: AdminRefundStatus;
     refundMethod: AdminRefundMethod;
     originalAmount: string;
@@ -2975,6 +3193,7 @@ export interface AdminSocialDraft {
     comments: AdminSocialDraftComment[];
     last_edited_at: string;
     created_at: string;
+    updated_at: string;
 }
 
 export interface AdminSocialDraftWrite {
@@ -3317,25 +3536,22 @@ export type AdminDirectOrderStatus =
     | 'Returned';
 
 export type AdminDirectOrderSource =
-    | 'whatsapp'
-    | 'phone'
-    | 'admin'
+    | 'tiktok_dm'
+    | 'tiktok_comment'
     | 'live'
     | 'video_dm'
-    | 'bio_link';
+    | 'bio_link'
+    | 'whatsapp'
+    | 'phone'
+    | 'admin';
 
-export type AdminDirectContentPlatform =
-    | 'TikTok'
-    | 'Instagram'
-    | 'Facebook'
-    | 'YouTube'
-    | 'X';
+export type AdminDirectContentPlatform = 'TikTok';
 
-export type AdminDirectContentStatus =
+{/*export type AdminDirectContentStatus =
     | 'Draft'
     | 'Scheduled'
     | 'Posted'
-    | 'Archived';
+    | 'Archived';*/}
 
 export type AdminDirectLiveStatus =
     | 'Scheduled'
@@ -3343,12 +3559,429 @@ export type AdminDirectLiveStatus =
     | 'Ended'
     | 'Cancelled';
 
-export type AdminDirectCreatorStatus = 'Active' | 'Inactive';
+export type AdminDirectCreatorStatus = 'Active' | 'Inactive' | 'Pending' | 'Invited' | 'Paused';
+export interface AdminProduct {
+    id: string;
+    name: string;
+    slug: string;
+    description: string;
+    brand: AdminBrandRef;
+    category: AdminCategoryRef;
+    price: string;
+    compare_at_price: string | null;
+    stock_quantity: number;
+    low_stock_threshold: number;
+    featured: boolean;
+    best_seller: boolean;
+    sales_volume: string;
+    sales_count: number;
+    promo_end_date: string | null;
+    is_active: boolean;
+    rating_avg: string;
+    review_count: number;
+    images: AdminProductImage[];
+    features: AdminProductFeature[];
+    specs: AdminProductSpec[];
+    created_at: string;
+    updated_at: string;
+}
+export interface AdminDirectContent {
+    id: number;
+    title: string;
+    platform: AdminDirectContentPlatform;
+    type: string;
+    status: AdminDirectContentStatus;
+    scheduledAt: string | null;
+    script: string;
+    caption: string;
+    hashtags: string;
+    postedUrl: string;
+    thumbnailUrl: string;
+    videoUrl: string;
+    products: string[];
+    productName: string;
+    views: number;
+    likes: number;
+    comments: number;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminDirectCreatorWrite {
+    name: string;
+    handle: string;
+    platform?: 'TikTok' | 'Instagram' | 'YouTube';
+    phone?: string;
+    email?: string;
+    taxPin?: string;
+    payoutMethod?: string;
+    payoutPhone?: string;
+    engagementRate?: number;
+    avgViews?: number;
+    avatar?: string;
+    followers?: number;
+    niche?: string;
+    commissionRate?: number;
+    status?: AdminDirectCreatorStatus;
+    startDate?: string | null;
+    notes?: string;
+}
+export interface AdminPayoutBatch {
+    id: number;
+    reference: string;
+    status: 'Draft' | 'Pending' | 'Approved' | 'Processing' | 'Paid' | 'Failed' | 'Reversed';
+    amount: string;
+    creatorId: number | null;
+    creatorName: string;
+    transactionReference: string;
+    totalAmount: string;
+    itemsCount: number;
+    payoutMethod: string;
+    approvedBy: number | null;
+    approvedAt: string | null;
+    paidAt: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminPayoutBatchWrite {
+    status?: 'Draft' | 'Pending' | 'Approved' | 'Processing' | 'Paid' | 'Failed' | 'Reversed';
+    amount?: string;
+    creatorId?: number | null;
+    creatorName?: string;
+    transactionReference?: string;
+    payoutMethod?: string;
+    notes?: string;
+    saleIds?: number[];
+}
 
+export interface AdminCreatorSample {
+    id: number;
+    creatorId: number;
+    creatorName: string;
+    productId: number;
+    productName: string;
+    productImage: string;
+    quantity: number;
+    status: 'Requested' | 'Approved' | 'Dispatched' | 'Delivered' | 'Rejected';
+    trackingNumber: string;
+    notes: string;
+    requestedAt: string;
+    dispatchedAt: string | null;
+    deliveredAt: string | null;
+    updatedAt: string;
+}
+
+export interface AdminCreatorApplication {
+    id: number;
+    creatorId: number | null;
+    name: string;
+    handle: string;
+    phone: string;
+    email: string;
+    followers: number;
+    niche: string;
+    message: string;
+    status: 'New' | 'Under Review' | 'Approved' | 'Rejected' | 'Invited' | 'Accepted' | 'Declined';
+    reviewedBy: number | null;
+    reviewedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminPartnership {
+    id: number;
+    creatorId: number;
+    creatorName: string;
+    handle: string;
+    status: 'Active' | 'Paused' | 'Completed' | 'Cancelled';
+    commissionRate: string;
+    startDate: string;
+    endDate: string | null;
+    orders: number;
+    revenue: string;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminDirectOrder {
+    id: string;
+    reference: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail: string;
+    source: AdminDirectOrderSource;
+    status: AdminDirectOrderStatus;
+    backendStatus: string;
+    paymentStatus: string;
+    paymentMethod: string;
+    subtotal: string;
+    shipping: string;
+    discount: string;
+    total: string;
+    itemCount: number;
+    items: AdminDirectOrderItem[];
+    creatorId: number | null;
+    creatorName: string;
+    commission: string;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+    deliveredAt: string | null;
+    mpesaReference: string;
+    verificationStatus: 'unverified' | 'verified' | 'failed';
+    courier: string;
+    trackingNumber: string;
+    shippingZone: string;
+    priority: string;
+    assignedTo: number | null;
+    codRisk: string;
+    campaignId: number | null;
+    attributionId: number | null;
+    tags: string[];
+}
+
+export interface AdminCustomerFull {
+    id: number;
+    name: string;
+    phone: string;
+    email: string;
+    username: string;
+    county: string;
+    estate: string;
+    address: string;
+    segment: 'New' | 'Repeat' | 'VIP' | 'Regular' | 'Wholesale' | 'COD Risk' | 'Inactive';
+    tags: string[];
+    whatsappOptIn: boolean;
+    smsOptIn: boolean;
+    emailOptIn: boolean;
+    birthday: string | null;
+    totalOrders: number;
+    lifetimeSpend: string;
+    avgOrderValue: string;
+    lastOrderAt: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminCustomerStatsFull {
+    total: number;
+    vip: number;
+    repeat: number;
+    new: number;
+    inactive: number;
+    repeatRate: number;
+    totalSpend: string;
+    avgSpend: string;
+}
+export interface AdminInboxConversation {
+    id: number;
+    channel: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'phone' | 'email';
+    status: 'open' | 'pending' | 'converted' | 'closed' | 'spam';
+    subject: string;
+    customerId: number | null;
+    contactName: string;
+    contactHandle: string;
+    assignedTo: number | null;
+    convertedOrder: number | null;
+    unreadCount: number;
+    lastMessageAt: string | null;
+    tags: string[];
+    messages: AdminInboxMessage[];
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminInboxMessage {
+    id: number;
+    direction: 'in' | 'out';
+    body: string;
+    attachmentUrl: string;
+    sentBy: number | null;
+    externalId: string;
+    createdAt: string;
+}
+
+export interface AdminDirectOrder {
+    id: string;
+    reference: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail: string;
+    source: AdminDirectOrderSource;
+    status: AdminDirectOrderStatus;
+    backendStatus: string;
+    paymentStatus: string;
+    paymentMethod: string;
+    subtotal: string;
+    shipping: string;
+    discount: string;
+    total: string;
+    itemCount: number;
+    items: AdminDirectOrderItem[];
+    creatorId: number | null;
+    creatorName: string;
+    commission: string;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+    deliveredAt: string | null;
+    mpesaReference: string;
+    verificationStatus: 'unverified' | 'verified' | 'failed';
+    courier: string;
+    trackingNumber: string;
+    shippingZone: string;
+    priority: string;
+    assignedTo: number | null;
+    codRisk: string;
+    campaignId: number | null;
+    attributionId: number | null;
+    tags: string[];
+}
+
+export interface AdminLead {
+    id: number;
+    name: string;
+    handle: string;
+    phone: string;
+    email: string;
+    interest: string;
+    estimatedValue: string;
+    source: 'tiktok_dm' | 'tiktok_comment' | 'live' | 'whatsapp' | 'phone' | 'bio_link';
+    status: 'New' | 'Contacted' | 'Interested' | 'Negotiating' | 'Awaiting Decision' | 'Converted' | 'Lost';
+    assignedTo: number | null;
+    notes: string;
+    convertedCustomer: number | null;
+    convertedOrder: number | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+
+export interface AdminLeadWrite {
+    name: string;
+    handle?: string;
+    phone?: string;
+    email?: string;
+    interest?: string;
+    estimatedValue?: string | number;
+    source?: 'tiktok_dm' | 'tiktok_comment' | 'live' | 'whatsapp' | 'phone' | 'bio_link';
+    status?: 'New' | 'Contacted' | 'Interested' | 'Negotiating' | 'Awaiting Decision' | 'Converted' | 'Lost';
+    assignedTo?: number | null;
+    notes?: string;
+}
+
+export interface AdminLeadConvertWrite {
+    customerName?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    source?: 'tiktok_dm' | 'tiktok_comment' | 'live' | 'whatsapp' | 'phone' | 'bio_link';
+    items: Array<{
+        productId?: number;
+        productName: string;
+        sku?: string;
+        image?: string;
+        qty: number;
+        price: string;
+    }>;
+    notes?: string;
+}
+
+export interface AdminFollowUp {
+    id: number;
+    leadId: number | null;
+    customerId: number | null;
+    name: string;
+    phone: string;
+    type: 'Call' | 'Message' | 'Email' | 'Visit';
+    date: string;
+    status: 'Upcoming' | 'Today' | 'Overdue' | 'Completed' | 'Cancelled';
+    assignedTo: number | null;
+    notes: string;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminFollowUpWrite {
+    leadId?: number | null;
+    customerId?: number | null;
+    name: string;
+    phone?: string;
+    type?: 'Call' | 'Message' | 'Email' | 'Visit';
+    date: string;
+    status?: 'Upcoming' | 'Today' | 'Overdue' | 'Completed' | 'Cancelled';
+    assignedTo?: number | null;
+    notes?: string;
+}
+
+export interface AdminSupportTicket {
+    id: number;
+    reference: string;
+    customerId: number | null;
+    customerName: string;
+    orderId: number | null;
+    subject: string;
+    description: string;
+    priority: 'Low' | 'Normal' | 'High' | 'Urgent';
+    status: 'Open' | 'In Progress' | 'Waiting for Customer' | 'Waiting for Staff' | 'Resolved' | 'Closed';
+    assignedTo: number | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminSupportTicketWrite {
+    customer: string;
+    subject: string;
+    priority: 'Low' | 'Normal' | 'High' | 'Urgent';
+    description?: string;
+    customerId?: number | null;
+    orderId?: number | null;
+    assignedTo?: number | null;
+}
+
+export interface AdminCustomerSegment {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    rule: Record<string, unknown>;
+    color: string;
+    isDynamic: boolean;
+    memberCount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminDirectCreator {
+    id: number;
+    name: string;
+    handle: string;
+    platform: 'TikTok' | 'Instagram' | 'YouTube';
+    phone: string;
+    email: string;
+    taxPin: string;
+    payoutMethod: string;
+    payoutPhone: string;
+    engagementRate: number;
+    avgViews: number;
+    avatar: string;
+    followers: number;
+    niche: string;
+    commissionRate: number;
+    commissionOwed: string;
+    commissionPaid: string;
+    revenue: string;
+    salesDriven: number;
+    ordersCount: number;
+    status: AdminDirectCreatorStatus;
+    startDate: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
 export type AdminDirectProductStatus = 'Active' | 'Draft' | 'Archived';
 
 export interface AdminDirectOrderItem {
-    id: number;
+    id?: number;
     productId: string;
     productName: string;
     sku: string;
@@ -3382,6 +4015,17 @@ export interface AdminDirectOrder {
     createdAt: string;
     updatedAt: string;
     deliveredAt: string | null;
+    mpesaReference: string;
+    verificationStatus: 'unverified' | 'verified' | 'failed';
+    courier: string;
+    trackingNumber: string;
+    shippingZone: string;
+    priority: string;
+    assignedTo: number | null;
+    codRisk: string;
+    campaignId: number | null;
+    attributionId: number | null;
+    tags: string[];
 }
 
 export interface AdminDirectOrderWrite {
@@ -3394,6 +4038,8 @@ export interface AdminDirectOrderWrite {
     paymentMethod?: string;
     paymentStatus?: string;
     paymentReference?: string;
+    mpesaReference?: string;
+    verificationStatus?: 'unverified' | 'verified' | 'failed';
     shipping?: string;
     discount?: string;
     courier?: string;
@@ -3428,7 +4074,13 @@ export interface AdminDirectCreator {
     id: number;
     name: string;
     handle: string;
-    platform: AdminDirectContentPlatform | string;
+    phone: string;
+    email: string;
+    taxPin: string;
+    payoutMethod: string;
+    payoutPhone: string;
+    engagementRate: number;
+    avgViews: number;
     avatar: string;
     followers: number;
     niche: string;
@@ -3448,7 +4100,13 @@ export interface AdminDirectCreator {
 export interface AdminDirectCreatorWrite {
     name: string;
     handle: string;
-    platform?: AdminDirectContentPlatform | string;
+    phone?: string;
+    email?: string;
+    taxPin?: string;
+    payoutMethod?: string;
+    payoutPhone?: string;
+    engagementRate?: number;
+    avgViews?: number;
     avatar?: string;
     followers?: number;
     niche?: string;
@@ -3463,7 +4121,6 @@ export interface AdminDirectContent {
     title: string;
     type: string;
     status: AdminDirectContentStatus;
-    platform: AdminDirectContentPlatform;
     scheduledAt: string | null;
     script: string;
     caption: string;
@@ -3484,7 +4141,6 @@ export interface AdminDirectContentWrite {
     title: string;
     type?: string;
     status?: AdminDirectContentStatus;
-    platform?: AdminDirectContentPlatform;
     scheduledAt?: string | null;
     script?: string;
     caption?: string;
@@ -3511,6 +4167,13 @@ export interface AdminDirectLive {
     ordersGenerated: number;
     revenue: string;
     topProduct: string;
+    scheduledEnd: string | null;
+    cohostName: string;
+    campaignId: number | null;
+    runSheet: string;
+    couponCode: string;
+    totalViewers: number;
+    replayUrl: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -3526,6 +4189,13 @@ export interface AdminDirectLiveWrite {
     ordersGenerated?: number;
     revenue?: string;
     topProduct?: string;
+    scheduledEnd?: string | null;
+    cohostName?: string;
+    campaignId?: number | null;
+    runSheet?: string;
+    couponCode?: string;
+    totalViewers?: number;
+    replayUrl?: string;
 }
 
 export interface AdminDirectProduct {
@@ -3676,10 +4346,11 @@ export interface AdminCustomerFull {
     name: string;
     phone: string;
     email: string;
+    username: string;
     county: string;
     estate: string;
     address: string;
-    segment: 'New' | 'Repeat' | 'VIP' | 'Wholesale' | 'COD Risk' | 'Inactive';
+    segment: 'New' | 'Repeat' | 'VIP' | 'Regular' | 'Wholesale' | 'COD Risk' | 'Inactive';
     tags: string[];
     whatsappOptIn: boolean;
     smsOptIn: boolean;
@@ -3712,10 +4383,13 @@ export interface AdminCustomerFullWrite {
 
 export interface AdminCustomerStatsFull {
     total: number;
-    repeat: number;
     vip: number;
+    repeat: number;
+    new: number;
+    inactive: number;
     repeatRate: number;
-    lifetimeSpend: string;
+    totalSpend: string;
+    avgSpend: string;
 }
 
 export interface AdminInboxMessage {
@@ -3738,7 +4412,7 @@ export interface AdminInboxMessageWrite {
 
 export interface AdminInboxConversation {
     id: number;
-    channel: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'instagram_dm' | 'phone' | 'email';
+    channel: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'phone' | 'email';
     status: 'open' | 'pending' | 'converted' | 'closed' | 'spam';
     subject: string;
     customerId: number | null;
@@ -3755,7 +4429,7 @@ export interface AdminInboxConversation {
 }
 
 export interface AdminInboxConversationWrite {
-    channel?: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'instagram_dm' | 'phone' | 'email';
+    channel?: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'phone' | 'email';
     status?: 'open' | 'pending' | 'converted' | 'closed' | 'spam';
     subject?: string;
     customerId?: number | null;
@@ -3955,6 +4629,7 @@ export interface AdminCampaignFull {
     startsAt: string | null;
     endsAt: string | null;
     budget: string;
+    actualSpend: string;
     objective: string;
     notes: string;
     createdAt: string;
@@ -3968,6 +4643,7 @@ export interface AdminCampaignFullWrite {
     startsAt?: string | null;
     endsAt?: string | null;
     budget?: string;
+    actualSpend?: string;
     objective?: string;
     notes?: string;
 }
@@ -4011,7 +4687,10 @@ export interface AdminAttributionLinkWrite {
 export interface AdminPayoutBatch {
     id: number;
     reference: string;
-    status: 'Draft' | 'Pending' | 'Approved' | 'Paid' | 'Failed';
+    status: 'Draft' | 'Pending' | 'Approved' | 'Processing' | 'Paid' | 'Failed' | 'Reversed';
+    creatorId: number | null;
+    creatorName: string;
+    transactionReference: string;
     totalAmount: string;
     itemsCount: number;
     payoutMethod: string;
@@ -4024,7 +4703,10 @@ export interface AdminPayoutBatch {
 }
 
 export interface AdminPayoutBatchWrite {
-    status?: 'Draft' | 'Pending' | 'Approved' | 'Paid' | 'Failed';
+    status?: 'Draft' | 'Pending' | 'Approved' | 'Processing' | 'Paid' | 'Failed' | 'Reversed';
+    creatorId?: number | null;
+    creatorName?: string;
+    transactionReference?: string;
     payoutMethod?: string;
     notes?: string;
     saleIds?: number[];
@@ -4033,6 +4715,10 @@ export interface AdminPayoutBatchWrite {
 export interface AdminAnalyticsSummaryResponse {
     monthOrders: number;
     monthRevenue: string;
+    conversionRate: number;
+    customers: { total: number; new30d: number; returning: number };
+    marketing: { adSpend: string; attributedRevenue: string; roas: number };
+    fulfillment: { delivered: number; shipped: number; cancelled: number; returned: number };
     pendingShipment: number;
     activeCreators: number;
     bySource: Array<{
@@ -4058,6 +4744,8 @@ export interface AdminFinanceSummaryResponse {
     withholdingTax: string;
     expenses: string;
     netRevenue: string;
+    refunds: string;
+    advertisingSpend: string;
 }
 
 export type AdminAIAutomationStatus = 'Active' | 'Paused' | 'Draft';
@@ -6015,6 +6703,490 @@ export interface AdminPosterFilters {
     placement?: string;
     status?: AdminPosterStatus | 'ALL';
     search?: string;
+}
+
+export type AdminDirectAnalyticsPeriod =
+    | 'today'
+    | '7d'
+    | '30d'
+    | '90d'
+    | '12m'
+    | 'custom';
+
+export interface AdminDirectAnalyticsFilters {
+    period?: AdminDirectAnalyticsPeriod;
+    startDate?: string;
+    endDate?: string;
+    source?: string;
+    campaignId?: number;
+    creatorId?: number;
+    productId?: number;
+}
+
+export interface AdminDirectAnalyticsDailyPoint {
+    date: string;
+    orders: number;
+    revenue: string;
+    visitors: number;
+    productViews: number;
+    addToCart: number;
+    checkouts: number;
+    purchases: number;
+}
+
+export interface AdminTikTokTrafficAnalytics {
+    visitors: number;
+    productViews: number;
+    addToCart: number;
+    checkouts: number;
+    purchases: number;
+    conversionRate: number;
+    attributedRevenue: string;
+    averageOrderValue: string;
+}
+
+export interface AdminTikTokProductPerformance {
+    productId: number;
+    productName: string;
+    sku: string;
+    image: string;
+    views: number;
+    clicks: number;
+    orders: number;
+    unitsSold: number;
+    revenue: string;
+    conversionRate: number;
+}
+
+export interface AdminTikTokContentPerformance {
+    contentId: number;
+    title: string;
+    videoUrl: string;
+    thumbnailUrl: string;
+    publishedAt: string | null;
+    views: number;
+    reach: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    engagementRate: number;
+    linkClicks: number;
+    attributedOrders: number;
+    attributedRevenue: string;
+}
+
+export interface AdminTikTokCreatorPerformance {
+    creatorId: number;
+    creatorName: string;
+    handle: string;
+    followers: number;
+    views: number;
+    clicks: number;
+    orders: number;
+    unitsSold: number;
+    revenue: string;
+    commission: string;
+    conversionRate: number;
+}
+
+export interface AdminTikTokLivePerformance {
+    liveId: number;
+    title: string;
+    scheduledAt: string;
+    totalViewers: number;
+    peakViewers: number;
+    ordersGenerated: number;
+    productsSold: number;
+    revenue: string;
+    averageWatchTimeSeconds: number;
+    replayUrl: string;
+}
+
+export interface AdminTikTokCampaignPerformance {
+    campaignId: number;
+    campaignName: string;
+    status: string;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    spend: string;
+    orders: number;
+    attributedRevenue: string;
+    roas: number;
+    conversionRate: number;
+}
+
+export interface AdminTikTokDetailedAnalyticsResponse {
+    traffic: AdminTikTokTrafficAnalytics;
+    daily: AdminDirectAnalyticsDailyPoint[];
+    products: AdminTikTokProductPerformance[];
+    content: AdminTikTokContentPerformance[];
+    creators: AdminTikTokCreatorPerformance[];
+    lives: AdminTikTokLivePerformance[];
+    campaigns: AdminTikTokCampaignPerformance[];
+}
+export interface AdminDirectCreator {
+    id: number;
+    name: string;
+    handle: string;
+    platform: 'TikTok' | 'Instagram' | 'YouTube';
+    phone: string;
+    email: string;
+    taxPin: string;
+    payoutMethod: string;
+    payoutPhone: string;
+    engagementRate: number;
+    avgViews: number;
+    avatar: string;
+    followers: number;
+    niche: string;
+    commissionRate: number;
+    commissionOwed: string;
+    commissionPaid: string;
+    revenue: string;
+    salesDriven: number;
+    ordersCount: number;
+    status: AdminDirectCreatorStatus;
+    startDate: string | null;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminInboxConversation {
+    id: number;
+    channel: 'whatsapp' | 'tiktok_dm' | 'tiktok_comment' | 'phone' | 'email';
+    status: 'open' | 'pending' | 'converted' | 'closed' | 'spam';
+    subject: string;
+    customerId: number | null;
+    contactName: string;
+    contactHandle: string;
+    assignedTo: number | null;
+    convertedOrder: number | null;
+    unreadCount: number;
+    lastMessageAt: string | null;
+    tags: string[];
+    messages: AdminInboxMessage[];
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminCustomerStatsFull {
+    total: number;
+    vip: number;
+    repeat: number;
+    new: number;
+    inactive: number;
+    repeatRate: number;
+    totalSpend: string;
+    avgSpend: string;
+}
+export interface AdminFinanceSummaryResponse {
+    grossRevenue: string;
+    creatorCommissions: string;
+    withholdingTax: string;
+    expenses: string;
+    netRevenue: string;
+    refunds: string;
+    advertisingSpend: string;
+    grossProfit?: string;
+}
+export interface AdminDirectContent {
+    id: number;
+    title: string;
+    platform: AdminDirectContentPlatform;
+    type: string;
+    status: AdminDirectContentStatus;
+    scheduledAt: string | null;
+    script: string;
+    caption: string;
+    hashtags: string;
+    postedUrl: string;
+    thumbnailUrl: string;
+    videoUrl: string;
+    products: string[];
+    productName: string;
+    views: number;
+    likes: number;
+    comments: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+
+export interface AdminDirectContentWrite {
+    title: string;
+    platform?: AdminDirectContentPlatform;
+    type?: string;
+    status?: AdminDirectContentStatus;
+    scheduledAt?: string | null;
+    script?: string;
+    caption?: string;
+    hashtags?: string;
+    postedUrl?: string;
+    thumbnailUrl?: string;
+    videoUrl?: string | null;
+    products?: string[];
+    productName?: string;
+    views?: number;
+    likes?: number;
+    comments?: number;
+}
+
+export interface AdminDirectLive {
+    id: number;
+    title: string;
+    scheduledAt: string;
+    durationMin: number;
+    status: AdminDirectLiveStatus;
+    hostName: string;
+    products: string[];
+    peakViewers: number;
+    ordersGenerated: number;
+    revenue: string;
+    topProduct: string;
+    scheduledEnd: string | null;
+    cohostName: string;
+    campaignId: number | null;
+    runSheet: string;
+    couponCode: string;
+    totalViewers: number;
+    replayUrl: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminDirectLiveWrite {
+    title: string;
+    scheduledAt: string;
+    durationMin?: number;
+    status?: AdminDirectLiveStatus;
+    hostName?: string;
+    products?: string[];
+    peakViewers?: number;
+    ordersGenerated?: number;
+    revenue?: string;
+    topProduct?: string;
+    scheduledEnd?: string | null;
+    cohostName?: string;
+    campaignId?: number | null;
+    runSheet?: string;
+    couponCode?: string;
+    totalViewers?: number;
+    replayUrl?: string;
+}
+
+export interface AdminProduct {
+    id: string;
+    name: string;
+    slug: string;
+    description: string;
+    brand: AdminBrandRef;
+    category: AdminCategoryRef;
+    price: string;
+    compare_at_price: string | null;
+    stock_quantity: number;
+    low_stock_threshold: number;
+    featured: boolean;
+    best_seller: boolean;
+    sales_volume: string;
+    sales_count: number;
+    promo_end_date: string | null;
+    is_active: boolean;
+    rating_avg: string;
+    review_count: number;
+    images: AdminProductImage[];
+    features: AdminProductFeature[];
+    specs: AdminProductSpec[];
+    created_at: string;
+    updated_at: string;
+}
+export interface AdminDirectContent {
+    // ...
+    thumbnailUrl: string;   // ← must exist here
+    // ...
+}
+
+export interface AdminDirectProduct {
+    id: number;
+    name: string;
+    slug: string;
+    sku: string;
+    image: string;
+    price: string;
+    compareAtPrice: string | null;
+    stockQuantity: number;
+    category: string;
+    categoryId: number | null;
+    brand: string;
+    brandId: number | null;
+    isActive: boolean;
+    directSalesCount: number;
+    directRevenue: string;
+    status: AdminDirectProductStatus;
+    viral: boolean;
+    videoLink: string;
+    lowStockThreshold: number;
+    linkedToWebsite: boolean;
+    costPrice?: string;
+    supplierId?: number | null;
+    reorderPoint?: number;
+    reorderQuantity?: number;
+    isBundle?: boolean;
+    isPreorder?: boolean;
+    preorderEta?: string | null;
+    commissionRate?: string;
+    tags?: string[];
+    seo_title?: string;
+    seo_description?: string;
+    margin?: string;
+    marginPercent?: string;
+    variants?: AdminProductVariant[];
+    createdAt: string;
+    updatedAt: string;
+}
+export interface AdminDirectContent {
+    id: number;
+    title: string;
+    platform: AdminDirectContentPlatform;   // ← add this line
+    // ... rest
+}
+export interface AdminDirectProductWrite {
+    name: string;
+    sku?: string;
+    image?: string;
+    price: string;
+    compareAtPrice?: string | null;
+    stockQuantity?: number;
+    category?: string;
+    categoryId?: number | null;
+    brand?: string;
+    brandId?: number | null;
+    commissionRate?: number;
+    status?: AdminDirectProductStatus;
+    viral?: boolean;
+    videoLink?: string;
+    lowStockThreshold?: number;
+    linkedToWebsite?: boolean;
+    costPrice?: number;
+    supplierId?: number | null;
+    reorderPoint?: number;
+    reorderQuantity?: number;
+    isBundle?: boolean;
+    isPreorder?: boolean;
+    preorderEta?: string | null;
+    tags?: string[];
+    seo_title?: string;
+    seo_description?: string;
+    description?: string;
+}
+export interface AdminDirectOrder {
+    id: string;
+    reference: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail: string;
+    source: AdminDirectOrderSource;
+    status: AdminDirectOrderStatus;
+    backendStatus: string;
+    paymentStatus: string;
+    paymentMethod: string;
+    subtotal: string;
+    shipping: string;
+    discount: string;
+    total: string;
+    itemCount: number;
+    items: AdminDirectOrderItem[];
+    creatorId: number | null;
+    creatorName: string;
+    commission: string;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+    deliveredAt: string | null;
+    mpesaReference: string;
+    verificationStatus: 'unverified' | 'verified' | 'failed';
+    courier: string;
+    trackingNumber: string;
+    shippingZone: string;
+    priority: string;
+    assignedTo: number | null;
+    codRisk: string;
+    campaignId: number | null;
+    attributionId: number | null;
+    tags: string[];
+}
+
+export interface AdminDirectOrderItem {
+    id?: number;
+    productId: string;
+    productName: string;
+    sku: string;
+    image: string;
+    quantity: number;
+    price: string;
+    subtotal: string;
+}
+
+export interface AdminDirectReturnRequest {
+    id: number;
+    reference: string;
+    orderId: number;
+    orderReference: string;
+    status: 'Requested' | 'Approved' | 'Rejected' | 'Received' | 'Refunded';
+    reason: 'damaged' | 'wrong_item' | 'not_as_described' | 'late_delivery' | 'changed_mind' | 'other';
+    reasonDetail: string;
+    refundAmount: string;
+    restock: boolean;
+    restockedAt: string | null;
+    resolvedBy: number | null;
+    resolvedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdminCategoryRef {
+    id: number;
+    name: string;
+    slug?: string;
+}
+export interface AdminDirectOrderAdvanceWrite {
+    status: AdminDirectOrderStatus | string;
+    note?: string;
+}
+export interface AdminDirectOrderWrite {
+    customerName: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    customerId?: number | null;
+    source?: 'tiktok_dm' | 'tiktok_comment' | 'live' | 'video_dm' | 'bio_link' | 'whatsapp' | 'phone' | 'admin';
+    status?: 'New' | 'Awaiting Payment' | 'Paid' | 'Awaiting Shipment' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Returned';
+    paymentMethod?: string;
+    paymentStatus?: string;
+    paymentReference?: string;
+    mpesaReference?: string;
+    verificationStatus?: 'unverified' | 'verified' | 'failed';
+    shipping?: string;
+    discount?: string;
+    courier?: string;
+    trackingNumber?: string;
+    shippingZone?: string;
+    priority?: string;
+    assignedTo?: number | null;
+    creatorId?: number | null;
+    commission?: string;
+    campaignId?: number | null;
+    attributionId?: number | null;
+    notes?: string;
+    tags?: string[];
+    items: Array<{
+        productId?: number;
+        variantId?: number | null;
+        productName: string;
+        sku?: string;
+        image?: string;
+        qty: number;
+        price: string;
+        costPrice?: string;
+    }>;
 }
 export type {
     Banner,

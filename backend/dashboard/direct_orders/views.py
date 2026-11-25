@@ -4,7 +4,7 @@ import uuid
 
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, Avg
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -16,6 +16,7 @@ from checkout.models import Order
 from checkout.services import change_order_status
 
 from .models import (
+    AdCampaign,
     AttributionLink,
     AuditLog,
     Automation,
@@ -23,37 +24,52 @@ from .models import (
     ContentPost,
     Coupon,
     Creator,
+    CreatorApplication,
     CreatorSale,
+    CreatorSample,
     Customer,
+    CustomerSegment,
     DeliveryZone,
     DirectOrder,
     DirectOrderItem,
     DirectProduct,
     Expense,
+    FollowUp,
     InboxConversation,
     InboxMessage,
+    Integration,
     InventoryMovement,
+    Lead,
     LiveSession,
     Location,
     Notification,
+    NotificationSetting,
+    Partnership,
     PayoutBatch,
+    PermissionGroup,
     ProductVariant,
     PurchaseOrder,
     ReturnRequest,
     Review,
     Supplier,
+    SupportTicket,
     TeamMember,
 )
 from .serializers import (
+    AdCampaignSerializer,
     AttributionLinkSerializer,
     AuditLogSerializer,
     AutomationSerializer,
     CampaignSerializer,
     ContentPostSerializer,
     CouponSerializer,
+    CreatorApplicationSerializer,
     CreatorSaleSerializer,
+    CreatorSampleSerializer,
     CreatorSerializer,
+    CustomerSegmentSerializer,
     CustomerSerializer,
+    CustomerStatsSerializer,
     DeliveryZoneSerializer,
     DirectOrderReadSerializer,
     DirectOrderSerializer,
@@ -62,19 +78,26 @@ from .serializers import (
     DirectProductSerializer,
     DirectProductWriteSerializer,
     ExpenseSerializer,
+    FollowUpSerializer,
     InboxConversationSerializer,
     InboxMessageSerializer,
+    IntegrationSerializer,
     InventoryMovementSerializer,
+    LeadSerializer,
     LiveSessionSerializer,
     LocationSerializer,
     NotificationSerializer,
+    NotificationSettingSerializer,
+    PartnershipSerializer,
     PayoutBatchSerializer,
+    PermissionGroupSerializer,
     ProductCreateSerializer,
     ProductVariantSerializer,
     PurchaseOrderSerializer,
     ReturnRequestSerializer,
     ReviewSerializer,
     SupplierSerializer,
+    SupportTicketSerializer,
     TeamMemberSerializer,
 )
 
@@ -155,7 +178,7 @@ def _paginate(qs, request, default_limit=500):
     offset = max(0, offset)
 
     total = qs.count()
-    rows = qs[offset : offset + limit]
+    rows = qs[offset: offset + limit]
     return rows, total, limit, offset
 
 
@@ -270,6 +293,10 @@ class DirectOrderListCreateView(APIView):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
+        verification = (request.query_params.get("verification") or "").strip()
+        if verification:
+            qs = qs.filter(verification_status=verification)
+
         now = timezone.now()
         date_range = (request.query_params.get("dateRange") or "").strip()
         if date_range == "Today":
@@ -369,6 +396,48 @@ class DirectOrderStatusAdvanceView(APIView):
                 "status", "payment_status", "delivered_at", "updated_at",
             ]
         )
+        return Response(
+            DirectOrderReadSerializer(
+                order, context={"request": request},
+            ).data,
+        )
+
+
+class DirectOrderReconcileView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, reference):
+        order = DirectOrder.objects.filter(reference=reference).first()
+        if not order:
+            return Response({"detail": "Not found."}, status=404)
+
+        new_status = (request.data.get("verificationStatus") or "").strip()
+        if new_status not in {"unverified", "verified", "failed"}:
+            return Response(
+                {"detail": "verificationStatus must be unverified, verified, or failed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.verification_status = new_status
+        if new_status == "verified":
+            order.payment_status = "paid"
+            if order.status == "Awaiting Payment":
+                order.status = "Paid"
+
+        order.save(
+            update_fields=[
+                "verification_status", "payment_status", "status", "updated_at",
+            ]
+        )
+
+        AuditLog.objects.create(
+            action="status_change",
+            entity="DirectOrder",
+            entity_id=str(order.pk),
+            summary=f"{order.reference}: verification={new_status}",
+            actor=request.user if request.user.is_authenticated else None,
+        )
+
         return Response(
             DirectOrderReadSerializer(
                 order, context={"request": request},
@@ -493,14 +562,18 @@ class CreatorListCreateView(APIView):
         if q:
             qs = qs.filter(Q(name__icontains=q) | Q(handle__icontains=q))
 
-        return Response(CreatorSerializer(qs, many=True).data)
+        return Response(
+            CreatorSerializer(
+                qs, many=True, context={"request": request},
+            ).data,
+        )
 
     def post(self, request):
-        ser = CreatorSerializer(data=request.data)
+        ser = CreatorSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         creator = ser.save()
         return Response(
-            CreatorSerializer(creator).data,
+            CreatorSerializer(creator, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -515,16 +588,16 @@ class CreatorDetailView(APIView):
         c = self._get(pk)
         if not c:
             return Response({"detail": "Not found."}, status=404)
-        return Response(CreatorSerializer(c).data)
+        return Response(CreatorSerializer(c, context={"request": request}).data)
 
     def patch(self, request, pk):
         c = self._get(pk)
         if not c:
             return Response({"detail": "Not found."}, status=404)
-        ser = CreatorSerializer(c, data=request.data, partial=True)
+        ser = CreatorSerializer(c, data=request.data, partial=True, context={"request": request})
         ser.is_valid(raise_exception=True)
         ser.save()
-        return Response(CreatorSerializer(c).data)
+        return Response(CreatorSerializer(c, context={"request": request}).data)
 
     def delete(self, request, pk):
         c = self._get(pk)
@@ -550,6 +623,10 @@ class CreatorSaleListCreateView(APIView):
         paid = request.query_params.get("paid")
         if paid is not None and paid != "":
             qs = qs.filter(paid=paid.lower() in {"1", "true", "yes"})
+
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
 
         return Response(CreatorSaleSerializer(qs[:500], many=True).data)
 
@@ -607,10 +684,13 @@ class PayoutBatchListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        qs = PayoutBatch.objects.all().order_by("-created_at")
+        qs = PayoutBatch.objects.select_related("creator").order_by("-created_at")
         status_filter = (request.query_params.get("status") or "").strip()
         if status_filter:
             qs = qs.filter(status=status_filter)
+        creator_id = request.query_params.get("creator")
+        if creator_id:
+            qs = qs.filter(creator_id=creator_id)
         return Response(PayoutBatchSerializer(qs[:200], many=True).data)
 
     def post(self, request):
@@ -620,9 +700,16 @@ class PayoutBatchListCreateView(APIView):
         sale_ids = request.data.get("saleIds") or []
         batch = ser.save()
 
+        if not batch.amount:
+            batch.amount = request.data.get("amount") or 0
+            batch.save(update_fields=["amount", "updated_at"])
+
         if sale_ids:
             CreatorSale.objects.filter(pk__in=sale_ids).update(payout=batch)
             batch.recompute_totals()
+            if not batch.amount:
+                batch.amount = batch.total_amount
+                batch.save(update_fields=["amount", "updated_at"])
 
         return Response(
             PayoutBatchSerializer(batch).data,
@@ -663,6 +750,7 @@ class PayoutBatchDetailView(APIView):
                 paid=True,
                 paid_at=timezone.now(),
                 payout_reference=b.reference,
+                status="Paid",
             )
             b.save(update_fields=["paid_at"])
 
@@ -701,7 +789,7 @@ class ContentListCreateView(APIView):
         )
 
     def post(self, request):
-        ser = ContentPostSerializer(data=request.data)
+        ser = ContentPostSerializer(data=request.data, context={"request": request})
         ser.is_valid(raise_exception=True)
         post = ser.save()
         return Response(
@@ -732,7 +820,7 @@ class ContentDetailView(APIView):
         c = self._get(pk)
         if not c:
             return Response({"detail": "Not found."}, status=404)
-        ser = ContentPostSerializer(c, data=request.data, partial=True)
+        ser = ContentPostSerializer(c, data=request.data, partial=True, context={"request": request})
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(
@@ -815,8 +903,12 @@ class DirectProductListCreateView(APIView):
         if q:
             qs = qs.filter(
                 Q(product__name__icontains=q)
-                | Q(product__sku__icontains=q)
+                | Q(product__slug__icontains=q)
             )
+
+        low_stock = request.query_params.get("lowStock")
+        if low_stock and low_stock.lower() in {"1", "true", "yes"}:
+            qs = qs.filter(product__stock_quantity__lte=5)
 
         return Response(
             DirectProductSerializer(
@@ -1183,7 +1275,7 @@ class InventorySummaryView(APIView):
             entry = {
                 "id": product.pk,
                 "name": getattr(catalog, "name", "") if catalog else "",
-                "sku": getattr(catalog, "sku", "") if catalog else "",
+                "sku": getattr(catalog, "slug", "") if catalog else "",
                 "stock": stock,
                 "threshold": threshold,
                 "reorderPoint": product.reorder_point,
@@ -1223,6 +1315,7 @@ class CustomerListCreateView(APIView):
                 Q(name__icontains=q)
                 | Q(phone__icontains=q)
                 | Q(email__icontains=q)
+                | Q(username__icontains=q)
             )
 
         return _paginated_response(CustomerSerializer, qs, request)
@@ -1272,16 +1365,23 @@ class CustomerStatsView(APIView):
         total = Customer.objects.count()
         repeat = Customer.objects.filter(total_orders__gte=2).count()
         vip = Customer.objects.filter(segment="VIP").count()
-        aggregate = Customer.objects.aggregate(spend=Sum("lifetime_spend"))
-        return Response(
-            {
-                "total": total,
-                "repeat": repeat,
-                "vip": vip,
-                "repeatRate": round((repeat / total) * 100, 2) if total else 0,
-                "lifetimeSpend": str(aggregate["spend"] or 0),
-            }
-        )
+        new = Customer.objects.filter(segment="New").count()
+        inactive = Customer.objects.filter(segment="Inactive").count()
+        aggregate = Customer.objects.aggregate(spend=Sum("lifetime_spend"), avg=Avg("lifetime_spend"))
+        total_spend = aggregate["spend"] or 0
+        avg_spend = aggregate["avg"] or 0
+
+        data = {
+            "total": total,
+            "vip": vip,
+            "repeat": repeat,
+            "new": new,
+            "inactive": inactive,
+            "repeatRate": round((repeat / total) * 100, 2) if total else 0,
+            "totalSpend": total_spend,
+            "avgSpend": avg_spend,
+        }
+        return Response(CustomerStatsSerializer(data).data)
 
 
 class InboxConversationListCreateView(APIView):
@@ -1378,6 +1478,9 @@ class InboxMessageListCreateView(APIView):
         message = ser.save(
             sent_by=request.user if request.user.is_authenticated else None,
         )
+        conversation = message.conversation
+        conversation.last_message_at = timezone.now()
+        conversation.save(update_fields=["last_message_at", "updated_at"])
         return Response(
             InboxMessageSerializer(message).data,
             status=status.HTTP_201_CREATED,
@@ -1395,7 +1498,7 @@ class InboxConvertView(APIView):
         order_payload = request.data or {}
         order_payload.setdefault("customerName", convo.contact_name or "—")
         order_payload.setdefault("customerPhone", convo.contact_handle or "")
-        order_payload.setdefault("source", "whatsapp")
+        order_payload.setdefault("source", "tiktok_dm")
 
         ser = DirectOrderWriteSerializer(data=order_payload)
         ser.is_valid(raise_exception=True)
@@ -1422,6 +1525,252 @@ class InboxConvertView(APIView):
                 order, context={"request": request},
             ).data,
         )
+
+
+class LeadListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Lead.objects.all().order_by("-created_at")
+
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        source = (request.query_params.get("source") or "").strip()
+        if source:
+            qs = qs.filter(source=source)
+
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(name__icontains=q)
+                | Q(handle__icontains=q)
+                | Q(phone__icontains=q)
+            )
+
+        return _paginated_response(LeadSerializer, qs, request)
+
+    def post(self, request):
+        ser = LeadSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        lead = ser.save()
+        return Response(
+            LeadSerializer(lead).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class LeadDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Lead.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        lead = self._get(pk)
+        if not lead:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(LeadSerializer(lead).data)
+
+    def patch(self, request, pk):
+        lead = self._get(pk)
+        if not lead:
+            return Response({"detail": "Not found."}, status=404)
+        ser = LeadSerializer(lead, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(LeadSerializer(lead).data)
+
+    def delete(self, request, pk):
+        lead = self._get(pk)
+        if lead:
+            lead.delete()
+        return Response(status=204)
+
+
+class LeadConvertView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        lead = Lead.objects.filter(pk=pk).first()
+        if not lead:
+            return Response({"detail": "Not found."}, status=404)
+
+        payload = request.data or {}
+        payload.setdefault("customerName", lead.name)
+        payload.setdefault("customerPhone", lead.phone)
+        payload.setdefault("customerEmail", lead.email)
+        payload.setdefault("source", lead.source or "tiktok_dm")
+
+        ser = DirectOrderWriteSerializer(data=payload)
+        ser.is_valid(raise_exception=True)
+        order = ser.save()
+
+        lead.status = "Converted"
+        lead.converted_order = order
+        lead.save(update_fields=["status", "converted_order", "updated_at"])
+
+        return Response(
+            {
+                "lead": LeadSerializer(lead).data,
+                "order": DirectOrderReadSerializer(
+                    order, context={"request": request},
+                ).data,
+            }
+        )
+
+
+class FollowUpListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = FollowUp.objects.all().order_by("date")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(FollowUpSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = FollowUpSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        f = ser.save()
+        return Response(
+            FollowUpSerializer(f).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class FollowUpDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return FollowUp.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        f = self._get(pk)
+        if not f:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(FollowUpSerializer(f).data)
+
+    def patch(self, request, pk):
+        f = self._get(pk)
+        if not f:
+            return Response({"detail": "Not found."}, status=404)
+        ser = FollowUpSerializer(f, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(FollowUpSerializer(f).data)
+
+    def delete(self, request, pk):
+        f = self._get(pk)
+        if f:
+            f.delete()
+        return Response(status=204)
+
+
+class SupportTicketListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = SupportTicket.objects.select_related("customer", "order").order_by("-created_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        priority = (request.query_params.get("priority") or "").strip()
+        if priority:
+            qs = qs.filter(priority=priority)
+        return Response(SupportTicketSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = SupportTicketSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        if not ser.validated_data.get("reference"):
+            import random
+            ser.validated_data["reference"] = f"TCK-{random.randint(10000, 99999)}"
+
+        t = ser.save()
+        return Response(
+            SupportTicketSerializer(t).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SupportTicketDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return SupportTicket.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        t = self._get(pk)
+        if not t:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(SupportTicketSerializer(t).data)
+
+    def patch(self, request, pk):
+        t = self._get(pk)
+        if not t:
+            return Response({"detail": "Not found."}, status=404)
+        ser = SupportTicketSerializer(t, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        if t.status in {"Resolved", "Closed"} and t.resolved_at is None:
+            t.resolved_at = timezone.now()
+            t.save(update_fields=["resolved_at"])
+        return Response(SupportTicketSerializer(t).data)
+
+    def delete(self, request, pk):
+        t = self._get(pk)
+        if t:
+            t.delete()
+        return Response(status=204)
+
+
+class CustomerSegmentListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = CustomerSegment.objects.all().order_by("name")
+        return Response(CustomerSegmentSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = CustomerSegmentSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        s = ser.save()
+        return Response(
+            CustomerSegmentSerializer(s).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CustomerSegmentDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return CustomerSegment.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(CustomerSegmentSerializer(s).data)
+
+    def patch(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+        ser = CustomerSegmentSerializer(s, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(CustomerSegmentSerializer(s).data)
+
+    def delete(self, request, pk):
+        s = self._get(pk)
+        if s:
+            s.delete()
+        return Response(status=204)
 
 
 class TeamMemberListCreateView(APIView):
@@ -1672,6 +2021,26 @@ class NotificationMarkAllReadView(APIView):
         return Response({"ok": True})
 
 
+class NotificationSettingListUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = NotificationSetting.objects.all().order_by("key")
+        return Response(NotificationSettingSerializer(qs, many=True).data)
+
+    def patch(self, request):
+        updates = request.data or {}
+        if not isinstance(updates, dict):
+            return Response(
+                {"detail": "Payload must be a key→enabled map."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        for key, value in updates.items():
+            NotificationSetting.objects.filter(key=key).update(enabled=bool(value))
+        qs = NotificationSetting.objects.all().order_by("key")
+        return Response(NotificationSettingSerializer(qs, many=True).data)
+
+
 class AuditLogListView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -1878,6 +2247,54 @@ class CampaignDetailView(APIView):
         return Response(status=204)
 
 
+class AdCampaignListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = AdCampaign.objects.all().order_by("-created_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(AdCampaignSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = AdCampaignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        a = ser.save()
+        return Response(
+            AdCampaignSerializer(a).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AdCampaignDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return AdCampaign.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(AdCampaignSerializer(a).data)
+
+    def patch(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+        ser = AdCampaignSerializer(a, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(AdCampaignSerializer(a).data)
+
+    def delete(self, request, pk):
+        a = self._get(pk)
+        if a:
+            a.delete()
+        return Response(status=204)
+
+
 class AttributionLinkListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -1929,6 +2346,302 @@ class AttributionLinkDetailView(APIView):
         return Response(status=204)
 
 
+class CreatorApplicationListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = CreatorApplication.objects.all().order_by("-created_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return Response(CreatorApplicationSerializer(qs[:500], many=True).data)
+
+    def post(self, request):
+        ser = CreatorApplicationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        a = ser.save()
+        return Response(
+            CreatorApplicationSerializer(a).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CreatorApplicationDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return CreatorApplication.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(CreatorApplicationSerializer(a).data)
+
+    def patch(self, request, pk):
+        a = self._get(pk)
+        if not a:
+            return Response({"detail": "Not found."}, status=404)
+
+        ser = CreatorApplicationSerializer(a, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        a = ser.save()
+
+        if a.status in {"Approved", "Rejected", "Accepted", "Declined"} and a.reviewed_at is None:
+            a.reviewed_at = timezone.now()
+            a.reviewed_by = request.user if request.user.is_authenticated else None
+            a.save(update_fields=["reviewed_at", "reviewed_by"])
+
+        return Response(CreatorApplicationSerializer(a).data)
+
+    def delete(self, request, pk):
+        a = self._get(pk)
+        if a:
+            a.delete()
+        return Response(status=204)
+
+
+class PartnershipListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Partnership.objects.select_related("creator").order_by("-start_date")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        creator_id = request.query_params.get("creator")
+        if creator_id:
+            qs = qs.filter(creator_id=creator_id)
+        return Response(PartnershipSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = PartnershipSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        p = ser.save()
+        return Response(
+            PartnershipSerializer(p).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PartnershipDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return Partnership.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        p = self._get(pk)
+        if not p:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(PartnershipSerializer(p).data)
+
+    def patch(self, request, pk):
+        p = self._get(pk)
+        if not p:
+            return Response({"detail": "Not found."}, status=404)
+        ser = PartnershipSerializer(p, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(PartnershipSerializer(p).data)
+
+    def delete(self, request, pk):
+        p = self._get(pk)
+        if p:
+            p.delete()
+        return Response(status=204)
+
+
+class CreatorSampleListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = CreatorSample.objects.select_related("creator", "product").order_by("-requested_at")
+        status_filter = (request.query_params.get("status") or "").strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        creator_id = request.query_params.get("creator")
+        if creator_id:
+            qs = qs.filter(creator_id=creator_id)
+        return Response(
+            CreatorSampleSerializer(
+                qs[:500], many=True, context={"request": request},
+            ).data
+        )
+
+    def post(self, request):
+        ser = CreatorSampleSerializer(data=request.data, context={"request": request})
+        ser.is_valid(raise_exception=True)
+        s = ser.save()
+        return Response(
+            CreatorSampleSerializer(s, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CreatorSampleDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return CreatorSample.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(CreatorSampleSerializer(s, context={"request": request}).data)
+
+    def patch(self, request, pk):
+        s = self._get(pk)
+        if not s:
+            return Response({"detail": "Not found."}, status=404)
+        ser = CreatorSampleSerializer(s, data=request.data, partial=True, context={"request": request})
+        ser.is_valid(raise_exception=True)
+        s = ser.save()
+
+        if s.status == "Dispatched" and s.dispatched_at is None:
+            s.dispatched_at = timezone.now()
+            s.save(update_fields=["dispatched_at"])
+        if s.status == "Delivered" and s.delivered_at is None:
+            s.delivered_at = timezone.now()
+            s.save(update_fields=["delivered_at"])
+
+        return Response(CreatorSampleSerializer(s, context={"request": request}).data)
+
+    def delete(self, request, pk):
+        s = self._get(pk)
+        if s:
+            s.delete()
+        return Response(status=204)
+
+
+class IntegrationListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = Integration.objects.all().order_by("name")
+        return Response(IntegrationSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = IntegrationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        i = ser.save()
+        return Response(
+            IntegrationSerializer(i).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class IntegrationDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, key):
+        return Integration.objects.filter(key=key).first()
+
+    def get(self, request, key):
+        i = self._get(key)
+        if not i:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(IntegrationSerializer(i).data)
+
+    def patch(self, request, key):
+        i = self._get(key)
+        if not i:
+            return Response({"detail": "Not found."}, status=404)
+        ser = IntegrationSerializer(i, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(IntegrationSerializer(i).data)
+
+
+class IntegrationActionView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, key, action):
+        i = Integration.objects.filter(key=key).first()
+        if not i:
+            return Response({"detail": "Not found."}, status=404)
+
+        if action == "connect":
+            i.status = "connected"
+            i.error_message = ""
+            i.last_sync_at = timezone.now()
+        elif action == "disconnect":
+            i.status = "disconnected"
+            i.account_name = ""
+            i.permissions = ""
+            i.last_sync_at = None
+            i.error_message = ""
+        elif action == "reconnect":
+            i.status = "connected"
+            i.error_message = ""
+            i.last_sync_at = timezone.now()
+        elif action == "test":
+            i.last_sync_at = timezone.now()
+        else:
+            return Response(
+                {"detail": "Unknown action."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        i.save()
+
+        AuditLog.objects.create(
+            action="status_change",
+            entity="Integration",
+            entity_id=str(i.pk),
+            summary=f"{i.name}: {action} → {i.status}",
+            actor=request.user if request.user.is_authenticated else None,
+        )
+
+        return Response(IntegrationSerializer(i).data)
+
+
+class PermissionGroupListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        qs = PermissionGroup.objects.all().order_by("name")
+        return Response(PermissionGroupSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = PermissionGroupSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        g = ser.save()
+        return Response(
+            PermissionGroupSerializer(g).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PermissionGroupDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def _get(self, pk):
+        return PermissionGroup.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        g = self._get(pk)
+        if not g:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(PermissionGroupSerializer(g).data)
+
+    def patch(self, request, pk):
+        g = self._get(pk)
+        if not g:
+            return Response({"detail": "Not found."}, status=404)
+        ser = PermissionGroupSerializer(g, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(PermissionGroupSerializer(g).data)
+
+    def delete(self, request, pk):
+        g = self._get(pk)
+        if g:
+            g.delete()
+        return Response(status=204)
+
+
 class AnalyticsSummaryView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -1950,6 +2663,13 @@ class AnalyticsSummaryView(APIView):
 
         active_creators = Creator.objects.filter(status="Active").count()
 
+        total_orders = orders.count()
+        converted_leads = Lead.objects.filter(status="Converted").count()
+        conversion_rate = (
+            round((converted_leads / total_orders) * 100, 2)
+            if total_orders else 0
+        )
+
         by_source = list(
             orders.values("source").annotate(
                 count=Count("id"),
@@ -1964,9 +2684,7 @@ class AnalyticsSummaryView(APIView):
         daily = []
         for i in range(6, -1, -1):
             day = (now - timedelta(days=i)).date()
-            day_orders = orders.filter(
-                created_at__date=day,
-            )
+            day_orders = orders.filter(created_at__date=day)
             daily.append(
                 {
                     "day": day.strftime("%a"),
@@ -1978,15 +2696,49 @@ class AnalyticsSummaryView(APIView):
                 }
             )
 
+        customers_total = Customer.objects.count()
+        new_customers = Customer.objects.filter(
+            created_at__gte=now - timedelta(days=30),
+        ).count()
+        returning_customers = Customer.objects.filter(total_orders__gte=2).count()
+
+        ad_spend = AdCampaign.objects.aggregate(t=Sum("spend"))["t"] or 0
+        attributed_revenue = AdCampaign.objects.aggregate(
+            t=Sum("attributed_revenue"),
+        )["t"] or 0
+        roas = (
+            round(float(attributed_revenue) / float(ad_spend), 2)
+            if ad_spend else 0
+        )
+
+        fulfillment = {
+            "delivered": orders.filter(status="Delivered").count(),
+            "shipped": orders.filter(status="Shipped").count(),
+            "cancelled": orders.filter(status="Cancelled").count(),
+            "returned": orders.filter(status="Returned").count(),
+        }
+
         return Response(
             {
                 "monthOrders": month_orders.count(),
                 "monthRevenue": str(month_revenue),
                 "pendingShipment": pending_shipment,
                 "activeCreators": active_creators,
+                "conversionRate": conversion_rate,
                 "bySource": by_source,
                 "byStatus": by_status,
                 "daily": daily,
+                "customers": {
+                    "total": customers_total,
+                    "new30d": new_customers,
+                    "returning": returning_customers,
+                },
+                "marketing": {
+                    "adSpend": str(ad_spend),
+                    "attributedRevenue": str(attributed_revenue),
+                    "roas": roas,
+                },
+                "fulfillment": fulfillment,
             }
         )
 
@@ -1999,21 +2751,55 @@ class FinanceSummaryView(APIView):
         creators = Creator.objects.all()
 
         gross = orders.aggregate(t=Sum("total"))["t"] or 0
+        refunds = ReturnRequest.objects.filter(status="Refunded").aggregate(
+            t=Sum("refund_amount"),
+        )["t"] or 0
         commissions = creators.aggregate(
             t=Sum("sales__commission_amount", filter=Q(sales__paid=False))
         )["t"] or 0
         withholding = float(commissions) * 0.05
 
         expenses = Expense.objects.aggregate(t=Sum("amount"))["t"] or 0
+        ad_spend = AdCampaign.objects.aggregate(t=Sum("spend"))["t"] or 0
 
-        net = float(gross) - float(commissions) - withholding - float(expenses)
+        net = (
+            float(gross)
+            - float(refunds)
+            - float(commissions)
+            - withholding
+            - float(expenses)
+            - float(ad_spend)
+        )
 
         return Response(
             {
                 "grossRevenue": str(gross),
+                "refunds": str(refunds),
                 "creatorCommissions": str(commissions),
                 "withholdingTax": str(round(withholding, 2)),
                 "expenses": str(expenses),
+                "advertisingSpend": str(ad_spend),
                 "netRevenue": str(round(net, 2)),
             }
         )
+
+
+class HealthSummaryView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        rows = []
+        for i in Integration.objects.all().order_by("name"):
+            rows.append(
+                {
+                    "key": i.key,
+                    "name": i.name,
+                    "status": i.status,
+                    "accountName": i.account_name,
+                    "lastSyncAt": i.last_sync_at.isoformat() if i.last_sync_at else None,
+                    "error": i.error_message,
+                    "warnings": 1 if i.error_message else 0,
+                    "syncFailures": 1 if i.status == "error" else 0,
+                }
+            )
+        return Response({"integrations": rows})
