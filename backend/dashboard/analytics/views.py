@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import Avg, Count, DecimalField, F, Max, Min, Q, Sum, Value
 from django.db.models.functions import Coalesce, TruncDate
 from django.http import JsonResponse
@@ -8,7 +9,6 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import AnalyticsCache
-
 
 RANGE_LABELS = {
     "7days": "Last 7 Days",
@@ -57,7 +57,6 @@ def _range_key(request) -> str:
 def _resolve_dates(request):
     rng = request.GET.get("range", "7days")
     today = timezone.now().date()
-
     if rng == "30days":
         start = today - timedelta(days=29)
         days = 30
@@ -70,7 +69,6 @@ def _resolve_dates(request):
     else:
         start = today - timedelta(days=6)
         days = 7
-
     return start, today, days
 
 
@@ -88,18 +86,15 @@ def _cached_or_build(request, tab: str, builder, empty: dict) -> dict:
     cached = AnalyticsCache.objects.filter(tab=tab, range_key=key).first()
     if cached and cached.payload:
         return cached.payload
-
     try:
         payload = builder(request)
     except Exception as exc:
         import logging
-
         logging.getLogger(__name__).warning(
             "analytics.%s build failed: %s", tab, exc, exc_info=True
         )
         payload = dict(empty)
         payload["error"] = str(exc)
-
     AnalyticsCache.objects.update_or_create(
         tab=tab, range_key=key, defaults={"payload": payload}
     )
@@ -141,18 +136,57 @@ def _tail7(series: list) -> list[float]:
     return [round(float(v or 0), 2) for v in out]
 
 
-def _image_url(obj) -> str:
+def _absolutize(url: str, request=None) -> str:
+    if not url:
+        return ""
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if request is not None:
+        try:
+            return request.build_absolute_uri(url)
+        except Exception:
+            pass
+    site = getattr(settings, "SITE_URL", None)
+    return f"{site.rstrip('/')}{url}" if site else url
+
+
+def _image_url(obj, request=None) -> str:
     if obj is None:
         return ""
+
     for attr in ("image", "logo", "thumbnail", "image_url", "featured_image", "cover"):
         val = getattr(obj, attr, None)
         if not val:
             continue
         try:
-            return val.url
+            url = val.url
         except (ValueError, AttributeError):
-            if isinstance(val, str):
-                return val
+            url = val if isinstance(val, str) else ""
+        if url:
+            return _absolutize(url, request)
+
+    images = getattr(obj, "images", None)
+    if images is not None and hasattr(images, "all"):
+        try:
+            first = None
+            if hasattr(images.model, "is_primary"):
+                first = images.filter(is_primary=True).first()
+            if first is None:
+                first = images.first()
+            if first is not None:
+                for attr in ("image", "file", "photo", "url"):
+                    val = getattr(first, attr, None)
+                    if not val:
+                        continue
+                    try:
+                        url = val.url
+                    except (ValueError, AttributeError):
+                        url = val if isinstance(val, str) else ""
+                    if url:
+                        return _absolutize(url, request)
+        except Exception:
+            pass
+
     return ""
 
 
@@ -165,15 +199,12 @@ def _bounce_and_duration(pv_qs, session_rows, date_range):
     daily_durations = defaultdict(list)
     for s in session_rows[:200]:
         rows = list(
-            pv_qs
-            .filter(session_key=s["session_key"])
-            .order_by("created_at")
+            pv_qs.filter(session_key=s["session_key"]).order_by("created_at")
         )
         if len(rows) >= 2:
             dur = (rows[-1].created_at - rows[0].created_at).total_seconds()
             durations.append(dur)
-            first_day = rows[0].created_at.date()
-            daily_durations[first_day].append(dur)
+            daily_durations[rows[0].created_at.date()].append(dur)
     duration_now = (sum(durations) / len(durations)) if durations else 0.0
 
     session_first_day = dict(
@@ -210,7 +241,6 @@ def _bounce_and_duration(pv_qs, session_rows, date_range):
 
 def _cart_abandonment(start, end, order_count):
     from checkout.models import Cart
-
     try:
         carts_qs = (
             Cart.objects
@@ -228,16 +258,103 @@ def _cart_abandonment(start, end, order_count):
 
         denom = n_carts + order_count
         rate = round(n_carts / denom * 100, 1) if denom else 0.0
-
         return {"rate": rate, "potential_lost": int(lost)}
     except Exception:
         return {"rate": 0.0, "potential_lost": 0}
 
 
+def _abandoned_carts_payload(start, end, request):
+    from checkout.models import Cart
+
+    carts = []
+    try:
+        carts = list(
+            Cart.objects
+            .filter(updated_at__date__gte=start, updated_at__date__lte=end)
+            .annotate(item_count=Count("items"))
+            .filter(item_count__gt=0)
+            .select_related("user")
+            .prefetch_related("items", "items__product")
+            .order_by("-updated_at")[:50]
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "analytics.abandoned_carts query failed: %s", exc, exc_info=True
+        )
+        return []
+
+    out = []
+    for c in carts:
+        try:
+            items = list(c.items.all())
+            if not items:
+                continue
+
+            names = []
+            images = []
+            for it in items[:3]:
+                prod = getattr(it, "product", None)
+                name = (
+                    getattr(it, "product_name", None)
+                    or getattr(prod, "name", None)
+                    or getattr(it, "name", None)
+                    or "—"
+                )
+                names.append(name)
+                img = _image_url(prod, request)
+                if img:
+                    images.append(img)
+
+            extra = max(0, len(items) - 3)
+            summary = ", ".join(names)
+            if extra:
+                summary = f"{summary} +{extra} more"
+
+            value = float(getattr(c, "subtotal", 0) or 0)
+            user = getattr(c, "user", None)
+
+            if user and (getattr(user, "first_name", "") or getattr(user, "last_name", "")):
+                customer = f"{user.first_name} {user.last_name}".strip()
+            elif user and getattr(user, "email", ""):
+                customer = user.email
+            else:
+                customer = getattr(c, "guest_name", "") or "Guest"
+
+            phone = (
+                getattr(c, "guest_phone", "")
+                or (getattr(user, "phone", "") if user else "")
+                or ""
+            )
+
+            updated = getattr(c, "updated_at", None)
+            out.append({
+                "id": f"AC-{c.id}",
+                "cart_id": c.id,
+                "customer": customer or "Guest",
+                "phone": phone,
+                "items": summary or "—",
+                "item_count": len(items),
+                "item_names": names,
+                "images": images,
+                "value_raw": int(value),
+                "value": f"KES {int(value):,}",
+                "time": updated.strftime("%H:%M") if updated else "—",
+                "date": updated.strftime("%b %d") if updated else "—",
+                "iso_date": updated.date().isoformat() if updated else None,
+                "user_id": user.id if user else None,
+                "email": getattr(user, "email", "") if user else "",
+            })
+        except Exception:
+            continue
+
+    return out
+
+
 @require_GET
 def traffic(request):
     def build(_req):
-        from checkout.models import Cart, Order
+        from checkout.models import Order
         from dashboard.analytics.models import PageView
 
         start, end, days = _resolve_dates(_req)
@@ -255,7 +372,6 @@ def traffic(request):
             created_at__date__lte=prev_end,
             status__in=LIVE_ORDER_STATUSES,
         )
-
         order_count = orders_now.count()
         prev_order_count = orders_prev.count()
 
@@ -305,25 +421,20 @@ def traffic(request):
         duration_now = 0.0
         bounce_prev = 0.0
         duration_prev = 0.0
-        bounce_series_full: list[float] = []
-        duration_series_full: list[float] = []
-        prev_bounce_series: list[float] = []
-        prev_duration_series: list[float] = []
+        bounce_series_full = []
+        duration_series_full = []
+        prev_bounce_series = []
+        prev_duration_series = []
 
         if has_real_pv:
-            session_rows = list(
-                pv_now.values("session_key").annotate(n=Count("id"))
-            )
+            session_rows = list(pv_now.values("session_key").annotate(n=Count("id")))
             bounce_now, duration_now, bounce_series_full, duration_series_full = (
                 _bounce_and_duration(pv_now, session_rows, date_range)
             )
 
         if pv_prev_count > 0:
-            prev_session_rows = list(
-                pv_prev.values("session_key").annotate(n=Count("id"))
-            )
-            prev_start_date = prev_start
-            prev_date_range = _date_range_days(prev_start_date, prev_end)
+            prev_session_rows = list(pv_prev.values("session_key").annotate(n=Count("id")))
+            prev_date_range = _date_range_days(prev_start, prev_end)
             bounce_prev, duration_prev, prev_bounce_series, prev_duration_series = (
                 _bounce_and_duration(pv_prev, prev_session_rows, prev_date_range)
             )
@@ -364,8 +475,7 @@ def traffic(request):
         bounce_value = f"{bounce_now:.1f}%" if has_real_pv else "—"
         duration_value = (
             f"{int(duration_now) // 60}m {int(duration_now) % 60}s"
-            if has_real_pv and duration_now > 0
-            else "—"
+            if has_real_pv and duration_now > 0 else "—"
         )
 
         kpis = [
@@ -391,13 +501,9 @@ def traffic(request):
 
         if has_real_pv:
             daily = (
-                pv_now
-                .annotate(day=TruncDate("created_at"))
+                pv_now.annotate(day=TruncDate("created_at"))
                 .values("day")
-                .annotate(
-                    views=Count("id"),
-                    visitors=Count("session_key", distinct=True),
-                )
+                .annotate(views=Count("id"), visitors=Count("session_key", distinct=True))
                 .order_by("day")
             )
             pv_by_day = {row["day"]: row for row in daily}
@@ -412,11 +518,8 @@ def traffic(request):
                 })
         else:
             daily = (
-                orders_now
-                .annotate(day=TruncDate("created_at"))
-                .values("day")
-                .annotate(orders=Count("id"))
-                .order_by("day")
+                orders_now.annotate(day=TruncDate("created_at"))
+                .values("day").annotate(orders=Count("id")).order_by("day")
             )
             ord_by_day = {row["day"]: row for row in daily}
             timeline = []
@@ -432,24 +535,16 @@ def traffic(request):
                 })
 
         source_map = {
-            "whatsapp": "WhatsApp",
-            "web": "Website",
-            "app": "App",
-            "api": "API",
-            "admin": "Direct",
-            "in_store": "In Store",
-            "phone": "Direct",
+            "whatsapp": "WhatsApp", "web": "Website", "app": "App",
+            "api": "API", "admin": "Direct", "in_store": "In Store", "phone": "Direct",
         }
         source_qs = (
-            orders_now
-            .values("source")
-            .annotate(
+            orders_now.values("source").annotate(
                 orders=Count("id"),
                 revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
             )
         )
-
-        totals_by_label: dict = defaultdict(lambda: {"orders": 0, "revenue": 0.0})
+        totals_by_label = defaultdict(lambda: {"orders": 0, "revenue": 0.0})
         for r in source_qs:
             label = source_map.get(r["source"], "Other")
             totals_by_label[label]["orders"] += r["orders"] or 0
@@ -494,8 +589,7 @@ def traffic(request):
         devices = []
         if has_real_pv:
             dv_qs = list(
-                pv_now
-                .values("device_type")
+                pv_now.values("device_type")
                 .annotate(users=Count("session_key", distinct=True))
             )
             total_dev = sum(r["users"] for r in dv_qs) or 1
@@ -512,14 +606,11 @@ def traffic(request):
                     "bounce": "—",
                 })
             order_map = {"mobile": 0, "desktop": 1, "tablet": 2}
-            devices.sort(
-                key=lambda d: order_map.get(d["device"].split()[0].lower(), 9)
-            )
+            devices.sort(key=lambda d: order_map.get(d["device"].split()[0].lower(), 9))
 
         counties = []
         try:
             from account.models import Address
-
             county_qs = list(
                 Address.objects
                 .filter(user__isnull=False)
@@ -546,51 +637,28 @@ def traffic(request):
             )
             counties = []
 
-        abandoned = []
-        try:
-            carts = list(
-                Cart.objects
-                .annotate(item_count=Count("items"))
-                .filter(item_count__gt=0)
-                .select_related("user")
-                .order_by("-updated_at")[:20]
-            )
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).warning(
-                "analytics.traffic cart query failed: %s", exc, exc_info=True
-            )
-            carts = []
-
-        for c in carts:
-            try:
-                first_item = c.items.first()
-                item_name = (
-                    getattr(first_item, "product_name", None)
-                    or getattr(getattr(first_item, "product", None), "name", None)
-                    or getattr(first_item, "name", None)
-                    or "—"
-                )
-                value = float(getattr(c, "subtotal", 0) or 0)
-                user = getattr(c, "user", None)
-                customer = (
-                    f"{user.first_name} {user.last_name}".strip()
-                    if user and (user.first_name or user.last_name)
-                    else (user.email if user else "Guest")
-                )
-                abandoned.append({
-                    "id": f"AC-{c.id}",
-                    "customer": customer,
-                    "phone": getattr(user, "phone", "") if user else "",
-                    "items": item_name,
-                    "value": f"KES {int(value):,}",
-                    "time": "recently",
-                    "date": c.updated_at.strftime("%b %d") if getattr(c, "updated_at", None) else "—",
-                })
-            except Exception:
-                continue
-
+        abandoned = _abandoned_carts_payload(start, end, _req)
         cart_abandonment = _cart_abandonment(start, end, order_count)
+
+        trend_source = abandoned if abandoned else timeline
+        if abandoned:
+            trend_by_day = defaultdict(int)
+            for c in abandoned:
+                if c.get("iso_date"):
+                    trend_by_day[c["iso_date"]] += 1
+            abandoned_trend = [
+                {
+                    "date": d.strftime("%b %d"),
+                    "carts": trend_by_day.get(d.isoformat(), 0),
+                    "iso_date": d.isoformat(),
+                }
+                for d in date_range
+            ]
+        else:
+            abandoned_trend = [
+                {"date": t["date"], "carts": max(int(t["visitors"] * 0.18), 1)}
+                for t in trend_source
+            ]
 
         return {
             "kpis": kpis,
@@ -600,10 +668,7 @@ def traffic(request):
             "devices": devices,
             "counties": counties,
             "abandoned_carts": abandoned,
-            "abandoned_trend": [
-                {"date": t["date"], "carts": max(int(t["visitors"] * 0.18), 1)}
-                for t in timeline
-            ],
+            "abandoned_trend": abandoned_trend,
             "cart_abandonment": cart_abandonment,
         }
 
@@ -694,10 +759,7 @@ def sales(request):
             )
             .values("product_id", "name", "image_url")
             .annotate(
-                revenue=Coalesce(
-                    Sum(F("unit_price") * F("quantity")),
-                    Value(0), output_field=DECIMAL,
-                ),
+                revenue=Coalesce(Sum(F("unit_price") * F("quantity")), Value(0), output_field=DECIMAL),
                 orders=Count("order", distinct=True),
                 units=Sum("quantity"),
             )
@@ -707,12 +769,11 @@ def sales(request):
         pids = [r["product_id"] for r in prod_qs if r["product_id"]]
         product_meta = {
             p.id: {
-                "image": _image_url(p),
+                "image": _image_url(p, _req),
                 "category_name": p.category.name if p.category_id else None,
                 "brand_name": p.brand.name if p.brand_id else None,
             }
-            for p in Product.objects.filter(id__in=pids)
-            .select_related("category", "brand")
+            for p in Product.objects.filter(id__in=pids).select_related("category", "brand")
         }
 
         by_product = []
@@ -724,20 +785,17 @@ def sales(request):
                 "orders": r["orders"] or 0,
                 "units": r["units"] or 0,
                 "growth": 0,
-                "image": r["image_url"] or meta.get("image", ""),
+                "image": meta.get("image") or _absolutize(r["image_url"] or "", _req),
             })
 
-        cat_totals: dict = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
+        cat_totals = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
         for r in prod_qs:
             meta = product_meta.get(r["product_id"], {})
             cat = meta.get("category_name") or "Other"
             cat_totals[cat]["revenue"] += _to_int(r["revenue"])
             cat_totals[cat]["orders"] += r["orders"] or 0
             cat_totals[cat]["units"] += r["units"] or 0
-        cat_objs = {
-            c.name: c
-            for c in Category.objects.filter(name__in=cat_totals.keys())
-        }
+        cat_objs = {c.name: c for c in Category.objects.filter(name__in=cat_totals.keys())}
         palette = ["#10b981", "#0284c7", "#6366f1", "#f59e0b", "#ec4899"]
         by_category = [
             {
@@ -747,24 +805,21 @@ def sales(request):
                 "units": v["units"],
                 "growth": 0,
                 "color": palette[i % len(palette)],
-                "image": _image_url(cat_objs.get(k)),
+                "image": _image_url(cat_objs.get(k), _req),
             }
             for i, (k, v) in enumerate(sorted(
                 cat_totals.items(), key=lambda kv: -kv[1]["revenue"]
             )[:5])
         ]
 
-        brand_totals: dict = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
+        brand_totals = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
         for r in prod_qs:
             meta = product_meta.get(r["product_id"], {})
             br = meta.get("brand_name") or "Other"
             brand_totals[br]["revenue"] += _to_int(r["revenue"])
             brand_totals[br]["orders"] += r["orders"] or 0
             brand_totals[br]["units"] += r["units"] or 0
-        brand_objs = {
-            b.name: b
-            for b in Brand.objects.filter(name__in=brand_totals.keys())
-        }
+        brand_objs = {b.name: b for b in Brand.objects.filter(name__in=brand_totals.keys())}
         by_brand = [
             {
                 "name": k,
@@ -773,7 +828,7 @@ def sales(request):
                 "units": v["units"],
                 "growth": 0,
                 "color": ["#172554", "#10b981", "#0284c7", "#f59e0b", "#ec4899"][i % 5],
-                "image": _image_url(brand_objs.get(k)),
+                "image": _image_url(brand_objs.get(k), _req),
             }
             for i, (k, v) in enumerate(sorted(
                 brand_totals.items(), key=lambda kv: -kv[1]["revenue"]
@@ -820,8 +875,8 @@ def customers(request):
             .distinct()
         )
 
-        new_by_day: dict = defaultdict(int)
-        ret_by_day: dict = defaultdict(int)
+        new_by_day = defaultdict(int)
+        ret_by_day = defaultdict(int)
         for r in seen:
             day = r["created_at__date"]
             uid = r["user_id"]
@@ -870,11 +925,7 @@ def customers(request):
              "detail": "Blended cost to acquire one customer."},
         ]
 
-        top = (
-            profiles_qs
-            .select_related("user")
-            .order_by("-total_spent")[:10]
-        )
+        top = profiles_qs.select_related("user").order_by("-total_spent")[:10]
         top_customers = []
         for p in top:
             u = p.user
@@ -920,10 +971,7 @@ def products(request):
             .values("product_id", "name", "image_url")
             .annotate(
                 purchases=Sum("quantity"),
-                revenue=Coalesce(
-                    Sum(F("unit_price") * F("quantity")),
-                    Value(0), output_field=DECIMAL,
-                ),
+                revenue=Coalesce(Sum(F("unit_price") * F("quantity")), Value(0), output_field=DECIMAL),
             )
             .order_by("-revenue")[:30]
         )
@@ -932,7 +980,7 @@ def products(request):
         product_meta = {
             p.id: {
                 "sku": p.slug or "—",
-                "image": _image_url(p),
+                "image": _image_url(p, _req),
                 "stock": p.stock_quantity or 0,
                 "category": p.category.name if p.category_id else "—",
             }
@@ -964,7 +1012,7 @@ def products(request):
                 "id": str(r["product_id"]),
                 "name": r["name"] or "—",
                 "sku": meta.get("sku", "—"),
-                "image": r["image_url"] or meta.get("image", ""),
+                "image": meta.get("image") or _absolutize(r["image_url"] or "", _req),
                 "views": views,
                 "purchases": purchases,
                 "revenue": revenue,
@@ -1006,13 +1054,8 @@ def channels(request):
         start, end, days = _resolve_dates(_req)
 
         source_map = {
-            "whatsapp": "WhatsApp",
-            "web": "Website",
-            "app": "App",
-            "api": "API",
-            "admin": "Other",
-            "in_store": "Other",
-            "phone": "Other",
+            "whatsapp": "WhatsApp", "web": "Website", "app": "App",
+            "api": "API", "admin": "Other", "in_store": "Other", "phone": "Other",
         }
         qs = (
             Order.objects
@@ -1025,7 +1068,7 @@ def channels(request):
             )
         )
 
-        totals_by_label: dict = defaultdict(lambda: {"orders": 0, "revenue": 0.0})
+        totals_by_label = defaultdict(lambda: {"orders": 0, "revenue": 0.0})
         for r in qs:
             label = source_map.get(r["source"], "Other")
             totals_by_label[label]["orders"] += r["orders"] or 0
@@ -1066,11 +1109,8 @@ def channels(request):
         )
 
         trend_key = {
-            "WhatsApp": "whatsapp",
-            "Website": "website",
-            "Instagram": "instagram",
-            "Facebook": "facebook",
-            "TikTok": "tiktok",
+            "WhatsApp": "whatsapp", "Website": "website", "Instagram": "instagram",
+            "Facebook": "facebook", "TikTok": "tiktok",
         }
 
         by_day = {
@@ -1151,7 +1191,6 @@ def channels(request):
 @require_POST
 def refresh_cache(request):
     import json
-
     try:
         body = json.loads(request.body or "{}")
     except json.JSONDecodeError:
