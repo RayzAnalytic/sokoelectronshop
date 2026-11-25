@@ -799,11 +799,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         )
 
         redirect_to = user.redirect_path or (
-            "/admin" if is_admin else "/pages/account"
+            settings.STAFF_REDIRECT_PATH if is_admin else settings.CUSTOMER_REDIRECT_PATH
         )
 
-        if is_admin and redirect_to == "/pages/account":
-            redirect_to = "/admin"
+        if is_admin and redirect_to == settings.CUSTOMER_REDIRECT_PATH:
+            redirect_to = settings.STAFF_REDIRECT_PATH
 
         data["user"] = me
         data["redirect_to"] = redirect_to

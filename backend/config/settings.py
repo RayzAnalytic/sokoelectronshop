@@ -154,6 +154,9 @@ env = environ.Env(
     ADMIN_ALLOWED_IPS=(list, []),
 
     ADMIN_LOGIN_URL=(str, "/admin/login/"),
+
+    STAFF_REDIRECT_PATH=(str, "/admin"),
+    CUSTOMER_REDIRECT_PATH=(str, "/pages/account"),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -321,6 +324,11 @@ ADMIN_LOGIN_URL = env("ADMIN_LOGIN_URL", default="/admin/login/")
 # Comma-separated list of IPs allowed to reach /<ADMIN_URL>/.
 # Empty list => no IP restriction (rely on web-server / Nginx rules).
 ADMIN_ALLOWED_IPS = env.list("ADMIN_ALLOWED_IPS", default=[])
+
+# Where the backend sends staff/customers after login. Frontend mirrors
+# this when deciding which page to open after a successful sign-in.
+STAFF_REDIRECT_PATH = env("STAFF_REDIRECT_PATH", default="/admin")
+CUSTOMER_REDIRECT_PATH = env("CUSTOMER_REDIRECT_PATH", default="/pages/account")
 
 
 SESSION_COOKIE_HTTPONLY = True

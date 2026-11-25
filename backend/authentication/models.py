@@ -93,7 +93,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def redirect_path(self) -> str:
-        return "/admin" if self.is_admin_role else "/pages/account"
+        if self.is_admin_role:
+            return settings.STAFF_REDIRECT_PATH
+        return settings.CUSTOMER_REDIRECT_PATH
 
     @property
     def can_sign_in(self) -> bool:

@@ -21,11 +21,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 const STAFF_COOKIE = "rt_staff";
 
-function setStaffCookieIfStaff(user: Me | null | undefined) {
-    if (!user) return;
-    const isStaff =
-        user.role === "OWNER" ||
-        user.role === "STAFF";
+function isStaffRole(role: string | undefined | null): boolean {
+    return role === "OWNER" || role === "STAFF";
+}
+
+function setStaffCookie(isStaff: boolean) {
+    if (typeof document === "undefined") return;
     if (isStaff) {
         document.cookie = `${STAFF_COOKIE}=1; path=/; max-age=86400; samesite=lax`;
     } else {
@@ -95,7 +96,7 @@ function CustomerLoginPageContent() {
         }
         if (result.user && result.user.email) {
             setSignedInUser(result.user);
-            setStaffCookieIfStaff(result.user);
+            setStaffCookie(isStaffRole(result.user.role));
         }
 
         const target = nextPath || result.redirect_to || result.next || '/pages/account';
@@ -113,7 +114,10 @@ function CustomerLoginPageContent() {
             .me()
             .then((u) => {
                 if (cancelled) return;
-                if (u) setSignedInUser(u);
+                if (u) {
+                    setSignedInUser(u);
+                    setStaffCookie(isStaffRole(u.role));
+                }
             })
             .catch(() => {
             })
@@ -162,9 +166,16 @@ function CustomerLoginPageContent() {
                 rememberMe,
             );
 
-            setStaffCookieIfStaff(result.user);
+            console.log("login result:", result);
+            console.log("user role:", result?.user?.role);
 
-            const target = nextPath || result.redirect_to || '/pages/account';
+            const staff = isStaffRole(result?.user?.role);
+            setStaffCookie(staff);
+
+            const target = nextPath
+                || (staff && !result?.redirect_to ? "/admin" : result?.redirect_to)
+                || '/pages/account';
+
             router.replace(target);
         } catch (err) {
             if (err instanceof ApiError) {
@@ -194,7 +205,7 @@ function CustomerLoginPageContent() {
             await api.logout();
         } catch {
         } finally {
-            document.cookie = `${STAFF_COOKIE}=; path=/; max-age=0`;
+            setStaffCookie(false);
             setSignedInUser(null);
             setLoggingOut(false);
         }
@@ -381,8 +392,8 @@ function CustomerLoginPageContent() {
                                 autoComplete="current-password"
                                 placeholder="••••••••"
                                 className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.password
-                                        ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
-                                        : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
+                                    ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
+                                    : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
                                     }`}
                             />
                             <button
@@ -502,8 +513,8 @@ function Field({
                 autoComplete={autoComplete}
                 disabled={disabled}
                 className={`w-full bg-white border rounded px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${error
-                        ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
-                        : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
+                    ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
+                    : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
                     }`}
             />
             {error && <p className="text-[11px] text-rose-600">{error}</p>}
