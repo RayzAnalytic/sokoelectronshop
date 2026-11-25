@@ -141,6 +141,8 @@ def _absolutize(url: str, request=None) -> str:
         return ""
     if url.startswith("http://") or url.startswith("https://"):
         return url
+    if not url.startswith("/"):
+        url = "/" + url
     if request is not None:
         try:
             return request.build_absolute_uri(url)
@@ -168,13 +170,14 @@ def _image_url(obj, request=None) -> str:
     images = getattr(obj, "images", None)
     if images is not None and hasattr(images, "all"):
         try:
-            first = None
+            qs = images.all()
             if hasattr(images.model, "is_primary"):
-                first = images.filter(is_primary=True).first()
-            if first is None:
-                first = images.first()
+                qs = qs.order_by("-is_primary", "sort_order", "id")
+            elif hasattr(images.model, "sort_order"):
+                qs = qs.order_by("sort_order", "id")
+            first = qs.first()
             if first is not None:
-                for attr in ("image", "file", "photo", "url"):
+                for attr in ("image", "external_url", "file", "photo", "url"):
                     val = getattr(first, attr, None)
                     if not val:
                         continue
@@ -240,7 +243,7 @@ def _bounce_and_duration(pv_qs, session_rows, date_range):
 
 
 def _cart_abandonment(start, end, order_count):
-    from checkout.models import Cart
+    from checkout.models import Cart, CartItem
     try:
         carts_qs = (
             Cart.objects
@@ -252,9 +255,18 @@ def _cart_abandonment(start, end, order_count):
         if not n_carts:
             return {"rate": 0.0, "potential_lost": 0}
 
-        lost = carts_qs.aggregate(
-            t=Coalesce(Sum("subtotal"), Value(0), output_field=DECIMAL)
-        )["t"] or 0
+        cart_ids = list(carts_qs.values_list("id", flat=True))
+        lost = (
+            CartItem.objects
+            .filter(cart_id__in=cart_ids)
+            .aggregate(
+                t=Coalesce(
+                    Sum(F("unit_price") * F("quantity")),
+                    Value(0),
+                    output_field=DECIMAL,
+                )
+            )["t"] or 0
+        )
 
         denom = n_carts + order_count
         rate = round(n_carts / denom * 100, 1) if denom else 0.0
@@ -266,7 +278,6 @@ def _cart_abandonment(start, end, order_count):
 def _abandoned_carts_payload(start, end, request):
     from checkout.models import Cart
 
-    carts = []
     try:
         carts = list(
             Cart.objects
@@ -274,7 +285,7 @@ def _abandoned_carts_payload(start, end, request):
             .annotate(item_count=Count("items"))
             .filter(item_count__gt=0)
             .select_related("user")
-            .prefetch_related("items", "items__product")
+            .prefetch_related("items")
             .order_by("-updated_at")[:50]
         )
     except Exception as exc:
@@ -293,41 +304,41 @@ def _abandoned_carts_payload(start, end, request):
 
             names = []
             images = []
-            for it in items[:3]:
-                prod = getattr(it, "product", None)
-                name = (
-                    getattr(it, "product_name", None)
-                    or getattr(prod, "name", None)
-                    or getattr(it, "name", None)
+            total_value = 0.0
+
+            for it in items:
+                item_name = (
+                    getattr(it, "name", None)
+                    or getattr(getattr(it, "product", None), "name", None)
                     or "—"
                 )
-                names.append(name)
-                img = _image_url(prod, request)
+                names.append(item_name)
+
+                qty = _to_int(getattr(it, "quantity", 0)) or 0
+                unit = _to_float(getattr(it, "unit_price", 0)) or 0.0
+                total_value += unit * max(qty, 1)
+
+                raw_img = getattr(it, "image", None) or ""
+                img = _absolutize(raw_img, request) if raw_img else ""
                 if img:
                     images.append(img)
 
             extra = max(0, len(items) - 3)
-            summary = ", ".join(names)
+            summary = ", ".join(names[:3])
             if extra:
                 summary = f"{summary} +{extra} more"
 
-            value = float(getattr(c, "subtotal", 0) or 0)
             user = getattr(c, "user", None)
-
             if user and (getattr(user, "first_name", "") or getattr(user, "last_name", "")):
                 customer = f"{user.first_name} {user.last_name}".strip()
             elif user and getattr(user, "email", ""):
                 customer = user.email
             else:
-                customer = getattr(c, "guest_name", "") or "Guest"
+                customer = "Guest"
 
-            phone = (
-                getattr(c, "guest_phone", "")
-                or (getattr(user, "phone", "") if user else "")
-                or ""
-            )
-
+            phone = getattr(user, "phone", "") if user else ""
             updated = getattr(c, "updated_at", None)
+
             out.append({
                 "id": f"AC-{c.id}",
                 "cart_id": c.id,
@@ -335,15 +346,19 @@ def _abandoned_carts_payload(start, end, request):
                 "phone": phone,
                 "items": summary or "—",
                 "item_count": len(items),
-                "item_names": names,
-                "images": images,
-                "value_raw": int(value),
-                "value": f"KES {int(value):,}",
+                "item_names": names[:3],
+                "images": images[:3],
+                "value_raw": int(total_value),
+                "value": f"KES {int(total_value):,}",
                 "time": updated.strftime("%H:%M") if updated else "—",
                 "date": updated.strftime("%b %d") if updated else "—",
                 "iso_date": updated.date().isoformat() if updated else None,
                 "user_id": user.id if user else None,
                 "email": getattr(user, "email", "") if user else "",
+                "abandoned_at": (
+                    c.abandoned_at.isoformat()
+                    if getattr(c, "abandoned_at", None) else None
+                ),
             })
         except Exception:
             continue
@@ -640,7 +655,6 @@ def traffic(request):
         abandoned = _abandoned_carts_payload(start, end, _req)
         cart_abandonment = _cart_abandonment(start, end, order_count)
 
-        trend_source = abandoned if abandoned else timeline
         if abandoned:
             trend_by_day = defaultdict(int)
             for c in abandoned:
@@ -657,7 +671,7 @@ def traffic(request):
         else:
             abandoned_trend = [
                 {"date": t["date"], "carts": max(int(t["visitors"] * 0.18), 1)}
-                for t in trend_source
+                for t in timeline
             ]
 
         return {
@@ -757,7 +771,7 @@ def sales(request):
                 order__created_at__date__lte=end,
                 order__status__in=LIVE_ORDER_STATUSES,
             )
-            .values("product_id", "name", "image_url")
+            .values("product_id", "name")
             .annotate(
                 revenue=Coalesce(Sum(F("unit_price") * F("quantity")), Value(0), output_field=DECIMAL),
                 orders=Count("order", distinct=True),
@@ -785,7 +799,7 @@ def sales(request):
                 "orders": r["orders"] or 0,
                 "units": r["units"] or 0,
                 "growth": 0,
-                "image": meta.get("image") or _absolutize(r["image_url"] or "", _req),
+                "image": meta.get("image") or "",
             })
 
         cat_totals = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
@@ -968,7 +982,7 @@ def products(request):
                 order__created_at__date__lte=end,
                 order__status__in=LIVE_ORDER_STATUSES,
             )
-            .values("product_id", "name", "image_url")
+            .values("product_id", "name")
             .annotate(
                 purchases=Sum("quantity"),
                 revenue=Coalesce(Sum(F("unit_price") * F("quantity")), Value(0), output_field=DECIMAL),
@@ -1012,7 +1026,7 @@ def products(request):
                 "id": str(r["product_id"]),
                 "name": r["name"] or "—",
                 "sku": meta.get("sku", "—"),
-                "image": meta.get("image") or _absolutize(r["image_url"] or "", _req),
+                "image": meta.get("image") or "",
                 "views": views,
                 "purchases": purchases,
                 "revenue": revenue,
