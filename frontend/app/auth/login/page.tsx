@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from "react";
- 
+
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -18,6 +18,20 @@ const ERROR_MESSAGES: Record<string, string> = {
         'This email is registered as an admin. Please sign in via the admin page.',
     oauth_failed: 'Could not complete sign-in. Please try again.',
 };
+
+const STAFF_COOKIE = "rt_staff";
+
+function setStaffCookieIfStaff(user: Me | null | undefined) {
+    if (!user) return;
+    const isStaff =
+        user.role === "OWNER" ||
+        user.role === "STAFF";
+    if (isStaff) {
+        document.cookie = `${STAFF_COOKIE}=1; path=/; max-age=86400; samesite=lax`;
+    } else {
+        document.cookie = `${STAFF_COOKIE}=; path=/; max-age=0`;
+    }
+}
 
 function sanitizeNext(raw: string | null): string | null {
     if (!raw) return null;
@@ -56,7 +70,7 @@ function CustomerLoginPageContent() {
     }>({});
 
     const isBusy = loading || googleLoading || loggingOut;
- 
+
     useEffect(() => {
         const hasFragment =
             typeof window !== 'undefined' &&
@@ -66,31 +80,32 @@ function CustomerLoginPageContent() {
 
         const result = api.handleGoogleCallback();
 
-        if (!result) { 
+        if (!result) {
             try {
                 window.history.replaceState(
                     {},
                     '',
                     window.location.pathname + window.location.search,
                 );
-            } catch { 
+            } catch {
             }
             setError('Could not complete sign-in. Please try again.');
             setChecking(false);
             return;
-        } 
+        }
         if (result.user && result.user.email) {
             setSignedInUser(result.user);
+            setStaffCookieIfStaff(result.user);
         }
 
         const target = nextPath || result.redirect_to || result.next || '/pages/account';
-        router.replace(target); 
+        router.replace(target);
     }, [router, nextPath]);
- 
+
     useEffect(() => {
         const hasFragment =
             typeof window !== 'undefined' &&
-            window.location.hash.length > 1; 
+            window.location.hash.length > 1;
         if (hasFragment) return;
 
         let cancelled = false;
@@ -100,7 +115,7 @@ function CustomerLoginPageContent() {
                 if (cancelled) return;
                 if (u) setSignedInUser(u);
             })
-            .catch(() => { 
+            .catch(() => {
             })
             .finally(() => {
                 if (!cancelled) setChecking(false);
@@ -141,12 +156,16 @@ function CustomerLoginPageContent() {
 
         setLoading(true);
         try {
-            const { redirect_to } = await api.login(
+            const result = await api.login(
                 identifier.trim(),
                 password,
                 rememberMe,
             );
-            router.replace(nextPath || redirect_to);
+
+            setStaffCookieIfStaff(result.user);
+
+            const target = nextPath || result.redirect_to || '/pages/account';
+            router.replace(target);
         } catch (err) {
             if (err instanceof ApiError) {
                 const detail =
@@ -161,7 +180,7 @@ function CustomerLoginPageContent() {
             setLoading(false);
         }
     };
- 
+
     const handleGoogleSignIn = () => {
         setError('');
         setFieldErrors({});
@@ -173,8 +192,9 @@ function CustomerLoginPageContent() {
         setLoggingOut(true);
         try {
             await api.logout();
-        } catch { 
+        } catch {
         } finally {
+            document.cookie = `${STAFF_COOKIE}=; path=/; max-age=0`;
             setSignedInUser(null);
             setLoggingOut(false);
         }
@@ -360,11 +380,10 @@ function CustomerLoginPageContent() {
                                 disabled={isBusy}
                                 autoComplete="current-password"
                                 placeholder="••••••••"
-                                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
-                                    fieldErrors.password
+                                className={`w-full bg-white border rounded-sm pl-3 pr-14 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${fieldErrors.password
                                         ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                                         : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
-                                }`}
+                                    }`}
                             />
                             <button
                                 type="button"
@@ -435,11 +454,10 @@ function CustomerLoginPageContent() {
                     <Link
                         href={
                             nextPath
-                                ? `/auth/register?next=${encodeURIComponent(nextPath)}${
-                                      identifier
-                                          ? `&email=${encodeURIComponent(identifier)}`
-                                          : ''
-                                  }`
+                                ? `/auth/register?next=${encodeURIComponent(nextPath)}${identifier
+                                    ? `&email=${encodeURIComponent(identifier)}`
+                                    : ''
+                                }`
                                 : '/auth/register'
                         }
                         className="font-medium text-blue-950 hover:underline"
@@ -483,11 +501,10 @@ function Field({
                 placeholder={placeholder}
                 autoComplete={autoComplete}
                 disabled={disabled}
-                className={`w-full bg-white border rounded px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
-                    error
+                className={`w-full bg-white border rounded px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${error
                         ? 'border-rose-300 focus:ring-rose-200/40 focus:border-rose-400'
                         : 'border-slate-200 focus:ring-blue-950/20 focus:border-blue-950/40'
-                }`}
+                    }`}
             />
             {error && <p className="text-[11px] text-rose-600">{error}</p>}
         </div>
@@ -522,9 +539,9 @@ function GoogleIcon() {
     );
 }
 export default function CustomerLoginPage(props: any) {
-  return (
-    <Suspense fallback={<div style={{ padding: 20, textAlign: "center" }}>Loading…</div>}>
-      <CustomerLoginPageContent {...props} />
-    </Suspense>
-  );
+    return (
+        <Suspense fallback={<div style={{ padding: 20, textAlign: "center" }}>Loading…</div>}>
+            <CustomerLoginPageContent {...props} />
+        </Suspense>
+    );
 }
