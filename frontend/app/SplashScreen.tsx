@@ -93,7 +93,7 @@ export default function SplashScreen() {
 
     return (
         <div
-            className={`fixed inset-0 z-[999] flex items-center justify-center overflow-hidden bg-blue-950 transition-opacity duration-300 ${fading ? 'opacity-0' : 'opacity-100'
+            className={`fixed inset-0 z-[999] flex items-center justify-center overflow-hidden bg-white transition-opacity duration-300 ${fading ? 'opacity-0' : 'opacity-100'
                 }`}
         >
             {/* Preload hint so the video starts buffering the moment the page opens */}
@@ -176,9 +176,9 @@ export default function SplashScreen() {
 
             {videoReady && (
                 <div className="absolute bottom-12 flex gap-2">
-                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]" />
-                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-300 [animation-delay:-0.15s]" />
-                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-200" />
+                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.3s]" />
+                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.15s]" />
+                    <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-400" />
                 </div>
             )}
         </div>

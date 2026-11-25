@@ -62,7 +62,7 @@ export default function Loading() {
     }, [])
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-blue-950">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-white">
             <svg
                 viewBox="0 0 1600 600"
                 className="w-full max-w-6xl"
@@ -133,16 +133,16 @@ export default function Loading() {
                             className="pointer-events-none h-full w-full object-cover"
                         >
                             {/* 👇 Replace with your video file in /public */}
-                            <source src="/loader-bg.mp4" type="video/mp4" />
+                            <source src="/349590_medium.mp4" type="video/mp4" />
                         </video>
                     </div>
                 </foreignObject>
             </svg>
 
             <div className="absolute bottom-12 flex gap-2">
-                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-400 [animation-delay:-0.3s]" />
-                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-300 [animation-delay:-0.15s]" />
-                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-200" />
+                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.3s]" />
+                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.15s]" />
+                <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-400" />
             </div>
         </div>
     )
