@@ -19,7 +19,7 @@ type NavItem = {
     icon: React.ComponentType<{ className?: string }>;
 };
 
-const BASE = '/tiktok';
+const BASE = '/admin/tiktok';
 
 const NAV: NavItem[] = [
     { id: 'overview', label: 'Overview', href: `${BASE}/BusinessOverview`, icon: LayoutDashboard },
