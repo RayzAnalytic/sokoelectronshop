@@ -5,14 +5,13 @@ const BACKEND = new URL(
     process.env.DJANGO_BACKEND_URL ?? "https://sokoelectronshop.onrender.com"
 );
 
-// Leading slash, no trailing slash.
 const ADMIN_PATH = (() => {
     const raw = process.env.ADMIN_PATH ?? "/ops-7f3k9z";
     return "/" + raw.replace(/^\/+|\/+$/g, "");
 })();
 
+// Paths that should NEVER exist — return 404 (scanner magnets).
 const BLOCK_PREFIXES = [
-    "/admin",
     "/wp-admin",
     "/wp-login.php",
     "/phpmyadmin",
@@ -24,7 +23,19 @@ const BLOCK_PREFIXES = [
     "/.git",
 ];
 
+// Backend paths that get proxied to Django.
 const PROXY_PREFIXES = ["/api/", "/static/", "/media/"];
+
+// Frontend routes that require a staff login.
+// Anything under /admin/* is the custom Next.js dashboard.
+const PROTECTED_ADMIN_PREFIXES = ["/admin"];
+
+// Where to send unauthenticated users.
+const LOGIN_PATH = "/auth/login";
+
+// Cookie the login flow must set after a successful staff login.
+// Value doesn't matter — presence is enough for this gate.
+const STAFF_COOKIE = "rt_staff";
 
 function proxy(pathname: string, request: NextRequest) {
     const url = request.nextUrl.clone();
@@ -34,17 +45,35 @@ function proxy(pathname: string, request: NextRequest) {
     return NextResponse.rewrite(url);
 }
 
-export function middleware(request: NextRequest) {
-    const { pathname } = request.nextUrl;
+function isProtectedAdminPath(pathname: string): boolean {
+    return PROTECTED_ADMIN_PREFIXES.some(
+        (p) => pathname === p || pathname.startsWith(p + "/")
+    );
+}
 
-    // 1) Block scanner magnets. Runs FIRST so /admin never reaches Django.
+export function middleware(request: NextRequest) {
+    const { pathname, search } = request.nextUrl;
+
+    // 1) Scanner magnets → 404.
     for (const p of BLOCK_PREFIXES) {
         if (pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + ".")) {
             return new NextResponse(null, { status: 404 });
         }
     }
 
-    // 2) Proxy backend paths (including the hidden admin path).
+    // 2) Admin UI → require a staff cookie, otherwise redirect to login.
+    if (isProtectedAdminPath(pathname)) {
+        const hasStaffCookie = request.cookies.get(STAFF_COOKIE)?.value === "1";
+        if (!hasStaffCookie) {
+            const loginUrl = new URL(LOGIN_PATH, request.url);
+            loginUrl.searchParams.set("next", pathname + search);
+            return NextResponse.redirect(loginUrl);
+        }
+        // Staff cookie present → let Next.js render the dashboard.
+        return NextResponse.next();
+    }
+
+    // 3) Backend + hidden Django admin path → proxy to Django.
     if (
         PROXY_PREFIXES.some((p) => pathname.startsWith(p)) ||
         pathname === ADMIN_PATH ||
@@ -53,7 +82,7 @@ export function middleware(request: NextRequest) {
         return proxy(pathname, request);
     }
 
-    // 3) Everything else is a normal Next.js page.
+    // 4) Everything else → normal Next.js.
     return NextResponse.next();
 }
 
