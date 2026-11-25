@@ -522,9 +522,12 @@ export interface AdminReturnRequest {
 
 
 // 2. Keep the main entity interface as AdminCustomerSegment
-export interface AdminCustomerSegment {
+ 
+ 
+
+export interface AdminCustomerSegmentRecord {
     id: number;
-    name: CustomerSegmentName | string; // Can be strictly typed or allow custom names
+    name: CustomerSegmentName | string; // allows custom names from the DB
     slug: string;
     description: string;
     rule: Record<string, unknown>;
@@ -534,7 +537,6 @@ export interface AdminCustomerSegment {
     createdAt: string;
     updatedAt: string;
 }
-
 
 export type AdminMarketingConsent =
     | 'Subscribed'
@@ -3939,18 +3941,7 @@ export interface AdminSupportTicketWrite {
     assignedTo?: number | null;
 }
 
-export interface AdminCustomerSegment {
-    id: number;
-    name: string;
-    slug: string;
-    description: string;
-    rule: Record<string, unknown>;
-    color: string;
-    isDynamic: boolean;
-    memberCount: number;
-    createdAt: string;
-    updatedAt: string;
-}
+ 
 export interface AdminDirectCreator {
     id: number;
     name: string;
@@ -7148,6 +7139,101 @@ export interface AdminCategoryRef {
     name: string;
     slug?: string;
 }
+// ---- Write payloads (derived from read models) ----
+export type AdminCreatorApplicationWrite = Partial<
+    Omit<AdminCreatorApplication, 'id' | 'createdAt' | 'updatedAt'>
+>;
+
+export type AdminPartnershipWrite = Partial<
+    Omit<AdminPartnership, 'id' | 'createdAt' | 'updatedAt'>
+>;
+
+export type AdminCreatorSampleWrite = Partial<
+    Omit<AdminCreatorSample, 'id' | 'createdAt' | 'updatedAt'>
+>;
+// ---- Creator sales ----
+export interface AdminCreatorSale {
+    id: number;
+    creatorId: number;
+    creatorName?: string;
+    orderReference?: string;
+    amount: number;
+    commissionAmount?: number;
+    status?: string;
+    createdAt?: string;
+}
+export type AdminCreatorSaleWrite = Partial<
+    Omit<AdminCreatorSale, 'id' | 'createdAt'>
+>;
+
+// ---- Customer segments (write payload) ----
+export type AdminCustomerSegmentWrite = Partial<
+    Omit<AdminCustomerSegment, 'id' | 'createdAt' | 'updatedAt'>
+>;
+
+// ---- Leads ----
+export interface AdminLead {
+    id: number; 
+} 
+export interface AdminLeadConvertWrite {
+    // fields required to convert a lead into an order
+    orderId?: number;
+    notes?: string;
+}
+
+// ---- Follow-ups ----
+export interface AdminFollowUp {
+    id: number; 
+    dueAt?: string; 
+    note?: string; 
+} 
+
+// ---- Permission groups ----
+export interface AdminPermissionGroup {
+    id: number;
+    name: string;
+    description?: string;
+    permissions: string[];
+    createdAt?: string;
+    updatedAt?: string;
+}
+export type AdminPermissionGroupWrite = Partial<
+    Omit<AdminPermissionGroup, 'id' | 'createdAt' | 'updatedAt'>
+>;
+export interface AdminHealthSummaryResponse {
+    ok?: boolean;
+    status?: string;
+    services?: Array<{ name: string; status: string; latencyMs?: number }>;
+    integrations?: Array<{ key: string; status: string; lastSync?: string | null }>;
+    generatedAt?: string;
+}
+export type AdminCustomerSegment =
+    | 'VIP'
+    | 'Loyal'
+    | 'New'
+    | 'At Risk'
+    | 'Churned'
+    | 'Regular';
+// ---- Ad campaigns ----
+export interface AdminAdCampaign {
+    id: number;
+    name: string;
+    platform?: string;
+    status?: string;
+    budget?: number;
+    spend?: number;
+    revenue?: number;
+    startDate?: string;
+    endDate?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+export type AdminAdCampaignWrite = Partial<
+    Omit<AdminAdCampaign, 'id' | 'createdAt' | 'updatedAt'>
+>;
+export type AdminIntegrationWrite = Partial<
+    Omit<AdminIntegration, 'id' | 'key' | 'lastSync' | 'status' | 'error'>
+>;
 export interface AdminDirectOrderAdvanceWrite {
     status: AdminDirectOrderStatus | string;
     note?: string;

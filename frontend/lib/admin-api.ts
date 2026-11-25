@@ -14,6 +14,7 @@ import type {
     AdminPosterWrite,
     AdminPosterFilters,
     AdminPosterStatus,
+    AdminHealthSummaryResponse,
     AdminSubscriber,
     AdminSubscriberStats,
     AdminSubscriberWrite,
@@ -55,7 +56,19 @@ import type {
     AdminOrderWhatsAppWrite,
     AdminOrderExportWrite,
     AdminOrderExportResponse,
-
+    AdminNotificationSetting,
+    AdminCreatorSale,
+    AdminCreatorSaleWrite,
+    AdminCustomerSegmentWrite,
+    AdminLead,
+    AdminLeadWrite,
+    AdminLeadConvertWrite,
+    AdminFollowUp,
+    AdminFollowUpWrite,
+    AdminPermissionGroup,
+    AdminPermissionGroupWrite,
+    AdminAdCampaign,
+    AdminAdCampaignWrite,
     AdminCustomerListResponse,
     AdminCustomerStats,
     AdminCustomerDetail,
@@ -1968,7 +1981,7 @@ export const adminApi = {
         list: (filters: AdminCustomerFilters = {}, signal?: AbortSignal) => {
             const sp = new URLSearchParams();
             if (filters.search) sp.set('search', filters.search);
-            if (filters.segment) sp.set('segment', filters.segment);
+            if (filters.segment) sp.set('segment', filters.segment); 
             if (filters.orders) sp.set('orders', filters.orders);
             if (filters.spent) sp.set('spent', filters.spent);
             const qs = sp.toString();
@@ -4514,1401 +4527,1407 @@ export const adminApi = {
         },
     },
 
-   directOrders: {
-    uploads: {
-        image: (file: File, signal?: AbortSignal) =>
-            uploadDirectOrderFile(file, 'image', signal),
+    directOrders: {
+        uploads: {
+            image: (file: File, signal?: AbortSignal) =>
+                uploadDirectOrderFile(file, 'image', signal),
 
-        video: (file: File, signal?: AbortSignal) =>
-            uploadDirectOrderFile(file, 'video', signal),
-    },
-
-    orders: {
-        list: async (
-            filters: {
-                q?: string;
-                source?: AdminDirectOrderSource;
-                status?: AdminDirectOrderStatus;
-                dateRange?: 'Today' | 'Yesterday' | 'Last 7 Days' | 'Last 30 Days';
-            } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminDirectOrder[]> => {
-            const sp = new URLSearchParams();
-            if (filters.q) sp.set('q', filters.q);
-            if (filters.source) sp.set('source', filters.source);
-            if (filters.status) sp.set('status', filters.status);
-            if (filters.dateRange) sp.set('dateRange', filters.dateRange);
-            const qs = sp.toString();
-            const res = await request<
-                AdminDirectOrder[] | { results: AdminDirectOrder[] }
-            >(
-                `/api/v1/dashboard/direct-orders/orders/${qs ? `?${qs}` : ''}`,
-                { signal },
-            );
-            return unwrapList(res);
+            video: (file: File, signal?: AbortSignal) =>
+                uploadDirectOrderFile(file, 'video', signal),
         },
 
-        detail: (reference: string, signal?: AbortSignal) =>
-            request<AdminDirectOrder>(
-                `/api/v1/dashboard/direct-orders/orders/${encodeURIComponent(reference)}/`,
-                { signal },
-            ),
-
-        advance: (
-            reference: string,
-            payload: AdminDirectOrderAdvanceWrite,
-        ) =>
-            request<AdminDirectOrder>(
-                `/api/v1/dashboard/direct-orders/orders/${encodeURIComponent(reference)}/advance/`,
-                { method: 'POST', body: payload },
-            ),
-    },
-
-    logged: {
-        list: async (
-            filters: {
-                q?: string;
-                source?: AdminDirectOrderSource;
-                status?: AdminDirectOrderStatus;
-                verification?: 'unverified' | 'verified' | 'failed';
-                dateRange?: 'Today' | 'Yesterday' | 'Last 7 Days' | 'Last 30 Days';
-            } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminDirectOrder[]> => {
-            const sp = new URLSearchParams();
-            if (filters.q) sp.set('q', filters.q);
-            if (filters.source) sp.set('source', filters.source);
-            if (filters.status) sp.set('status', filters.status);
-            if (filters.verification) sp.set('verification', filters.verification);
-            if (filters.dateRange) sp.set('dateRange', filters.dateRange);
-            const qs = sp.toString();
-            const res = await request<
-                AdminDirectOrder[] | { results: AdminDirectOrder[] }
-            >(
-                `/api/v1/dashboard/direct-orders/logged/${qs ? `?${qs}` : ''}`,
-                { signal },
-            );
-            return unwrapList(res);
-        },
-
-        detail: (reference: string, signal?: AbortSignal) =>
-            request<AdminDirectOrder>(
-                `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminDirectOrderWrite) =>
-            request<AdminDirectOrder>(
-                '/api/v1/dashboard/direct-orders/logged/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (
-            reference: string,
-            payload: Partial<AdminDirectOrderWrite>,
-        ) =>
-            request<AdminDirectOrder>(
-                `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (reference: string) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
-                { method: 'DELETE' },
-            ),
-
-        advance: (
-            reference: string,
-            payload: AdminDirectOrderAdvanceWrite,
-        ) =>
-            request<AdminDirectOrder>(
-                `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/advance/`,
-                { method: 'POST', body: payload },
-            ),
-
-        reconcile: (
-            reference: string,
-            verificationStatus: 'unverified' | 'verified' | 'failed',
-        ) =>
-            request<AdminDirectOrder>(
-                `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/reconcile/`,
-                { method: 'POST', body: { verificationStatus } },
-            ),
-    },
-
-    creators: {
-        list: async (
-            filters: { status?: string; q?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminDirectCreator[]> => {
-            const qs = qsOf(filters);
-            return request<AdminDirectCreator[]>(
-                `/api/v1/dashboard/direct-orders/creators/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminDirectCreator>(
-                `/api/v1/dashboard/direct-orders/creators/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminDirectCreatorWrite) =>
-            request<AdminDirectCreator>(
-                '/api/v1/dashboard/direct-orders/creators/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminDirectCreatorWrite>) =>
-            request<AdminDirectCreator>(
-                `/api/v1/dashboard/direct-orders/creators/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/creators/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    creatorSales: {
-        list: async (
-            filters: { creator?: number; paid?: boolean; status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminCreatorSale[]> => {
-            const qs = qsOf(filters);
-            return request<AdminCreatorSale[]>(
-                `/api/v1/dashboard/direct-orders/creator-sales/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminCreatorSale>(
-                `/api/v1/dashboard/direct-orders/creator-sales/${id}/`,
-                { signal },
-            ),
-
-        update: (id: number, payload: Partial<AdminCreatorSaleWrite>) =>
-            request<AdminCreatorSale>(
-                `/api/v1/dashboard/direct-orders/creator-sales/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/creator-sales/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    creatorApplications: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminCreatorApplication[]> => {
-            const qs = qsOf(filters);
-            return request<AdminCreatorApplication[]>(
-                `/api/v1/dashboard/direct-orders/creator-applications/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminCreatorApplication>(
-                `/api/v1/dashboard/direct-orders/creator-applications/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminCreatorApplicationWrite) =>
-            request<AdminCreatorApplication>(
-                '/api/v1/dashboard/direct-orders/creator-applications/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminCreatorApplicationWrite>) =>
-            request<AdminCreatorApplication>(
-                `/api/v1/dashboard/direct-orders/creator-applications/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/creator-applications/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    partnerships: {
-        list: async (
-            filters: { creator?: number; status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminPartnership[]> => {
-            const qs = qsOf(filters);
-            return request<AdminPartnership[]>(
-                `/api/v1/dashboard/direct-orders/partnerships/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminPartnership>(
-                `/api/v1/dashboard/direct-orders/partnerships/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminPartnershipWrite) =>
-            request<AdminPartnership>(
-                '/api/v1/dashboard/direct-orders/partnerships/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminPartnershipWrite>) =>
-            request<AdminPartnership>(
-                `/api/v1/dashboard/direct-orders/partnerships/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/partnerships/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    creatorSamples: {
-        list: async (
-            filters: { creator?: number; status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminCreatorSample[]> => {
-            const qs = qsOf(filters);
-            return request<AdminCreatorSample[]>(
-                `/api/v1/dashboard/direct-orders/creator-samples/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminCreatorSample>(
-                `/api/v1/dashboard/direct-orders/creator-samples/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminCreatorSampleWrite) =>
-            request<AdminCreatorSample>(
-                '/api/v1/dashboard/direct-orders/creator-samples/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminCreatorSampleWrite>) =>
-            request<AdminCreatorSample>(
-                `/api/v1/dashboard/direct-orders/creator-samples/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/creator-samples/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    content: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminDirectContent[]> => {
-            const qs = qsOf(filters);
-            return request<AdminDirectContent[]>(
-                `/api/v1/dashboard/direct-orders/content/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminDirectContent>(
-                `/api/v1/dashboard/direct-orders/content/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminDirectContentWrite) =>
-            request<AdminDirectContent>(
-                '/api/v1/dashboard/direct-orders/content/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminDirectContentWrite>) =>
-            request<AdminDirectContent>(
-                `/api/v1/dashboard/direct-orders/content/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/content/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    lives: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminDirectLive[]> => {
-            const qs = qsOf(filters);
-            return request<AdminDirectLive[]>(
-                `/api/v1/dashboard/direct-orders/lives/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminDirectLive>(
-                `/api/v1/dashboard/direct-orders/lives/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminDirectLiveWrite) =>
-            request<AdminDirectLive>(
-                '/api/v1/dashboard/direct-orders/lives/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminDirectLiveWrite>) =>
-            request<AdminDirectLive>(
-                `/api/v1/dashboard/direct-orders/lives/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/lives/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    products: {
-        list: async (
-            filters: { status?: AdminDirectProductStatus; q?: string; lowStock?: boolean } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminDirectProduct[]> => {
-            const sp = new URLSearchParams();
-            if (filters.status) sp.set('status', filters.status);
-            if (filters.q) sp.set('q', filters.q);
-            if (filters.lowStock) sp.set('lowStock', 'true');
-            const qs = sp.toString();
-            const res = await request<
-                AdminDirectProduct[] | { results: AdminDirectProduct[] }
-            >(
-                `/api/v1/dashboard/direct-orders/products/${qs ? `?${qs}` : ''}`,
-                { signal },
-            );
-            return unwrapList(res);
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminDirectProduct>(
-                `/api/v1/dashboard/direct-orders/products/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminDirectProductWrite) =>
-            request<AdminDirectProduct>(
-                '/api/v1/dashboard/direct-orders/products/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminDirectProductWrite>) =>
-            request<AdminDirectProduct>(
-                `/api/v1/dashboard/direct-orders/products/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/products/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    variants: {
-        list: async (
-            filters: { product?: number } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminProductVariant[]> => {
-            const qs = qsOf(filters);
-            return request<AdminProductVariant[]>(
-                `/api/v1/dashboard/direct-orders/variants/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminProductVariant>(
-                `/api/v1/dashboard/direct-orders/variants/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminProductVariantWrite & { productId: number }) =>
-            request<AdminProductVariant>(
-                '/api/v1/dashboard/direct-orders/variants/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminProductVariantWrite>) =>
-            request<AdminProductVariant>(
-                `/api/v1/dashboard/direct-orders/variants/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/variants/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    suppliers: {
-        list: async (
-            filters: { q?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminSupplierFull[]> => {
-            const qs = qsOf(filters);
-            return request<AdminSupplierFull[]>(
-                `/api/v1/dashboard/direct-orders/suppliers/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminSupplierFull>(
-                `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminSupplierFullWrite) =>
-            request<AdminSupplierFull>(
-                '/api/v1/dashboard/direct-orders/suppliers/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminSupplierFullWrite>) =>
-            request<AdminSupplierFull>(
-                `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    purchaseOrders: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminPurchaseOrder[]> => {
-            const qs = qsOf(filters);
-            return request<AdminPurchaseOrder[]>(
-                `/api/v1/dashboard/direct-orders/purchase-orders/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminPurchaseOrder>(
-                `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminPurchaseOrderWrite) =>
-            request<AdminPurchaseOrder>(
-                '/api/v1/dashboard/direct-orders/purchase-orders/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminPurchaseOrderWrite>) =>
-            request<AdminPurchaseOrder>(
-                `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    locations: {
-        list: (signal?: AbortSignal) =>
-            request<AdminLocation[]>(
-                '/api/v1/dashboard/direct-orders/locations/',
-                { signal },
-            ),
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminLocation>(
-                `/api/v1/dashboard/direct-orders/locations/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminLocationWrite) =>
-            request<AdminLocation>(
-                '/api/v1/dashboard/direct-orders/locations/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminLocationWrite>) =>
-            request<AdminLocation>(
-                `/api/v1/dashboard/direct-orders/locations/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/locations/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    inventory: {
-        movements: {
+        orders: {
             list: async (
-                filters: { product?: number; kind?: string } = {},
+                filters: {
+                    q?: string;
+                    source?: AdminDirectOrderSource;
+                    status?: AdminDirectOrderStatus;
+                    dateRange?: 'Today' | 'Yesterday' | 'Last 7 Days' | 'Last 30 Days';
+                } = {},
                 signal?: AbortSignal,
-            ): Promise<AdminInventoryMovement[]> => {
+            ): Promise<AdminDirectOrder[]> => {
+                const sp = new URLSearchParams();
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.source) sp.set('source', filters.source);
+                if (filters.status) sp.set('status', filters.status);
+                if (filters.dateRange) sp.set('dateRange', filters.dateRange);
+                const qs = sp.toString();
+                const res = await request<
+                    AdminDirectOrder[] | { results: AdminDirectOrder[] }
+                >(
+                    `/api/v1/dashboard/direct-orders/orders/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
+
+            detail: (reference: string, signal?: AbortSignal) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/orders/${encodeURIComponent(reference)}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDirectOrderWrite) =>
+                request<AdminDirectOrder>(
+                    '/api/v1/dashboard/direct-orders/orders/',
+                    { method: 'POST', body: payload },
+                ),
+
+            advance: (
+                reference: string,
+                payload: AdminDirectOrderAdvanceWrite,
+            ) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/orders/${encodeURIComponent(reference)}/advance/`,
+                    { method: 'POST', body: payload },
+                ),
+        },
+
+        logged: {
+            list: async (
+                filters: {
+                    q?: string;
+                    source?: AdminDirectOrderSource;
+                    status?: AdminDirectOrderStatus;
+                    verification?: 'unverified' | 'verified' | 'failed';
+                    dateRange?: 'Today' | 'Yesterday' | 'Last 7 Days' | 'Last 30 Days';
+                } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminDirectOrder[]> => {
+                const sp = new URLSearchParams();
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.source) sp.set('source', filters.source);
+                if (filters.status) sp.set('status', filters.status);
+                if (filters.verification) sp.set('verification', filters.verification);
+                if (filters.dateRange) sp.set('dateRange', filters.dateRange);
+                const qs = sp.toString();
+                const res = await request<
+                    AdminDirectOrder[] | { results: AdminDirectOrder[] }
+                >(
+                    `/api/v1/dashboard/direct-orders/logged/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
+
+            detail: (reference: string, signal?: AbortSignal) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDirectOrderWrite) =>
+                request<AdminDirectOrder>(
+                    '/api/v1/dashboard/direct-orders/logged/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (
+                reference: string,
+                payload: Partial<AdminDirectOrderWrite>,
+            ) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (reference: string) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/`,
+                    { method: 'DELETE' },
+                ),
+
+            advance: (
+                reference: string,
+                payload: AdminDirectOrderAdvanceWrite,
+            ) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/advance/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            reconcile: (
+                reference: string,
+                verificationStatus: 'unverified' | 'verified' | 'failed',
+            ) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/logged/${encodeURIComponent(reference)}/reconcile/`,
+                    { method: 'POST', body: { verificationStatus } },
+                ),
+        },
+
+        creators: {
+            list: async (
+                filters: { status?: string; q?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminDirectCreator[]> => {
                 const qs = qsOf(filters);
-                return request<AdminInventoryMovement[]>(
-                    `/api/v1/dashboard/direct-orders/inventory/movements/${qs}`,
+                return request<AdminDirectCreator[]>(
+                    `/api/v1/dashboard/direct-orders/creators/${qs}`,
                     { signal },
                 );
             },
 
             detail: (id: number, signal?: AbortSignal) =>
-                request<AdminInventoryMovement>(
-                    `/api/v1/dashboard/direct-orders/inventory/movements/${id}/`,
+                request<AdminDirectCreator>(
+                    `/api/v1/dashboard/direct-orders/creators/${id}/`,
                     { signal },
                 ),
 
-            create: (payload: AdminInventoryMovementWrite) =>
-                request<AdminInventoryMovement>(
-                    '/api/v1/dashboard/direct-orders/inventory/movements/',
+            create: (payload: AdminDirectCreatorWrite) =>
+                request<AdminDirectCreator>(
+                    '/api/v1/dashboard/direct-orders/creators/',
                     { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminDirectCreatorWrite>) =>
+                request<AdminDirectCreator>(
+                    `/api/v1/dashboard/direct-orders/creators/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/creators/${id}/`,
+                    { method: 'DELETE' },
                 ),
         },
 
-        summary: (signal?: AbortSignal) =>
-            request<AdminInventorySummary>(
-                '/api/v1/dashboard/direct-orders/inventory/summary/',
-                { signal },
-            ),
-    },
-
-    customers: {
-        list: async (
-            filters: { segment?: string; q?: string; limit?: number; offset?: number } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminCustomerFull[] | { results: AdminCustomerFull[] }> => {
-            const qs = qsOf(filters);
-            return request<AdminCustomerFull[] | { results: AdminCustomerFull[] }>(
-                `/api/v1/dashboard/direct-orders/customers/${qs}`,
-                { signal },
-            );
-        },
-
-        stats: (signal?: AbortSignal) =>
-            request<AdminCustomerStatsFull>(
-                '/api/v1/dashboard/direct-orders/customers/stats/',
-                { signal },
-            ),
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminCustomerFull>(
-                `/api/v1/dashboard/direct-orders/customers/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminCustomerFullWrite) =>
-            request<AdminCustomerFull>(
-                '/api/v1/dashboard/direct-orders/customers/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminCustomerFullWrite>) =>
-            request<AdminCustomerFull>(
-                `/api/v1/dashboard/direct-orders/customers/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/customers/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    segments: {
-        list: (signal?: AbortSignal) =>
-            request<AdminCustomerSegment[]>(
-                '/api/v1/dashboard/direct-orders/segments/',
-                { signal },
-            ),
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminCustomerSegment>(
-                `/api/v1/dashboard/direct-orders/segments/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminCustomerSegmentWrite) =>
-            request<AdminCustomerSegment>(
-                '/api/v1/dashboard/direct-orders/segments/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminCustomerSegmentWrite>) =>
-            request<AdminCustomerSegment>(
-                `/api/v1/dashboard/direct-orders/segments/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/segments/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    inbox: {
-        list: async (
-            filters: { channel?: string; status?: string; q?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminInboxConversation[]> => {
-            const qs = qsOf(filters);
-            return request<AdminInboxConversation[]>(
-                `/api/v1/dashboard/direct-orders/inbox/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminInboxConversation>(
-                `/api/v1/dashboard/direct-orders/inbox/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminInboxConversationWrite) =>
-            request<AdminInboxConversation>(
-                '/api/v1/dashboard/direct-orders/inbox/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminInboxConversationWrite>) =>
-            request<AdminInboxConversation>(
-                `/api/v1/dashboard/direct-orders/inbox/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/inbox/${id}/`,
-                { method: 'DELETE' },
-            ),
-
-        convert: (id: number, payload: AdminInboxConvertWrite) =>
-            request<AdminDirectOrder>(
-                `/api/v1/dashboard/direct-orders/inbox/${id}/convert/`,
-                { method: 'POST', body: payload },
-            ),
-
-        messages: {
+        creatorSales: {
             list: async (
-                filters: { conversation?: number } = {},
+                filters: { creator?: number; paid?: boolean; status?: string } = {},
                 signal?: AbortSignal,
-            ): Promise<AdminInboxMessage[]> => {
+            ): Promise<AdminCreatorSale[]> => {
                 const qs = qsOf(filters);
-                return request<AdminInboxMessage[]>(
-                    `/api/v1/dashboard/direct-orders/inbox/messages/${qs}`,
+                return request<AdminCreatorSale[]>(
+                    `/api/v1/dashboard/direct-orders/creator-sales/${qs}`,
                     { signal },
                 );
             },
 
-            create: (payload: AdminInboxMessageWrite) =>
-                request<AdminInboxMessage>(
-                    '/api/v1/dashboard/direct-orders/inbox/messages/',
-                    { method: 'POST', body: payload },
-                ),
-        },
-    },
-
-    leads: {
-        list: async (
-            filters: { status?: string; source?: string; q?: string; limit?: number; offset?: number } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminLead[] | { results: AdminLead[] }> => {
-            const qs = qsOf(filters);
-            return request<AdminLead[] | { results: AdminLead[] }>(
-                `/api/v1/dashboard/direct-orders/leads/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminLead>(
-                `/api/v1/dashboard/direct-orders/leads/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminLeadWrite) =>
-            request<AdminLead>(
-                '/api/v1/dashboard/direct-orders/leads/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminLeadWrite>) =>
-            request<AdminLead>(
-                `/api/v1/dashboard/direct-orders/leads/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/leads/${id}/`,
-                { method: 'DELETE' },
-            ),
-
-        convert: (id: number, payload: AdminLeadConvertWrite) =>
-            request<{ lead: AdminLead; order: AdminDirectOrder }>(
-                `/api/v1/dashboard/direct-orders/leads/${id}/convert/`,
-                { method: 'POST', body: payload },
-            ),
-    },
-
-    followups: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminFollowUp[]> => {
-            const qs = qsOf(filters);
-            return request<AdminFollowUp[]>(
-                `/api/v1/dashboard/direct-orders/followups/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminFollowUp>(
-                `/api/v1/dashboard/direct-orders/followups/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminFollowUpWrite) =>
-            request<AdminFollowUp>(
-                '/api/v1/dashboard/direct-orders/followups/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminFollowUpWrite>) =>
-            request<AdminFollowUp>(
-                `/api/v1/dashboard/direct-orders/followups/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/followups/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    tickets: {
-        list: async (
-            filters: { status?: string; priority?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminSupportTicket[]> => {
-            const qs = qsOf(filters);
-            return request<AdminSupportTicket[]>(
-                `/api/v1/dashboard/direct-orders/tickets/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminSupportTicket>(
-                `/api/v1/dashboard/direct-orders/tickets/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminSupportTicketWrite) =>
-            request<AdminSupportTicket>(
-                '/api/v1/dashboard/direct-orders/tickets/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminSupportTicketWrite>) =>
-            request<AdminSupportTicket>(
-                `/api/v1/dashboard/direct-orders/tickets/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/tickets/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    team: {
-        list: async (
-            filters: { role?: string; status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminTeamMember[]> => {
-            const qs = qsOf(filters);
-            return request<AdminTeamMember[]>(
-                `/api/v1/dashboard/direct-orders/team/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminTeamMember>(
-                `/api/v1/dashboard/direct-orders/team/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminTeamMemberWrite) =>
-            request<AdminTeamMember>(
-                '/api/v1/dashboard/direct-orders/team/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminTeamMemberWrite>) =>
-            request<AdminTeamMember>(
-                `/api/v1/dashboard/direct-orders/team/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/team/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    permissionGroups: {
-        list: (signal?: AbortSignal) =>
-            request<AdminPermissionGroup[]>(
-                '/api/v1/dashboard/direct-orders/permission-groups/',
-                { signal },
-            ),
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminPermissionGroup>(
-                `/api/v1/dashboard/direct-orders/permission-groups/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminPermissionGroupWrite) =>
-            request<AdminPermissionGroup>(
-                '/api/v1/dashboard/direct-orders/permission-groups/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminPermissionGroupWrite>) =>
-            request<AdminPermissionGroup>(
-                `/api/v1/dashboard/direct-orders/permission-groups/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/permission-groups/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    returns: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminReturnRequest[]> => {
-            const qs = qsOf(filters);
-            return request<AdminReturnRequest[]>(
-                `/api/v1/dashboard/direct-orders/returns/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminReturnRequest>(
-                `/api/v1/dashboard/direct-orders/returns/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminReturnRequestWrite) =>
-            request<AdminReturnRequest>(
-                '/api/v1/dashboard/direct-orders/returns/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminReturnRequestWrite>) =>
-            request<AdminReturnRequest>(
-                `/api/v1/dashboard/direct-orders/returns/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/returns/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    expenses: {
-        list: async (
-            filters: { category?: string; limit?: number; offset?: number } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminExpense[] | { results: AdminExpense[] }> => {
-            const qs = qsOf(filters);
-            return request<AdminExpense[] | { results: AdminExpense[] }>(
-                `/api/v1/dashboard/direct-orders/expenses/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminExpense>(
-                `/api/v1/dashboard/direct-orders/expenses/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminExpenseWrite) =>
-            request<AdminExpense>(
-                '/api/v1/dashboard/direct-orders/expenses/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminExpenseWrite>) =>
-            request<AdminExpense>(
-                `/api/v1/dashboard/direct-orders/expenses/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/expenses/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    automations: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminAutomation[]> => {
-            const qs = qsOf(filters);
-            return request<AdminAutomation[]>(
-                `/api/v1/dashboard/direct-orders/automations/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminAutomation>(
-                `/api/v1/dashboard/direct-orders/automations/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminAutomationWrite) =>
-            request<AdminAutomation>(
-                '/api/v1/dashboard/direct-orders/automations/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminAutomationWrite>) =>
-            request<AdminAutomation>(
-                `/api/v1/dashboard/direct-orders/automations/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/automations/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    notifications: {
-        list: async (
-            filters: { unread?: boolean } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminNotification[]> => {
-            const qs = qsOf(filters);
-            return request<AdminNotification[]>(
-                `/api/v1/dashboard/direct-orders/notifications/${qs}`,
-                { signal },
-            );
-        },
-
-        markRead: (id: number) =>
-            request<AdminNotification>(
-                `/api/v1/dashboard/direct-orders/notifications/${id}/read/`,
-                { method: 'POST' },
-            ),
-
-        markAllRead: () =>
-            request<{ ok: boolean }>(
-                '/api/v1/dashboard/direct-orders/notifications/read-all/',
-                { method: 'POST' },
-            ),
-
-        settings: {
-            list: (signal?: AbortSignal) =>
-                request<AdminNotificationSetting[]>(
-                    '/api/v1/dashboard/direct-orders/notifications/settings/',
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCreatorSale>(
+                    `/api/v1/dashboard/direct-orders/creator-sales/${id}/`,
                     { signal },
                 ),
 
-            update: (updates: Record<string, boolean>) =>
-                request<AdminNotificationSetting[]>(
-                    '/api/v1/dashboard/direct-orders/notifications/settings/',
-                    { method: 'PATCH', body: updates },
+            update: (id: number, payload: Partial<AdminCreatorSaleWrite>) =>
+                request<AdminCreatorSale>(
+                    `/api/v1/dashboard/direct-orders/creator-sales/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/creator-sales/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        creatorApplications: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCreatorApplication[]> => {
+                const qs = qsOf(filters);
+                return request<AdminCreatorApplication[]>(
+                    `/api/v1/dashboard/direct-orders/creator-applications/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCreatorApplication>(
+                    `/api/v1/dashboard/direct-orders/creator-applications/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCreatorApplicationWrite) =>
+                request<AdminCreatorApplication>(
+                    '/api/v1/dashboard/direct-orders/creator-applications/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCreatorApplicationWrite>) =>
+                request<AdminCreatorApplication>(
+                    `/api/v1/dashboard/direct-orders/creator-applications/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/creator-applications/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        partnerships: {
+            list: async (
+                filters: { creator?: number; status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminPartnership[]> => {
+                const qs = qsOf(filters);
+                return request<AdminPartnership[]>(
+                    `/api/v1/dashboard/direct-orders/partnerships/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminPartnership>(
+                    `/api/v1/dashboard/direct-orders/partnerships/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminPartnershipWrite) =>
+                request<AdminPartnership>(
+                    '/api/v1/dashboard/direct-orders/partnerships/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminPartnershipWrite>) =>
+                request<AdminPartnership>(
+                    `/api/v1/dashboard/direct-orders/partnerships/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/partnerships/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        creatorSamples: {
+            list: async (
+                filters: { creator?: number; status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCreatorSample[]> => {
+                const qs = qsOf(filters);
+                return request<AdminCreatorSample[]>(
+                    `/api/v1/dashboard/direct-orders/creator-samples/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCreatorSample>(
+                    `/api/v1/dashboard/direct-orders/creator-samples/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCreatorSampleWrite) =>
+                request<AdminCreatorSample>(
+                    '/api/v1/dashboard/direct-orders/creator-samples/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCreatorSampleWrite>) =>
+                request<AdminCreatorSample>(
+                    `/api/v1/dashboard/direct-orders/creator-samples/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/creator-samples/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        content: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminDirectContent[]> => {
+                const qs = qsOf(filters);
+                return request<AdminDirectContent[]>(
+                    `/api/v1/dashboard/direct-orders/content/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminDirectContent>(
+                    `/api/v1/dashboard/direct-orders/content/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDirectContentWrite) =>
+                request<AdminDirectContent>(
+                    '/api/v1/dashboard/direct-orders/content/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminDirectContentWrite>) =>
+                request<AdminDirectContent>(
+                    `/api/v1/dashboard/direct-orders/content/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/content/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        lives: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminDirectLive[]> => {
+                const qs = qsOf(filters);
+                return request<AdminDirectLive[]>(
+                    `/api/v1/dashboard/direct-orders/lives/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminDirectLive>(
+                    `/api/v1/dashboard/direct-orders/lives/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDirectLiveWrite) =>
+                request<AdminDirectLive>(
+                    '/api/v1/dashboard/direct-orders/lives/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminDirectLiveWrite>) =>
+                request<AdminDirectLive>(
+                    `/api/v1/dashboard/direct-orders/lives/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/lives/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        products: {
+            list: async (
+                filters: { status?: AdminDirectProductStatus; q?: string; lowStock?: boolean } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminDirectProduct[]> => {
+                const sp = new URLSearchParams();
+                if (filters.status) sp.set('status', filters.status);
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.lowStock) sp.set('lowStock', 'true');
+                const qs = sp.toString();
+                const res = await request<
+                    AdminDirectProduct[] | { results: AdminDirectProduct[] }
+                >(
+                    `/api/v1/dashboard/direct-orders/products/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminDirectProduct>(
+                    `/api/v1/dashboard/direct-orders/products/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDirectProductWrite) =>
+                request<AdminDirectProduct>(
+                    '/api/v1/dashboard/direct-orders/products/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminDirectProductWrite>) =>
+                request<AdminDirectProduct>(
+                    `/api/v1/dashboard/direct-orders/products/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/products/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        variants: {
+            list: async (
+                filters: { product?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminProductVariant[]> => {
+                const qs = qsOf(filters);
+                return request<AdminProductVariant[]>(
+                    `/api/v1/dashboard/direct-orders/variants/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminProductVariant>(
+                    `/api/v1/dashboard/direct-orders/variants/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminProductVariantWrite & { productId: number }) =>
+                request<AdminProductVariant>(
+                    '/api/v1/dashboard/direct-orders/variants/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminProductVariantWrite>) =>
+                request<AdminProductVariant>(
+                    `/api/v1/dashboard/direct-orders/variants/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/variants/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        suppliers: {
+            list: async (
+                filters: { q?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminSupplierFull[]> => {
+                const qs = qsOf(filters);
+                return request<AdminSupplierFull[]>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSupplierFull>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminSupplierFullWrite) =>
+                request<AdminSupplierFull>(
+                    '/api/v1/dashboard/direct-orders/suppliers/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminSupplierFullWrite>) =>
+                request<AdminSupplierFull>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/suppliers/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        purchaseOrders: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminPurchaseOrder[]> => {
+                const qs = qsOf(filters);
+                return request<AdminPurchaseOrder[]>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminPurchaseOrder>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminPurchaseOrderWrite) =>
+                request<AdminPurchaseOrder>(
+                    '/api/v1/dashboard/direct-orders/purchase-orders/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminPurchaseOrderWrite>) =>
+                request<AdminPurchaseOrder>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/purchase-orders/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        locations: {
+            list: (signal?: AbortSignal) =>
+                request<AdminLocation[]>(
+                    '/api/v1/dashboard/direct-orders/locations/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminLocation>(
+                    `/api/v1/dashboard/direct-orders/locations/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminLocationWrite) =>
+                request<AdminLocation>(
+                    '/api/v1/dashboard/direct-orders/locations/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminLocationWrite>) =>
+                request<AdminLocation>(
+                    `/api/v1/dashboard/direct-orders/locations/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/locations/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        inventory: {
+            movements: {
+                list: async (
+                    filters: { product?: number; kind?: string } = {},
+                    signal?: AbortSignal,
+                ): Promise<AdminInventoryMovement[]> => {
+                    const qs = qsOf(filters);
+                    return request<AdminInventoryMovement[]>(
+                        `/api/v1/dashboard/direct-orders/inventory/movements/${qs}`,
+                        { signal },
+                    );
+                },
+
+                detail: (id: number, signal?: AbortSignal) =>
+                    request<AdminInventoryMovement>(
+                        `/api/v1/dashboard/direct-orders/inventory/movements/${id}/`,
+                        { signal },
+                    ),
+
+                create: (payload: AdminInventoryMovementWrite) =>
+                    request<AdminInventoryMovement>(
+                        '/api/v1/dashboard/direct-orders/inventory/movements/',
+                        { method: 'POST', body: payload },
+                    ),
+            },
+
+            summary: (signal?: AbortSignal) =>
+                request<AdminInventorySummary>(
+                    '/api/v1/dashboard/direct-orders/inventory/summary/',
+                    { signal },
+                ),
+        },
+
+        customers: {
+            list: async (
+                filters: { segment?: string; q?: string; limit?: number; offset?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCustomerFull[] | { results: AdminCustomerFull[] }> => {
+                const qs = qsOf(filters);
+                return request<AdminCustomerFull[] | { results: AdminCustomerFull[] }>(
+                    `/api/v1/dashboard/direct-orders/customers/${qs}`,
+                    { signal },
+                );
+            },
+
+            stats: (signal?: AbortSignal) =>
+                request<AdminCustomerStatsFull>(
+                    '/api/v1/dashboard/direct-orders/customers/stats/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCustomerFull>(
+                    `/api/v1/dashboard/direct-orders/customers/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCustomerFullWrite) =>
+                request<AdminCustomerFull>(
+                    '/api/v1/dashboard/direct-orders/customers/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCustomerFullWrite>) =>
+                request<AdminCustomerFull>(
+                    `/api/v1/dashboard/direct-orders/customers/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/customers/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        segments: {
+            list: (signal?: AbortSignal) =>
+                request<AdminCustomerSegment[]>(
+                    '/api/v1/dashboard/direct-orders/segments/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCustomerSegment>(
+                    `/api/v1/dashboard/direct-orders/segments/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCustomerSegmentWrite) =>
+                request<AdminCustomerSegment>(
+                    '/api/v1/dashboard/direct-orders/segments/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCustomerSegmentWrite>) =>
+                request<AdminCustomerSegment>(
+                    `/api/v1/dashboard/direct-orders/segments/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/segments/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        inbox: {
+            list: async (
+                filters: { channel?: string; status?: string; q?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminInboxConversation[]> => {
+                const qs = qsOf(filters);
+                return request<AdminInboxConversation[]>(
+                    `/api/v1/dashboard/direct-orders/inbox/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminInboxConversation>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminInboxConversationWrite) =>
+                request<AdminInboxConversation>(
+                    '/api/v1/dashboard/direct-orders/inbox/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminInboxConversationWrite>) =>
+                request<AdminInboxConversation>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/`,
+                    { method: 'DELETE' },
+                ),
+
+            convert: (id: number, payload: AdminInboxConvertWrite) =>
+                request<AdminDirectOrder>(
+                    `/api/v1/dashboard/direct-orders/inbox/${id}/convert/`,
+                    { method: 'POST', body: payload },
+                ),
+
+            messages: {
+                list: async (
+                    filters: { conversation?: number } = {},
+                    signal?: AbortSignal,
+                ): Promise<AdminInboxMessage[]> => {
+                    const qs = qsOf(filters);
+                    return request<AdminInboxMessage[]>(
+                        `/api/v1/dashboard/direct-orders/inbox/messages/${qs}`,
+                        { signal },
+                    );
+                },
+
+                create: (payload: AdminInboxMessageWrite) =>
+                    request<AdminInboxMessage>(
+                        '/api/v1/dashboard/direct-orders/inbox/messages/',
+                        { method: 'POST', body: payload },
+                    ),
+            },
+        },
+
+        leads: {
+            list: async (
+                filters: { status?: string; source?: string; q?: string; limit?: number; offset?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminLead[] | { results: AdminLead[] }> => {
+                const qs = qsOf(filters);
+                return request<AdminLead[] | { results: AdminLead[] }>(
+                    `/api/v1/dashboard/direct-orders/leads/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminLead>(
+                    `/api/v1/dashboard/direct-orders/leads/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminLeadWrite) =>
+                request<AdminLead>(
+                    '/api/v1/dashboard/direct-orders/leads/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminLeadWrite>) =>
+                request<AdminLead>(
+                    `/api/v1/dashboard/direct-orders/leads/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/leads/${id}/`,
+                    { method: 'DELETE' },
+                ),
+
+            convert: (id: number, payload: AdminLeadConvertWrite) =>
+                request<{ lead: AdminLead; order: AdminDirectOrder }>(
+                    `/api/v1/dashboard/direct-orders/leads/${id}/convert/`,
+                    { method: 'POST', body: payload },
+                ),
+        },
+
+        followups: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminFollowUp[]> => {
+                const qs = qsOf(filters);
+                return request<AdminFollowUp[]>(
+                    `/api/v1/dashboard/direct-orders/followups/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminFollowUp>(
+                    `/api/v1/dashboard/direct-orders/followups/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminFollowUpWrite) =>
+                request<AdminFollowUp>(
+                    '/api/v1/dashboard/direct-orders/followups/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminFollowUpWrite>) =>
+                request<AdminFollowUp>(
+                    `/api/v1/dashboard/direct-orders/followups/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/followups/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        tickets: {
+            list: async (
+                filters: { status?: string; priority?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminSupportTicket[]> => {
+                const qs = qsOf(filters);
+                return request<AdminSupportTicket[]>(
+                    `/api/v1/dashboard/direct-orders/tickets/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminSupportTicket>(
+                    `/api/v1/dashboard/direct-orders/tickets/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminSupportTicketWrite) =>
+                request<AdminSupportTicket>(
+                    '/api/v1/dashboard/direct-orders/tickets/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminSupportTicketWrite>) =>
+                request<AdminSupportTicket>(
+                    `/api/v1/dashboard/direct-orders/tickets/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/tickets/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        team: {
+            list: async (
+                filters: { role?: string; status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminTeamMember[]> => {
+                const qs = qsOf(filters);
+                return request<AdminTeamMember[]>(
+                    `/api/v1/dashboard/direct-orders/team/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminTeamMember>(
+                    `/api/v1/dashboard/direct-orders/team/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminTeamMemberWrite) =>
+                request<AdminTeamMember>(
+                    '/api/v1/dashboard/direct-orders/team/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminTeamMemberWrite>) =>
+                request<AdminTeamMember>(
+                    `/api/v1/dashboard/direct-orders/team/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/team/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        permissionGroups: {
+            list: (signal?: AbortSignal) =>
+                request<AdminPermissionGroup[]>(
+                    '/api/v1/dashboard/direct-orders/permission-groups/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminPermissionGroup>(
+                    `/api/v1/dashboard/direct-orders/permission-groups/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminPermissionGroupWrite) =>
+                request<AdminPermissionGroup>(
+                    '/api/v1/dashboard/direct-orders/permission-groups/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminPermissionGroupWrite>) =>
+                request<AdminPermissionGroup>(
+                    `/api/v1/dashboard/direct-orders/permission-groups/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/permission-groups/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        returns: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminReturnRequest[]> => {
+                const qs = qsOf(filters);
+                return request<AdminReturnRequest[]>(
+                    `/api/v1/dashboard/direct-orders/returns/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminReturnRequest>(
+                    `/api/v1/dashboard/direct-orders/returns/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminReturnRequestWrite) =>
+                request<AdminReturnRequest>(
+                    '/api/v1/dashboard/direct-orders/returns/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminReturnRequestWrite>) =>
+                request<AdminReturnRequest>(
+                    `/api/v1/dashboard/direct-orders/returns/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/returns/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        expenses: {
+            list: async (
+                filters: { category?: string; limit?: number; offset?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminExpense[] | { results: AdminExpense[] }> => {
+                const qs = qsOf(filters);
+                return request<AdminExpense[] | { results: AdminExpense[] }>(
+                    `/api/v1/dashboard/direct-orders/expenses/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminExpense>(
+                    `/api/v1/dashboard/direct-orders/expenses/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminExpenseWrite) =>
+                request<AdminExpense>(
+                    '/api/v1/dashboard/direct-orders/expenses/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminExpenseWrite>) =>
+                request<AdminExpense>(
+                    `/api/v1/dashboard/direct-orders/expenses/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/expenses/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        automations: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAutomation[]> => {
+                const qs = qsOf(filters);
+                return request<AdminAutomation[]>(
+                    `/api/v1/dashboard/direct-orders/automations/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminAutomation>(
+                    `/api/v1/dashboard/direct-orders/automations/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminAutomationWrite) =>
+                request<AdminAutomation>(
+                    '/api/v1/dashboard/direct-orders/automations/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminAutomationWrite>) =>
+                request<AdminAutomation>(
+                    `/api/v1/dashboard/direct-orders/automations/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/automations/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        notifications: {
+            list: async (
+                filters: { unread?: boolean } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminNotification[]> => {
+                const qs = qsOf(filters);
+                return request<AdminNotification[]>(
+                    `/api/v1/dashboard/direct-orders/notifications/${qs}`,
+                    { signal },
+                );
+            },
+
+            markRead: (id: number) =>
+                request<AdminNotification>(
+                    `/api/v1/dashboard/direct-orders/notifications/${id}/read/`,
+                    { method: 'POST' },
+                ),
+
+            markAllRead: () =>
+                request<{ ok: boolean }>(
+                    '/api/v1/dashboard/direct-orders/notifications/read-all/',
+                    { method: 'POST' },
+                ),
+
+            settings: {
+                list: (signal?: AbortSignal) =>
+                    request<AdminNotificationSetting[]>(
+                        '/api/v1/dashboard/direct-orders/notifications/settings/',
+                        { signal },
+                    ),
+
+                update: (updates: Record<string, boolean>) =>
+                    request<AdminNotificationSetting[]>(
+                        '/api/v1/dashboard/direct-orders/notifications/settings/',
+                        { method: 'PATCH', body: updates },
+                    ),
+            },
+        },
+
+        audit: {
+            list: async (
+                filters: AdminAuditLogFilters = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAuditLog[] | { results: AdminAuditLog[] }> => {
+                const qs = qsOf(filters);
+                return request<AdminAuditLog[] | { results: AdminAuditLog[] }>(
+                    `/api/v1/dashboard/direct-orders/audit/${qs}`,
+                    { signal },
+                );
+            },
+        },
+
+        reviews: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminReviewFull[]> => {
+                const qs = qsOf(filters);
+                return request<AdminReviewFull[]>(
+                    `/api/v1/dashboard/direct-orders/reviews/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminReviewFull>(
+                    `/api/v1/dashboard/direct-orders/reviews/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminReviewFullWrite) =>
+                request<AdminReviewFull>(
+                    '/api/v1/dashboard/direct-orders/reviews/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminReviewFullWrite>) =>
+                request<AdminReviewFull>(
+                    `/api/v1/dashboard/direct-orders/reviews/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/reviews/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        deliveryZones: {
+            list: (signal?: AbortSignal) =>
+                request<AdminDeliveryZoneFull[]>(
+                    '/api/v1/dashboard/direct-orders/delivery-zones/',
+                    { signal },
+                ),
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminDeliveryZoneFull>(
+                    `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminDeliveryZoneFullWrite) =>
+                request<AdminDeliveryZoneFull>(
+                    '/api/v1/dashboard/direct-orders/delivery-zones/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminDeliveryZoneFullWrite>) =>
+                request<AdminDeliveryZoneFull>(
+                    `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        coupons: {
+            list: async (
+                filters: { active?: boolean } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCoupon[]> => {
+                const qs = qsOf(filters);
+                return request<AdminCoupon[]>(
+                    `/api/v1/dashboard/direct-orders/coupons/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCoupon>(
+                    `/api/v1/dashboard/direct-orders/coupons/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCouponWrite) =>
+                request<AdminCoupon>(
+                    '/api/v1/dashboard/direct-orders/coupons/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCouponWrite>) =>
+                request<AdminCoupon>(
+                    `/api/v1/dashboard/direct-orders/coupons/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/coupons/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        campaigns: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminCampaignFull[]> => {
+                const qs = qsOf(filters);
+                return request<AdminCampaignFull[]>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminCampaignFull>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminCampaignFullWrite) =>
+                request<AdminCampaignFull>(
+                    '/api/v1/dashboard/direct-orders/campaigns/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminCampaignFullWrite>) =>
+                request<AdminCampaignFull>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        adCampaigns: {
+            list: async (
+                filters: { status?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAdCampaign[]> => {
+                const qs = qsOf(filters);
+                return request<AdminAdCampaign[]>(
+                    `/api/v1/dashboard/direct-orders/ad-campaigns/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminAdCampaign>(
+                    `/api/v1/dashboard/direct-orders/ad-campaigns/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminAdCampaignWrite) =>
+                request<AdminAdCampaign>(
+                    '/api/v1/dashboard/direct-orders/ad-campaigns/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminAdCampaignWrite>) =>
+                request<AdminAdCampaign>(
+                    `/api/v1/dashboard/direct-orders/ad-campaigns/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/ad-campaigns/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        attribution: {
+            list: async (
+                filters: { creator?: number; campaign?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminAttributionLink[]> => {
+                const qs = qsOf(filters);
+                return request<AdminAttributionLink[]>(
+                    `/api/v1/dashboard/direct-orders/attribution/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminAttributionLink>(
+                    `/api/v1/dashboard/direct-orders/attribution/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminAttributionLinkWrite) =>
+                request<AdminAttributionLink>(
+                    '/api/v1/dashboard/direct-orders/attribution/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminAttributionLinkWrite>) =>
+                request<AdminAttributionLink>(
+                    `/api/v1/dashboard/direct-orders/attribution/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/attribution/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        payouts: {
+            list: async (
+                filters: { status?: string; creator?: number } = {},
+                signal?: AbortSignal,
+            ): Promise<AdminPayoutBatch[]> => {
+                const qs = qsOf(filters);
+                return request<AdminPayoutBatch[]>(
+                    `/api/v1/dashboard/direct-orders/payouts/${qs}`,
+                    { signal },
+                );
+            },
+
+            detail: (id: number, signal?: AbortSignal) =>
+                request<AdminPayoutBatch>(
+                    `/api/v1/dashboard/direct-orders/payouts/${id}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminPayoutBatchWrite & { saleIds?: number[] }) =>
+                request<AdminPayoutBatch>(
+                    '/api/v1/dashboard/direct-orders/payouts/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (id: number, payload: Partial<AdminPayoutBatchWrite>) =>
+                request<AdminPayoutBatch>(
+                    `/api/v1/dashboard/direct-orders/payouts/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            remove: (id: number) =>
+                request<void>(
+                    `/api/v1/dashboard/direct-orders/payouts/${id}/`,
+                    { method: 'DELETE' },
+                ),
+        },
+
+        integrations: {
+            list: (signal?: AbortSignal) =>
+                request<AdminIntegration[]>(
+                    '/api/v1/dashboard/direct-orders/integrations/',
+                    { signal },
+                ),
+
+            detail: (key: string, signal?: AbortSignal) =>
+                request<AdminIntegration>(
+                    `/api/v1/dashboard/direct-orders/integrations/${encodeURIComponent(key)}/`,
+                    { signal },
+                ),
+
+            create: (payload: AdminIntegrationWrite) =>
+                request<AdminIntegration>(
+                    '/api/v1/dashboard/direct-orders/integrations/',
+                    { method: 'POST', body: payload },
+                ),
+
+            update: (key: string, payload: Partial<AdminIntegrationWrite>) =>
+                request<AdminIntegration>(
+                    `/api/v1/dashboard/direct-orders/integrations/${encodeURIComponent(key)}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            action: (
+                key: string,
+                action: 'connect' | 'disconnect' | 'reconnect' | 'test',
+            ) =>
+                request<AdminIntegration>(
+                    `/api/v1/dashboard/direct-orders/integrations/${encodeURIComponent(key)}/${action}/`,
+                    { method: 'POST' },
+                ),
+        },
+
+        analytics: {
+            summary: (signal?: AbortSignal) =>
+                request<AdminAnalyticsSummaryResponse>(
+                    '/api/v1/dashboard/direct-orders/analytics/summary/',
+                    { signal },
+                ),
+        },
+
+        finance: {
+            summary: (signal?: AbortSignal) =>
+                request<AdminFinanceSummaryResponse>(
+                    '/api/v1/dashboard/direct-orders/finance/summary/',
+                    { signal },
+                ),
+        },
+
+        health: {
+            summary: (signal?: AbortSignal) =>
+                request<AdminHealthSummaryResponse>(
+                    '/api/v1/dashboard/direct-orders/health/summary/',
+                    { signal },
                 ),
         },
     },
-
-    audit: {
-        list: async (
-            filters: AdminAuditLogFilters = {},
-            signal?: AbortSignal,
-        ): Promise<AdminAuditLog[] | { results: AdminAuditLog[] }> => {
-            const qs = qsOf(filters);
-            return request<AdminAuditLog[] | { results: AdminAuditLog[] }>(
-                `/api/v1/dashboard/direct-orders/audit/${qs}`,
-                { signal },
-            );
-        },
-    },
-
-    reviews: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminReviewFull[]> => {
-            const qs = qsOf(filters);
-            return request<AdminReviewFull[]>(
-                `/api/v1/dashboard/direct-orders/reviews/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminReviewFull>(
-                `/api/v1/dashboard/direct-orders/reviews/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminReviewFullWrite) =>
-            request<AdminReviewFull>(
-                '/api/v1/dashboard/direct-orders/reviews/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminReviewFullWrite>) =>
-            request<AdminReviewFull>(
-                `/api/v1/dashboard/direct-orders/reviews/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/reviews/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    deliveryZones: {
-        list: (signal?: AbortSignal) =>
-            request<AdminDeliveryZoneFull[]>(
-                '/api/v1/dashboard/direct-orders/delivery-zones/',
-                { signal },
-            ),
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminDeliveryZoneFull>(
-                `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminDeliveryZoneFullWrite) =>
-            request<AdminDeliveryZoneFull>(
-                '/api/v1/dashboard/direct-orders/delivery-zones/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminDeliveryZoneFullWrite>) =>
-            request<AdminDeliveryZoneFull>(
-                `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/delivery-zones/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    coupons: {
-        list: async (
-            filters: { active?: boolean } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminCoupon[]> => {
-            const qs = qsOf(filters);
-            return request<AdminCoupon[]>(
-                `/api/v1/dashboard/direct-orders/coupons/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminCoupon>(
-                `/api/v1/dashboard/direct-orders/coupons/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminCouponWrite) =>
-            request<AdminCoupon>(
-                '/api/v1/dashboard/direct-orders/coupons/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminCouponWrite>) =>
-            request<AdminCoupon>(
-                `/api/v1/dashboard/direct-orders/coupons/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/coupons/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    campaigns: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminCampaignFull[]> => {
-            const qs = qsOf(filters);
-            return request<AdminCampaignFull[]>(
-                `/api/v1/dashboard/direct-orders/campaigns/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminCampaignFull>(
-                `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminCampaignFullWrite) =>
-            request<AdminCampaignFull>(
-                '/api/v1/dashboard/direct-orders/campaigns/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminCampaignFullWrite>) =>
-            request<AdminCampaignFull>(
-                `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/campaigns/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    adCampaigns: {
-        list: async (
-            filters: { status?: string } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminAdCampaign[]> => {
-            const qs = qsOf(filters);
-            return request<AdminAdCampaign[]>(
-                `/api/v1/dashboard/direct-orders/ad-campaigns/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminAdCampaign>(
-                `/api/v1/dashboard/direct-orders/ad-campaigns/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminAdCampaignWrite) =>
-            request<AdminAdCampaign>(
-                '/api/v1/dashboard/direct-orders/ad-campaigns/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminAdCampaignWrite>) =>
-            request<AdminAdCampaign>(
-                `/api/v1/dashboard/direct-orders/ad-campaigns/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/ad-campaigns/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    attribution: {
-        list: async (
-            filters: { creator?: number; campaign?: number } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminAttributionLink[]> => {
-            const qs = qsOf(filters);
-            return request<AdminAttributionLink[]>(
-                `/api/v1/dashboard/direct-orders/attribution/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminAttributionLink>(
-                `/api/v1/dashboard/direct-orders/attribution/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminAttributionLinkWrite) =>
-            request<AdminAttributionLink>(
-                '/api/v1/dashboard/direct-orders/attribution/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminAttributionLinkWrite>) =>
-            request<AdminAttributionLink>(
-                `/api/v1/dashboard/direct-orders/attribution/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/attribution/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    payouts: {
-        list: async (
-            filters: { status?: string; creator?: number } = {},
-            signal?: AbortSignal,
-        ): Promise<AdminPayoutBatch[]> => {
-            const qs = qsOf(filters);
-            return request<AdminPayoutBatch[]>(
-                `/api/v1/dashboard/direct-orders/payouts/${qs}`,
-                { signal },
-            );
-        },
-
-        detail: (id: number, signal?: AbortSignal) =>
-            request<AdminPayoutBatch>(
-                `/api/v1/dashboard/direct-orders/payouts/${id}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminPayoutBatchWrite & { saleIds?: number[] }) =>
-            request<AdminPayoutBatch>(
-                '/api/v1/dashboard/direct-orders/payouts/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (id: number, payload: Partial<AdminPayoutBatchWrite>) =>
-            request<AdminPayoutBatch>(
-                `/api/v1/dashboard/direct-orders/payouts/${id}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        remove: (id: number) =>
-            request<void>(
-                `/api/v1/dashboard/direct-orders/payouts/${id}/`,
-                { method: 'DELETE' },
-            ),
-    },
-
-    integrations: {
-        list: (signal?: AbortSignal) =>
-            request<AdminIntegration[]>(
-                '/api/v1/dashboard/direct-orders/integrations/',
-                { signal },
-            ),
-
-        detail: (key: string, signal?: AbortSignal) =>
-            request<AdminIntegration>(
-                `/api/v1/dashboard/direct-orders/integrations/${encodeURIComponent(key)}/`,
-                { signal },
-            ),
-
-        create: (payload: AdminIntegrationWrite) =>
-            request<AdminIntegration>(
-                '/api/v1/dashboard/direct-orders/integrations/',
-                { method: 'POST', body: payload },
-            ),
-
-        update: (key: string, payload: Partial<AdminIntegrationWrite>) =>
-            request<AdminIntegration>(
-                `/api/v1/dashboard/direct-orders/integrations/${encodeURIComponent(key)}/`,
-                { method: 'PATCH', body: payload },
-            ),
-
-        action: (
-            key: string,
-            action: 'connect' | 'disconnect' | 'reconnect' | 'test',
-        ) =>
-            request<AdminIntegration>(
-                `/api/v1/dashboard/direct-orders/integrations/${encodeURIComponent(key)}/${action}/`,
-                { method: 'POST' },
-            ),
-    },
-
-    analytics: {
-        summary: (signal?: AbortSignal) =>
-            request<AdminAnalyticsSummaryResponse>(
-                '/api/v1/dashboard/direct-orders/analytics/summary/',
-                { signal },
-            ),
-    },
-
-    finance: {
-        summary: (signal?: AbortSignal) =>
-            request<AdminFinanceSummaryResponse>(
-                '/api/v1/dashboard/direct-orders/finance/summary/',
-                { signal },
-            ),
-    },
-
-    health: {
-        summary: (signal?: AbortSignal) =>
-            request<AdminHealthSummaryResponse>(
-                '/api/v1/dashboard/direct-orders/health/summary/',
-                { signal },
-            ),
-    },
-},
 
     ai: {
         overview: (signal?: AbortSignal) =>
