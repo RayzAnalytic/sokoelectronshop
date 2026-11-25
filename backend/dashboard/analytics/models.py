@@ -19,7 +19,10 @@ class AnalyticsCache(models.Model):
         unique_together = ("tab", "range_key")
         verbose_name = "Analytics cache"
         verbose_name_plural = "Analytics cache"
-        indexes = [models.Index(fields=["tab", "range_key"])]
+        indexes = [
+            models.Index(fields=["tab", "range_key"]),
+            models.Index(fields=["updated_at"]),
+        ]
 
     def __str__(self) -> str:
         return f"{self.tab} · {self.range_key}"
@@ -54,6 +57,7 @@ class PageView(models.Model):
         indexes = [
             models.Index(fields=["created_at", "device_type"]),
             models.Index(fields=["path"]),
+            models.Index(fields=["user", "created_at"]),
         ]
 
     def __str__(self) -> str:
