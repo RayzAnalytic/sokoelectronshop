@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/admin-api';
 import { adminApi } from '@/lib/admin-api';
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';

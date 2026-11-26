@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { api, ApiError } from '@/lib/api';
+import { adminApi as api, ApiError } from '@/lib/admin-api';
 
 type PlatformId = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 

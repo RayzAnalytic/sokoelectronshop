@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { FaInstagram, FaFacebook, FaYoutube, FaTiktok } from 'react-icons/fa6';
 import { adminApi } from '@/lib/admin-api';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/admin-api';
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 type ConnectionStatus =
