@@ -7,7 +7,7 @@ from django.urls import path, include, re_path
 from django.views.static import serve as media_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from django.urls import re_path
-from whatsapp.views import CustomerOrdersView, ProductSearchView, StaffListView
+from dashboard.whatsapp.views import CustomerOrdersView, ProductSearchView, StaffListView
 from dashboard.social.views import SocialOAuthCallbackView
 from dashboard.settings import views as settings_views
 from dashboard.settings.urls import public_urls as settings_public_urls
