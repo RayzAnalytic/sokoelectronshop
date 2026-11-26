@@ -224,6 +224,8 @@ class ConnectionView(WhatsAppBaseView):
 
     def get(self, request):
         account = WhatsAppAccount.get_solo()
+        if getattr(settings, 'WHATSAPP_DRY_RUN', False):
+            account.connection_state = 'connected'
         return Response(ConnectionSerializer(account).data)
 
 
@@ -231,7 +233,7 @@ class ConnectionConnectView(WhatsAppBaseView):
     """POST /api/whatsapp/connection/connect"""
 
     def post(self, request):
-        account = WhatsAppAccount.get_solo()
+        
         account.connection_state = "connecting"
         account.save(update_fields=["connection_state", "updated_at"])
         _audit(request, "connection.connect", f"account:{account.pk}")
@@ -258,7 +260,7 @@ class ConnectionReauthView(WhatsAppBaseView):
     """POST /api/whatsapp/connection/reauth"""
 
     def post(self, request):
-        account = WhatsAppAccount.get_solo()
+        
         _audit(request, "connection.reauth", f"account:{account.pk}")
         return ConnectionConnectView().post(request)
 
@@ -267,7 +269,7 @@ class ConnectionDisconnectView(WhatsAppBaseView):
     """POST /api/whatsapp/connection/disconnect"""
 
     def post(self, request):
-        account = WhatsAppAccount.get_solo()
+        
         account.is_active = False
         account.connection_state = "disconnected"
         account.access_token = ""
@@ -282,7 +284,7 @@ class HealthView(WhatsAppBaseView):
     """GET /api/whatsapp/health"""
 
     def get(self, request):
-        account = WhatsAppAccount.get_solo()
+        
         since_24h = timezone.now() - timedelta(hours=24)
         failed_24h = WhatsAppIntegrationError.objects.filter(
             kind="api", created_at__gte=since_24h
@@ -324,7 +326,7 @@ class OverviewView(WhatsAppBaseView):
         start_dt, end_dt, prev_start_dt, prev_end_dt, start_date, end_date = (
             _resolve_period_bounds(period)
         )
-        account = WhatsAppAccount.get_solo()
+        
         connected = account.connection_state == "connected"
 
         if not connected:
@@ -561,7 +563,7 @@ class AccountView(WhatsAppBaseView):
 
 class AccountRefreshView(WhatsAppBaseView):
     def post(self, request):
-        account = WhatsAppAccount.get_solo()
+        
         refresh_account_status(account)
         _audit(request, "account.refresh", f"account:{account.pk}")
         account.refresh_from_db()
@@ -570,7 +572,7 @@ class AccountRefreshView(WhatsAppBaseView):
 
 class AccountSetActiveView(WhatsAppBaseView):
     def post(self, request):
-        account = WhatsAppAccount.get_solo()
+        
         account.is_active = bool(request.data.get("is_active", not account.is_active))
         account.connection_state = "connected" if account.is_active else "disconnected"
         account.save(update_fields=["is_active", "connection_state"])
@@ -2160,7 +2162,7 @@ class WhatsAppWebhookReceiver(APIView):
             latency_ms=latency_ms,
             error="" if valid else "Invalid signature",
         )
-        account = WhatsAppAccount.get_solo()
+        
         account.last_webhook_event_at = timezone.now()
         account.webhook_verified = True
         account.save(update_fields=["last_webhook_event_at", "webhook_verified"])

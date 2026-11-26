@@ -118,6 +118,9 @@ class WhatsAppAccount(models.Model):
                 ],
             },
         )
+        # For demo without Meta keys - show as connected
+        if getattr(settings, 'WHATSAPP_DRY_RUN', False):
+            obj.connection_state = 'connected'
         return obj
 
     @property
