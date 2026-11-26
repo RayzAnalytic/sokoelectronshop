@@ -202,7 +202,7 @@ function currentPageFromPath(pathname: string): { label: string; href: string } 
         (n) => pathname === n.href || pathname.startsWith(`${n.href}/`),
     );
     if (match) return { label: match.label, href: match.href };
-    return { label: 'Overview', href: '/social/overview' };
+    return { label: 'Overview', href: '/admin/social' };
 }
 
 function InlineSpinner({ className = 'h-3.5 w-3.5' }: { className?: string }) {
@@ -410,10 +410,10 @@ function NotificationsMenu({
 
 function QuickActions() {
     const actions = [
-        { href: '/social/content-studio?action=create', label: 'Create content', icon: PlusCircle },
-        { href: '/social/publishing-calendar?action=schedule', label: 'Schedule post', icon: CalendarDays },
-        { href: '/social/inbox-community', label: 'View messages', icon: MessageSquare },
-        { href: '/social/accounts?action=connect', label: 'Connect account', icon: UserPlus },
+        { href: '/admin/social/content-studio?action=create', label: 'Create content', icon: PlusCircle },
+        { href: '/admin/social/publishing-calendar?action=schedule', label: 'Schedule post', icon: CalendarDays },
+        { href: '/admin/social/inbox-community', label: 'View messages', icon: MessageSquare },
+        { href: '/admin/social/accounts?action=connect', label: 'Connect account', icon: UserPlus },
     ];
 
     return (
@@ -457,7 +457,7 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
 
     const currentPage = currentPageFromPath(pathname);
     const isOverviewPath =
-        pathname === '/social' || pathname === '/social/overview';
+        pathname === '/admin/social' || pathname === '/admin/social';
 
     const loadAccounts = useCallback(async () => {
         setAccountsError(null);
@@ -528,7 +528,7 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
     }, [loadAccounts, loadNotifications]);
 
     useEffect(() => {
-        if (pathname.startsWith('/social/accounts')) {
+        if (pathname.startsWith('/admin/social/accounts')) {
             void loadAccounts();
         }
     }, [pathname, loadAccounts]);
@@ -570,7 +570,7 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
         e.preventDefault();
         const q = searchQuery.trim();
         if (!q) return;
-        router.push(`/social/content-studio?q=${encodeURIComponent(q)}`);
+        router.push(`/admin/social/content-studio?q=${encodeURIComponent(q)}`);
         setSearchOpen(false);
         setSearchQuery('');
     };
@@ -605,7 +605,7 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
                                 </Link>
                                 <ChevronRight className="w-3 h-3 text-slate-300" />
                                 <Link
-                                    href="/social/overview"
+                                    href="/admin/social/overview"
                                     className="hover:text-slate-800"
                                 >
                                     Social Media Management

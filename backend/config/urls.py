@@ -7,7 +7,7 @@ from django.urls import path, include, re_path
 from django.views.static import serve as media_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-from dashboard.social.views import OAuthCallbackView as SocialOAuthCallbackView
+from dashboard.social.views import SocialOAuthCallbackView
 from dashboard.settings import views as settings_views
 from dashboard.settings.urls import public_urls as settings_public_urls
 
