@@ -523,7 +523,6 @@ export interface AdminReturnRequest {
 
 // 2. Keep the main entity interface as AdminCustomerSegment
  
- 
 
 export interface AdminCustomerSegmentRecord {
     id: number;

@@ -3910,42 +3910,115 @@ export const adminApi = {
         },
     },
     social: {
+        // ── Convenience methods used by app/(admin)/admin/social/layout.tsx ──
+
+        getSocialAccounts: (signal?: AbortSignal) =>
+            request<{ accounts: any[]; platforms: { platform: string; connected: boolean }[] }>(
+                '/api/v1/admin/social/accounts/',
+                { signal },
+            ),
+
+        getSocialNotifications: (
+            filters: { unread?: '1' } = {},
+            signal?: AbortSignal,
+        ) =>
+            request<{ results: any[]; unread_count: number }>(
+                `/api/v1/admin/social/notifications/${qsOf(filters)}`,
+                { signal },
+            ),
+
+        syncSocialAccounts: () =>
+            request<{ ok: boolean; synced: number }>(
+                '/api/v1/admin/social/accounts/sync-all/',
+                { method: 'POST' },
+            ),
+
+        overview: {
+            get: (
+                params: {
+                    range?: string;
+                    platform?: string;
+                    from?: string;
+                    to?: string;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<any>(
+                    `/api/v1/admin/social/overview/${qsOf(params)}`,
+                    { signal },
+                ),
+        },
+
         accounts: {
             list: (signal?: AbortSignal) =>
-                request<AdminSocialAccount[]>(
+                request<{ accounts: any[]; platforms: { platform: string; connected: boolean }[] }>(
                     '/api/v1/admin/social/accounts/',
                     { signal },
                 ),
 
-            detail: (platform: AdminSocialPlatform, signal?: AbortSignal) =>
-                request<AdminSocialAccountDetail>(
-                    `/api/v1/admin/social/accounts/${encodeURIComponent(platform)}/`,
-                    { signal },
-                ),
-
             capabilities: (signal?: AbortSignal) =>
-                request<Record<AdminSocialPlatform, AdminSocialAccountCapabilities>>(
+                request<{ accounts: any[] }>(
                     '/api/v1/admin/social/accounts/capabilities/',
                     { signal },
                 ),
 
-            connect: (platform: AdminSocialPlatform) =>
-                request<AdminSocialAccount | { authUrl: string }>(
-                    `/api/v1/admin/social/accounts/${encodeURIComponent(platform)}/connect/`,
+            detail: (id: string | number, signal?: AbortSignal) =>
+                request<any>(
+                    `/api/v1/admin/social/accounts/${encodeURIComponent(String(id))}/`,
+                    { signal },
+                ),
+
+            connect: (platform: string) =>
+                request<{ authorize_url: string }>(
+                    '/api/v1/admin/social/accounts/connect/',
+                    { method: 'POST', body: { platform } },
+                ),
+
+            reauthorize: (id: string | number) =>
+                request<{ authorize_url: string }>(
+                    `/api/v1/admin/social/accounts/${encodeURIComponent(String(id))}/reauthorize/`,
                     { method: 'POST' },
                 ),
 
-            disconnect: (platform: AdminSocialPlatform) =>
-                request<AdminSocialAccount>(
-                    `/api/v1/admin/social/accounts/${encodeURIComponent(platform)}/disconnect/`,
+            sync: (id: string | number) =>
+                request<{ ok: boolean; account: any }>(
+                    `/api/v1/admin/social/accounts/${encodeURIComponent(String(id))}/sync/`,
                     { method: 'POST' },
+                ),
+
+            disconnect: (id: string | number) =>
+                request<{ ok: boolean }>(
+                    `/api/v1/admin/social/accounts/${encodeURIComponent(String(id))}/disconnect/`,
+                    { method: 'POST' },
+                ),
+
+            update: (
+                id: string | number,
+                payload: {
+                    label?: string | null;
+                    is_default_publishing?: boolean;
+                    enabled_for_distribution?: boolean;
+                },
+            ) =>
+                request<any>(
+                    `/api/v1/admin/social/accounts/${encodeURIComponent(String(id))}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+
+            share: (
+                id: string | number,
+                payload: { staff_id: string; permissions: string[] },
+            ) =>
+                request<any>(
+                    `/api/v1/admin/social/accounts/${encodeURIComponent(String(id))}/shares/`,
+                    { method: 'POST', body: payload },
                 ),
         },
 
         media: {
             upload: (
                 file: File,
-                extras?: { folderId?: number; title?: string; tags?: string[] },
+                extras?: { folderId?: string | number; tags?: string[] },
                 signal?: AbortSignal,
             ) => {
                 const form = new FormData();
@@ -3953,7 +4026,6 @@ export const adminApi = {
                 if (extras?.folderId !== undefined) {
                     form.append('folder_id', String(extras.folderId));
                 }
-                if (extras?.title) form.append('title', extras.title);
                 for (const tag of extras?.tags ?? []) {
                     form.append('tags', tag);
                 }
@@ -3976,426 +4048,638 @@ export const adminApi = {
                         }
                         throw new Error(detail);
                     }
-                    return (await res.json()) as AdminSocialMedia;
+                    return (await res.json()) as any;
                 });
             },
 
             library: (
                 filters: {
-                    folder_id?: number;
-                    media_type?: 'IMAGE' | 'VIDEO';
-                    search?: string;
-                    page?: number;
-                    page_size?: number;
+                    q?: string;
+                    kind?: 'image' | 'video';
+                    folder_id?: string | number;
                 } = {},
                 signal?: AbortSignal,
             ) =>
-                request<AdminSocialPaginated<AdminSocialMedia>>(
-                    `/api/v1/admin/social/media/library/${qsOf(filters)}`,
+                request<{ assets: any[] }>(
+                    `/api/v1/admin/social/media/${qsOf(filters)}`,
                     { signal },
                 ),
 
-            detail: (id: number, signal?: AbortSignal) =>
-                request<AdminSocialMedia>(
-                    `/api/v1/admin/social/media/library/${id}/`,
-                    { signal },
-                ),
-
-            update: (
-                id: number,
-                payload: { title?: string; tags?: string[]; folder_id?: number | null },
-            ) =>
-                request<AdminSocialMedia>(
-                    `/api/v1/admin/social/media/library/${id}/`,
-                    { method: 'PATCH', body: payload },
-                ),
-
-            remove: (id: number) =>
+            remove: (id: string | number) =>
                 request<void>(
-                    `/api/v1/admin/social/media/library/${id}/`,
+                    `/api/v1/admin/social/media/${encodeURIComponent(String(id))}/`,
                     { method: 'DELETE' },
                 ),
 
             folders: {
                 list: (signal?: AbortSignal) =>
-                    request<AdminSocialMediaFolder[]>(
+                    request<{ folders: any[] }>(
                         '/api/v1/admin/social/media/folders/',
                         { signal },
                     ),
 
                 create: (name: string) =>
-                    request<AdminSocialMediaFolder>(
+                    request<any>(
                         '/api/v1/admin/social/media/folders/',
                         { method: 'POST', body: { name } },
                     ),
             },
         },
 
-        posts: {
-            listScheduled: (
+        content: {
+            list: (
                 filters: {
+                    q?: string;
+                    platform?: string;
+                    content_type?: string;
                     status?: string;
-                    platform?: AdminSocialPlatform;
-                    page?: number;
-                    page_size?: number;
+                    campaign_id?: string;
+                    owner_id?: string;
                 } = {},
                 signal?: AbortSignal,
             ) =>
-                request<AdminSocialPaginated<AdminSocialScheduledPost>>(
-                    `/api/v1/admin/social/posts/scheduled/${qsOf(filters)}`,
+                request<{ items: any[]; total: number }>(
+                    `/api/v1/admin/social/content/${qsOf(filters)}`,
                     { signal },
                 ),
 
-            listPublished: (
-                filters: {
-                    status?: string;
-                    platform?: AdminSocialPlatform;
-                    search?: string;
-                    page?: number;
-                    page_size?: number;
-                } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialPaginated<AdminSocialPublishedPost>>(
-                    `/api/v1/admin/social/posts/published/${qsOf(filters)}`,
+            detail: (id: string | number, signal?: AbortSignal) =>
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/`,
                     { signal },
                 ),
 
-            publishedDetail: (id: number, signal?: AbortSignal) =>
-                request<AdminSocialPublishedPost>(
-                    `/api/v1/admin/social/posts/published/${id}/`,
-                    { signal },
+            save: (draft: any) =>
+                draft?.id
+                    ? request<any>(
+                        `/api/v1/admin/social/content/${encodeURIComponent(String(draft.id))}/`,
+                        { method: 'PATCH', body: draft },
+                    )
+                    : request<any>(
+                        '/api/v1/admin/social/content/',
+                        { method: 'POST', body: draft },
+                    ),
+
+            remove: (id: string | number) =>
+                request<void>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/`,
+                    { method: 'DELETE' },
                 ),
 
-            boost: (id: number, payload: AdminSocialBoostWrite) =>
-                request<AdminSocialBoostResult>(
-                    `/api/v1/admin/social/posts/published/${id}/boost/`,
-                    { method: 'POST', body: payload },
-                ),
-
-            deleteFromPlatform: (id: number) =>
-                request<{ ok: boolean }>(
-                    `/api/v1/admin/social/posts/published/${id}/delete-from-platform/`,
+            duplicate: (id: string | number) =>
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/duplicate/`,
                     { method: 'POST' },
                 ),
 
-            editCaption: (id: number, caption: string) =>
-                request<{ ok: boolean }>(
-                    `/api/v1/admin/social/posts/published/${id}/edit-caption/`,
-                    { method: 'POST', body: { caption } satisfies AdminSocialEditCaptionWrite },
+            submitForApproval: (id: string | number) =>
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/submit/`,
+                    { method: 'POST' },
                 ),
 
-            detail: (id: number, signal?: AbortSignal) =>
-                request<AdminSocialScheduledPost>(
-                    `/api/v1/admin/social/posts/${id}/`,
-                    { signal },
+            approve: (id: string | number) =>
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/approve/`,
+                    { method: 'POST' },
                 ),
 
-            create: (payload: AdminSocialPostWrite) =>
-                request<AdminSocialPostCreated>(
-                    '/api/v1/admin/social/posts/',
-                    {
-                        method: 'POST',
-                        body: {
-                            caption: payload.caption,
-                            platforms: payload.platforms,
-                            ...(payload.productTag !== undefined && {
-                                productTag: payload.productTag,
-                            }),
-                            ...(payload.mediaIds !== undefined && {
-                                mediaIds: payload.mediaIds,
-                            }),
-                            ...(payload.scheduleAt !== undefined && {
-                                scheduleAt: payload.scheduleAt,
-                            }),
-                        },
-                    },
+            reject: (id: string | number, reason: string) =>
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/reject/`,
+                    { method: 'POST', body: { reason } },
                 ),
 
-            update: (id: number, payload: AdminSocialPostPatch) =>
-                request<AdminSocialScheduledPost>(
-                    `/api/v1/admin/social/posts/${id}/`,
-                    { method: 'PATCH', body: payload },
+            requestChanges: (id: string | number, reason: string) =>
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/request-changes/`,
+                    { method: 'POST', body: { reason } },
+                ),
+
+            schedule: (id: string | number, scheduled_at: string) =>
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/schedule/`,
+                    { method: 'POST', body: { scheduled_at } },
                 ),
 
             publishNow: (id: string | number) =>
-                request<{ ok: boolean }>(
-                    `/api/v1/admin/social/posts/${encodeURIComponent(String(id))}/publish-now/`,
+                request<any>(
+                    `/api/v1/admin/social/content/${encodeURIComponent(String(id))}/publish-now/`,
                     { method: 'POST' },
+                ),
+
+            search: (q: string, limit = 20, signal?: AbortSignal) =>
+                request<any[]>(
+                    `/api/v1/admin/social/content/search/${qsOf({ q, limit })}`,
+                    { signal },
+                ),
+
+            schedulingOptions: (q?: string, signal?: AbortSignal) =>
+                request<{ items: any[] }>(
+                    `/api/v1/admin/social/content/scheduling-options/${qsOf({ q })}`,
+                    { signal },
+                ),
+
+            suggest: (payload: {
+                field: 'caption' | 'hashtags' | 'description' | 'cta' | 'ideas' | 'variation';
+                context: string;
+                platform?: string;
+            }) =>
+                request<{ suggestions: string[] }>(
+                    '/api/v1/admin/social/content/suggest/',
+                    { method: 'POST', body: payload },
+                ),
+
+            categories: {
+                list: (signal?: AbortSignal) =>
+                    request<{ categories: any[] }>(
+                        '/api/v1/admin/social/content/categories/',
+                        { signal },
+                    ),
+
+                create: (name: string) =>
+                    request<any>(
+                        '/api/v1/admin/social/content/categories/',
+                        { method: 'POST', body: { name } },
+                    ),
+            },
+        },
+
+        campaigns: {
+            list: (
+                filters: {
+                    status?: string;
+                    platform?: string;
+                    type?: string;
+                    owner_id?: string;
+                    date_from?: string;
+                    date_to?: string;
+                    q?: string;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<any[]>(
+                    `/api/v1/admin/social/campaigns/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            options: (signal?: AbortSignal) =>
+                request<{ campaigns: { id: string; name: string }[] }>(
+                    '/api/v1/admin/social/campaigns/options/',
+                    { signal },
+                ),
+
+            kpi: (
+                filters: {
+                    status?: string;
+                    platform?: string;
+                    type?: string;
+                    owner_id?: string;
+                    date_from?: string;
+                    date_to?: string;
+                    q?: string;
+                } = {},
+                signal?: AbortSignal,
+            ) =>
+                request<any>(
+                    `/api/v1/admin/social/campaigns/kpi/${qsOf(filters)}`,
+                    { signal },
+                ),
+
+            detail: (id: string | number, signal?: AbortSignal) =>
+                request<any>(
+                    `/api/v1/admin/social/campaigns/${encodeURIComponent(String(id))}/`,
+                    { signal },
+                ),
+
+            create: (payload: any) =>
+                request<any>(
+                    '/api/v1/admin/social/campaigns/',
+                    { method: 'POST', body: payload },
                 ),
 
             remove: (id: string | number) =>
                 request<void>(
-                    `/api/v1/admin/social/posts/${encodeURIComponent(String(id))}/delete/`,
+                    `/api/v1/admin/social/campaigns/${encodeURIComponent(String(id))}/`,
                     { method: 'DELETE' },
                 ),
 
-            bulkDelete: (ids: (number | string)[]) =>
-                request<{ deleted: number }>(
-                    '/api/v1/admin/social/posts/bulk-delete/',
-                    { method: 'POST', body: { ids } satisfies AdminSocialBulkIds },
+            pause: (id: string | number) =>
+                request<any>(
+                    `/api/v1/admin/social/campaigns/${encodeURIComponent(String(id))}/pause/`,
+                    { method: 'POST' },
                 ),
 
-            bulkReschedule: (payload: AdminSocialBulkReschedule) =>
-                request<{ updated: number }>(
-                    '/api/v1/admin/social/posts/bulk-reschedule/',
-                    { method: 'POST', body: payload },
+            resume: (id: string | number) =>
+                request<any>(
+                    `/api/v1/admin/social/campaigns/${encodeURIComponent(String(id))}/resume/`,
+                    { method: 'POST' },
+                ),
+
+            complete: (id: string | number) =>
+                request<any>(
+                    `/api/v1/admin/social/campaigns/${encodeURIComponent(String(id))}/complete/`,
+                    { method: 'POST' },
+                ),
+
+            cancel: (id: string | number) =>
+                request<any>(
+                    `/api/v1/admin/social/campaigns/${encodeURIComponent(String(id))}/cancel/`,
+                    { method: 'POST' },
                 ),
         },
 
         calendar: {
-            list: (
-                params: {
-                    start?: string;
-                    end?: string;
-                    platform?: AdminSocialPlatform;
-                } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialScheduledPost[]>(
-                    `/api/v1/admin/social/calendar/${qsOf(params)}`,
-                    { signal },
-                ),
-        },
-
-        queue: {
-            slots: {
-                list: (signal?: AbortSignal) =>
-                    request<AdminSocialQueueSlot[]>(
-                        '/api/v1/admin/social/queue/slots/',
+            posts: {
+                list: (
+                    filters: {
+                        from?: string;
+                        to?: string;
+                        platform?: string;
+                        status?: string;
+                        account_id?: string;
+                        campaign_id?: string;
+                        owner_id?: string;
+                        q?: string;
+                    } = {},
+                    signal?: AbortSignal,
+                ) =>
+                    request<{ posts: any[]; time_zone?: string | null; server_now?: string | null }>(
+                        `/api/v1/admin/social/calendar/posts/${qsOf(filters)}`,
                         { signal },
                     ),
 
-                create: (payload: AdminSocialQueueSlotWrite) =>
-                    request<AdminSocialQueueSlot>(
-                        '/api/v1/admin/social/queue/slots/',
+                detail: (id: string | number, signal?: AbortSignal) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/posts/${encodeURIComponent(String(id))}/`,
+                        { signal },
+                    ),
+
+                schedule: (payload: {
+                    content_id: string;
+                    platform: string;
+                    account_id: string;
+                    scheduled_at: string;
+                    content_version_id?: string | null;
+                    as_reminder?: boolean;
+                }) =>
+                    request<any>(
+                        '/api/v1/admin/social/calendar/posts/',
                         { method: 'POST', body: payload },
                     ),
 
-                update: (id: number, payload: Partial<AdminSocialQueueSlotWrite>) =>
-                    request<AdminSocialQueueSlot>(
-                        `/api/v1/admin/social/queue/slots/${id}/`,
+                reschedule: (id: string | number, scheduled_at: string) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/posts/${encodeURIComponent(String(id))}/reschedule/`,
+                        { method: 'POST', body: { scheduled_at } },
+                    ),
+
+                cancel: (id: string | number, reason?: string) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/posts/${encodeURIComponent(String(id))}/cancel/`,
+                        { method: 'POST', body: { reason: reason ?? '' } },
+                    ),
+
+                retry: (id: string | number) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/posts/${encodeURIComponent(String(id))}/retry/`,
+                        { method: 'POST' },
+                    ),
+
+                publishNow: (id: string | number) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/posts/${encodeURIComponent(String(id))}/publish-now/`,
+                        { method: 'POST' },
+                    ),
+
+                duplicate: (id: string | number, scheduled_at: string) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/posts/${encodeURIComponent(String(id))}/duplicate/`,
+                        { method: 'POST', body: { scheduled_at } },
+                    ),
+
+                history: (id: string | number, signal?: AbortSignal) =>
+                    request<{ history: any[] }>(
+                        `/api/v1/admin/social/calendar/posts/${encodeURIComponent(String(id))}/history/`,
+                        { signal },
+                    ),
+
+                bulkDelete: (ids: (string | number)[]) =>
+                    request<{ deleted: number }>(
+                        '/api/v1/admin/social/calendar/posts/bulk-delete/',
+                        { method: 'POST', body: { ids } },
+                    ),
+
+                bulkReschedule: (ids: (string | number)[], scheduled_at: string) =>
+                    request<{ updated: number }>(
+                        '/api/v1/admin/social/calendar/posts/bulk-reschedule/',
+                        { method: 'POST', body: { ids, scheduled_at } },
+                    ),
+            },
+
+            queueSlots: {
+                list: (signal?: AbortSignal) =>
+                    request<any[]>(
+                        '/api/v1/admin/social/calendar/queue-slots/',
+                        { signal },
+                    ),
+
+                create: (payload: any) =>
+                    request<any>(
+                        '/api/v1/admin/social/calendar/queue-slots/',
+                        { method: 'POST', body: payload },
+                    ),
+
+                update: (id: string | number, payload: any) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/queue-slots/${encodeURIComponent(String(id))}/`,
                         { method: 'PATCH', body: payload },
                     ),
 
-                remove: (id: number) =>
+                remove: (id: string | number) =>
                     request<void>(
-                        `/api/v1/admin/social/queue/slots/${id}/`,
+                        `/api/v1/admin/social/calendar/queue-slots/${encodeURIComponent(String(id))}/`,
                         { method: 'DELETE' },
                     ),
             },
 
             evergreen: {
-                list: (
-                    filters: { page?: number; page_size?: number } = {},
-                    signal?: AbortSignal,
-                ) =>
-                    request<AdminSocialPaginated<AdminSocialEvergreenPost>>(
-                        `/api/v1/admin/social/queue/evergreen/${qsOf(filters)}`,
+                list: (signal?: AbortSignal) =>
+                    request<any[]>(
+                        '/api/v1/admin/social/calendar/evergreen/',
                         { signal },
                     ),
 
-                create: (payload: AdminSocialEvergreenPostWrite) =>
-                    request<AdminSocialEvergreenPost>(
-                        '/api/v1/admin/social/queue/evergreen/',
+                create: (payload: any) =>
+                    request<any>(
+                        '/api/v1/admin/social/calendar/evergreen/',
                         { method: 'POST', body: payload },
                     ),
 
-                update: (id: number, payload: Partial<AdminSocialEvergreenPostWrite>) =>
-                    request<AdminSocialEvergreenPost>(
-                        `/api/v1/admin/social/queue/evergreen/${id}/`,
+                update: (id: string | number, payload: any) =>
+                    request<any>(
+                        `/api/v1/admin/social/calendar/evergreen/${encodeURIComponent(String(id))}/`,
                         { method: 'PATCH', body: payload },
                     ),
 
-                remove: (id: number) =>
+                remove: (id: string | number) =>
                     request<void>(
-                        `/api/v1/admin/social/queue/evergreen/${id}/`,
+                        `/api/v1/admin/social/calendar/evergreen/${encodeURIComponent(String(id))}/`,
                         { method: 'DELETE' },
                     ),
             },
         },
 
-        drafts: {
-            list: (
-                filters: {
-                    status?: AdminSocialDraftStatus;
-                    page?: number;
-                    page_size?: number;
-                } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialPaginated<AdminSocialDraft>>(
-                    `/api/v1/admin/social/drafts/${qsOf(filters)}`,
-                    { signal },
-                ),
-
-            detail: (id: number, signal?: AbortSignal) =>
-                request<AdminSocialDraft>(
-                    `/api/v1/admin/social/drafts/${id}/`,
-                    { signal },
-                ),
-
-            create: (payload: AdminSocialDraftWrite) =>
-                request<AdminSocialDraft>(
-                    '/api/v1/admin/social/drafts/',
-                    { method: 'POST', body: payload },
-                ),
-
-            update: (id: number, payload: Partial<AdminSocialDraftWrite>) =>
-                request<AdminSocialDraft>(
-                    `/api/v1/admin/social/drafts/${id}/`,
-                    { method: 'PATCH', body: payload },
-                ),
-
-            remove: (id: number) =>
-                request<void>(
-                    `/api/v1/admin/social/drafts/${id}/`,
-                    { method: 'DELETE' },
-                ),
-
-            comment: (id: number, payload: AdminSocialDraftCommentWrite) =>
-                request<AdminSocialDraftComment>(
-                    `/api/v1/admin/social/drafts/${id}/comments/`,
-                    { method: 'POST', body: payload },
-                ),
-
-            approve: (id: number) =>
-                request<AdminSocialDraft>(
-                    `/api/v1/admin/social/drafts/${id}/approve/`,
-                    { method: 'POST' },
-                ),
-
-            reject: (id: number) =>
-                request<AdminSocialDraft>(
-                    `/api/v1/admin/social/drafts/${id}/reject/`,
-                    { method: 'POST' },
-                ),
-        },
-
         inbox: {
-            list: (
-                filters: AdminSocialInboxFilters = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialPaginated<AdminSocialInboxItem>>(
-                    `/api/v1/admin/social/inbox/${qsOf(filters)}`,
+            conversations: {
+                list: (
+                    filters: { folder?: string; platform?: string; q?: string } = {},
+                    signal?: AbortSignal,
+                ) =>
+                    request<any[]>(
+                        `/api/v1/admin/social/inbox/conversations/${qsOf(filters)}`,
+                        { signal },
+                    ),
+
+                detail: (id: string | number, signal?: AbortSignal) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/`,
+                        { signal },
+                    ),
+
+                reply: (id: string | number, body: string) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/reply/`,
+                        { method: 'POST', body: { body } },
+                    ),
+
+                addNote: (id: string | number, body: string) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/notes/`,
+                        { method: 'POST', body: { body } },
+                    ),
+
+                assign: (id: string | number, staff_id: string | null) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/assign/`,
+                        { method: 'POST', body: { staff_id } },
+                    ),
+
+                react: (id: string | number, reaction = 'like') =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/react/`,
+                        { method: 'POST', body: { reaction } },
+                    ),
+
+                hide: (id: string | number) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/hide/`,
+                        { method: 'POST' },
+                    ),
+
+                moderate: (id: string | number) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/moderate/`,
+                        { method: 'POST' },
+                    ),
+
+                markUnread: (id: string | number) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/mark-unread/`,
+                        { method: 'POST' },
+                    ),
+
+                resolve: (id: string | number) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/resolve/`,
+                        { method: 'POST' },
+                    ),
+
+                archive: (id: string | number) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/archive/`,
+                        { method: 'POST' },
+                    ),
+
+                linkProduct: (id: string | number, product_id: string) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/product/`,
+                        { method: 'POST', body: { product_id } },
+                    ),
+
+                linkCustomer: (id: string | number, customer_id: string) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/conversations/${encodeURIComponent(String(id))}/customer/`,
+                        { method: 'POST', body: { customer_id } },
+                    ),
+            },
+
+            capabilities: (signal?: AbortSignal) =>
+                request<Record<string, any>>(
+                    '/api/v1/admin/social/inbox/capabilities/',
                     { signal },
                 ),
 
-            detail: (id: number, signal?: AbortSignal) =>
-                request<AdminSocialInboxItem>(
-                    `/api/v1/admin/social/inbox/${id}/`,
+            metrics: (signal?: AbortSignal) =>
+                request<any>(
+                    '/api/v1/admin/social/inbox/metrics/',
                     { signal },
                 ),
 
-            reply: (id: number, body: string) =>
-                request<AdminSocialInboxReply>(
-                    `/api/v1/admin/social/inbox/${id}/reply/`,
-                    { method: 'POST', body: { body } satisfies InboxReplyCreateBody },
-                ),
+            templates: {
+                list: (signal?: AbortSignal) =>
+                    request<any[]>(
+                        '/api/v1/admin/social/inbox/templates/',
+                        { signal },
+                    ),
 
-            setStatus: (
-                id: number,
-                status: AdminSocialInboxStatus,
-                snoozed_until?: string,
-            ) =>
-                request<AdminSocialInboxItem>(
-                    `/api/v1/admin/social/inbox/${id}/status/`,
-                    { method: 'POST', body: { status, snoozed_until } },
-                ),
+                create: (payload: { key: string; label: string; body: string }) =>
+                    request<any>(
+                        '/api/v1/admin/social/inbox/templates/',
+                        { method: 'POST', body: payload },
+                    ),
 
-            assign: (id: number, user_id: number | null) =>
-                request<AdminSocialInboxItem>(
-                    `/api/v1/admin/social/inbox/${id}/assign/`,
-                    { method: 'POST', body: { user_id } },
-                ),
+                update: (id: string | number, payload: { label?: string; body?: string; is_active?: boolean }) =>
+                    request<any>(
+                        `/api/v1/admin/social/inbox/templates/${encodeURIComponent(String(id))}/`,
+                        { method: 'PATCH', body: payload },
+                    ),
 
-            sync: () =>
-                request<{ ok: boolean }>(
-                    '/api/v1/admin/social/inbox/sync/',
-                    { method: 'POST' },
-                ),
+                remove: (id: string | number) =>
+                    request<void>(
+                        `/api/v1/admin/social/inbox/templates/${encodeURIComponent(String(id))}/`,
+                        { method: 'DELETE' },
+                    ),
+            },
         },
 
-        templates: {
-            list: (
-                filters: {
-                    category?: string;
-                    page?: number;
-                    page_size?: number;
+        analytics: {
+            report: (
+                query: {
+                    range?: string;
+                    start?: string;
+                    end?: string;
+                    platform?: string;
+                    account?: string;
+                    campaign?: string;
+                    content_type?: string;
+                    compare?: boolean;
                 } = {},
                 signal?: AbortSignal,
             ) =>
-                request<AdminSocialPaginated<AdminSocialTemplate>>(
-                    `/api/v1/admin/social/templates/${qsOf(filters)}`,
+                request<any>(
+                    `/api/v1/admin/social/analytics/${qsOf(query)}`,
                     { signal },
                 ),
 
-            detail: (id: number, signal?: AbortSignal) =>
-                request<AdminSocialTemplate>(
-                    `/api/v1/admin/social/templates/${id}/`,
+            config: {
+                get: (signal?: AbortSignal) =>
+                    request<any>(
+                        '/api/v1/admin/social/analytics/config/',
+                        { signal },
+                    ),
+
+                update: (payload: {
+                    attribution_model?: string;
+                    reporting_window_days?: number;
+                    currency?: string;
+                    default_timezone?: string;
+                }) =>
+                    request<any>(
+                        '/api/v1/admin/social/analytics/config/',
+                        { method: 'PATCH', body: payload },
+                    ),
+            },
+
+            demographics: (platform?: string, signal?: AbortSignal) =>
+                request<any[]>(
+                    `/api/v1/admin/social/analytics/demographics/${qsOf({ platform })}`,
                     { signal },
                 ),
 
-            create: (payload: AdminSocialTemplateWrite) =>
-                request<AdminSocialTemplate>(
-                    '/api/v1/admin/social/templates/',
+            bestTimes: (platform?: string, signal?: AbortSignal) =>
+                request<any[]>(
+                    `/api/v1/admin/social/analytics/best-times/${qsOf({ platform })}`,
+                    { signal },
+                ),
+
+            recordAttributionEvent: (payload: any) =>
+                request<any>(
+                    '/api/v1/admin/social/attribution/events/',
+                    { method: 'POST', body: payload },
+                ),
+        },
+
+        reports: {
+            list: (signal?: AbortSignal) =>
+                request<any[]>(
+                    '/api/v1/admin/social/reports/',
+                    { signal },
+                ),
+
+            detail: (id: string | number, signal?: AbortSignal) =>
+                request<any>(
+                    `/api/v1/admin/social/reports/${encodeURIComponent(String(id))}/`,
+                    { signal },
+                ),
+
+            create: (payload: {
+                report_type?: string;
+                name: string;
+                date_from: string;
+                date_to: string;
+                platforms?: string[];
+                metrics?: string[];
+                branding?: Record<string, unknown>;
+                format?: 'pdf' | 'csv' | 'png';
+            }) =>
+                request<any>(
+                    '/api/v1/admin/social/reports/',
                     { method: 'POST', body: payload },
                 ),
 
-            update: (id: number, payload: Partial<AdminSocialTemplateWrite>) =>
-                request<AdminSocialTemplate>(
-                    `/api/v1/admin/social/templates/${id}/`,
-                    { method: 'PATCH', body: payload },
-                ),
-
-            remove: (id: number) =>
+            remove: (id: string | number) =>
                 request<void>(
-                    `/api/v1/admin/social/templates/${id}/`,
+                    `/api/v1/admin/social/reports/${encodeURIComponent(String(id))}/`,
                     { method: 'DELETE' },
                 ),
         },
 
         links: {
-            list: (
-                filters: { page?: number; page_size?: number } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialPaginated<AdminSocialLink>>(
-                    `/api/v1/admin/social/links/${qsOf(filters)}`,
+            list: (signal?: AbortSignal) =>
+                request<any[]>(
+                    '/api/v1/admin/social/links/',
                     { signal },
                 ),
 
-            create: (payload: AdminSocialLinkWrite) =>
-                request<AdminSocialLink>(
+            create: (payload: {
+                destination: string;
+                utm?: Record<string, string>;
+                campaign_id?: string;
+                content_id?: string;
+            }) =>
+                request<any>(
                     '/api/v1/admin/social/links/',
                     { method: 'POST', body: payload },
                 ),
 
-            remove: (id: number) =>
+            remove: (id: string | number) =>
                 request<void>(
-                    `/api/v1/admin/social/links/${id}/`,
+                    `/api/v1/admin/social/links/${encodeURIComponent(String(id))}/`,
                     { method: 'DELETE' },
                 ),
         },
 
         notifications: {
-            list: (
-                filters: {
-                    unread?: '1';
-                    page?: number;
-                    page_size?: number;
-                } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialNotificationList>(
+            list: (filters: { unread?: '1' } = {}, signal?: AbortSignal) =>
+                request<{ results: any[]; unread_count: number }>(
                     `/api/v1/admin/social/notifications/${qsOf(filters)}`,
                     { signal },
                 ),
 
-            read: (id: number) =>
+            read: (id: string | number) =>
                 request<{ ok: boolean }>(
-                    `/api/v1/admin/social/notifications/${id}/read/`,
+                    `/api/v1/admin/social/notifications/${encodeURIComponent(String(id))}/read/`,
                     { method: 'POST' },
                 ),
 
@@ -4408,124 +4692,279 @@ export const adminApi = {
 
         team: {
             list: (signal?: AbortSignal) =>
-                request<AdminSocialTeamMember[]>(
+                request<any[]>(
                     '/api/v1/admin/social/team/',
                     { signal },
                 ),
 
-            create: (payload: AdminSocialTeamMemberWrite) =>
-                request<AdminSocialTeamMember>(
+            create: (payload: { email: string; role: string }) =>
+                request<any>(
                     '/api/v1/admin/social/team/',
                     { method: 'POST', body: payload },
                 ),
 
-            update: (id: number, payload: AdminSocialTeamMemberPatch) =>
-                request<AdminSocialTeamMember>(
-                    `/api/v1/admin/social/team/${id}/`,
+            update: (id: string | number, payload: { role?: string; is_active?: boolean }) =>
+                request<any>(
+                    `/api/v1/admin/social/team/${encodeURIComponent(String(id))}/`,
                     { method: 'PATCH', body: payload },
                 ),
 
-            remove: (id: number) =>
+            remove: (id: string | number) =>
                 request<void>(
-                    `/api/v1/admin/social/team/${id}/`,
+                    `/api/v1/admin/social/team/${encodeURIComponent(String(id))}/`,
                     { method: 'DELETE' },
                 ),
         },
 
         auditLog: {
-            list: (
-                filters: {
-                    action?: string;
-                    actor?: number;
-                    page?: number;
-                    page_size?: number;
-                } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialPaginated<AdminSocialAuditLog>>(
+            list: (filters: { action?: string; actor?: string | number } = {}, signal?: AbortSignal) =>
+                request<any[]>(
                     `/api/v1/admin/social/audit-log/${qsOf(filters)}`,
                     { signal },
                 ),
         },
-
-        reports: {
-            list: (
-                filters: { page?: number; page_size?: number } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialPaginated<AdminSocialReport>>(
-                    `/api/v1/admin/social/reports/${qsOf(filters)}`,
-                    { signal },
-                ),
-
-            detail: (id: number, signal?: AbortSignal) =>
-                request<AdminSocialReport>(
-                    `/api/v1/admin/social/reports/${id}/`,
-                    { signal },
-                ),
-
-            create: (payload: AdminSocialReportWrite) =>
-                request<AdminSocialReport>(
-                    '/api/v1/admin/social/reports/',
-                    { method: 'POST', body: payload },
-                ),
-
-            remove: (id: number) =>
-                request<void>(
-                    `/api/v1/admin/social/reports/${id}/`,
-                    { method: 'DELETE' },
-                ),
-        },
-
-        overview: {
-            get: (signal?: AbortSignal) =>
-                request<AdminSocialOverview>(
-                    '/api/v1/admin/social/overview/',
-                    { signal },
-                ),
-        },
-
-        analytics: {
-            followers: (months = 5, signal?: AbortSignal) =>
-                request<AdminSocialFollowerPoint[]>(
-                    `/api/v1/admin/social/analytics/followers/?months=${months}`,
-                    { signal },
-                ),
-
-            engagement: (signal?: AbortSignal) =>
-                request<AdminSocialEngagementPoint[]>(
-                    '/api/v1/admin/social/analytics/engagement/',
-                    { signal },
-                ),
-
-            demographics: (platform?: AdminSocialPlatform, signal?: AbortSignal) =>
-                request<AdminSocialDemographicSnapshot[]>(
-                    `/api/v1/admin/social/analytics/demographics/${qsOf({ platform })}`,
-                    { signal },
-                ),
-
-            bestTimes: (platform?: AdminSocialPlatform, signal?: AbortSignal) =>
-                request<AdminSocialBestTimeRow[]>(
-                    `/api/v1/admin/social/analytics/best-times/${qsOf({ platform })}`,
-                    { signal },
-                ),
-
-            kpis: (days = 30, signal?: AbortSignal) =>
-                request<AdminSocialKpiAnalytics>(
-                    `/api/v1/admin/social/analytics/kpis/?days=${days}`,
-                    { signal },
-                ),
-
-            topPosts: (
-                params: { metric?: string; limit?: number; platform?: AdminSocialPlatform } = {},
-                signal?: AbortSignal,
-            ) =>
-                request<AdminSocialPublishedPost[]>(
-                    `/api/v1/admin/social/analytics/top-posts/${qsOf(params)}`,
-                    { signal },
-                ),
-        },
     },
+
+    getSocialOverview: (q: { range: string; platform: string }) =>
+        request<any>(`/api/v1/admin/social/overview/${qsOf(q)}`),
+
+    socialAnalyticsReport: (q: {
+        range?: string;
+        start?: string;
+        end?: string;
+        platform?: string;
+        account?: string;
+        campaign?: string;
+        content_type?: string;
+        compare?: boolean;
+    }) =>
+        request<any>(`/api/v1/admin/social/analytics/${qsOf(q)}`),
+
+    getSocialAccounts: () =>
+        request<{ accounts: any[]; platforms: { platform: string; connected: boolean }[] }>(
+            '/api/v1/admin/social/accounts/',
+        ),
+
+    startSocialConnect: (q: { platform: string }) =>
+        request<{ authorize_url: string }>(
+            '/api/v1/admin/social/accounts/connect/',
+            { method: 'POST', body: q },
+        ),
+
+    reauthorizeSocialAccount: (id: string) =>
+        request<{ authorize_url: string }>(
+            `/api/v1/admin/social/accounts/${encodeURIComponent(id)}/reauthorize/`,
+            { method: 'POST' },
+        ),
+
+    syncSocialAccount: (id: string) =>
+        request<{ ok: boolean }>(
+            `/api/v1/admin/social/accounts/${encodeURIComponent(id)}/sync/`,
+            { method: 'POST' },
+        ),
+
+    disconnectSocialAccount: (id: string) =>
+        request<{ ok: boolean }>(
+            `/api/v1/admin/social/accounts/${encodeURIComponent(id)}/disconnect/`,
+            { method: 'POST' },
+        ),
+
+    updateSocialAccount: (
+        id: string,
+        patch: { label?: string | null; is_default_publishing?: boolean; enabled_for_distribution?: boolean },
+    ) =>
+        request<any>(
+            `/api/v1/admin/social/accounts/${encodeURIComponent(id)}/`,
+            { method: 'PATCH', body: patch },
+        ),
+
+    listSocialContent: (q: {
+        q?: string;
+        platform?: string;
+        content_type?: string;
+        status?: string;
+        campaign_id?: string;
+        owner_id?: string;
+    }) =>
+        request<{ items: any[]; total?: number }>(
+            `/api/v1/admin/social/content/${qsOf(q)}`,
+        ),
+
+    getSocialContent: (id: string) =>
+        request<any>(`/api/v1/admin/social/content/${encodeURIComponent(id)}/`),
+
+    saveSocialContent: (draft: any) =>
+        draft?.id
+            ? request<any>(
+                `/api/v1/admin/social/content/${encodeURIComponent(String(draft.id))}/`,
+                { method: 'PATCH', body: draft },
+            )
+            : request<any>('/api/v1/admin/social/content/', { method: 'POST', body: draft }),
+
+    deleteSocialContent: (id: string) =>
+        request<void>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/`,
+            { method: 'DELETE' },
+        ),
+
+    duplicateSocialContent: (id: string) =>
+        request<any>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/duplicate/`,
+            { method: 'POST' },
+        ),
+
+    submitSocialContentForApproval: (id: string) =>
+        request<any>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/submit/`,
+            { method: 'POST' },
+        ),
+
+    approveSocialContent: (id: string) =>
+        request<any>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/approve/`,
+            { method: 'POST' },
+        ),
+
+    rejectSocialContent: (id: string, reason: string) =>
+        request<any>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/reject/`,
+            { method: 'POST', body: { reason } },
+        ),
+
+    requestSocialContentChanges: (id: string, reason: string) =>
+        request<any>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/request-changes/`,
+            { method: 'POST', body: { reason } },
+        ),
+
+    scheduleSocialContent: (id: string, scheduled_at: string) =>
+        request<any>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/schedule/`,
+            { method: 'POST', body: { scheduled_at } },
+        ),
+
+    publishSocialContentNow: (id: string) =>
+        request<any>(
+            `/api/v1/admin/social/content/${encodeURIComponent(id)}/publish-now/`,
+            { method: 'POST' },
+        ),
+
+    listCampaigns: () =>
+        request<{ campaigns: any[] }>('/api/v1/admin/social/campaigns/options/'),
+
+    listStaff: () =>
+        request<{ staff: any[] }>('/api/staff?active=true'),
+
+    listContentCategories: () =>
+        request<{ categories: any[] }>('/api/v1/admin/social/content/categories/'),
+
+    listMediaLibrary: (q?: { q?: string; kind?: 'image' | 'video' }) =>
+        request<{ assets: any[] }>(`/api/v1/admin/social/media/${qsOf(q ?? {})}`),
+
+    uploadMedia: (file: File) => {
+        const form = new FormData();
+        form.append('file', file);
+        return fetch('/api/v1/admin/social/media/upload/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': readCsrfToken() },
+            body: form,
+        }).then(async (res) => {
+            if (!res.ok) {
+                let detail = `Upload failed: ${res.status} ${res.statusText}`;
+                try {
+                    const data = (await res.json()) as { detail?: string };
+                    if (data?.detail) detail = data.detail;
+                } catch {
+                }
+                throw new Error(detail);
+            }
+            return (await res.json()) as any;
+        });
+    },
+
+    searchProducts: (q: string) =>
+        request<{ products: any[] }>(`/api/products/search${qsOf({ q })}`),
+
+    suggestContent: (q: {
+        field: 'caption' | 'hashtags' | 'description' | 'cta' | 'ideas' | 'variation';
+        context: string;
+        platform?: string;
+    }) =>
+        request<{ suggestions: string[] }>(
+            '/api/v1/admin/social/content/suggest/',
+            { method: 'POST', body: q },
+        ),
+
+    listSocialScheduledPosts: (q: {
+        from?: string;
+        to?: string;
+        platform?: string;
+        status?: string;
+        account_id?: string;
+        campaign_id?: string;
+        owner_id?: string;
+        q?: string;
+    }) =>
+        request<{ posts: any[]; time_zone?: string | null; server_now?: string | null }>(
+            `/api/v1/admin/social/calendar/posts/${qsOf(q)}`,
+        ),
+
+    getSocialScheduledPost: (id: string) =>
+        request<any>(`/api/v1/admin/social/calendar/posts/${encodeURIComponent(id)}/`),
+
+    scheduleSocialPost: (body: {
+        content_id: string;
+        platform: string;
+        account_id: string;
+        scheduled_at: string;
+        content_version_id?: string | null;
+        as_reminder?: boolean;
+    }) =>
+        request<any>(
+            '/api/v1/admin/social/calendar/posts/',
+            { method: 'POST', body },
+        ),
+
+    rescheduleSocialPost: (id: string, scheduled_at: string) =>
+        request<any>(
+            `/api/v1/admin/social/calendar/posts/${encodeURIComponent(id)}/reschedule/`,
+            { method: 'POST', body: { scheduled_at } },
+        ),
+
+    cancelSocialPost: (id: string, reason?: string) =>
+        request<any>(
+            `/api/v1/admin/social/calendar/posts/${encodeURIComponent(id)}/cancel/`,
+            { method: 'POST', body: { reason: reason ?? '' } },
+        ),
+
+    retrySocialPost: (id: string) =>
+        request<any>(
+            `/api/v1/admin/social/calendar/posts/${encodeURIComponent(id)}/retry/`,
+            { method: 'POST' },
+        ),
+
+    publishSocialPostNow: (id: string) =>
+        request<any>(
+            `/api/v1/admin/social/calendar/posts/${encodeURIComponent(id)}/publish-now/`,
+            { method: 'POST' },
+        ),
+
+    duplicateSocialPost: (id: string, scheduled_at: string) =>
+        request<any>(
+            `/api/v1/admin/social/calendar/posts/${encodeURIComponent(id)}/duplicate/`,
+            { method: 'POST', body: { scheduled_at } },
+        ),
+
+    getSocialPostHistory: (id: string) =>
+        request<{ history: any[] }>(
+            `/api/v1/admin/social/calendar/posts/${encodeURIComponent(id)}/history/`,
+        ),
+
+    listContentForScheduling: (q?: { q?: string }) =>
+        request<{ items: any[] }>(
+            `/api/v1/admin/social/content/scheduling-options/${qsOf(q ?? {})}`,
+        ),
 
     directOrders: {
         uploads: {
