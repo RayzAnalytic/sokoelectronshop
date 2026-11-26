@@ -114,10 +114,10 @@ const NOTIFICATION_ICON: Record<WhatsAppNotification['type'], typeof AlertCircle
 };
 
 const QUICK_ACTIONS = [
-    { label: 'Inbox', href: '/whatsapp/inbox', icon: Inbox },
-    { label: 'New template', href: '/whatsapp/messages?compose=template', icon: MessageSquarePlus },
-    { label: 'Commerce', href: '/whatsapp/commerce', icon: ShoppingBag },
-    { label: 'Settings', href: '/whatsapp/analytics?tab=connection', icon: Settings },
+    { label: 'Inbox', href: '/admin/whatsapp/inbox', icon: Inbox },
+    { label: 'New template', href: '/admin/whatsapp/messages?compose=template', icon: MessageSquarePlus },
+    { label: 'Commerce', href: '/admin/whatsapp/commerce', icon: ShoppingBag },
+    { label: 'Settings', href: '/admin/whatsapp/analytics?tab=connection', icon: Settings },    
 ];
 
 function formatRelative(iso: string | null): string {
@@ -152,8 +152,7 @@ function WhatsAppTopbarContent() {
         const controller = new AbortController();
         setLoading(true);
         setError('');
-        (adminApi.whatsapp.connection as any)?.status ? adminApi.whatsapp.connection : { status: async () => ({ state: 'disconnected' }) } as any; // patched
-        // original: adminApi.whatsapp.connection
+        adminApi.whatsapp.connection
             .status(controller.signal)
             .then((data) => {
                 setConnection(data);
