@@ -6,7 +6,8 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.static import serve as media_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-
+from django.urls import re_path
+from whatsapp.views import CustomerOrdersView, ProductSearchView, StaffListView
 from dashboard.social.views import SocialOAuthCallbackView
 from dashboard.settings import views as settings_views
 from dashboard.settings.urls import public_urls as settings_public_urls
@@ -49,7 +50,9 @@ urlpatterns = [
     path("api/v1/admin/invites/", include("dashboard.users.invites_urls")),
     path("api/v1/staff-invites/", include("dashboard.users.urls_public")),
     path("api/v1/admin/settings/", include("dashboard.settings.urls")),
-
+re_path(r"^api/staff/?$", StaffListView.as_view()),
+re_path(r"^api/products/search/?$", ProductSearchView.as_view()),
+re_path(r"^api/customers/(?P<pk>\d+)/orders/?$", CustomerOrdersView.as_view()),
     path("api/v1/", include(settings_public_urls)),
 
     path(

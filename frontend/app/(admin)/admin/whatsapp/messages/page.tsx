@@ -1,12 +1,14 @@
 'use client';
 
 import {
+    Suspense,
     useCallback,
     useEffect,
     useMemo,
     useState,
 } from 'react';
-import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { adminApi } from '@/lib/admin-api';
 import {
     FileText,
     Bell,
@@ -22,24 +24,12 @@ import {
     Clock,
     ChevronDown,
     ChevronRight,
-    Eye,
     Pencil,
-    Trash2,
-    Send,
     Archive,
     Globe,
-    MessageSquare,
-    ShoppingBag,
-    CreditCard,
-    Truck,
-    Package,
     RotateCw,
-    Copy,
-    ExternalLink,
-    Filter,
     Play,
     Pause,
-    MoreVertical,
     X,
     Lock,
     ShieldAlert,
@@ -269,7 +259,7 @@ function formatDateTime(iso: string): string {
 }
 
 function CategoryPill({ category }: { category: TemplateCategory }) {
-    const m = CATEGORY_META[category];
+    const m = CATEGORY_META[category] ?? CATEGORY_META.utility;
     return (
         <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium ${m.bg} ${m.border} ${m.text}`}
@@ -280,7 +270,7 @@ function CategoryPill({ category }: { category: TemplateCategory }) {
 }
 
 function StatusPill({ status }: { status: TemplateStatus }) {
-    const m = TEMPLATE_STATUS_META[status];
+    const m = TEMPLATE_STATUS_META[status] ?? TEMPLATE_STATUS_META.draft;
     const Icon = m.icon;
     return (
         <span
@@ -293,7 +283,7 @@ function StatusPill({ status }: { status: TemplateStatus }) {
 }
 
 function LogStatusPill({ status }: { status: MessageLogStatus }) {
-    const m = LOG_STATUS_META[status];
+    const m = LOG_STATUS_META[status] ?? LOG_STATUS_META.accepted;
     return (
         <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium ${m.bg} ${m.border} ${m.text}`}
@@ -510,7 +500,7 @@ function NotificationRow({
     );
 
     return (
-        <div className="border border-slate-200 rounded">
+        <div className="border border-slate-200 rounded bg-white">
             <div className="flex items-center gap-2 px-3 py-2">
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
@@ -602,8 +592,21 @@ function NotificationRow({
     );
 }
 
-function WhatsAppMessagesPage() {
-    const [tab, setTab] = useState<Tab>('templates');
+function WhatsAppMessagesPageContent() {
+    const searchParams = useSearchParams();
+    const initialTab = useMemo<Tab>(() => {
+        const t = searchParams.get('tab');
+        if (t === 'notifications') return 'notifications';
+        if (t === 'automations' || t === 'automation') return 'automations';
+        if (t === 'history') return 'history';
+        return 'templates';
+    }, [searchParams]);
+
+    const [tab, setTab] = useState<Tab>(initialTab);
+
+    useEffect(() => {
+        setTab(initialTab);
+    }, [initialTab]);
 
     const [templates, setTemplates] = useState<Template[]>([]);
     const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -639,49 +642,42 @@ function WhatsAppMessagesPage() {
     const [logDateFrom, setLogDateFrom] = useState('');
     const [logDateTo, setLogDateTo] = useState('');
 
-    const loadTemplates = useCallback(async (silent = false) => {
+    const loadTemplates = useCallback(async (silent = false, signal?: AbortSignal) => {
         if (!silent) setTemplatesLoading(true);
         setTemplatesError('');
         try {
-            const res = await fetch('/api/whatsapp/templates', { cache: 'no-store' });
-            if (!res.ok) throw new Error('failed');
-            const data = (await res.json()) as Template[];
-            setTemplates(data);
-        } catch {
+            const data = await adminApi.whatsapp.templates.list({}, signal);
+            setTemplates(data as unknown as Template[]);
+        } catch (err) {
+            if ((err as { name?: string })?.name === 'AbortError') return;
             setTemplatesError('Could not load templates.');
         } finally {
             setTemplatesLoading(false);
         }
     }, []);
 
-    const loadNotifications = useCallback(async (silent = false) => {
+    const loadNotifications = useCallback(async (silent = false, signal?: AbortSignal) => {
         if (!silent) setNotificationsLoading(true);
         setNotificationsError('');
         try {
-            const res = await fetch('/api/whatsapp/notifications/config', {
-                cache: 'no-store',
-            });
-            if (!res.ok) throw new Error('failed');
-            const data = (await res.json()) as NotificationConfig[];
+            const data = await adminApi.whatsapp.notificationConfigs.list(signal);
             setNotifications(data);
-        } catch {
+        } catch (err) {
+            if ((err as { name?: string })?.name === 'AbortError') return;
             setNotificationsError('Could not load notification configuration.');
         } finally {
             setNotificationsLoading(false);
         }
     }, []);
 
-    const loadWorkflows = useCallback(async (silent = false) => {
+    const loadWorkflows = useCallback(async (silent = false, signal?: AbortSignal) => {
         if (!silent) setWorkflowsLoading(true);
         setWorkflowsError('');
         try {
-            const res = await fetch('/api/whatsapp/workflows', {
-                cache: 'no-store',
-            });
-            if (!res.ok) throw new Error('failed');
-            const data = (await res.json()) as Workflow[];
+            const data = await adminApi.whatsapp.workflows.list(signal);
             setWorkflows(data);
-        } catch {
+        } catch (err) {
+            if ((err as { name?: string })?.name === 'AbortError') return;
             setWorkflowsError('Could not load automation workflows.');
         } finally {
             setWorkflowsLoading(false);
@@ -689,24 +685,23 @@ function WhatsAppMessagesPage() {
     }, []);
 
     const loadLogs = useCallback(
-        async (silent = false) => {
+        async (silent = false, signal?: AbortSignal) => {
             if (!silent) setLogsLoading(true);
             setLogsError('');
             try {
-                const params = new URLSearchParams();
-                if (logSearch.trim()) params.set('q', logSearch.trim());
-                if (logStatus !== 'all') params.set('status', logStatus);
-                if (logCategory !== 'all') params.set('category', logCategory);
-                if (logDateFrom) params.set('from', logDateFrom);
-                if (logDateTo) params.set('to', logDateTo);
-                const res = await fetch(
-                    `/api/whatsapp/messages/logs?${params.toString()}`,
-                    { cache: 'no-store' },
+                const data = await adminApi.whatsapp.messageLogs.list(
+                    {
+                        ...(logSearch.trim() ? { q: logSearch.trim() } : {}),
+                        ...(logStatus !== 'all' ? { status: logStatus } : {}),
+                        ...(logCategory !== 'all' ? { category: logCategory } : {}),
+                        ...(logDateFrom ? { from: logDateFrom } : {}),
+                        ...(logDateTo ? { to: logDateTo } : {}),
+                    },
+                    signal,
                 );
-                if (!res.ok) throw new Error('failed');
-                const data = (await res.json()) as MessageLog[];
                 setLogs(data);
-            } catch {
+            } catch (err) {
+                if ((err as { name?: string })?.name === 'AbortError') return;
                 setLogsError('Could not load message logs.');
             } finally {
                 setLogsLoading(false);
@@ -716,21 +711,34 @@ function WhatsAppMessagesPage() {
     );
 
     useEffect(() => {
-        if (tab === 'templates') loadTemplates();
+        if (tab !== 'templates' && tab !== 'notifications') return;
+        const controller = new AbortController();
+        void loadTemplates(false, controller.signal);
+        return () => controller.abort();
     }, [tab, loadTemplates]);
 
     useEffect(() => {
-        if (tab === 'notifications') loadNotifications();
+        if (tab !== 'notifications') return;
+        const controller = new AbortController();
+        void loadNotifications(false, controller.signal);
+        return () => controller.abort();
     }, [tab, loadNotifications]);
 
     useEffect(() => {
-        if (tab === 'automations') loadWorkflows();
+        if (tab !== 'automations') return;
+        const controller = new AbortController();
+        void loadWorkflows(false, controller.signal);
+        return () => controller.abort();
     }, [tab, loadWorkflows]);
 
     useEffect(() => {
         if (tab !== 'history') return;
-        const t = setTimeout(() => loadLogs(), 250);
-        return () => clearTimeout(t);
+        const controller = new AbortController();
+        const t = setTimeout(() => void loadLogs(false, controller.signal), 250);
+        return () => {
+            clearTimeout(t);
+            controller.abort();
+        };
     }, [tab, loadLogs]);
 
     const filteredTemplates = useMemo(() => {
@@ -748,21 +756,13 @@ function WhatsAppMessagesPage() {
     const handleSyncTemplate = async (id: string) => {
         setSyncingTemplateId(id);
         try {
-            const res = await fetch(`/api/whatsapp/templates/${id}/sync`, {
-                method: 'POST',
-            });
-            if (!res.ok) throw new Error('sync failed');
+            const updated = await adminApi.whatsapp.templates.syncOne(id);
             await loadTemplates(true);
             if (selectedTemplate?.id === id) {
-                const fresh = await fetch(`/api/whatsapp/templates/${id}`, {
-                    cache: 'no-store',
-                });
-                if (fresh.ok) {
-                    const data = (await fresh.json()) as Template;
-                    setSelectedTemplate(data);
-                }
+                setSelectedTemplate(updated as unknown as Template);
             }
         } catch {
+            setTemplatesError('Could not sync template status.');
         } finally {
             setSyncingTemplateId(null);
         }
@@ -771,13 +771,11 @@ function WhatsAppMessagesPage() {
     const handleDisableTemplate = async (id: string) => {
         setDisablingTemplateId(id);
         try {
-            const res = await fetch(`/api/whatsapp/templates/${id}/disable`, {
-                method: 'POST',
-            });
-            if (!res.ok) throw new Error('disable failed');
+            await adminApi.whatsapp.templates.disable(id);
             await loadTemplates(true);
             setSelectedTemplate(null);
         } catch {
+            setTemplatesError('Could not disable template.');
         } finally {
             setDisablingTemplateId(null);
         }
@@ -786,19 +784,19 @@ function WhatsAppMessagesPage() {
     const handleToggleNotification = async (id: string) => {
         const target = notifications.find((n) => n.id === id);
         if (!target) return;
-        if (target.enabled && !target.templateId) {
+        if (!target.enabled && !target.templateId) {
+            setNotificationsError('Select an approved template before enabling a notification.');
             return;
         }
+        setNotificationsError('');
         setBusyNotificationId(id);
         try {
-            const res = await fetch(`/api/whatsapp/notifications/config/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: !target.enabled }),
+            await adminApi.whatsapp.notificationConfigs.update(id, {
+                enabled: !target.enabled,
             });
-            if (!res.ok) throw new Error('update failed');
             await loadNotifications(true);
         } catch {
+            setNotificationsError('Could not update notification status.');
         } finally {
             setBusyNotificationId(null);
         }
@@ -808,16 +806,15 @@ function WhatsAppMessagesPage() {
         id: string,
         templateId: string | null,
     ) => {
+        setNotificationsError('');
         setBusyNotificationId(id);
         try {
-            const res = await fetch(`/api/whatsapp/notifications/config/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ template_id: templateId }),
+            await adminApi.whatsapp.notificationConfigs.update(id, {
+                template_id: templateId,
             });
-            if (!res.ok) throw new Error('update failed');
             await loadNotifications(true);
         } catch {
+            setNotificationsError('Could not update notification template.');
         } finally {
             setBusyNotificationId(null);
         }
@@ -826,16 +823,15 @@ function WhatsAppMessagesPage() {
     const handleToggleWorkflow = async (id: string) => {
         const target = workflows.find((w) => w.id === id);
         if (!target) return;
+        setWorkflowsError('');
         setBusyWorkflowId(id);
         try {
-            const res = await fetch(`/api/whatsapp/workflows/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: !target.enabled }),
+            await adminApi.whatsapp.workflows.update(id, {
+                enabled: !target.enabled,
             });
-            if (!res.ok) throw new Error('update failed');
             await loadWorkflows(true);
         } catch {
+            setWorkflowsError('Could not update workflow status.');
         } finally {
             setBusyWorkflowId(null);
         }
@@ -857,10 +853,10 @@ function WhatsAppMessagesPage() {
                     <button
                         type="button"
                         onClick={() => {
-                            if (tab === 'templates') loadTemplates(true);
-                            else if (tab === 'notifications') loadNotifications(true);
-                            else if (tab === 'automations') loadWorkflows(true);
-                            else loadLogs(true);
+                            if (tab === 'templates') void loadTemplates(true);
+                            else if (tab === 'notifications') void loadNotifications(true);
+                            else if (tab === 'automations') void loadWorkflows(true);
+                            else void loadLogs(true);
                         }}
                         className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded border border-slate-200 bg-white text-[12px] text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-950/20 transition"
                     >
@@ -1020,6 +1016,12 @@ function WhatsAppMessagesPage() {
                             title="Transactional notifications"
                             description="Automatically send approved templates on verified e-commerce events."
                         />
+                        {notificationsError && (
+                            <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[12px] text-rose-700 flex items-center gap-1.5">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                {notificationsError}
+                            </div>
+                        )}
                         {notificationsLoading ? (
                             <div className="space-y-1.5">
                                 {Array.from({ length: 4 }).map((_, i) => (
@@ -1028,11 +1030,6 @@ function WhatsAppMessagesPage() {
                                         className="h-14 bg-white border border-slate-200 rounded animate-pulse"
                                     />
                                 ))}
-                            </div>
-                        ) : notificationsError ? (
-                            <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[12px] text-rose-700 flex items-center gap-1.5">
-                                <AlertCircle className="w-3.5 h-3.5" />
-                                {notificationsError}
                             </div>
                         ) : notifications.length === 0 ? (
                             <div className="bg-white border border-slate-200 rounded p-6 text-center text-[12px] text-slate-500">
@@ -1045,9 +1042,9 @@ function WhatsAppMessagesPage() {
                                         key={n.id}
                                         config={n}
                                         templates={templates}
-                                        onToggle={() => handleToggleNotification(n.id)}
+                                        onToggle={() => void handleToggleNotification(n.id)}
                                         onSelectTemplate={(id) =>
-                                            handleSelectNotificationTemplate(n.id, id)
+                                            void handleSelectNotificationTemplate(n.id, id)
                                         }
                                         busy={busyNotificationId === n.id}
                                     />
@@ -1132,7 +1129,7 @@ function WhatsAppMessagesPage() {
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => handleToggleWorkflow(w.id)}
+                                                onClick={() => void handleToggleWorkflow(w.id)}
                                                 disabled={busyWorkflowId === w.id}
                                                 className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 bg-white text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                                             >
@@ -1374,10 +1371,10 @@ function WhatsAppMessagesPage() {
                 template={selectedTemplate}
                 onClose={() => setSelectedTemplate(null)}
                 onSync={() =>
-                    selectedTemplate && handleSyncTemplate(selectedTemplate.id)
+                    selectedTemplate && void handleSyncTemplate(selectedTemplate.id)
                 }
                 onDisable={() =>
-                    selectedTemplate && handleDisableTemplate(selectedTemplate.id)
+                    selectedTemplate && void handleDisableTemplate(selectedTemplate.id)
                 }
                 syncing={syncingTemplateId === selectedTemplate?.id}
                 disabling={disablingTemplateId === selectedTemplate?.id}
@@ -1386,4 +1383,16 @@ function WhatsAppMessagesPage() {
     );
 }
 
-export default WhatsAppMessagesPage;
+export default function WhatsAppMessagesPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                </div>
+            }
+        >
+            <WhatsAppMessagesPageContent />
+        </Suspense>
+    );
+}

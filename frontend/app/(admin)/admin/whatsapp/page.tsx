@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { adminApi } from '@/lib/admin-api';
 import {
   MessageCircle,
   MessageSquare,
@@ -35,9 +36,7 @@ import {
   Minus,
   ArrowRight,
   ShieldAlert,
-  Webhook,
   FileWarning,
-  RotateCw,
 } from 'lucide-react';
 
 type ConnectionState =
@@ -242,11 +241,11 @@ function formatNumber(v: number | null): string {
   return new Intl.NumberFormat('en-US').format(v);
 }
 
-function formatCurrency(v: number | null): string {
+function formatCurrency(v: number | null, currency = 'KES'): string {
   if (v === null) return '—';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency,
     maximumFractionDigits: 0,
   }).format(v);
 }
@@ -369,7 +368,7 @@ function ConnectionPanel({
       </div>
     );
   }
-  const meta = STATE_META[connection.state];
+  const meta = STATE_META[connection.state] ?? STATE_META.disconnected;
   const connected = connection.state === 'connected';
 
   if (!connected) {
@@ -576,19 +575,15 @@ function WhatsAppOverviewPage() {
   const [periodOpen, setPeriodOpen] = useState(false);
 
   const load = useCallback(
-    async (nextPeriod: Period, silent = false) => {
+    async (nextPeriod: Period, silent = false, signal?: AbortSignal) => {
       if (silent) setRefreshing(true);
       else setLoading(true);
       setError('');
       try {
-        const res = await fetch(
-          `/api/whatsapp/overview?period=${nextPeriod}`,
-          { cache: 'no-store' },
-        );
-        if (!res.ok) throw new Error('Failed to load overview');
-        const json = (await res.json()) as OverviewData;
+        const json = await adminApi.whatsapp.overview.get(nextPeriod, signal);
         setData(json);
-      } catch {
+      } catch (err) {
+        if ((err as { name?: string })?.name === 'AbortError') return;
         setError('Could not load WhatsApp overview data.');
       } finally {
         setLoading(false);
@@ -599,10 +594,12 @@ function WhatsAppOverviewPage() {
   );
 
   useEffect(() => {
-    load(period);
+    const controller = new AbortController();
+    void load(period, false, controller.signal);
+    return () => controller.abort();
   }, [period, load]);
 
-  const handleRefresh = () => load(period, true);
+  const handleRefresh = () => void load(period, true);
 
   const connection = data?.connection ?? null;
   const connected = connection?.state === 'connected';
@@ -1078,7 +1075,7 @@ function WhatsAppOverviewPage() {
               ) : (
                 <ul className="space-y-1.5">
                   {alerts.map((a) => {
-                    const meta = SEVERITY_META[a.severity];
+                    const meta = SEVERITY_META[a.severity] ?? SEVERITY_META.info;
                     const Icon = meta.icon;
                     return (
                       <li

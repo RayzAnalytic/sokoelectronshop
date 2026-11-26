@@ -481,7 +481,436 @@ interface MyPermissionsResponse {
     role: string;
     dashboard_url: string;
 }
+export type WhatsAppConnectionState =
+    | 'connected'
+    | 'connecting'
+    | 'disconnected'
+    | 'expired'
+    | 'action_required'
+    | 'error';
 
+export type WhatsAppConnectionInfo = {
+    state: WhatsAppConnectionState;
+    metaBusinessPortfolio: string | null;
+    wabaId: string | null;
+    wabaName: string | null;
+    phoneNumberId: string | null;
+    displayName: string | null;
+    phoneNumber: string | null;
+    phoneVerified: boolean | null;
+    businessProfile: {
+        about: string | null;
+        address: string | null;
+        website: string | null;
+        vertical: string | null;
+    } | null;
+    catalogueName: string | null;
+    catalogueId: string | null;
+    permissions: Array<{ name: string; granted: boolean }>;
+    lastSyncedAt: string | null;
+    requiredAction: string | null;
+    account: {
+        displayName: string;
+        phoneNumber: string;
+        accountId: string;
+    } | null;
+    notifications: Array<{
+        id: string;
+        type:
+        | 'failed_message'
+        | 'sync_failure'
+        | 'template_update'
+        | 'webhook'
+        | 'automation'
+        | 'campaign';
+        title: string;
+        detail: string;
+        at: string;
+        unread: boolean;
+    }>;
+    unreadCount: number;
+};
+
+export type WhatsAppHealthInfo = {
+    api: {
+        status: 'ok' | 'degraded' | 'down';
+        lastRequestAt: string | null;
+        failedRequests24h: number;
+    };
+    webhook: {
+        status: 'ok' | 'degraded' | 'down';
+        lastEventAt: string | null;
+        verified: boolean;
+    };
+    token: {
+        status: 'ok' | 'expiring' | 'expired';
+        expiresAt: string | null;
+    };
+    errors: Array<{
+        id: string;
+        kind: 'api' | 'webhook' | 'rate_limit' | 'permission' | 'sync';
+        message: string;
+        at: string;
+    }>;
+};
+
+export type WhatsAppMetricValue = {
+    value: number | null;
+    previous: number | null;
+    available: boolean;
+};
+
+export type WhatsAppOverviewData = {
+    connection: {
+        state: WhatsAppConnectionState;
+        displayName: string | null;
+        phoneNumber: string | null;
+        phoneVerified: boolean | null;
+        apiStatus: 'ok' | 'degraded' | 'down' | null;
+        webhookStatus: 'ok' | 'degraded' | 'down' | null;
+        lastSyncedAt: string | null;
+        requiredAction: string | null;
+    };
+    period: '7d' | '30d' | '90d';
+    messaging: {
+        sent: WhatsAppMetricValue;
+        delivered: WhatsAppMetricValue;
+        read: WhatsAppMetricValue;
+        failed: WhatsAppMetricValue;
+        incoming: WhatsAppMetricValue;
+        outgoing: WhatsAppMetricValue;
+        activeConversations: WhatsAppMetricValue;
+        unansweredConversations: WhatsAppMetricValue;
+    } | null;
+    customerCommerce: {
+        newContacts: WhatsAppMetricValue;
+        returningCustomers: WhatsAppMetricValue;
+        enquiries: WhatsAppMetricValue;
+        referredVisits: WhatsAppMetricValue;
+        attributedOrders: WhatsAppMetricValue;
+        attributedRevenue: WhatsAppMetricValue;
+    } | null;
+    chart: Array<{
+        date: string;
+        sent: number;
+        delivered: number;
+        read: number;
+        failed: number;
+        incoming: number;
+    }>;
+    conversations: Array<{
+        id: string;
+        customerName: string | null;
+        phoneNumber: string;
+        lastMessagePreview: string;
+        lastMessageAt: string;
+        assignedTo: string | null;
+        unread: boolean;
+        orderId: string | null;
+    }>;
+    products: {
+        recentlyShared: Array<{ productId: string; name: string; sharedAt: string }>;
+        productEnquiries: number;
+        syncIssues: number;
+        whatsappOrders: number;
+        recentNotifications: Array<{
+            orderId: string;
+            reference: string;
+            status: string;
+            at: string;
+        }>;
+    } | null;
+    automation: {
+        activeAutomations: number;
+        successfulRuns: number;
+        failedRuns: number;
+        scheduledCampaigns: number;
+        campaignsNeedingAttention: number;
+        templateAlerts: Array<{
+            templateId: string;
+            name: string;
+            status: 'approved' | 'rejected' | 'pending';
+            at: string;
+        }>;
+    } | null;
+    alerts: Array<{
+        id: string;
+        severity: 'critical' | 'warning' | 'info';
+        title: string;
+        description: string;
+        resolveHref: string;
+        resolveLabel: string;
+    }>;
+};
+
+export type WhatsAppAnalyticsDashboard = {
+    overview: {
+        sent: WhatsAppMetricValue;
+        delivered: WhatsAppMetricValue;
+        read: WhatsAppMetricValue;
+        failed: WhatsAppMetricValue;
+        incoming: WhatsAppMetricValue;
+        outgoing: WhatsAppMetricValue;
+        activeConversations: WhatsAppMetricValue;
+        newContacts: WhatsAppMetricValue;
+        avgResponseTimeSeconds: WhatsAppMetricValue;
+        unanswered: WhatsAppMetricValue;
+    };
+    messaging: {
+        series: Array<{
+            date: string;
+            sent: number;
+            delivered: number;
+            read: number;
+            failed: number;
+            incoming: number;
+            outgoing: number;
+        }>;
+        byTemplate: Array<{
+            templateName: string;
+            category: string;
+            sent: number;
+            delivered: number;
+            read: number;
+            failed: number;
+        }>;
+        failures: Array<{ reason: string; count: number }>;
+    };
+    customers: {
+        newContacts: WhatsAppMetricValue;
+        returningCustomers: WhatsAppMetricValue;
+        startedConversations: WhatsAppMetricValue;
+        enquiries: WhatsAppMetricValue;
+        optIns: WhatsAppMetricValue;
+        optOuts: WhatsAppMetricValue;
+        responseRate: WhatsAppMetricValue;
+        repeatPurchases: WhatsAppMetricValue;
+    };
+    commerce: {
+        referredVisits: WhatsAppMetricValue;
+        productPageVisits: WhatsAppMetricValue;
+        enquiries: WhatsAppMetricValue;
+        attributedOrders: WhatsAppMetricValue;
+        attributedRevenue: WhatsAppMetricValue;
+        conversionRate: WhatsAppMetricValue;
+        averageOrderValue: WhatsAppMetricValue;
+    };
+    campaigns: Array<{
+        id: string;
+        name: string;
+        category: string;
+        submitted: number;
+        delivered: number;
+        read: number;
+        failed: number;
+        clicks: number;
+        visits: number;
+        orders: number;
+        revenue: number;
+        cost: number;
+        currency: string;
+    }>;
+    costs: {
+        available: boolean;
+        total: number | null;
+        currency: string | null;
+        byCategory: Array<{ category: string; cost: number }> | null;
+        campaignCost: number | null;
+        note: string | null;
+    };
+};
+
+export type WhatsAppInboxConversation = {
+    id: string;
+    customerId: string | null;
+    customerName: string | null;
+    phoneNumber: string;
+    lastMessagePreview: string;
+    lastMessageAt: string;
+    unreadCount: number;
+    assignedToId: string | null;
+    assignedToName: string | null;
+    status: 'open' | 'pending' | 'resolved' | 'archived';
+    labels: string[];
+    priority: 'low' | 'normal' | 'high' | null;
+    customerIdentified: boolean;
+};
+
+export type WhatsAppInboxMessage = {
+    id: string;
+    conversationId: string;
+    direction: 'inbound' | 'outbound';
+    body: string | null;
+    attachments: Array<{
+        id: string;
+        kind: 'image' | 'document' | 'video' | 'audio';
+        url: string;
+        filename: string;
+        mimeType: string;
+        sizeBytes: number;
+    }>;
+    createdAt: string;
+    status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+    errorReason: string | null;
+    isInternalNote: boolean;
+    sentById: string | null;
+    sentByName: string | null;
+    templateName: string | null;
+};
+
+export type WhatsAppInboxContext = {
+    conversation: WhatsAppInboxConversation;
+    messages: WhatsAppInboxMessage[];
+    customer: {
+        id: string;
+        name: string;
+        phoneNumber: string;
+        email: string | null;
+        registeredAt: string | null;
+        ordersCount: number;
+        totalSpent: number;
+        lastPaymentStatus: string | null;
+        lastDeliveryStatus: string | null;
+        notes: string | null;
+        marketingOptIn: boolean;
+        consentSource: string | null;
+        consentAt: string | null;
+        optOutAt: string | null;
+    } | null;
+    window: {
+        isOpen: boolean;
+        expiresAt: string | null;
+        canSendFreeform: boolean;
+        requiresTemplate: boolean;
+    };
+};
+
+export type WhatsAppNotificationConfig = {
+    id: string;
+    event:
+    | 'order_created'
+    | 'payment_confirmed'
+    | 'payment_failed'
+    | 'order_processing'
+    | 'order_dispatched'
+    | 'order_delivered'
+    | 'order_cancelled'
+    | 'refund_processed';
+    label: string;
+    description: string;
+    templateId: string | null;
+    templateName: string | null;
+    enabled: boolean;
+    lastExecutedAt: string | null;
+    lastResult: 'success' | 'failed' | 'skipped' | null;
+    failureDetail: string | null;
+    requiresConsent: boolean;
+    requiresVerifiedState: boolean;
+};
+
+export type WhatsAppWorkflow = {
+    id: string;
+    name: string;
+    enabled: boolean;
+    trigger:
+    | 'order_created'
+    | 'payment_confirmed'
+    | 'order_dispatched'
+    | 'order_delivered'
+    | 'message_received'
+    | 'purchase_completed';
+    triggerLabel: string;
+    conditions: string[];
+    action: 'send_template' | 'route_to_inbox';
+    templateId: string | null;
+    templateName: string | null;
+    delaySeconds: number;
+    lastRunAt: string | null;
+    lastRunResult: 'success' | 'failed' | 'skipped' | null;
+    successCount: number;
+    failureCount: number;
+};
+
+export type WhatsAppMessageLog = {
+    id: string;
+    messageId: string;
+    recipient: string;
+    customerName: string | null;
+    templateName: string | null;
+    category: 'utility' | 'marketing' | 'authentication';
+    orderReference: string | null;
+    sentAt: string;
+    status: 'accepted' | 'sent' | 'delivered' | 'read' | 'failed';
+    failureReason: string | null;
+};
+
+export type WhatsAppCatalogueInfo = {
+    connected: boolean;
+    catalogueId: string | null;
+    catalogueName: string | null;
+    lastSyncAt: string | null;
+    syncEnabled: boolean;
+    requiredAction: string | null;
+};
+
+export type WhatsAppCommerceProduct = {
+    id: string;
+    name: string;
+    sku: string;
+    imageUrl: string | null;
+    price: number;
+    salePrice: number | null;
+    currency: string;
+    category: string | null;
+    variations: number;
+    stock: number;
+    productStatus: 'active' | 'draft' | 'archived';
+    productUrl: string;
+    syncStatus:
+    | 'synced'
+    | 'pending'
+    | 'syncing'
+    | 'failed'
+    | 'not_eligible'
+    | 'unavailable'
+    | 'archived';
+    metaItemId: string | null;
+    lastSyncedAt: string | null;
+    syncError: string | null;
+};
+
+export type WhatsAppCampaign = {
+    id: string;
+    name: string;
+    objective: string;
+    templateName: string;
+    audienceLabel: string;
+    productCount: number;
+    discountCode: string | null;
+    startAt: string | null;
+    endAt: string | null;
+    status:
+    | 'draft'
+    | 'scheduled'
+    | 'running'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
+    estimatedRecipients: number;
+    metrics: {
+        submitted: number;
+        delivered: number;
+        read: number;
+        failed: number;
+        clicks: number;
+        visits: number;
+        orders: number;
+        revenue: number;
+        cost: number;
+        currency: string;
+    } | null;
+};
 export type WhatsAppCatalogSyncStatus =
     | 'NOT_SYNCED'
     | 'SYNCING'
@@ -2987,7 +3416,41 @@ export const adminApi = {
     },
 
     whatsapp: {
+        overview: {
+            get: (period: '7d' | '30d' | '90d' = '30d', signal?: AbortSignal) =>
+                request<WhatsAppOverviewData>(
+                    `/api/v1/whatsapp/overview/?period=${encodeURIComponent(period)}`,
+                    { signal },
+                ),
+        },
+
         connection: {
+            // New onboarding & topbar connection endpoints
+            status: (signal?: AbortSignal) =>
+                request<WhatsAppConnectionInfo>(
+                    '/api/v1/whatsapp/connection/',
+                    { signal },
+                ),
+
+            connect: () =>
+                request<{ onboardingUrl: string }>(
+                    '/api/v1/whatsapp/connection/connect/',
+                    { method: 'POST' },
+                ),
+
+            reauth: () =>
+                request<{ onboardingUrl: string }>(
+                    '/api/v1/whatsapp/connection/reauth/',
+                    { method: 'POST' },
+                ),
+
+            disconnect: () =>
+                request<WhatsAppConnectionInfo>(
+                    '/api/v1/whatsapp/connection/disconnect/',
+                    { method: 'POST' },
+                ),
+
+            // Existing account endpoints
             get: (signal?: AbortSignal) =>
                 request<AdminWhatsAppAccount>(
                     '/api/v1/whatsapp/account/',
@@ -3016,6 +3479,14 @@ export const adminApi = {
                 request<AdminWhatsAppAccount>(
                     '/api/v1/whatsapp/account/profile/',
                     { method: 'PATCH', body: payload },
+                ),
+        },
+
+        health: {
+            get: (signal?: AbortSignal) =>
+                request<WhatsAppHealthInfo>(
+                    '/api/v1/whatsapp/health/',
+                    { signal },
                 ),
         },
 
@@ -3091,6 +3562,71 @@ export const adminApi = {
                     '/api/v1/whatsapp/account/notifications/mark-all-read/',
                     { method: 'POST' },
                 ),
+        },
+
+        notificationConfigs: {
+            list: async (signal?: AbortSignal): Promise<WhatsAppNotificationConfig[]> => {
+                const res = await request<
+                    | WhatsAppNotificationConfig[]
+                    | { results: WhatsAppNotificationConfig[] }
+                >('/api/v1/whatsapp/notifications/config/', { signal });
+                return unwrapList(res);
+            },
+
+            update: (
+                id: string | number,
+                payload: { enabled?: boolean; template_id?: string | null },
+            ) =>
+                request<WhatsAppNotificationConfig>(
+                    `/api/v1/whatsapp/notifications/config/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+        },
+
+        commerce: {
+            catalogue: (signal?: AbortSignal) =>
+                request<WhatsAppCatalogueInfo>(
+                    '/api/v1/whatsapp/commerce/catalogue/',
+                    { signal },
+                ),
+
+            products: async (
+                filters: { q?: string; status?: string; sync?: string } = {},
+                signal?: AbortSignal,
+            ): Promise<WhatsAppCommerceProduct[]> => {
+                const sp = new URLSearchParams();
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.status && filters.status !== 'all') sp.set('status', filters.status);
+                if (filters.sync && filters.sync !== 'all') sp.set('sync', filters.sync);
+                const qs = sp.toString();
+                const res = await request<
+                    | WhatsAppCommerceProduct[]
+                    | { results: WhatsAppCommerceProduct[] }
+                >(
+                    `/api/v1/whatsapp/commerce/products/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
+
+            syncProduct: (id: string | number) =>
+                request<WhatsAppCommerceProduct>(
+                    `/api/v1/whatsapp/commerce/products/${id}/sync/`,
+                    { method: 'POST' },
+                ),
+
+            shareProduct: (payload: { product_id: string; mode: 'native' | 'link' }) =>
+                request<{ id: string; productId: string; name: string; mode: string; status: string; sharedAt: string }>(
+                    '/api/v1/whatsapp/products/share/',
+                    { method: 'POST', body: payload },
+                ),
+
+            campaigns: async (signal?: AbortSignal): Promise<WhatsAppCampaign[]> => {
+                const res = await request<
+                    WhatsAppCampaign[] | { results: WhatsAppCampaign[] }
+                >('/api/v1/whatsapp/campaigns/', { signal });
+                return unwrapList(res);
+            },
         },
 
         catalog: {
@@ -3196,20 +3732,31 @@ export const adminApi = {
 
         inbox: {
             listConversations: (
-                filters: AdminWhatsAppConversationFilters = {},
+                filters: AdminWhatsAppConversationFilters & {
+                    filter?: string;
+                    q?: string;
+                } = {},
                 signal?: AbortSignal,
             ) => {
                 const sp = new URLSearchParams();
+                if (filters.filter) sp.set('filter', filters.filter);
+                if (filters.q) sp.set('q', filters.q);
                 if (filters.tab) sp.set('tab', filters.tab);
                 if (filters.search) sp.set('search', filters.search);
                 if (filters.assignedTo) sp.set('assigned_to', String(filters.assignedTo));
                 if (filters.tag) sp.set('tag', filters.tag);
                 const qs = sp.toString();
-                return request<AdminWhatsAppConversation[]>(
+                return request<WhatsAppInboxConversation[]>(
                     `/api/v1/whatsapp/conversations/${qs ? `?${qs}` : ''}`,
                     { signal },
                 );
             },
+
+            context: (id: string | number, signal?: AbortSignal) =>
+                request<WhatsAppInboxContext>(
+                    `/api/v1/whatsapp/conversations/${id}/`,
+                    { signal },
+                ),
 
             conversationDetail: (id: number, signal?: AbortSignal) =>
                 request<AdminWhatsAppConversationDetail>(
@@ -3217,10 +3764,78 @@ export const adminApi = {
                     { signal },
                 ),
 
-            sendMessage: (conversationId: number, payload: AdminWhatsAppMessageWrite) =>
-                request<AdminWhatsAppMessage>(
+            sendMessage: (
+                conversationId: string | number,
+                payload:
+                    | AdminWhatsAppMessageWrite
+                    | { body: string; is_internal_note?: boolean; template_id?: string | null },
+            ) =>
+                request<WhatsAppInboxMessage>(
                     `/api/v1/whatsapp/conversations/${conversationId}/messages/`,
                     { method: 'POST', body: payload },
+                ),
+
+            shareProduct: (
+                conversationId: string | number,
+                productId: string,
+            ) =>
+                request<WhatsAppInboxMessage>(
+                    `/api/v1/whatsapp/conversations/${conversationId}/share-product/`,
+                    { method: 'POST', body: { product_id: productId } },
+                ),
+
+            updateStatus: (
+                conversationId: string | number,
+                status: 'open' | 'pending' | 'resolved' | 'archived',
+            ) =>
+                request<WhatsAppInboxConversation>(
+                    `/api/v1/whatsapp/conversations/${conversationId}/status/`,
+                    { method: 'POST', body: { status } },
+                ),
+
+            listStaff: (signal?: AbortSignal) =>
+                request<Array<{ id: string; name: string }>>(
+                    '/api/v1/staff/?role=whatsapp_agent',
+                    { signal },
+                ),
+
+            searchProducts: (q: string, limit = 8, signal?: AbortSignal) =>
+                request<
+                    Array<{
+                        id: string;
+                        name: string;
+                        sku: string;
+                        price: number;
+                        currency: string;
+                        imageUrl: string | null;
+                        inStock: boolean;
+                        productUrl: string;
+                    }>
+                >(
+                    `/api/v1/products/search/?q=${encodeURIComponent(q)}&limit=${limit}`,
+                    { signal },
+                ),
+
+            customerOrders: (
+                customerId: string | number,
+                limit = 10,
+                signal?: AbortSignal,
+            ) =>
+                request<
+                    Array<{
+                        id: string;
+                        reference: string;
+                        date: string;
+                        status: string;
+                        paymentStatus: string;
+                        deliveryStatus: string;
+                        total: number;
+                        currency: string;
+                        trackingUrl: string | null;
+                    }>
+                >(
+                    `/api/v1/customers/${encodeURIComponent(String(customerId))}/orders/?limit=${limit}`,
+                    { signal },
                 ),
 
             sendTemplate: (
@@ -3335,8 +3950,11 @@ export const adminApi = {
                     { method: 'POST', body: payload },
                 ),
 
-            assign: (conversationId: number, payload: AdminWhatsAppAssignWrite) =>
-                request<AdminWhatsAppConversation>(
+            assign: (
+                conversationId: string | number,
+                payload: AdminWhatsAppAssignWrite | { staff_id: string | null },
+            ) =>
+                request<WhatsAppInboxConversation>(
                     `/api/v1/whatsapp/conversations/${conversationId}/assign/`,
                     { method: 'POST', body: payload },
                 ),
@@ -3425,7 +4043,7 @@ export const adminApi = {
                 return unwrapList(res);
             },
 
-            detail: (id: number, signal?: AbortSignal) =>
+            detail: (id: string | number, signal?: AbortSignal) =>
                 request<AdminWhatsAppTemplate>(
                     `/api/v1/whatsapp/templates/${id}/`,
                     { signal },
@@ -3461,9 +4079,21 @@ export const adminApi = {
                     { method: 'POST' },
                 ),
 
+            disable: (id: string | number) =>
+                request<AdminWhatsAppTemplate>(
+                    `/api/v1/whatsapp/templates/${id}/disable/`,
+                    { method: 'POST' },
+                ),
+
             duplicate: (id: number) =>
                 request<AdminWhatsAppTemplate>(
                     `/api/v1/whatsapp/templates/${id}/duplicate/`,
+                    { method: 'POST' },
+                ),
+
+            syncOne: (id: string | number) =>
+                request<AdminWhatsAppTemplate>(
+                    `/api/v1/whatsapp/templates/${id}/sync/`,
                     { method: 'POST' },
                 ),
 
@@ -3472,6 +4102,49 @@ export const adminApi = {
                     '/api/v1/whatsapp/templates/sync/',
                     { method: 'POST', signal },
                 ),
+        },
+
+        workflows: {
+            list: async (signal?: AbortSignal): Promise<WhatsAppWorkflow[]> => {
+                const res = await request<
+                    WhatsAppWorkflow[] | { results: WhatsAppWorkflow[] }
+                >('/api/v1/whatsapp/workflows/', { signal });
+                return unwrapList(res);
+            },
+
+            update: (id: string | number, payload: { enabled: boolean }) =>
+                request<WhatsAppWorkflow>(
+                    `/api/v1/whatsapp/workflows/${id}/`,
+                    { method: 'PATCH', body: payload },
+                ),
+        },
+
+        messageLogs: {
+            list: async (
+                filters: {
+                    q?: string;
+                    status?: string;
+                    category?: string;
+                    from?: string;
+                    to?: string;
+                } = {},
+                signal?: AbortSignal,
+            ): Promise<WhatsAppMessageLog[]> => {
+                const sp = new URLSearchParams();
+                if (filters.q) sp.set('q', filters.q);
+                if (filters.status && filters.status !== 'all') sp.set('status', filters.status);
+                if (filters.category && filters.category !== 'all') sp.set('category', filters.category);
+                if (filters.from) sp.set('from', filters.from);
+                if (filters.to) sp.set('to', filters.to);
+                const qs = sp.toString();
+                const res = await request<
+                    WhatsAppMessageLog[] | { results: WhatsAppMessageLog[] }
+                >(
+                    `/api/v1/whatsapp/messages/logs/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+                return unwrapList(res);
+            },
         },
 
         automations: {
@@ -3801,6 +4474,25 @@ export const adminApi = {
         },
 
         analytics: {
+            dashboard: (
+                params: {
+                    period?: 'today' | '7d' | '30d' | '90d' | 'custom';
+                    from?: string;
+                    to?: string;
+                } = {},
+                signal?: AbortSignal,
+            ) => {
+                const sp = new URLSearchParams();
+                if (params.period) sp.set('period', params.period);
+                if (params.from) sp.set('from', params.from);
+                if (params.to) sp.set('to', params.to);
+                const qs = sp.toString();
+                return request<WhatsAppAnalyticsDashboard>(
+                    `/api/v1/whatsapp/analytics/${qs ? `?${qs}` : ''}`,
+                    { signal },
+                );
+            },
+
             summary: (
                 params: { from?: string; to?: string } = {},
                 signal?: AbortSignal,

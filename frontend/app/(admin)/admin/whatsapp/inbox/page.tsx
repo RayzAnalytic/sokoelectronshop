@@ -1,6 +1,7 @@
 'use client';
 
 import {
+    Suspense,
     useCallback,
     useEffect,
     useMemo,
@@ -8,24 +9,21 @@ import {
     useState,
 } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { adminApi } from '@/lib/admin-api';
 import {
     Search,
     Inbox,
     User,
     UserPlus,
     UserCheck,
-    Phone,
     Mail,
     Calendar,
     ShoppingBag,
     DollarSign,
-    Truck,
-    CreditCard,
     Package,
     Send,
     Paperclip,
-    Smile,
-    MoreVertical,
     Check,
     CheckCheck,
     Clock,
@@ -37,23 +35,16 @@ import {
     X,
     MessageSquare,
     Archive,
-    ArchiveRestore,
     CheckCircle2,
     RotateCw,
     StickyNote,
-    Tag,
     ExternalLink,
     FileText,
-    Image as ImageIcon,
     ShieldCheck,
     ShieldOff,
-    ShieldAlert,
     Users,
-    Filter,
-    RefreshCw,
     MessageCircle,
     Lock,
-    Info,
 } from 'lucide-react';
 
 type ConversationStatus = 'open' | 'pending' | 'resolved' | 'archived';
@@ -251,16 +242,16 @@ function formatDay(iso: string): string {
     return d.toLocaleDateString();
 }
 
-function formatCurrency(v: number, currency = 'USD'): string {
+function formatCurrency(v: number, currency = 'KES'): string {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency,
+        currency: currency || 'KES',
         maximumFractionDigits: 2,
     }).format(v);
 }
 
 function StatusPill({ status }: { status: ConversationStatus }) {
-    const m = STATUS_META[status];
+    const m = STATUS_META[status] ?? STATUS_META.open;
     return (
         <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium ${m.bg} ${m.border} ${m.text}`}
@@ -639,29 +630,21 @@ function ProductPicker({
             setError('');
             return;
         }
-        let cancelled = false;
+        const controller = new AbortController();
         setLoading(true);
         setError('');
         const t = setTimeout(() => {
-            fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=8`, {
-                cache: 'no-store',
-            })
-                .then(async (res) => {
-                    if (!res.ok) throw new Error('search failed');
-                    return (await res.json()) as ProductSearchResult[];
+            adminApi.whatsapp.inbox
+                .searchProducts(q, 8, controller.signal)
+                .then((data) => setResults(data))
+                .catch((err) => {
+                    if ((err as { name?: string })?.name === 'AbortError') return;
+                    setError('Could not search products.');
                 })
-                .then((data) => {
-                    if (!cancelled) setResults(data);
-                })
-                .catch(() => {
-                    if (!cancelled) setError('Could not search products.');
-                })
-                .finally(() => {
-                    if (!cancelled) setLoading(false);
-                });
+                .finally(() => setLoading(false));
         }, 300);
         return () => {
-            cancelled = true;
+            controller.abort();
             clearTimeout(t);
         };
     }, [query, open]);
@@ -830,14 +813,17 @@ function TemplatePicker({
     );
 }
 
-function WhatsAppInboxPage() {
+function WhatsAppInboxPageContent() {
+    const searchParams = useSearchParams();
+    const initialConvId = searchParams.get('conversation');
+
     const [filter, setFilter] = useState<FilterKey>('all');
     const [search, setSearch] = useState('');
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [listLoading, setListLoading] = useState(true);
     const [listError, setListError] = useState('');
 
-    const [activeId, setActiveId] = useState<string | null>(null);
+    const [activeId, setActiveId] = useState<string | null>(initialConvId);
     const [context, setContext] = useState<ConversationContext | null>(null);
     const [contextLoading, setContextLoading] = useState(false);
     const [contextError, setContextError] = useState('');
@@ -861,63 +847,81 @@ function WhatsAppInboxPage() {
     const [assignOpen, setAssignOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-    const [mobilePane, setMobilePane] = useState<'list' | 'thread' | 'customer'>('list');
+    const [mobilePane, setMobilePane] = useState<'list' | 'thread' | 'customer'>(
+        initialConvId ? 'thread' : 'list',
+    );
 
     const messageEndRef = useRef<HTMLDivElement>(null);
     const messageContainerRef = useRef<HTMLDivElement>(null);
 
+    useEffect(() => {
+        if (initialConvId) {
+            setActiveId(initialConvId);
+            setMobilePane('thread');
+        }
+    }, [initialConvId]);
+
     const loadConversations = useCallback(
-        async (silent = false) => {
+        async (silent = false, signal?: AbortSignal) => {
             if (!silent) setListLoading(true);
             setListError('');
             try {
-                const params = new URLSearchParams();
-                params.set('filter', filter);
-                if (search.trim()) params.set('q', search.trim());
-                const res = await fetch(`/api/whatsapp/conversations?${params.toString()}`, {
-                    cache: 'no-store',
-                });
-                if (!res.ok) throw new Error('failed');
-                const data = (await res.json()) as Conversation[];
+                const data = await adminApi.whatsapp.inbox.listConversations(
+                    {
+                        filter,
+                        ...(search.trim() ? { q: search.trim() } : {}),
+                    },
+                    signal,
+                );
                 setConversations(data);
-                if (!activeId && data.length > 0) setActiveId(data[0].id);
-            } catch {
+                setActiveId((prev) => prev ?? (data.length > 0 ? data[0].id : null));
+            } catch (err) {
+                if ((err as { name?: string })?.name === 'AbortError') return;
                 setListError('Could not load conversations.');
             } finally {
                 setListLoading(false);
             }
         },
-        [filter, search, activeId],
+        [filter, search],
     );
 
     useEffect(() => {
-        const t = setTimeout(() => loadConversations(), 250);
-        return () => clearTimeout(t);
-    }, [filter, search, loadConversations]);
+        const controller = new AbortController();
+        const t = setTimeout(
+            () => void loadConversations(false, controller.signal),
+            250,
+        );
+        return () => {
+            clearTimeout(t);
+            controller.abort();
+        };
+    }, [loadConversations]);
 
     useEffect(() => {
-        fetch('/api/staff?role=whatsapp_agent', { cache: 'no-store' })
-            .then((r) => (r.ok ? r.json() : []))
-            .then((d: StaffMember[]) => setStaff(d))
+        const controller = new AbortController();
+        adminApi.whatsapp.inbox
+            .listStaff(controller.signal)
+            .then((d) => setStaff(d))
             .catch(() => setStaff([]));
+        return () => controller.abort();
     }, []);
 
-    const loadContext = useCallback(async (id: string, silent = false) => {
-        if (!silent) setContextLoading(true);
-        setContextError('');
-        try {
-            const res = await fetch(`/api/whatsapp/conversations/${id}`, {
-                cache: 'no-store',
-            });
-            if (!res.ok) throw new Error('failed');
-            const data = (await res.json()) as ConversationContext;
-            setContext(data);
-        } catch {
-            setContextError('Could not load conversation.');
-        } finally {
-            setContextLoading(false);
-        }
-    }, []);
+    const loadContext = useCallback(
+        async (id: string, silent = false, signal?: AbortSignal) => {
+            if (!silent) setContextLoading(true);
+            setContextError('');
+            try {
+                const data = await adminApi.whatsapp.inbox.context(id, signal);
+                setContext(data);
+            } catch (err) {
+                if ((err as { name?: string })?.name === 'AbortError') return;
+                setContextError('Could not load conversation.');
+            } finally {
+                setContextLoading(false);
+            }
+        },
+        [],
+    );
 
     useEffect(() => {
         if (!activeId) {
@@ -925,7 +929,9 @@ function WhatsAppInboxPage() {
             setOrders([]);
             return;
         }
-        loadContext(activeId);
+        const controller = new AbortController();
+        void loadContext(activeId, false, controller.signal);
+        return () => controller.abort();
     }, [activeId, loadContext]);
 
     useEffect(() => {
@@ -933,24 +939,17 @@ function WhatsAppInboxPage() {
             setOrders([]);
             return;
         }
-        let cancelled = false;
+        const controller = new AbortController();
         setOrdersLoading(true);
-        fetch(`/api/customers/${context.customer.id}/orders?limit=10`, {
-            cache: 'no-store',
-        })
-            .then((r) => (r.ok ? r.json() : []))
-            .then((d: CustomerOrder[]) => {
-                if (!cancelled) setOrders(d);
+        adminApi.whatsapp.inbox
+            .customerOrders(context.customer.id, 10, controller.signal)
+            .then((d) => setOrders(d))
+            .catch((err) => {
+                if ((err as { name?: string })?.name === 'AbortError') return;
+                setOrders([]);
             })
-            .catch(() => {
-                if (!cancelled) setOrders([]);
-            })
-            .finally(() => {
-                if (!cancelled) setOrdersLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
+            .finally(() => setOrdersLoading(false));
+        return () => controller.abort();
     }, [context?.customer?.id]);
 
     useEffect(() => {
@@ -962,20 +961,18 @@ function WhatsAppInboxPage() {
     const refreshOrders = () => {
         if (!context?.customer?.id) return;
         setOrdersLoading(true);
-        fetch(`/api/customers/${context.customer.id}/orders?limit=10`, {
-            cache: 'no-store',
-        })
-            .then((r) => (r.ok ? r.json() : []))
-            .then((d: CustomerOrder[]) => setOrders(d))
+        adminApi.whatsapp.inbox
+            .customerOrders(context.customer.id, 10)
+            .then((d) => setOrders(d))
             .catch(() => setOrders([]))
             .finally(() => setOrdersLoading(false));
     };
 
     const loadTemplates = () => {
         setTemplatesLoading(true);
-        fetch('/api/whatsapp/templates?status=approved', { cache: 'no-store' })
-            .then((r) => (r.ok ? r.json() : []))
-            .then((d: TemplateSummary[]) => setTemplates(d))
+        adminApi.whatsapp.templates
+            .list({ status: 'approved' })
+            .then((d) => setTemplates(d as unknown as TemplateSummary[]))
             .catch(() => setTemplates([]))
             .finally(() => setTemplatesLoading(false));
     };
@@ -1023,20 +1020,14 @@ function WhatsAppInboxPage() {
         setComposer('');
 
         try {
-            const res = await fetch(
-                `/api/whatsapp/conversations/${context.conversation.id}/messages`,
+            const sent = await adminApi.whatsapp.inbox.sendMessage(
+                context.conversation.id,
                 {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        body,
-                        is_internal_note: internalNote,
-                        template_id: selectedTemplate?.id ?? null,
-                    }),
+                    body,
+                    is_internal_note: internalNote,
+                    template_id: selectedTemplate?.id ?? null,
                 },
             );
-            if (!res.ok) throw new Error('send failed');
-            const sent = (await res.json()) as Message;
             setContext((prev) =>
                 prev
                     ? {
@@ -1076,38 +1067,40 @@ function WhatsAppInboxPage() {
         setProductPickerOpen(false);
         setSendError('');
         try {
-            const res = await fetch(
-                `/api/whatsapp/conversations/${context.conversation.id}/share-product`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ product_id: product.id }),
-                },
+            await adminApi.whatsapp.inbox.shareProduct(
+                context.conversation.id,
+                product.id,
             );
-            if (!res.ok) throw new Error('share failed');
             await loadContext(context.conversation.id, true);
         } catch {
             setSendError('Could not share product.');
         }
     };
 
-    const handleAction = async (
-        key: string,
-        path: string,
-        body: Record<string, unknown> = {},
-    ) => {
+    const handleAssign = async (staffId: string | null) => {
         if (!context) return;
-        setActionLoading(key);
+        setActionLoading('assign');
         try {
-            const res = await fetch(
-                `/api/whatsapp/conversations/${context.conversation.id}/${path}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                },
+            await adminApi.whatsapp.inbox.assign(context.conversation.id, {
+                staff_id: staffId,
+            });
+            await loadContext(context.conversation.id, true);
+            await loadConversations(true);
+        } catch {
+            setSendError('Action failed. Please try again.');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleUpdateStatus = async (status: ConversationStatus) => {
+        if (!context) return;
+        setActionLoading('mark_resolved');
+        try {
+            await adminApi.whatsapp.inbox.updateStatus(
+                context.conversation.id,
+                status,
             );
-            if (!res.ok) throw new Error('failed');
             await loadContext(context.conversation.id, true);
             await loadConversations(true);
         } catch {
@@ -1271,9 +1264,7 @@ function WhatsAppInboxPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        handleAction('assign', 'assign', {
-                                                            staff_id: null,
-                                                        });
+                                                        void handleAssign(null);
                                                         setAssignOpen(false);
                                                     }}
                                                     className="w-full text-left px-3 py-1.5 text-[12px] text-slate-700 hover:bg-slate-50"
@@ -1285,9 +1276,7 @@ function WhatsAppInboxPage() {
                                                         key={s.id}
                                                         type="button"
                                                         onClick={() => {
-                                                            handleAction('assign', 'assign', {
-                                                                staff_id: s.id,
-                                                            });
+                                                            void handleAssign(s.id);
                                                             setAssignOpen(false);
                                                         }}
                                                         className="w-full text-left px-3 py-1.5 text-[12px] text-slate-700 hover:bg-slate-50"
@@ -1383,11 +1372,7 @@ function WhatsAppInboxPage() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                handleAction('mark_resolved', 'status', {
-                                                    status: 'resolved',
-                                                })
-                                            }
+                                            onClick={() => void handleUpdateStatus('resolved')}
                                             disabled={actionLoading === 'mark_resolved'}
                                             className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] text-slate-600 hover:bg-slate-100 disabled:opacity-50"
                                             title="Mark resolved"
@@ -1415,7 +1400,7 @@ function WhatsAppInboxPage() {
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && !e.shiftKey) {
                                                     e.preventDefault();
-                                                    handleSend();
+                                                    void handleSend();
                                                 }
                                             }}
                                             rows={2}
@@ -1435,7 +1420,7 @@ function WhatsAppInboxPage() {
                                         />
                                         <button
                                             type="button"
-                                            onClick={handleSend}
+                                            onClick={() => void handleSend()}
                                             disabled={sending || !composer.trim()}
                                             className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-[12px] font-medium transition disabled:opacity-50 disabled:cursor-not-allowed ${internalNote ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-blue-950 hover:bg-blue-900 text-white'}`}
                                         >
@@ -1480,7 +1465,7 @@ function WhatsAppInboxPage() {
             <ProductPicker
                 open={productPickerOpen}
                 onClose={() => setProductPickerOpen(false)}
-                onShare={handleShareProduct}
+                onShare={(p) => void handleShareProduct(p)}
             />
 
             <TemplatePicker
@@ -1497,4 +1482,16 @@ function WhatsAppInboxPage() {
     );
 }
 
-export default WhatsAppInboxPage;
+export default function WhatsAppInboxPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-[calc(100vh-52px)] bg-slate-50 flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                </div>
+            }
+        >
+            <WhatsAppInboxPageContent />
+        </Suspense>
+    );
+}

@@ -7,6 +7,7 @@ import {
     useState,
 } from 'react';
 import Link from 'next/link';
+import { adminApi } from '@/lib/admin-api';
 import {
     Package,
     RefreshCw,
@@ -19,7 +20,6 @@ import {
     ShoppingBag,
     Image as ImageIcon,
     Tag,
-    Layers,
     Archive,
     ExternalLink,
     Settings,
@@ -35,9 +35,6 @@ import {
     ChevronRight,
     X,
     Plus,
-    Play,
-    Pause,
-    Copy,
     Info,
     ShieldAlert,
     Link2,
@@ -254,16 +251,16 @@ function formatDate(iso: string | null): string {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function formatCurrency(v: number, currency = 'USD'): string {
+function formatCurrency(v: number, currency = 'KES'): string {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency,
+        currency: currency || 'KES',
         maximumFractionDigits: 2,
     }).format(v);
 }
 
 function SyncPill({ status }: { status: SyncStatus }) {
-    const m = SYNC_META[status];
+    const m = SYNC_META[status] ?? SYNC_META.pending;
     const Icon = m.icon;
     return (
         <span
@@ -278,7 +275,7 @@ function SyncPill({ status }: { status: SyncStatus }) {
 }
 
 function CampaignPill({ status }: { status: CampaignStatus }) {
-    const m = CAMPAIGN_META[status];
+    const m = CAMPAIGN_META[status] ?? CAMPAIGN_META.draft;
     return (
         <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium ${m.bg} ${m.border} ${m.text}`}
@@ -563,7 +560,7 @@ function CatalogueTab({
                                                     p.salePrice ?? p.price,
                                                     p.currency,
                                                 )}
-                                                {p.salePrice && (
+                                                {p.salePrice !== null && (
                                                     <span className="text-slate-400 line-through ml-1">
                                                         {formatCurrency(p.price, p.currency)}
                                                     </span>
@@ -603,15 +600,17 @@ function CatalogueTab({
                                         )}
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
-                                        <Link
-                                            href={p.productUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="p-1 rounded text-slate-500 hover:bg-slate-100"
-                                            title="View on website"
-                                        >
-                                            <ExternalLink className="w-3.5 h-3.5" />
-                                        </Link>
+                                        {p.productUrl && (
+                                            <Link
+                                                href={p.productUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-1 rounded text-slate-500 hover:bg-slate-100"
+                                                title="View on website"
+                                            >
+                                                <ExternalLink className="w-3.5 h-3.5" />
+                                            </Link>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => onSyncNow(p.id)}
@@ -902,15 +901,10 @@ function SharingTab({
         setShareError('');
         setShareSuccess('');
         try {
-            const res = await fetch('/api/whatsapp/products/share', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    product_id: selectedProduct.id,
-                    mode: shareMode,
-                }),
+            await adminApi.whatsapp.commerce.shareProduct({
+                product_id: selectedProduct.id,
+                mode: shareMode,
             });
-            if (!res.ok) throw new Error('share failed');
             setShareSuccess(
                 shareMode === 'native'
                     ? 'Product prepared for the Inbox. Pick a customer to send.'
@@ -1398,52 +1392,51 @@ function WhatsAppCommercePage() {
     const [campaignsLoading, setCampaignsLoading] = useState(true);
     const [campaignsError, setCampaignsError] = useState('');
 
-    const loadCatalogue = useCallback(async () => {
+    const loadCatalogue = useCallback(async (signal?: AbortSignal) => {
         setCatalogueLoading(true);
         try {
-            const res = await fetch('/api/whatsapp/commerce/catalogue', {
-                cache: 'no-store',
-            });
-            if (!res.ok) throw new Error('failed');
-            setCatalogue((await res.json()) as CatalogueInfo);
-        } catch {
+            const res = await adminApi.whatsapp.commerce.catalogue(signal);
+            setCatalogue(res);
+        } catch (err) {
+            if ((err as { name?: string })?.name === 'AbortError') return;
             setCatalogue(null);
         } finally {
             setCatalogueLoading(false);
         }
     }, []);
 
-    const loadProducts = useCallback(async () => {
-        setProductsLoading(true);
-        setProductsError('');
-        try {
-            const params = new URLSearchParams();
-            if (search.trim()) params.set('q', search.trim());
-            if (statusFilter !== 'all') params.set('status', statusFilter);
-            if (syncFilter !== 'all') params.set('sync', syncFilter);
-            const res = await fetch(
-                `/api/whatsapp/commerce/products?${params.toString()}`,
-                { cache: 'no-store' },
-            );
-            if (!res.ok) throw new Error('failed');
-            setProducts((await res.json()) as Product[]);
-        } catch {
-            setProductsError('Could not load products.');
-        } finally {
-            setProductsLoading(false);
-        }
-    }, [search, statusFilter, syncFilter]);
+    const loadProducts = useCallback(
+        async (signal?: AbortSignal) => {
+            setProductsLoading(true);
+            setProductsError('');
+            try {
+                const res = await adminApi.whatsapp.commerce.products(
+                    {
+                        ...(search.trim() ? { q: search.trim() } : {}),
+                        ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+                        ...(syncFilter !== 'all' ? { sync: syncFilter } : {}),
+                    },
+                    signal,
+                );
+                setProducts(res);
+            } catch (err) {
+                if ((err as { name?: string })?.name === 'AbortError') return;
+                setProductsError('Could not load products.');
+            } finally {
+                setProductsLoading(false);
+            }
+        },
+        [search, statusFilter, syncFilter],
+    );
 
-    const loadCampaigns = useCallback(async () => {
+    const loadCampaigns = useCallback(async (signal?: AbortSignal) => {
         setCampaignsLoading(true);
         setCampaignsError('');
         try {
-            const res = await fetch('/api/whatsapp/campaigns', {
-                cache: 'no-store',
-            });
-            if (!res.ok) throw new Error('failed');
-            setCampaigns((await res.json()) as Campaign[]);
-        } catch {
+            const res = await adminApi.whatsapp.commerce.campaigns(signal);
+            setCampaigns(res);
+        } catch (err) {
+            if ((err as { name?: string })?.name === 'AbortError') return;
             setCampaignsError('Could not load campaigns.');
         } finally {
             setCampaignsLoading(false);
@@ -1451,27 +1444,34 @@ function WhatsAppCommercePage() {
     }, []);
 
     useEffect(() => {
-        loadCatalogue();
+        const controller = new AbortController();
+        void loadCatalogue(controller.signal);
+        return () => controller.abort();
     }, [loadCatalogue]);
 
     useEffect(() => {
-        const t = setTimeout(() => loadProducts(), 250);
-        return () => clearTimeout(t);
+        const controller = new AbortController();
+        const t = setTimeout(() => void loadProducts(controller.signal), 250);
+        return () => {
+            clearTimeout(t);
+            controller.abort();
+        };
     }, [loadProducts]);
 
     useEffect(() => {
-        if (tab === 'campaigns') loadCampaigns();
+        if (tab !== 'campaigns') return;
+        const controller = new AbortController();
+        void loadCampaigns(controller.signal);
+        return () => controller.abort();
     }, [tab, loadCampaigns]);
 
     const handleSyncNow = async (id: string) => {
         setSyncingIds((prev) => new Set(prev).add(id));
         try {
-            const res = await fetch(`/api/whatsapp/commerce/products/${id}/sync`, {
-                method: 'POST',
-            });
-            if (!res.ok) throw new Error('sync failed');
+            await adminApi.whatsapp.commerce.syncProduct(id);
             await loadProducts();
         } catch {
+            setProductsError('Could not sync product.');
         } finally {
             setSyncingIds((prev) => {
                 const next = new Set(prev);
@@ -1483,10 +1483,10 @@ function WhatsAppCommercePage() {
 
     const handleRefresh = () => {
         if (tab === 'campaigns') {
-            loadCampaigns();
+            void loadCampaigns();
         } else {
-            loadCatalogue();
-            loadProducts();
+            void loadCatalogue();
+            void loadProducts();
         }
     };
 
@@ -1547,7 +1547,7 @@ function WhatsAppCommercePage() {
                         syncingIds={syncingIds}
                         catalogue={catalogue}
                         catalogueLoading={catalogueLoading}
-                        onRefreshCatalogue={loadCatalogue}
+                        onRefreshCatalogue={() => void loadCatalogue()}
                     />
                 )}
 
@@ -1560,7 +1560,7 @@ function WhatsAppCommercePage() {
                         syncingIds={syncingIds}
                         catalogue={catalogue}
                         catalogueLoading={catalogueLoading}
-                        onRefreshCatalogue={loadCatalogue}
+                        onRefreshCatalogue={() => void loadCatalogue()}
                     />
                 )}
 
@@ -1573,7 +1573,7 @@ function WhatsAppCommercePage() {
                         campaigns={campaigns}
                         loading={campaignsLoading}
                         error={campaignsError}
-                        onRefresh={loadCampaigns}
+                        onRefresh={() => void loadCampaigns()}
                     />
                 )}
             </div>

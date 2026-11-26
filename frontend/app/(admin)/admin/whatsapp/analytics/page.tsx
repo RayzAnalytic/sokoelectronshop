@@ -1,14 +1,14 @@
 'use client';
 
 import {
+    Suspense,
     useCallback,
     useEffect,
     useMemo,
     useState,
 } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { adminApi } from '@/lib/admin-api';
 import {
     BarChart3,
     MessageSquare,
@@ -39,8 +39,6 @@ import {
     MousePointerClick,
     ExternalLink,
     RotateCw,
-    Copy,
-    Link2,
     Phone,
     Building2,
     Globe,
@@ -50,7 +48,6 @@ import {
     Unplug,
     Plug,
     Info,
-    FileText,
     Timer,
 } from 'lucide-react';
 
@@ -232,7 +229,7 @@ function formatNumber(v: number | null): string {
     return new Intl.NumberFormat('en-US').format(v);
 }
 
-function formatCurrency(v: number | null, currency = 'USD'): string {
+function formatCurrency(v: number | null, currency = 'KES'): string {
     if (v === null) return '—';
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -271,7 +268,13 @@ function formatDuration(seconds: number | null): string {
     return `${h}h ${m % 60}m`;
 }
 
-function DeltaBadge({ current, previous }: { current: number | null; previous: number | null }) {
+function DeltaBadge({
+    current,
+    previous,
+}: {
+    current: number | null;
+    previous: number | null;
+}) {
     if (current === null || previous === null || previous === 0) {
         return <span className="text-[11px] text-slate-400">—</span>;
     }
@@ -279,7 +282,8 @@ function DeltaBadge({ current, previous }: { current: number | null; previous: n
     if (Math.abs(pct) < 0.5) {
         return (
             <span className="inline-flex items-center gap-0.5 text-[11px] text-slate-500">
-                <Minus className="w-3 h-3" />0%
+                <Minus className="w-3 h-3" />
+                0%
             </span>
         );
     }
@@ -329,7 +333,11 @@ function KpiCard({
             </div>
             <p className="mt-2 text-[11px] text-slate-500 truncate">{label}</p>
             <p className="text-[18px] font-semibold text-slate-900 leading-tight mt-0.5">
-                {metric.available ? formatted : <span className="text-slate-300">—</span>}
+                {metric.available ? (
+                    formatted
+                ) : (
+                    <span className="text-slate-300">—</span>
+                )}
             </p>
             {hint && (
                 <p className="text-[10px] text-slate-400 mt-0.5 truncate">{hint}</p>
@@ -504,7 +512,11 @@ function ConnectionStatusPill({ state }: { state: ConnectionInfo['state'] }) {
     );
 }
 
-function HealthDot({ status }: { status: 'ok' | 'degraded' | 'down' | 'expiring' | 'expired' }) {
+function HealthDot({
+    status,
+}: {
+    status: 'ok' | 'degraded' | 'down' | 'expiring' | 'expired';
+}) {
     const color =
         status === 'ok'
             ? 'bg-emerald-500'
@@ -523,29 +535,38 @@ function AnalyticsTabContent() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const params = new URLSearchParams({ period });
-            if (period === 'custom') {
-                if (customFrom) params.set('from', customFrom);
-                if (customTo) params.set('to', customTo);
+    const load = useCallback(
+        async (signal?: AbortSignal) => {
+            setLoading(true);
+            setError('');
+            try {
+                const res = await adminApi.whatsapp.analytics.dashboard(
+                    {
+                        period,
+                        ...(period === 'custom' && customFrom
+                            ? { from: customFrom }
+                            : {}),
+                        ...(period === 'custom' && customTo
+                            ? { to: customTo }
+                            : {}),
+                    },
+                    signal,
+                );
+                setData(res);
+            } catch (err) {
+                if ((err as { name?: string })?.name === 'AbortError') return;
+                setError('Could not load analytics.');
+            } finally {
+                setLoading(false);
             }
-            const res = await fetch(`/api/whatsapp/analytics?${params.toString()}`, {
-                cache: 'no-store',
-            });
-            if (!res.ok) throw new Error('failed');
-            setData((await res.json()) as AnalyticsData);
-        } catch {
-            setError('Could not load analytics.');
-        } finally {
-            setLoading(false);
-        }
-    }, [period, customFrom, customTo]);
+        },
+        [period, customFrom, customTo],
+    );
 
     useEffect(() => {
-        load();
+        const controller = new AbortController();
+        void load(controller.signal);
+        return () => controller.abort();
     }, [load]);
 
     const periodLabel = PERIODS.find((p) => p.value === period)?.label ?? '';
@@ -609,7 +630,7 @@ function AnalyticsTabContent() {
                 )}
                 <button
                     type="button"
-                    onClick={load}
+                    onClick={() => void load()}
                     disabled={loading}
                     className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded border border-slate-200 bg-white text-[12px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
@@ -692,7 +713,7 @@ function AnalyticsTabContent() {
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {data.messaging.byTemplate.map((t) => (
-                                                    <tr key={t.templateName}>
+                                                    <tr key={`${t.templateName}-${t.category}`}>
                                                         <td className="py-1 text-[11px] text-slate-800 truncate max-w-[160px]">
                                                             {t.templateName}
                                                         </td>
@@ -838,13 +859,13 @@ function AnalyticsTabContent() {
                             <div className="bg-white border border-slate-200 rounded p-3">
                                 <p className="text-[11px] text-slate-500">Total cost</p>
                                 <p className="text-[18px] font-semibold text-slate-900">
-                                    {formatCurrency(data.costs.total, data.costs.currency ?? 'USD')}
+                                    {formatCurrency(data.costs.total, data.costs.currency ?? 'KES')}
                                 </p>
                             </div>
                             <div className="bg-white border border-slate-200 rounded p-3">
                                 <p className="text-[11px] text-slate-500">Campaign cost</p>
                                 <p className="text-[18px] font-semibold text-slate-900">
-                                    {formatCurrency(data.costs.campaignCost, data.costs.currency ?? 'USD')}
+                                    {formatCurrency(data.costs.campaignCost, data.costs.currency ?? 'KES')}
                                 </p>
                             </div>
                             <div className="bg-white border border-slate-200 rounded p-3">
@@ -858,7 +879,7 @@ function AnalyticsTabContent() {
                                             <span className="text-slate-600">{c.category}</span>
                                             <span className="flex-1" />
                                             <span className="text-slate-800 font-medium">
-                                                {formatCurrency(c.cost, data.costs.currency ?? 'USD')}
+                                                {formatCurrency(c.cost, data.costs.currency ?? 'KES')}
                                             </span>
                                         </li>
                                     ))}
@@ -880,14 +901,14 @@ function ConnectionTabContent() {
     const [disconnecting, setDisconnecting] = useState(false);
     const [reauthing, setReauthing] = useState(false);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (signal?: AbortSignal) => {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch('/api/whatsapp/connection', { cache: 'no-store' });
-            if (!res.ok) throw new Error('failed');
-            setInfo((await res.json()) as ConnectionInfo);
-        } catch {
+            const res = await adminApi.whatsapp.connection.status(signal);
+            setInfo(res);
+        } catch (err) {
+            if ((err as { name?: string })?.name === 'AbortError') return;
             setError('Could not load connection information.');
         } finally {
             setLoading(false);
@@ -895,17 +916,16 @@ function ConnectionTabContent() {
     }, []);
 
     useEffect(() => {
-        load();
+        const controller = new AbortController();
+        void load(controller.signal);
+        return () => controller.abort();
     }, [load]);
 
     const handleConnect = async () => {
         setConnecting(true);
+        setError('');
         try {
-            const res = await fetch('/api/whatsapp/connection/connect', {
-                method: 'POST',
-            });
-            if (!res.ok) throw new Error('failed');
-            const json = (await res.json()) as { onboardingUrl: string };
+            const json = await adminApi.whatsapp.connection.connect();
             window.location.href = json.onboardingUrl;
         } catch {
             setError('Could not start the connection flow.');
@@ -916,12 +936,9 @@ function ConnectionTabContent() {
 
     const handleReauth = async () => {
         setReauthing(true);
+        setError('');
         try {
-            const res = await fetch('/api/whatsapp/connection/reauth', {
-                method: 'POST',
-            });
-            if (!res.ok) throw new Error('failed');
-            const json = (await res.json()) as { onboardingUrl: string };
+            const json = await adminApi.whatsapp.connection.reauth();
             window.location.href = json.onboardingUrl;
         } catch {
             setError('Could not start reauthorization.');
@@ -940,21 +957,15 @@ function ConnectionTabContent() {
             return;
         }
         setDisconnecting(true);
+        setError('');
         try {
-            const res = await fetch('/api/whatsapp/connection/disconnect', {
-                method: 'POST',
-            });
-            if (!res.ok) throw new Error('failed');
+            await adminApi.whatsapp.connection.disconnect();
             await load();
         } catch {
             setError('Could not disconnect.');
         } finally {
             setDisconnecting(false);
         }
-    };
-
-    const copy = (v: string) => {
-        void navigator.clipboard.writeText(v);
     };
 
     if (loading) {
@@ -1176,7 +1187,7 @@ function ConnectionTabContent() {
                 <Lock className="w-3 h-3 mt-0.5 shrink-0" />
                 <span>
                     Access tokens are stored server-side only. This page never handles
-                    credentials. Connection is managed through Meta's official onboarding
+                    credentials. Connection is managed through Meta&apos;s official onboarding
                     process.
                 </span>
             </div>
@@ -1232,14 +1243,14 @@ function HealthTabContent() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (signal?: AbortSignal) => {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch('/api/whatsapp/health', { cache: 'no-store' });
-            if (!res.ok) throw new Error('failed');
-            setInfo((await res.json()) as HealthInfo);
-        } catch {
+            const res = await adminApi.whatsapp.health.get(signal);
+            setInfo(res);
+        } catch (err) {
+            if ((err as { name?: string })?.name === 'AbortError') return;
             setError('Could not load integration health.');
         } finally {
             setLoading(false);
@@ -1247,7 +1258,9 @@ function HealthTabContent() {
     }, []);
 
     useEffect(() => {
-        load();
+        const controller = new AbortController();
+        void load(controller.signal);
+        return () => controller.abort();
     }, [load]);
 
     if (loading) {
@@ -1276,7 +1289,7 @@ function HealthTabContent() {
                 action={
                     <button
                         type="button"
-                        onClick={load}
+                        onClick={() => void load()}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 bg-white text-[11px] text-slate-700 hover:bg-slate-50"
                     >
                         <RefreshCw className="w-3 h-3" />
@@ -1396,7 +1409,8 @@ function WhatsAppAnalyticsPageContent() {
     const searchParams = useSearchParams();
     const initialTab = useMemo<Tab>(() => {
         const t = searchParams.get('tab');
-        if (t === 'connection' || t === 'health') return t;
+        if (t === 'connection' || t === 'catalogue') return 'connection';
+        if (t === 'health') return 'health';
         return 'analytics';
     }, [searchParams]);
 

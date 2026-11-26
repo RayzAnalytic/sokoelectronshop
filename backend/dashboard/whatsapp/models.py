@@ -14,8 +14,31 @@ def default_business_hours():
     }
 
 
+# ---------------------------------------------------------------------------
+# 1. Account, Connection, Health & Alerts
+# ---------------------------------------------------------------------------
+
 class WhatsAppAccount(models.Model):
+    CONNECTION_STATE_CHOICES = [
+        ("connected", "Connected"),
+        ("connecting", "Connecting"),
+        ("disconnected", "Disconnected"),
+        ("expired", "Connection expired"),
+        ("action_required", "Action required"),
+        ("error", "Error"),
+    ]
+    SERVICE_STATUS_CHOICES = [
+        ("ok", "OK"),
+        ("degraded", "Degraded"),
+        ("down", "Down"),
+    ]
+
     is_active = models.BooleanField(default=False)
+    connection_state = models.CharField(
+        max_length=24, choices=CONNECTION_STATE_CHOICES, default="disconnected"
+    )
+    meta_business_portfolio = models.CharField(max_length=200, blank=True)
+    waba_name = models.CharField(max_length=200, blank=True)
     display_phone = models.CharField(max_length=32, blank=True)
     display_name = models.CharField(max_length=120, blank=True)
     business_name = models.CharField(max_length=200, blank=True)
@@ -25,9 +48,16 @@ class WhatsAppAccount(models.Model):
     website = models.URLField(blank=True)
     vertical = models.CharField(max_length=60, blank=True)
     profile_picture_url = models.URLField(blank=True)
+
     phone_number_id = models.CharField(max_length=80, blank=True)
     waba_id = models.CharField(max_length=80, blank=True)
     business_id = models.CharField(max_length=80, blank=True)
+    phone_verified = models.BooleanField(default=False)
+
+    # Stored server-side only; never serialized to browser responses
+    access_token = models.TextField(blank=True)
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+
     quality_score = models.CharField(max_length=16, blank=True, default="UNKNOWN")
     messaging_limit = models.CharField(max_length=32, blank=True)
     messaging_limit_tier = models.CharField(max_length=32, blank=True)
@@ -35,10 +65,23 @@ class WhatsAppAccount(models.Model):
     review_status = models.CharField(max_length=32, blank=True)
     two_step_pin = models.BooleanField(default=False)
     official_business_account = models.BooleanField(default=False)
-    token_expires_at = models.DateTimeField(null=True, blank=True)
+
     webhook_url = models.URLField(blank=True)
     webhook_verify_token = models.CharField(max_length=120, blank=True)
     webhook_fields = models.JSONField(default=list, blank=True)
+    webhook_verified = models.BooleanField(default=False)
+
+    api_status = models.CharField(
+        max_length=16, choices=SERVICE_STATUS_CHOICES, default="ok"
+    )
+    webhook_status = models.CharField(
+        max_length=16, choices=SERVICE_STATUS_CHOICES, default="ok"
+    )
+    last_api_request_at = models.DateTimeField(null=True, blank=True)
+    last_webhook_event_at = models.DateTimeField(null=True, blank=True)
+
+    permissions = models.JSONField(default=list, blank=True)  # [{"name": str, "granted": bool}]
+    required_action = models.TextField(blank=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
     has_catalog = models.BooleanField(default=False)
@@ -52,10 +95,12 @@ class WhatsAppAccount(models.Model):
 
     @classmethod
     def get_solo(cls):
+        active = getattr(settings, "WHATSAPP_ENABLED", False)
         obj, _ = cls.objects.get_or_create(
             pk=1,
             defaults={
-                "is_active": getattr(settings, "WHATSAPP_ENABLED", False),
+                "is_active": active,
+                "connection_state": "connected" if active else "disconnected",
                 "display_phone": getattr(settings, "WHATSAPP_DISPLAY_PHONE", ""),
                 "business_name": getattr(settings, "WHATSAPP_BUSINESS_NAME", ""),
                 "phone_number_id": getattr(settings, "WHATSAPP_PHONE_NUMBER_ID", ""),
@@ -82,14 +127,38 @@ class WhatsAppAccount(models.Model):
         return max(0, (self.token_expires_at - timezone.now()).days)
 
     @property
+    def token_status(self):
+        if not self.token_expires_at:
+            return "ok" if self.connection_state == "connected" else "expired"
+        now = timezone.now()
+        if self.token_expires_at <= now:
+            return "expired"
+        if self.token_expires_at <= now + timedelta(days=7):
+            return "expiring"
+        return "ok"
+
+    @property
     def latest_health_check(self):
         return self.health_checks.order_by("-created_at").first()
 
 
 class WhatsAppHealthCheck(models.Model):
+    CHECK_TYPE_CHOICES = [
+        ("api", "API"),
+        ("webhook", "Webhook"),
+        ("token", "Token"),
+    ]
+    STATUS_CHOICES = [
+        ("ok", "OK"),
+        ("degraded", "Degraded"),
+        ("down", "Down"),
+    ]
+
     account = models.ForeignKey(
         WhatsAppAccount, on_delete=models.CASCADE, related_name="health_checks"
     )
+    check_type = models.CharField(max_length=16, choices=CHECK_TYPE_CHOICES, default="api")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="ok")
     ok = models.BooleanField(default=True)
     latency_ms = models.IntegerField(default=0)
     error = models.TextField(blank=True)
@@ -98,6 +167,58 @@ class WhatsAppHealthCheck(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
+
+class WhatsAppIntegrationError(models.Model):
+    KIND_CHOICES = [
+        ("api", "API"),
+        ("webhook", "Webhook"),
+        ("rate_limit", "Rate limit"),
+        ("permission", "Permission"),
+        ("sync", "Sync"),
+    ]
+
+    account = models.ForeignKey(
+        WhatsAppAccount,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="integration_errors",
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default="api", db_index=True)
+    message = models.TextField()
+    detail = models.JSONField(default=dict, blank=True)
+    resolved = models.BooleanField(default=False, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class WhatsAppAlert(models.Model):
+    SEVERITY_CHOICES = [
+        ("critical", "Critical"),
+        ("warning", "Warning"),
+        ("info", "Info"),
+    ]
+
+    severity = models.CharField(max_length=16, choices=SEVERITY_CHOICES, default="warning")
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    resolve_href = models.CharField(max_length=255, default="/whatsapp/analytics?tab=health")
+    resolve_label = models.CharField(max_length=80, default="Resolve")
+    is_active = models.BooleanField(default=True, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+# ---------------------------------------------------------------------------
+# 2. Commerce Catalogue, Products & Sharing
+# ---------------------------------------------------------------------------
 
 class WhatsAppCatalog(models.Model):
     name = models.CharField(max_length=200, default="Main Catalog")
@@ -109,6 +230,7 @@ class WhatsAppCatalog(models.Model):
     hide_price = models.BooleanField(default=False)
     default_sort = models.CharField(max_length=32, default="name")
     exclude_out_of_stock = models.BooleanField(default=True)
+    required_action = models.TextField(blank=True)
     last_full_sync_at = models.DateTimeField(null=True, blank=True)
     last_sync_added = models.IntegerField(default=0)
     last_sync_updated = models.IntegerField(default=0)
@@ -132,10 +254,13 @@ class WhatsAppCatalog(models.Model):
         return {
             "total": qs.count(),
             "eligible": qs.filter(eligible=True).count(),
-            "synced": qs.filter(sync_status="SYNCED").count(),
-            "syncing": qs.filter(sync_status="SYNCING").count(),
-            "outOfDate": qs.filter(sync_status="OUT_OF_DATE").count(),
-            "failed": qs.filter(sync_status__in=["FAILED", "REJECTED"]).count(),
+            "synced": qs.filter(sync_status="synced").count(),
+            "pending": qs.filter(sync_status="pending").count(),
+            "syncing": qs.filter(sync_status="syncing").count(),
+            "failed": qs.filter(sync_status="failed").count(),
+            "notEligible": qs.filter(sync_status="not_eligible").count(),
+            "unavailable": qs.filter(sync_status="unavailable").count(),
+            "archived": qs.filter(sync_status="archived").count(),
             "linked": qs.filter(is_linked=True).count(),
             "unlinked": qs.filter(is_linked=False).count(),
             "inStock": qs.filter(in_stock=True).count(),
@@ -146,18 +271,25 @@ class WhatsAppCatalog(models.Model):
 
 class WhatsAppCatalogItem(models.Model):
     SYNC_STATUS_CHOICES = [
-        ("NOT_SYNCED", "Not synced"),
-        ("SYNCING", "Syncing"),
-        ("SYNCED", "Synced"),
-        ("OUT_OF_DATE", "Out of date"),
-        ("FAILED", "Failed"),
-        ("REJECTED", "Rejected"),
+        ("synced", "Synced"),
+        ("pending", "Pending"),
+        ("syncing", "Syncing"),
+        ("failed", "Failed"),
+        ("not_eligible", "Not eligible"),
+        ("unavailable", "Unavailable"),
+        ("archived", "Archived"),
+    ]
+    PRODUCT_STATUS_CHOICES = [
+        ("active", "Active"),
+        ("draft", "Draft"),
+        ("archived", "Archived"),
     ]
 
     catalog = models.ForeignKey(
         WhatsAppCatalog, on_delete=models.CASCADE, related_name="items"
     )
     retailer_id = models.CharField(max_length=120)
+    sku = models.CharField(max_length=120, blank=True, db_index=True)
     meta_product_id = models.CharField(max_length=120, blank=True)
     store_product = models.ForeignKey(
         "catalog.Product",
@@ -193,8 +325,12 @@ class WhatsAppCatalogItem(models.Model):
     category = models.CharField(max_length=120, blank=True)
     tags = models.JSONField(default=list, blank=True)
     brand = models.CharField(max_length=120, blank=True)
+    variations_count = models.IntegerField(default=0)
     in_stock = models.BooleanField(default=True)
     stock_quantity = models.IntegerField(default=0)
+    product_status = models.CharField(
+        max_length=16, choices=PRODUCT_STATUS_CHOICES, default="active", db_index=True
+    )
     eligible = models.BooleanField(default=True)
     pinned = models.BooleanField(default=False)
     sort_order = models.IntegerField(default=0)
@@ -205,7 +341,7 @@ class WhatsAppCatalogItem(models.Model):
     add_to_cart_count = models.IntegerField(default=0)
     removed_at = models.DateTimeField(null=True, blank=True)
     sync_status = models.CharField(
-        max_length=16, choices=SYNC_STATUS_CHOICES, default="NOT_SYNCED"
+        max_length=16, choices=SYNC_STATUS_CHOICES, default="pending", db_index=True
     )
     review_status = models.CharField(max_length=32, blank=True, null=True)
     rejection_reason = models.TextField(blank=True)
@@ -217,6 +353,10 @@ class WhatsAppCatalogItem(models.Model):
     class Meta:
         unique_together = [("catalog", "retailer_id")]
         ordering = ["sort_order", "id"]
+
+    @property
+    def effective_sku(self):
+        return self.sku or self.retailer_id
 
     @property
     def effective_price(self):
@@ -238,6 +378,65 @@ class WhatsAppCatalogItem(models.Model):
     def is_price_hidden(self):
         return self.hide_price or self.catalog.hide_price
 
+
+class WhatsAppProductShare(models.Model):
+    MODE_CHOICES = [
+        ("native", "Native product message"),
+        ("link", "Website product link"),
+    ]
+    STATUS_CHOICES = [
+        ("prepared", "Prepared for Inbox"),
+        ("sent", "Sent"),
+        ("failed", "Failed"),
+    ]
+
+    catalog_item = models.ForeignKey(
+        WhatsAppCatalogItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="shares",
+    )
+    store_product = models.ForeignKey(
+        "catalog.Product",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="whatsapp_product_shares",
+    )
+    product_name = models.CharField(max_length=255)
+    conversation = models.ForeignKey(
+        "WhatsAppConversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="product_shares",
+    )
+    contact = models.ForeignKey(
+        "WhatsAppContact",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="product_shares",
+    )
+    shared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="whatsapp_product_shares",
+    )
+    mode = models.CharField(max_length=16, choices=MODE_CHOICES, default="native")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="prepared")
+    shared_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-shared_at"]
+
+
+# ---------------------------------------------------------------------------
+# 3. Contacts, Consent, Conversations & Inbox Messages
+# ---------------------------------------------------------------------------
 
 class WhatsAppContact(models.Model):
     OPT_IN_CHOICES = [
@@ -265,9 +464,12 @@ class WhatsAppContact(models.Model):
     )
     opt_in_source = models.CharField(max_length=60, blank=True)
     opt_in_at = models.DateTimeField(null=True, blank=True)
+    opt_out_at = models.DateTimeField(null=True, blank=True)
     last_inbound_at = models.DateTimeField(null=True, blank=True)
     order_count = models.IntegerField(default=0)
     total_spent = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    last_payment_status = models.CharField(max_length=60, blank=True)
+    last_delivery_status = models.CharField(max_length=60, blank=True)
     product_affinity = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -278,19 +480,50 @@ class WhatsAppContact(models.Model):
     def __str__(self):
         return self.profile_name or self.wa_id
 
+    @property
+    def marketing_opt_in(self):
+        return self.opt_in_status == "SUBSCRIBED" and not self.is_blocked
+
+
+class WhatsAppConsentLog(models.Model):
+    ACTION_CHOICES = [
+        ("opt_in", "Opt in"),
+        ("opt_out", "Opt out"),
+    ]
+
+    contact = models.ForeignKey(
+        WhatsAppContact, on_delete=models.CASCADE, related_name="consent_logs"
+    )
+    action = models.CharField(max_length=16, choices=ACTION_CHOICES, db_index=True)
+    source = models.CharField(max_length=80, blank=True)
+    recorded_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+
 
 class WhatsAppConversation(models.Model):
     STATUS_CHOICES = [
         ("OPEN", "Open"),
         ("PENDING", "Pending"),
         ("RESOLVED", "Resolved"),
+        ("ARCHIVED", "Archived"),
+    ]
+    PRIORITY_CHOICES = [
+        ("LOW", "Low"),
+        ("NORMAL", "Normal"),
+        ("HIGH", "High"),
     ]
 
     contact = models.ForeignKey(
         WhatsAppContact, on_delete=models.CASCADE, related_name="conversations"
     )
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="OPEN")
-    priority = models.CharField(max_length=16, default="NORMAL")
+    status = models.CharField(
+        max_length=16, choices=STATUS_CHOICES, default="OPEN", db_index=True
+    )
+    priority = models.CharField(
+        max_length=16, choices=PRIORITY_CHOICES, default="NORMAL"
+    )
     assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -299,7 +532,7 @@ class WhatsAppConversation(models.Model):
         related_name="whatsapp_conversations",
     )
     last_message_preview = models.CharField(max_length=255, blank=True)
-    last_message_at = models.DateTimeField(null=True, blank=True)
+    last_message_at = models.DateTimeField(null=True, blank=True, db_index=True)
     last_inbound_at = models.DateTimeField(null=True, blank=True)
     first_message_at = models.DateTimeField(null=True, blank=True)
     first_response_at = models.DateTimeField(null=True, blank=True)
@@ -307,7 +540,7 @@ class WhatsAppConversation(models.Model):
     bot_paused = models.BooleanField(default=False)
     starred = models.BooleanField(default=False)
     unread_count = models.IntegerField(default=0)
-    tags = models.JSONField(default=list, blank=True)
+    tags = models.JSONField(default=list, blank=True)  # exposed as `labels` in Inbox
     sla_first_response_due_at = models.DateTimeField(null=True, blank=True)
     sla_resolution_due_at = models.DateTimeField(null=True, blank=True)
     sla_breached = models.BooleanField(default=False)
@@ -343,11 +576,12 @@ class WhatsAppConversation(models.Model):
 class WhatsAppMessage(models.Model):
     DIRECTION_CHOICES = [("IN", "Inbound"), ("OUT", "Outbound")]
     STATUS_CHOICES = [
+        ("SENDING", "Sending"),
+        ("QUEUED", "Queued"),
         ("SENT", "Sent"),
         ("DELIVERED", "Delivered"),
         ("READ", "Read"),
         ("FAILED", "Failed"),
-        ("QUEUED", "Queued"),
     ]
 
     conversation = models.ForeignKey(
@@ -359,11 +593,18 @@ class WhatsAppMessage(models.Model):
     body = models.TextField(blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="QUEUED")
     error_message = models.TextField(blank=True)
-    timestamp = models.DateTimeField(default=timezone.now)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
     media_id = models.CharField(max_length=120, blank=True)
     media_url = models.URLField(blank=True, max_length=500)
     mime_type = models.CharField(max_length=120, blank=True)
     filename = models.CharField(max_length=255, blank=True)
+    template = models.ForeignKey(
+        "WhatsAppTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_messages",
+    )
     template_name = models.CharField(max_length=120, blank=True)
     template_params = models.JSONField(default=list, blank=True)
     product_refs = models.JSONField(default=list, blank=True)
@@ -394,6 +635,33 @@ class WhatsAppMessage(models.Model):
         return self.author.get_full_name() or self.author.get_username()
 
 
+class WhatsAppMessageAttachment(models.Model):
+    KIND_CHOICES = [
+        ("image", "Image"),
+        ("document", "Document"),
+        ("video", "Video"),
+        ("audio", "Audio"),
+    ]
+
+    message = models.ForeignKey(
+        WhatsAppMessage, on_delete=models.CASCADE, related_name="attachments"
+    )
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES, default="document")
+    media_id = models.CharField(max_length=120, blank=True)
+    url = models.URLField(max_length=500)
+    filename = models.CharField(max_length=255, blank=True)
+    mime_type = models.CharField(max_length=120, blank=True)
+    size_bytes = models.BigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+
+# ---------------------------------------------------------------------------
+# 4. Templates, Notifications, Automations, Campaigns & Message Logs
+# ---------------------------------------------------------------------------
+
 class WhatsAppTemplate(models.Model):
     CATEGORY_CHOICES = [
         ("MARKETING", "Marketing"),
@@ -405,16 +673,31 @@ class WhatsAppTemplate(models.Model):
         ("PENDING", "Pending"),
         ("APPROVED", "Approved"),
         ("REJECTED", "Rejected"),
+        ("DISABLED", "Disabled"),
         ("PAUSED", "Paused"),
+    ]
+    HEADER_TYPE_CHOICES = [
+        ("none", "None"),
+        ("text", "Text"),
+        ("image", "Image"),
+        ("document", "Document"),
     ]
 
     name = models.CharField(max_length=120)
     language = models.CharField(max_length=16, default="en")
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="UTILITY")
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="DRAFT")
+    status = models.CharField(
+        max_length=16, choices=STATUS_CHOICES, default="DRAFT", db_index=True
+    )
     quality = models.CharField(max_length=32, blank=True)
     components = models.JSONField(default=list, blank=True)
+    header_type = models.CharField(
+        max_length=16, choices=HEADER_TYPE_CHOICES, default="none"
+    )
     body_text = models.TextField(blank=True)
+    footer = models.CharField(max_length=255, blank=True)
+    variable_count = models.IntegerField(default=0)
+    button_count = models.IntegerField(default=0)
     meta_template_id = models.CharField(max_length=120, blank=True)
     rejection_reason = models.TextField(blank=True)
     attached_catalog_item_ids = models.JSONField(default=list, blank=True)
@@ -434,16 +717,78 @@ class WhatsAppTemplate(models.Model):
         ordering = ["-updated_at"]
 
 
+class WhatsAppNotificationConfig(models.Model):
+    EVENT_CHOICES = [
+        ("order_created", "Order created"),
+        ("payment_confirmed", "Payment confirmed"),
+        ("payment_failed", "Payment failed"),
+        ("order_processing", "Order processing"),
+        ("order_dispatched", "Order dispatched"),
+        ("order_delivered", "Order delivered"),
+        ("order_cancelled", "Order cancelled"),
+        ("refund_processed", "Refund processed"),
+    ]
+    RESULT_CHOICES = [
+        ("success", "Success"),
+        ("failed", "Failed"),
+        ("skipped", "Skipped"),
+    ]
+
+    event = models.CharField(max_length=40, choices=EVENT_CHOICES, unique=True)
+    label = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    template = models.ForeignKey(
+        WhatsAppTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notification_configs",
+    )
+    enabled = models.BooleanField(default=False)
+    requires_consent = models.BooleanField(default=False)
+    requires_verified_state = models.BooleanField(default=True)
+    last_executed_at = models.DateTimeField(null=True, blank=True)
+    last_result = models.CharField(
+        max_length=16, choices=RESULT_CHOICES, null=True, blank=True
+    )
+    failure_detail = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["id"]
+
+
 class WhatsAppAutomation(models.Model):
     STATUS_CHOICES = [
         ("ACTIVE", "Active"),
         ("PAUSED", "Paused"),
         ("DRAFT", "Draft"),
     ]
+    TRIGGER_CHOICES = [
+        ("order_created", "Order created"),
+        ("payment_confirmed", "Payment confirmed"),
+        ("order_dispatched", "Order dispatched"),
+        ("order_delivered", "Order delivered"),
+        ("message_received", "Message received"),
+        ("purchase_completed", "Purchase completed"),
+    ]
+    ACTION_CHOICES = [
+        ("send_template", "Send template"),
+        ("route_to_inbox", "Route to Inbox"),
+    ]
+    RUN_RESULT_CHOICES = [
+        ("success", "Success"),
+        ("failed", "Failed"),
+        ("skipped", "Skipped"),
+    ]
 
     name = models.CharField(max_length=200)
-    trigger = models.CharField(max_length=80)
+    trigger = models.CharField(max_length=80, choices=TRIGGER_CHOICES)
     trigger_label = models.CharField(max_length=120, blank=True)
+    action = models.CharField(
+        max_length=32, choices=ACTION_CHOICES, default="send_template"
+    )
     template = models.ForeignKey(
         WhatsAppTemplate,
         on_delete=models.SET_NULL,
@@ -452,18 +797,54 @@ class WhatsAppAutomation(models.Model):
         related_name="automations",
     )
     delay_minutes = models.IntegerField(default=0)
+    delay_seconds = models.IntegerField(default=0)
     recipients = models.CharField(max_length=120, default="ALL")
     conditions = models.TextField(blank=True)
+    conditions_list = models.JSONField(default=list, blank=True)  # list[str]
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="DRAFT")
     steps = models.JSONField(default=list, blank=True)
     messages_sent = models.IntegerField(default=0)
+    success_count = models.IntegerField(default=0)
+    failure_count = models.IntegerField(default=0)
     last_triggered_at = models.DateTimeField(null=True, blank=True)
+    last_run_result = models.CharField(
+        max_length=16, choices=RUN_RESULT_CHOICES, null=True, blank=True
+    )
     runs = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-updated_at"]
+
+    @property
+    def enabled(self):
+        return self.status == "ACTIVE"
+
+
+class WhatsAppWorkflowRun(models.Model):
+    RESULT_CHOICES = [
+        ("success", "Success"),
+        ("failed", "Failed"),
+        ("skipped", "Skipped"),
+    ]
+
+    automation = models.ForeignKey(
+        WhatsAppAutomation, on_delete=models.CASCADE, related_name="workflow_runs"
+    )
+    contact = models.ForeignKey(
+        WhatsAppContact,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workflow_runs",
+    )
+    result = models.CharField(max_length=16, choices=RESULT_CHOICES, db_index=True)
+    detail = models.TextField(blank=True)
+    executed_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-executed_at"]
 
 
 class WhatsAppSegment(models.Model):
@@ -482,13 +863,16 @@ class WhatsAppBroadcast(models.Model):
     STATUS_CHOICES = [
         ("DRAFT", "Draft"),
         ("SCHEDULED", "Scheduled"),
+        ("RUNNING", "Running"),
         ("SENDING", "Sending"),
         ("PAUSED", "Paused"),
         ("COMPLETED", "Completed"),
         ("FAILED", "Failed"),
+        ("CANCELLED", "Cancelled"),
     ]
 
     campaign_name = models.CharField(max_length=200)
+    objective = models.CharField(max_length=255, blank=True)
     template = models.ForeignKey(
         WhatsAppTemplate,
         on_delete=models.SET_NULL,
@@ -497,6 +881,7 @@ class WhatsAppBroadcast(models.Model):
         related_name="broadcasts",
     )
     audience = models.CharField(max_length=120, default="ALL")
+    audience_label = models.CharField(max_length=160, blank=True)
     audience_rule_ref = models.CharField(max_length=120, blank=True)
     segment = models.ForeignKey(
         WhatsAppSegment,
@@ -506,27 +891,201 @@ class WhatsAppBroadcast(models.Model):
         related_name="broadcasts",
     )
     audience_count = models.IntegerField(default=0)
+    products = models.ManyToManyField(
+        WhatsAppCatalogItem, blank=True, related_name="campaigns"
+    )
     attached_catalog_item_ids = models.JSONField(default=list, blank=True)
     has_product_attachment = models.BooleanField(default=False)
+    discount_code = models.CharField(max_length=64, blank=True)
     variable_mapping = models.JSONField(default=dict, blank=True)
     ab_test = models.BooleanField(default=False)
-    recipients = models.IntegerField(default=0)
+
+    # Metrics (platform + website tracking)
+    recipients = models.IntegerField(default=0)  # estimatedRecipients / submitted
+    submitted = models.IntegerField(default=0)
     delivered = models.IntegerField(default=0)
     read = models.IntegerField(default=0)
     replied = models.IntegerField(default=0)
     failed = models.IntegerField(default=0)
+    clicks = models.IntegerField(default=0)
+    visits = models.IntegerField(default=0)
+    orders_count = models.IntegerField(default=0)
+    revenue = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    currency = models.CharField(max_length=8, default="KES")
     estimated_cost_kes = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     actual_cost_kes = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    start_at = models.DateTimeField(null=True, blank=True)
+    end_at = models.DateTimeField(null=True, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     scheduled_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="DRAFT")
+    status = models.CharField(
+        max_length=16, choices=STATUS_CHOICES, default="DRAFT", db_index=True
+    )
     last_error = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class WhatsAppMessageLog(models.Model):
+    STATUS_CHOICES = [
+        ("accepted", "Accepted"),
+        ("sent", "Sent"),
+        ("delivered", "Delivered"),
+        ("read", "Read"),
+        ("failed", "Failed"),
+    ]
+    CATEGORY_CHOICES = [
+        ("utility", "Utility"),
+        ("marketing", "Marketing"),
+        ("authentication", "Authentication"),
+    ]
+
+    message = models.ForeignKey(
+        WhatsAppMessage,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="log_entries",
+    )
+    wa_message_id = models.CharField(max_length=120, blank=True, db_index=True)
+    contact = models.ForeignKey(
+        WhatsAppContact,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="message_logs",
+    )
+    recipient = models.CharField(max_length=32, db_index=True)
+    customer_name = models.CharField(max_length=255, blank=True)
+    template = models.ForeignKey(
+        WhatsAppTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="message_logs",
+    )
+    template_name = models.CharField(max_length=120, blank=True)
+    category = models.CharField(
+        max_length=20, choices=CATEGORY_CHOICES, default="utility", db_index=True
+    )
+    campaign = models.ForeignKey(
+        WhatsAppBroadcast,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="message_logs",
+    )
+    order = models.ForeignKey(
+        "checkout.Order",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="whatsapp_message_logs",
+    )
+    order_reference = models.CharField(max_length=64, blank=True, db_index=True)
+    status = models.CharField(
+        max_length=16, choices=STATUS_CHOICES, default="accepted", db_index=True
+    )
+    failure_reason = models.TextField(blank=True)
+    sent_at = models.DateTimeField(default=timezone.now, db_index=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-sent_at"]
+
+
+# ---------------------------------------------------------------------------
+# 5. Attribution, Messaging Costs & Commerce Orders
+# ---------------------------------------------------------------------------
+
+class WhatsAppAttributionEvent(models.Model):
+    EVENT_TYPE_CHOICES = [
+        ("click", "Link click"),
+        ("referred_visit", "Referred visit"),
+        ("product_page_visit", "Product page visit"),
+        ("enquiry", "Enquiry"),
+        ("attributed_order", "Attributed order"),
+    ]
+
+    event_type = models.CharField(
+        max_length=24, choices=EVENT_TYPE_CHOICES, db_index=True
+    )
+    campaign = models.ForeignKey(
+        WhatsAppBroadcast,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attribution_events",
+    )
+    conversation = models.ForeignKey(
+        WhatsAppConversation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attribution_events",
+    )
+    contact = models.ForeignKey(
+        WhatsAppContact,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attribution_events",
+    )
+    catalog_item = models.ForeignKey(
+        WhatsAppCatalogItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attribution_events",
+    )
+    order = models.ForeignKey(
+        "checkout.Order",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="whatsapp_attribution_events",
+    )
+    revenue = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal("0.00")
+    )
+    currency = models.CharField(max_length=8, default="KES")
+    target_url = models.URLField(blank=True, max_length=500)
+    occurred_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-occurred_at"]
+
+
+class WhatsAppMessagingCost(models.Model):
+    CATEGORY_CHOICES = [
+        ("utility", "Utility"),
+        ("marketing", "Marketing"),
+        ("authentication", "Authentication"),
+        ("service", "Service"),
+    ]
+
+    date = models.DateField(db_index=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, db_index=True)
+    campaign = models.ForeignKey(
+        WhatsAppBroadcast,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cost_entries",
+    )
+    conversation_count = models.IntegerField(default=0)
+    cost = models.DecimalField(max_digits=12, decimal_places=4, default=Decimal("0.0000"))
+    currency = models.CharField(max_length=8, default="KES")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date"]
 
 
 class WhatsAppOrder(models.Model):
@@ -578,6 +1137,10 @@ class WhatsAppOrder(models.Model):
         ordering = ["-created_at"]
 
 
+# ---------------------------------------------------------------------------
+# 6. Webhooks, Billing, Settings, Team, Audit & Notifications
+# ---------------------------------------------------------------------------
+
 class WhatsAppWebhookEvent(models.Model):
     STATUS_CHOICES = [
         ("DELIVERED", "Delivered"),
@@ -593,7 +1156,7 @@ class WhatsAppWebhookEvent(models.Model):
     signature_valid = models.BooleanField(default=True)
     latency_ms = models.IntegerField(default=0)
     error = models.TextField(blank=True)
-    received_at = models.DateTimeField(default=timezone.now)
+    received_at = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
         ordering = ["-received_at"]
@@ -695,6 +1258,12 @@ class WhatsAppQuickReply(models.Model):
 
 class WhatsAppNotification(models.Model):
     TYPE_CHOICES = [
+        ("failed_message", "Failed message"),
+        ("sync_failure", "Sync failure"),
+        ("template_update", "Template update"),
+        ("webhook", "Webhook"),
+        ("automation", "Automation"),
+        ("campaign", "Campaign"),
         ("message", "Message"),
         ("template", "Template"),
         ("order", "Order"),
@@ -703,17 +1272,21 @@ class WhatsAppNotification(models.Model):
         ("quality", "Quality"),
     ]
 
-    type = models.CharField(max_length=16, choices=TYPE_CHOICES, default="system")
+    type = models.CharField(max_length=24, choices=TYPE_CHOICES, default="system")
     title = models.CharField(max_length=200)
     body = models.TextField(blank=True)
     link_tab = models.CharField(max_length=40, blank=True)
-    read = models.BooleanField(default=False)
+    read = models.BooleanField(default=False, db_index=True)
     payload = models.JSONField(default=dict, blank=True)
-    timestamp = models.DateTimeField(default=timezone.now)
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
         ordering = ["-timestamp"]
 
+
+# ---------------------------------------------------------------------------
+# 7. Bot Flows (Existing)
+# ---------------------------------------------------------------------------
 
 class WhatsAppBotFlow(models.Model):
     name = models.CharField(max_length=200, default="Main Flow")

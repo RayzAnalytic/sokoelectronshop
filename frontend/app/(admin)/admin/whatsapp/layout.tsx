@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { adminApi } from '@/lib/admin-api';
 import {
     MessageCircle,
     Inbox,
@@ -13,7 +14,6 @@ import {
     ChevronDown,
     Loader2,
     AlertCircle,
-    CheckCircle2,
     RefreshCw,
     XCircle,
     Clock,
@@ -36,7 +36,13 @@ type WhatsAppAccount = {
 
 type WhatsAppNotification = {
     id: string;
-    type: 'failed_message' | 'sync_failure' | 'template_update' | 'webhook' | 'automation' | 'campaign';
+    type:
+    | 'failed_message'
+    | 'sync_failure'
+    | 'template_update'
+    | 'webhook'
+    | 'automation'
+    | 'campaign';
     title: string;
     detail: string;
     at: string;
@@ -114,10 +120,19 @@ const QUICK_ACTIONS = [
     { label: 'Settings', href: '/whatsapp/analytics?tab=connection', icon: Settings },
 ];
 
-async function fetchConnection(): Promise<WhatsAppConnection> {
-    const res = await fetch('/api/whatsapp/connection', { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to load WhatsApp connection');
-    return res.json();
+function formatRelative(iso: string | null): string {
+    if (!iso) return '—';
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return iso;
+    const diff = Math.max(0, Date.now() - then);
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const d = Math.floor(hr / 24);
+    if (d < 7) return `${d}d ago`;
+    return new Date(iso).toLocaleDateString();
 }
 
 function WhatsAppTopbarContent() {
@@ -134,21 +149,23 @@ function WhatsAppTopbarContent() {
     const quickRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        let cancelled = false;
+        const controller = new AbortController();
         setLoading(true);
         setError('');
-        fetchConnection()
+        adminApi.whatsapp.connection
+            .status(controller.signal)
             .then((data) => {
-                if (!cancelled) setConnection(data);
+                setConnection(data);
             })
-            .catch(() => {
-                if (!cancelled) setError('Could not load connection');
+            .catch((err) => {
+                if ((err as { name?: string })?.name === 'AbortError') return;
+                setError('Could not load connection');
             })
             .finally(() => {
-                if (!cancelled) setLoading(false);
+                setLoading(false);
             });
         return () => {
-            cancelled = true;
+            controller.abort();
         };
     }, []);
 
@@ -172,7 +189,7 @@ function WhatsAppTopbarContent() {
     }, [pathname]);
 
     const state = connection?.state ?? 'disconnected';
-    const meta = STATE_META[state];
+    const meta = STATE_META[state] ?? STATE_META.disconnected;
     const account = connection?.account ?? null;
     const notifications = connection?.notifications ?? [];
     const unread = connection?.unreadCount ?? 0;
@@ -277,7 +294,8 @@ function WhatsAppTopbarContent() {
                                             </div>
                                         ) : (
                                             notifications.map((n) => {
-                                                const Icon = NOTIFICATION_ICON[n.type];
+                                                const Icon =
+                                                    NOTIFICATION_ICON[n.type] ?? AlertCircle;
                                                 return (
                                                     <div
                                                         key={n.id}
@@ -294,7 +312,7 @@ function WhatsAppTopbarContent() {
                                                                 {n.detail}
                                                             </p>
                                                             <p className="text-[10px] text-slate-400 mt-0.5">
-                                                                {n.at}
+                                                                {formatRelative(n.at)}
                                                             </p>
                                                         </div>
                                                     </div>
