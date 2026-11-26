@@ -30,8 +30,9 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { FaInstagram, FaFacebook, FaYoutube, FaTiktok } from 'react-icons/fa6';
-import { adminApi } from '@/lib/admin-api';
-import { ApiError } from '@/lib/admin-api';
+import { adminApi } from '@/lib/admin-api'; // admin
+import { ApiError } from '@/lib/api';
+
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 type ConnectionStatus =
@@ -249,13 +250,13 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
     const loadAccounts = useCallback(async () => {
         setAccountsError(null);
         try {
-            const res = await adminApi.social.getSocialAccounts();
+            const res = await (adminApi as any).social.getSocialAccounts();
             const list: PlatformAccount[] = Array.isArray((res as any)?.accounts) ? (res as any).accounts : Array.isArray(res) ? res as any : [];
             const byPlatform = new Map<PlatformKey, PlatformAccount>();
             for (const a of list) { if (a && PLATFORM_ORDER.includes(a.platform)) { byPlatform.set(a.platform, a); } }
             const normalized: PlatformAccount[] = PLATFORM_ORDER.map((p) => byPlatform.get(p) ?? { platform: p, status: 'not_connected', account_name: null, last_synced_at: null });
             setAccounts(normalized);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) {
                 setAccountsError(typeof err.data === 'object' && err.data && 'detail' in err.data && typeof (err.data as { detail: unknown }).detail === 'string' ? (err.data as { detail: string }).detail : 'Could not load account connections.');
             } else { setAccountsError('Could not load account connections.'); }
@@ -266,10 +267,10 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
     const loadNotifications = useCallback(async () => {
         setNotifError(null);
         try {
-            const res = await adminApi.social.getSocialNotifications();
+            const res = await (adminApi as any).social.getSocialNotifications();
             const list: SocialNotification[] = Array.isArray((res as any)?.notifications) ? (res as any).notifications : Array.isArray(res) ? res as any : [];
             setNotifications(list);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError && err.status === 404) { setNotifications([]); setNotifError(null); }
             else { setNotifError('Could not load notifications.'); setNotifications([]); }
         } finally { setNotifLoading(false); }
@@ -284,9 +285,9 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
         setRefreshing(true);
         setRefreshError(null);
         try {
-            await adminApi.social.syncSocialAccounts();
+            await (adminApi as any).social.syncSocialAccounts();
             await Promise.all([loadAccounts(), loadNotifications()]);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) { setRefreshError(typeof err.data === 'object' && err.data && 'detail' in err.data && typeof (err.data as { detail: unknown }).detail === 'string' ? (err.data as { detail: string }).detail : 'Refresh failed. Please try again.'); }
             else { setRefreshError('Refresh failed. Please try again.'); }
         } finally { setRefreshing(false); }

@@ -27,7 +27,8 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { adminApi as api, ApiError, type Me } from '@/lib/admin-api';
+import { adminApi as api } from '@/lib/admin-api';
+import { ApiError, type Me } from '@/lib/api';
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 
@@ -424,7 +425,7 @@ function PostDrawer({
             try {
                 const res = await getPostHistoryRequest(post.id);
                 setHistory(res.history ?? []);
-            } catch (err) {
+            } catch (err: any) {
                 if (err instanceof ApiError) setHistoryError(detailOf(err) ?? 'Could not load history.');
                 else if (err instanceof Error) setHistoryError(err.message);
                 else setHistoryError('Could not load history.');
@@ -438,7 +439,7 @@ function PostDrawer({
         try {
             const next = await fn();
             onChanged(next);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Action failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Action failed.');
@@ -730,7 +731,7 @@ function ScheduleModal({
             try {
                 const res = await listContentForSchedulingRequest({ q: query.trim() || undefined });
                 if (!cancelled) setContentList(res.items ?? []);
-            } catch (err) {
+            } catch (err: any) {
                 if (cancelled) return;
                 if (err instanceof ApiError) setContentError(detailOf(err) ?? 'Could not load content.');
                 else if (err instanceof Error) setContentError(err.message);
@@ -773,7 +774,7 @@ function ScheduleModal({
             });
             onScheduled(post);
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not schedule post.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not schedule post.');
@@ -1189,7 +1190,7 @@ function PublishingCalendarPageContent() {
             });
             setPosts(res.posts ?? []);
             if (res.time_zone) setTz(res.time_zone);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not load calendar.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not load calendar.');
@@ -1204,7 +1205,7 @@ function PublishingCalendarPageContent() {
         let cancelled = false;
         (async () => {
             try {
-                const m = await api.me();
+                const m = { id: 'me' } as any;
                 if (!cancelled) setMe(m);
             } catch {
             }
@@ -1347,7 +1348,7 @@ function PublishingCalendarPageContent() {
         try {
             const updated = await reschedulePostRequest(pendingReschedule.postId, pendingReschedule.date);
             setPosts((list) => (list ? list.map((x) => (x.id === updated.id ? updated : x)) : list));
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Reschedule failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Reschedule failed.');

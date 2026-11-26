@@ -32,8 +32,9 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { ApiError } from '@/lib/admin-api';
+
 import { adminApi } from '@/lib/admin-api';
+import { ApiError, type Me } from '@/lib/api';
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 type PlatformFilter = PlatformKey | 'all';
@@ -466,7 +467,7 @@ function OverviewPageContent() {
         if (ctrl.signal.aborted) return;
         setData(payload);
         setLastUpdated(Date.now());
-      } catch (err) {
+      } catch (err: any) {
         if (ctrl.signal.aborted) return;
         if (err instanceof ApiError) {
           setError(detailOf(err) ?? 'Could not load overview data.');
@@ -851,11 +852,11 @@ function OverviewPageContent() {
           {data?.series?.funnel && (
             <ul className="space-y-2">
               {[
-                { label: 'Visitors', value: data.series.funnel.visitors },
-                { label: 'Product views', value: data.series.funnel.product_views },
-                { label: 'Add to cart', value: data.series.funnel.add_to_cart },
-                { label: 'Checkout', value: data.series.funnel.checkouts },
-                { label: 'Orders', value: data.series.funnel.orders },
+                { label: 'Visitors', value: data.series!.funnel.visitors },
+                { label: 'Product views', value: data.series!.funnel.product_views },
+                { label: 'Add to cart', value: data.series!.funnel.add_to_cart },
+                { label: 'Checkout', value: data.series!.funnel.checkouts },
+                { label: 'Orders', value: data.series!.funnel.orders },
               ].map((step, i, arr) => {
                 const prev = i === 0 ? null : arr[i - 1].value;
                 const pct = prev && prev > 0 ? (step.value / prev) * 100 : null;
@@ -872,7 +873,7 @@ function OverviewPageContent() {
                       <div
                         className="h-full bg-blue-950"
                         style={{
-                          width: `${Math.min(100, (step.value / Math.max(1, data.series.funnel!.visitors)) * 100)}%`,
+                          width: `${Math.min(100, (step.value / Math.max(1, data.series!.funnel!.visitors)) * 100)}%`,
                         }}
                       />
                     </div>

@@ -27,7 +27,8 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { adminApi as api, ApiError } from '@/lib/admin-api';
+import { adminApi as api } from '@/lib/admin-api';
+import { ApiError, type Me } from '@/lib/api';
 
 type Platform = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 type InteractionType = 'dm' | 'comment' | 'mention';
@@ -519,7 +520,7 @@ function InboxCommunityPageContent() {
             if (Array.isArray(tplRes) && tplRes.length > 0) {
                 setTemplates(tplRes);
             }
-        } catch (err) {
+        } catch (err: any) {
             setLoadError(errorMessage(err, 'Could not load inbox.'));
         } finally {
             setLoading(false);
@@ -548,7 +549,7 @@ function InboxCommunityPageContent() {
             setConversations((prev) =>
                 prev.map((c) => (c.id === id ? { ...c, unread: false, status: c.status === 'unread' ? 'read' : c.status } : c)),
             );
-        } catch (err) {
+        } catch (err: any) {
             setDetailError(errorMessage(err, 'Could not load conversation.'));
             setSelected(null);
         } finally {
@@ -681,7 +682,7 @@ function InboxCommunityPageContent() {
                 prev.map((c) => (c.id === updated.id ? { ...c, preview: updated.preview, last_interaction_at: updated.last_interaction_at } : c)),
             );
             setReplyBody('');
-        } catch (err) {
+        } catch (err: any) {
             setReplyError(errorMessage(err, 'Could not send reply.'));
         } finally {
             setReplySending(false);
@@ -696,7 +697,7 @@ function InboxCommunityPageContent() {
             const updated = await performConversationAction(selected.id, action, payload);
             setSelected(updated);
             setConversations((prev) => prev.map((c) => (c.id === updated.id ? { ...updated, messages: c.messages } : c)));
-        } catch (err) {
+        } catch (err: any) {
             setActionError(`${label ?? 'Action'} failed: ${errorMessage(err, 'Unknown error')}`);
         } finally {
             setActionBusy(null);
@@ -712,7 +713,7 @@ function InboxCommunityPageContent() {
             setSelected(updated);
             setConversations((prev) => prev.map((c) => (c.id === updated.id ? { ...c, assigned_to: updated.assigned_to, status: updated.status } : c)));
             setAssignOpen(false);
-        } catch (err) {
+        } catch (err: any) {
             setActionError(errorMessage(err, 'Could not assign conversation.'));
         } finally {
             setAssigningId(null);
@@ -728,7 +729,7 @@ function InboxCommunityPageContent() {
             const updated = await addConversationNote(selected.id, noteBody.trim());
             setSelected(updated);
             setNoteBody('');
-        } catch (err) {
+        } catch (err: any) {
             setNoteError(errorMessage(err, 'Could not save note.'));
         } finally {
             setNoteSaving(false);
@@ -746,7 +747,7 @@ function InboxCommunityPageContent() {
             setProductPanelOpen(false);
             setProductQuery('');
             setProductResults([]);
-        } catch (err) {
+        } catch (err: any) {
             setActionError(errorMessage(err, 'Could not link product.'));
         } finally {
             setLinkingProduct(false);
@@ -764,7 +765,7 @@ function InboxCommunityPageContent() {
             setCustomerPanelOpen(false);
             setCustomerQuery('');
             setCustomerResults([]);
-        } catch (err) {
+        } catch (err: any) {
             setActionError(errorMessage(err, 'Could not link customer.'));
         } finally {
             setLinkingCustomer(false);

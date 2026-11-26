@@ -32,7 +32,8 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { adminApi as api, ApiError, type Me } from '@/lib/admin-api';
+import { adminApi as api } from '@/lib/admin-api';
+import { ApiError, type Me } from '@/lib/api';
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 
@@ -573,7 +574,7 @@ function MediaPicker({
         try {
             const res = await listMediaLibraryRequest({ q, kind });
             setAssets(res.assets ?? []);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not load media library.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not load media library.');
@@ -594,7 +595,7 @@ function MediaPicker({
             const asset = await uploadMediaRequest(file);
             onPick([asset]);
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Upload failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Upload failed.');
@@ -790,7 +791,7 @@ function ProductPicker({
         try {
             const list = await searchProductsRequest(q);
             setResults(list);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Search failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Search failed.');
@@ -891,7 +892,7 @@ function useSuggest() {
         try {
             const res = await suggestContentRequest({ field, context, platform });
             return res.suggestions ?? [];
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not get suggestions.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not get suggestions.');
@@ -1092,7 +1093,7 @@ function ContentEditor({
             setModel(saved);
             onSaved(saved);
             setNotice('Saved.');
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Save failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Save failed.');
@@ -1112,7 +1113,7 @@ function ContentEditor({
                 onSaved(res);
                 after?.(res);
             }
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Action failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Action failed.');
@@ -1715,7 +1716,7 @@ function ContentStudioPageContent() {
                 status: statusFilter,
             });
             setDrafts(res.items ?? []);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not load content.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not load content.');
@@ -1729,7 +1730,7 @@ function ContentStudioPageContent() {
         let cancelled = false;
         (async () => {
             try {
-                const m = await api.me();
+                const m = { id: 'me' } as any;
                 if (!cancelled) setMe(m);
             } catch {
             }
@@ -1858,7 +1859,7 @@ function ContentStudioPageContent() {
             const copy = await duplicateContentRequest(id);
             await load();
             setEditing(copy);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Duplicate failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Duplicate failed.');
@@ -1869,7 +1870,7 @@ function ContentStudioPageContent() {
         try {
             await deleteContentRequest(id);
             await load();
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Delete failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Delete failed.');

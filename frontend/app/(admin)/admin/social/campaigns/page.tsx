@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { adminApi as api, ApiError } from '@/lib/admin-api';
+import { adminApi as api } from '@/lib/admin-api';
+import { ApiError, type Me } from '@/lib/api';
 
 type Platform = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 type CampaignStatus = 'draft' | 'pending_approval' | 'scheduled' | 'active' | 'paused' | 'completed' | 'cancelled';
@@ -619,7 +620,7 @@ function CampaignsPageContent() {
             setAvailablePlatforms(platformsRes);
             setStaffList(staffRes);
             setDiscounts(discountRes);
-        } catch (err) {
+        } catch (err: any) {
             setLoadError(errorMessage(err, 'Could not load campaigns.'));
         } finally {
             setLoading(false);
@@ -651,7 +652,7 @@ function CampaignsPageContent() {
         try {
             const data = await fetchCampaignDetail(id);
             setSelected(data);
-        } catch (err) {
+        } catch (err: any) {
             setDetailError(errorMessage(err, 'Could not load campaign.'));
             setSelected(null);
         } finally {
@@ -787,7 +788,7 @@ function CampaignsPageContent() {
             setCreateOpen(false);
             setSelectedId(created.id);
             void loadCampaigns(false);
-        } catch (err) {
+        } catch (err: any) {
             setCreateError(errorMessage(err, 'Could not create campaign.'));
         } finally {
             setCreating(false);
@@ -802,7 +803,7 @@ function CampaignsPageContent() {
             const updated = await runCampaignActionRequest(selected.id, action);
             setSelected(updated);
             setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? { ...c, status: updated.status } : c)));
-        } catch (err) {
+        } catch (err: any) {
             setActionError(errorMessage(err, `Could not ${action} campaign.`));
         } finally {
             setActionBusy(null);

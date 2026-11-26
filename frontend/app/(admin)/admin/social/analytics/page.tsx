@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { adminApi as api, ApiError } from '@/lib/admin-api';
+import { adminApi as api } from '@/lib/admin-api';
+import { ApiError, type Me } from '@/lib/api';
 
 type PlatformId = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 
@@ -684,7 +685,7 @@ function AnalyticsPageContent() {
             try {
                 const payload = await fetchAnalyticsReport(query);
                 setData(payload);
-            } catch (err) {
+            } catch (err: any) {
                 if (err instanceof ApiError) {
                     setError(detailOf(err) ?? 'Could not load analytics. Please try again.');
                 } else if (err instanceof Error) {

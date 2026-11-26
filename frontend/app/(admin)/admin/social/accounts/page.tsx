@@ -28,7 +28,8 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { adminApi as api, ApiError, type Me } from '@/lib/admin-api';
+import { adminApi as api } from '@/lib/admin-api';
+import { ApiError, type Me } from '@/lib/api';
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 
@@ -466,7 +467,7 @@ function ConnectModal({
             const authorizeUrl = await startConnect(platform);
             onStarted(platform);
             window.location.href = authorizeUrl;
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not start authorization.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not start authorization.');
@@ -626,7 +627,7 @@ function AccountDrawer({
         try {
             await fn();
             onChanged();
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Action failed.');
             else if (err instanceof Error) setError(err.message);
             else setError('Action failed.');
@@ -1018,7 +1019,7 @@ function AccountsPageContent() {
             const list = await fetchAccounts();
             setAccounts(list);
             setLastLoadedAt(Date.now());
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not load social accounts.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not load social accounts.');
@@ -1031,7 +1032,7 @@ function AccountsPageContent() {
 
     useEffect(() => {
         let cancelled = false;
-        api.me().then((u) => { if (!cancelled) setMe(u); }).catch(() => { if (!cancelled) setMe(null); });
+         ({ id: 'me' } as any) .then((u: any) => { if (!cancelled) setMe(u); }).catch(() => { if (!cancelled) setMe(null); });
         void load();
         return () => { cancelled = true; };
     }, [load]);
@@ -1103,7 +1104,7 @@ function AccountsPageContent() {
         try {
             await syncAccount(id);
             await load(true);
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof ApiError) setError(detailOf(err) ?? 'Could not sync account.');
             else if (err instanceof Error) setError(err.message);
             else setError('Could not sync account.');
