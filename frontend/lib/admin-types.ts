@@ -519,7 +519,712 @@ export interface AdminReturnRequest {
     createdAt: string;
     updatedAt: string;
 }
+export const SOCIAL_PLATFORMS = ['youtube', 'facebook', 'instagram', 'tiktok'] as const;
+export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 
+export const ACCOUNT_CONNECTION_STATUSES = [
+    'connected',
+    'not_connected',
+    'connecting',
+    'authorization_expired',
+    'permission_required',
+    'sync_failed',
+    'temporarily_unavailable',
+] as const;
+export type AccountConnectionStatus = (typeof ACCOUNT_CONNECTION_STATUSES)[number];
+
+export const ACCOUNT_SYNC_STATUSES = ['ok', 'failed', 'pending', 'never'] as const;
+export type AccountSyncStatus = (typeof ACCOUNT_SYNC_STATUSES)[number];
+
+export const MEDIA_KINDS = ['image', 'video'] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+export const MEDIA_SOURCES = ['upload', 'library'] as const;
+export type MediaSource = (typeof MEDIA_SOURCES)[number];
+
+export const CONTENT_TYPES = [
+    'image',
+    'video',
+    'reel',
+    'short',
+    'story',
+    'text',
+    'thumbnail',
+    'creative',
+] as const;
+export type ContentType = (typeof CONTENT_TYPES)[number];
+
+export const CONTENT_STATUSES = [
+    'draft',
+    'in_review',
+    'changes_requested',
+    'approved',
+    'rejected',
+    'ready_to_schedule',
+    'scheduled',
+    'published',
+    'failed',
+    'archived',
+] as const;
+export type ContentStatus = (typeof CONTENT_STATUSES)[number];
+
+export const PUBLISH_STATUSES = [
+    'draft',
+    'pending_approval',
+    'approved',
+    'scheduled',
+    'queued',
+    'publishing',
+    'published',
+    'failed',
+    'cancelled',
+    'expired',
+] as const;
+export type PublishStatus = (typeof PUBLISH_STATUSES)[number];
+
+export const CAMPAIGN_STATUSES = [
+    'draft',
+    'pending_approval',
+    'scheduled',
+    'active',
+    'paused',
+    'completed',
+    'cancelled',
+] as const;
+export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
+
+export const CAMPAIGN_TYPES = [
+    'product_launch',
+    'product_promotion',
+    'seasonal',
+    'discount',
+    'brand_awareness',
+    'video_promotion',
+    'influencer',
+    'organic',
+    'paid_advertising',
+] as const;
+export type CampaignType = (typeof CAMPAIGN_TYPES)[number];
+
+export const CAMPAIGN_OBJECTIVES = [
+    'awareness',
+    'engagement',
+    'traffic',
+    'conversions',
+    'sales',
+] as const;
+export type CampaignObjective = (typeof CAMPAIGN_OBJECTIVES)[number];
+
+export const ATTRIBUTION_STATUSES = ['complete', 'partial', 'unavailable'] as const;
+export type AttributionStatus = (typeof ATTRIBUTION_STATUSES)[number];
+
+export const INTERACTION_TYPES = ['dm', 'comment', 'mention'] as const;
+export type InteractionType = (typeof INTERACTION_TYPES)[number];
+
+export const CONVERSATION_STATUSES = [
+    'unread',
+    'read',
+    'pending',
+    'resolved',
+    'archived',
+] as const;
+export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
+
+export const MESSAGE_DIRECTIONS = ['inbound', 'outbound', 'note'] as const;
+export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
+
+export const SENTIMENTS = ['positive', 'neutral', 'negative'] as const;
+export type Sentiment = (typeof SENTIMENTS)[number];
+
+export const ALERT_SEVERITIES = ['info', 'warning', 'error'] as const;
+export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];
+
+export const NOTIFICATION_TYPES = [
+    'post_published',
+    'post_failed',
+    'token_expiring',
+    'token_expired',
+    'approval_needed',
+    'approval_given',
+    'new_comment',
+    'new_dm',
+    'new_mention',
+    'report_ready',
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+export const TEAM_ROLES = ['owner', 'admin', 'editor', 'approver', 'viewer'] as const;
+export type TeamRole = (typeof TEAM_ROLES)[number];
+
+export const QUEUE_SLOT_KINDS = ['standard', 'evergreen'] as const;
+export type QueueSlotKind = (typeof QUEUE_SLOT_KINDS)[number];
+
+export const REPORT_FORMATS = ['pdf', 'csv', 'png'] as const;
+export type ReportFormat = (typeof REPORT_FORMATS)[number];
+
+/** ISO-8601 string as sent by DRF. */
+export type IsoDateTime = string;
+/** \`YYYY-MM-DD\` as sent by DRF for DateField. */
+export type IsoDate = string;
+
+/* ───────────────────────────── Accounts ───────────────────────────── */
+
+export interface SocialAccount {
+    id: number;
+    platform: SocialPlatform;
+    status: AccountConnectionStatus;
+    display_name: string;
+    username: string;
+    profile_image_url: string;
+    account_type: string;
+    account_id: string;
+    label: string;
+    followers: number | null;
+    token_expires_at: IsoDateTime | null;
+    last_auth_check_at: IsoDateTime | null;
+    scopes: string[];
+    missing_scopes: string[];
+    metadata: Record<string, unknown>;
+    is_default_publishing: boolean;
+    enabled_for_distribution: boolean;
+    publishing_formats: string[];
+    publishing_restrictions: string[];
+    supports_dm: boolean;
+    supports_comments: boolean;
+    supports_mentions: boolean;
+    supports_reply: boolean;
+    supports_react: boolean;
+    supports_hide: boolean;
+    supports_moderation: boolean;
+    inbox_capability_note: string;
+    sync_status: AccountSyncStatus;
+    coverage_start: IsoDate | null;
+    coverage_end: IsoDate | null;
+    missing_metrics: string[];
+    connected_at: IsoDateTime | null;
+    last_synced_at: IsoDateTime | null;
+    last_failed_sync_at: IsoDateTime | null;
+    next_sync_at: IsoDateTime | null;
+    error: string;
+    created_at: IsoDateTime;
+    updated_at: IsoDateTime;
+}
+
+export interface SocialPlatformOption {
+    platform: SocialPlatform;
+    connected: boolean;
+}
+
+export interface SocialAccountsResponse {
+    accounts: SocialAccount[];
+    platforms: SocialPlatformOption[];
+}
+
+export interface SocialAccountUpdatePayload {
+    label?: string | null;
+    is_default_publishing?: boolean;
+    enabled_for_distribution?: boolean;
+}
+
+export interface SocialAccountSharePayload {
+    staff_id: string;
+    permissions: string[];
+}
+
+/* ─────────────────────────────── Media ─────────────────────────────── */
+
+export interface SocialMediaFolder {
+    id: number;
+    name: string;
+    slug: string;
+    parent: number | null;
+    created_at: IsoDateTime;
+}
+
+export interface SocialMediaAsset {
+    id: number;
+    folder: number | null;
+    kind: MediaKind;
+    file: string;
+    url: string;
+    thumbnail: string;
+    thumbnail_url: string;
+    name: string;
+    mime_type: string;
+    tags: string[];
+    width: number | null;
+    height: number | null;
+    duration_seconds: number | null;
+    size_bytes: number | null;
+    source: MediaSource;
+    created_at: IsoDateTime;
+}
+
+export interface SocialMediaLibraryFilters {
+    kind?: MediaKind;
+    folder?: number | string;
+    q?: string;
+    tag?: string;
+}
+
+/* ────────────────────────────── Content ────────────────────────────── */
+
+export interface SocialContentCategory {
+    id: number;
+    name: string;
+    slug: string;
+    created_at: IsoDateTime;
+}
+
+export interface SocialContentPlatformConfig {
+    caption?: string;
+    title?: string;
+    description?: string;
+    hashtags?: string[];
+    first_comment?: string;
+    [key: string]: unknown;
+}
+
+export interface SocialContent {
+    id: number;
+    title: string;
+    caption: string;
+    description: string;
+    internal_notes: string;
+    content_type: ContentType;
+    category: number | null;
+    campaign: number | null;
+    owner: number | null;
+    reviewer: number | null;
+    media: SocialMediaAsset[];
+    platforms: SocialPlatform[];
+    platform_configs: Record<string, SocialContentPlatformConfig>;
+    status: ContentStatus;
+    rejection_reason: string;
+    created_at: IsoDateTime;
+    updated_at: IsoDateTime;
+}
+
+/** Payload accepted by \`content.save()\` — a new or edited draft. */
+export interface SocialContentDraft {
+    id?: number;
+    title?: string;
+    caption?: string;
+    description?: string;
+    internal_notes?: string;
+    content_type?: ContentType;
+    category?: number | null;
+    campaign?: number | null;
+    media_ids?: number[];
+    platforms?: SocialPlatform[];
+    platform_configs?: Record<string, SocialContentPlatformConfig>;
+}
+
+export interface SocialContentListFilters {
+    q?: string;
+    status?: ContentStatus;
+    platform?: SocialPlatform;
+    content_type?: ContentType;
+    category?: number | string;
+    campaign?: number | string;
+    page?: number;
+    page_size?: number;
+}
+
+export interface SocialContentListResponse {
+    items: SocialContent[];
+    total: number;
+}
+
+export interface SocialSuggestionRequest {
+    field: 'caption' | 'hashtags' | 'description' | 'cta' | 'ideas' | 'variation';
+    context: string;
+}
+
+/* ────────────────────────────── Campaigns ────────────────────────────── */
+
+export interface SocialCampaign {
+    id: number;
+    name: string;
+    description: string;
+    objective: CampaignObjective;
+    type: CampaignType;
+    status: CampaignStatus;
+    start_date: IsoDate;
+    end_date: IsoDate;
+    owner: number | null;
+    internal_notes: string;
+    platforms: SocialPlatform[];
+    accounts: number[];
+    discount_id: string;
+    promotional_message: string;
+    promotional_url: string;
+    offer_start: IsoDate | null;
+    offer_end: IsoDate | null;
+    planned_budget: string | null;
+    actual_spend: string | null;
+    attributed_revenue: string | null;
+    advertising_cost: string | null;
+    creator_commission: string | null;
+    currency: string;
+    roas: number | null;
+    profitability: string | null;
+    profitability_valid: boolean;
+    advertising_platform: SocialPlatform | '';
+    advertising_account: string;
+    advertising_external_id: string;
+    advertising_metrics_available: boolean;
+    advertising_note: string;
+    utm_source: string;
+    utm_medium: string;
+    utm_campaign: string;
+    tracking_link: string;
+    conversion_attribution: AttributionStatus;
+    reach: number | null;
+    impressions: number | null;
+    views: number | null;
+    engagement: number | null;
+    link_clicks: number | null;
+    website_visits: number | null;
+    add_to_cart: number | null;
+    orders: number | null;
+    attributed_orders: number | null;
+    unattributed_orders: number | null;
+    organic_metrics: Record<string, unknown>;
+    paid_metrics: Record<string, unknown>;
+    last_synced_at: IsoDateTime | null;
+    created_at: IsoDateTime;
+    updated_at: IsoDateTime;
+}
+
+export interface SocialCampaignOption {
+    id: string;
+    name: string;
+}
+
+export interface SocialCampaignFilters {
+    status?: CampaignStatus;
+    type?: CampaignType;
+    q?: string;
+    page?: number;
+    page_size?: number;
+}
+
+export interface SocialCampaignKpiResponse {
+    planned_budget: string | null;
+    actual_spend: string | null;
+    attributed_revenue: string | null;
+    roas: number | null;
+    profitability: string | null;
+    profitability_valid: boolean;
+    reach: number | null;
+    impressions: number | null;
+    engagement: number | null;
+    orders: number | null;
+    attributed_orders: number | null;
+    [key: string]: unknown;
+}
+
+/* ─────────────────────────── Calendar / posts ─────────────────────────── */
+
+export interface SocialScheduledPost {
+    id: number;
+    content: number | null;
+    content_title: string;
+    thumbnail_url: string;
+    caption: string;
+    content_type: ContentType | '';
+    platform: SocialPlatform;
+    account: number;
+    campaign: number | null;
+    owner: number | null;
+    approver: number | null;
+    scheduled_at: IsoDateTime;
+    timezone: string;
+    status: PublishStatus;
+    is_manual_reminder: boolean;
+    published_at: IsoDateTime | null;
+    published_url: string;
+    published_post_id: string;
+    attempt_at: IsoDateTime | null;
+    platform_response: string;
+    failure_reason: string;
+    last_error_at: IsoDateTime | null;
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    saves: number | null;
+    reach: number | null;
+    impressions: number | null;
+    views: number | null;
+    watch_time_sec: number | null;
+    link_clicks: number | null;
+    profile_visits: number | null;
+    follower_delta: number | null;
+    attributed_orders: number | null;
+    attributed_revenue: string | null;
+    metrics_synced_at: IsoDateTime | null;
+    total_engagement: number | null;
+    engagement_rate: number | null;
+    created_at: IsoDateTime;
+    updated_at: IsoDateTime;
+}
+
+export interface SocialCalendarFilters {
+    from?: IsoDate;
+    to?: IsoDate;
+    platform?: SocialPlatform;
+    account?: number | string;
+    status?: PublishStatus;
+}
+
+export interface SocialCalendarResponse {
+    posts: SocialScheduledPost[];
+    time_zone?: string | null;
+    server_now?: string | null;
+}
+
+export interface SocialSchedulePostPayload {
+    content_id?: number;
+    platform: SocialPlatform;
+    account_id: number;
+    scheduled_at: IsoDateTime;
+    caption?: string;
+    campaign_id?: number | null;
+    timezone?: string;
+}
+
+export interface SocialScheduledPostHistoryEntry {
+    id: number;
+    status: PublishStatus;
+    actor: number | null;
+    message: string;
+    published_url: string;
+    is_retry: boolean;
+    retry_success: boolean | null;
+    created_at: IsoDateTime;
+}
+
+export interface SocialQueueSlot {
+    id: number;
+    name: string;
+    kind: QueueSlotKind;
+    days: number[];
+    time_of_day: string;
+    timezone: string;
+    platforms: SocialPlatform[];
+}
+
+export interface SocialEvergreenPost {
+    id: number;
+    content: number | null;
+    platform: SocialPlatform;
+    account: number | null;
+    caption: string;
+    is_active: boolean;
+    times_used: number;
+    last_used_at: IsoDateTime | null;
+}
+
+/* ─────────────────────────────── Inbox ─────────────────────────────── */
+
+export interface SocialInboxConversation {
+    id: number;
+    platform: SocialPlatform;
+    account: number | null;
+    scheduled_post: number | null;
+    type: InteractionType;
+    status: ConversationStatus;
+    sentiment: Sentiment;
+    platform_conversation_id: string;
+    parent_item_id: string;
+    customer_display_name: string;
+    customer_username: string;
+    customer_avatar_url: string;
+    preview: string;
+    related_post_title: string;
+    related_post_url: string;
+    related_post_thumbnail: string;
+    last_interaction_at: IsoDateTime;
+    unread: boolean;
+    assigned_to: number | null;
+    linked_customer_id: string;
+    linked_product_id: string;
+    can_reply: boolean;
+    can_react: boolean;
+    can_hide: boolean;
+    can_moderate: boolean;
+    can_archive: boolean;
+    can_assign: boolean;
+    is_hidden: boolean;
+    is_moderated: boolean;
+    platform_capability_note: string;
+    first_response_at: IsoDateTime | null;
+    resolved_at: IsoDateTime | null;
+    archived_at: IsoDateTime | null;
+    created_at: IsoDateTime;
+    updated_at: IsoDateTime;
+}
+
+export interface SocialInboxMessage {
+    id: number;
+    conversation: number;
+    direction: MessageDirection;
+    author_name: string;
+    author_username: string;
+    body: string;
+    platform_message_id: string;
+    is_hidden: boolean;
+    created_at: IsoDateTime;
+}
+
+export interface SocialInboxFilters {
+    platform?: SocialPlatform;
+    type?: InteractionType;
+    status?: ConversationStatus;
+    assigned_to?: string;
+    unread?: '1';
+    q?: string;
+}
+
+export interface SocialInboxTemplate {
+    id: number;
+    key: string;
+    label: string;
+    body: string;
+    is_active: boolean;
+    created_at?: IsoDateTime;
+    updated_at?: IsoDateTime;
+}
+
+/* ────────────────────────────── Analytics ────────────────────────────── */
+
+export interface SocialAnalyticsConfig {
+    attribution_model: string;
+    reporting_window_days: number;
+    currency: string;
+    default_timezone: string;
+    updated_at: IsoDateTime;
+}
+
+export interface SocialAnalyticsConfigPayload {
+    attribution_model?: string;
+    reporting_window_days?: number;
+    currency?: string;
+    default_timezone?: string;
+}
+
+/**
+ * The overview/report/demographics endpoints aggregate several models, so
+ * their exact serializer shape is not in the models file. Keep the known
+ * totals typed and allow extra keys until you confirm the payload.
+ */
+export interface SocialMetricsTotals {
+    reach: number;
+    impressions: number;
+    engagement: number;
+    link_clicks: number;
+    orders: number;
+    attributed_revenue: string;
+    [key: string]: unknown;
+}
+
+/* ────────────────────────── Reports / links / team ────────────────────────── */
+
+export interface SocialReport {
+    id: number;
+    report_type: string;
+    name: string;
+    date_from: IsoDate;
+    date_to: IsoDate;
+    platforms: SocialPlatform[];
+    metrics: string[];
+    branding: Record<string, unknown>;
+    format: ReportFormat;
+    file: string | null;
+    created_by: number | null;
+    generated_at: IsoDateTime | null;
+    created_at: IsoDateTime;
+}
+
+export interface SocialReportCreatePayload {
+    report_type?: string;
+    name: string;
+    date_from: IsoDate;
+    date_to: IsoDate;
+    platforms?: SocialPlatform[];
+    metrics?: string[];
+    format?: ReportFormat;
+}
+
+export interface SocialTrackedLink {
+    id: number;
+    short_code: string;
+    destination: string;
+    utm: Record<string, string>;
+    campaign: number | null;
+    content: number | null;
+    clicks: number;
+    created_by: number | null;
+    created_at: IsoDateTime;
+    updated_at: IsoDateTime;
+}
+
+export interface SocialTeamMember {
+    id: number;
+    user: number;
+    email?: string;
+    name?: string;
+    role: TeamRole;
+    is_active: boolean;
+    invited_by: number | null;
+    invited_at: IsoDateTime | null;
+    joined_at: IsoDateTime | null;
+    created_at: IsoDateTime;
+    updated_at: IsoDateTime;
+}
+
+/* ────────────────── Notifications / activity / audit ────────────────── */
+
+export interface SocialNotification {
+    id: number;
+    notification_type: NotificationType;
+    severity: AlertSeverity;
+    title: string;
+    message: string;
+    link: string;
+    action_label: string;
+    is_read: boolean;
+    is_resolved: boolean;
+    recipient: number | null;
+    created_at: IsoDateTime;
+}
+
+export interface SocialNotificationsResponse {
+    results: SocialNotification[];
+    unread_count: number;
+}
+
+export interface SocialAuditLogEntry {
+    id: number;
+    actor: number | null;
+    action: string;
+    target_type: string;
+    target_id: string;
+    details: Record<string, unknown>;
+    created_at: IsoDateTime;
+}
+
+/* ──────────────────────────── Shared envelopes ──────────────────────────── */
+
+export interface SocialOkResponse {
+    ok: boolean;
+}
+
+export interface SocialSyncResponse {
+    ok: boolean;
+    synced: number;
+}
 
 // 2. Keep the main entity interface as AdminCustomerSegment
  
