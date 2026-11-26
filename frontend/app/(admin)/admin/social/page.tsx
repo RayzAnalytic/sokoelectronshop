@@ -32,7 +32,8 @@ import {
 } from 'lucide-react';
 import { type IconType } from 'react-icons';
 import { FaFacebook, FaInstagram, FaTiktok, FaYoutube } from 'react-icons/fa';
-import { api, ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/api';
+import { adminApi } from '@/lib/admin-api';
 
 type PlatformKey = 'youtube' | 'facebook' | 'instagram' | 'tiktok';
 type PlatformFilter = PlatformKey | 'all';
@@ -281,7 +282,7 @@ async function fetchOverview(
   customTo: string,
   signal?: AbortSignal,
 ): Promise<OverviewPayload> {
-  const client = api as unknown as OverviewApiClient;
+  const client = adminApi as unknown as OverviewApiClient;
   const params = {
     range,
     platform,
