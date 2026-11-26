@@ -1122,12 +1122,12 @@ function OverviewPageContent() {
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {[
-            { href: '/social/content-studio?action=create', label: 'Create content', icon: PenSquare },
-            { href: '/social/publishing-calendar?action=schedule', label: 'Schedule post', icon: CalendarDays },
-            { href: '/social/accounts?action=connect', label: 'Connect account', icon: UserPlus },
-            { href: '/social/inbox-community', label: 'Open inbox', icon: Inbox },
-            { href: '/social/campaigns?action=create', label: 'Create campaign', icon: Megaphone },
-            { href: '/social/analytics', label: 'Full analytics', icon: BarChart3 },
+            { href: '/admin/social/content-studio?action=create', label: 'Create content', icon: PenSquare },
+            { href: '/admin/social/publishing-calendar?action=schedule', label: 'Schedule post', icon: CalendarDays },
+            { href: '/admin/social/accounts?action=connect', label: 'Connect account', icon: UserPlus },
+            { href: '/admin/social/inbox-community', label: 'Open inbox', icon: Inbox },
+            { href: '/admin/social/campaigns?action=create', label: 'Create campaign', icon: Megaphone },
+            { href: '/admin/social/analytics', label: 'Full analytics', icon: BarChart3 },
           ].map((a) => (
             <Link
               key={a.href}

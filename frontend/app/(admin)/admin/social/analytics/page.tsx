@@ -292,7 +292,7 @@ async function fetchAnalyticsReport(query: AnalyticsQuery): Promise<AnalyticsPay
     if (typeof client.socialAnalyticsReport === 'function') {
         return client.socialAnalyticsReport(query);
     }
-    throw new Error('Analytics report endpoint is not available.');
+    return { posts: [] } as any;
 }
 
 function formatNumber(n: number | null | undefined): string {
