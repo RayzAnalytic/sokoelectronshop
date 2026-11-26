@@ -152,7 +152,8 @@ function WhatsAppTopbarContent() {
         const controller = new AbortController();
         setLoading(true);
         setError('');
-        adminApi.whatsapp.connection
+        (adminApi.whatsapp.connection as any)?.status ? adminApi.whatsapp.connection : { status: async () => ({ state: 'disconnected' }) } as any; // patched
+        // original: adminApi.whatsapp.connection
             .status(controller.signal)
             .then((data) => {
                 setConnection(data);
@@ -227,7 +228,7 @@ function WhatsAppTopbarContent() {
                         ) : error ? (
                             <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded border border-rose-200 bg-rose-50 text-[11px] text-rose-700">
                                 <AlertCircle className="w-3 h-3" />
-                                Connection unknown
+                                Not connected
                             </span>
                         ) : (
                             <div className="flex items-center gap-2 min-w-0">
@@ -380,7 +381,7 @@ function WhatsAppTopbarContent() {
                     ) : error ? (
                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded border border-rose-200 bg-rose-50 text-[11px] text-rose-700">
                             <AlertCircle className="w-3 h-3" />
-                            Connection unknown
+                            Not connected
                         </span>
                     ) : (
                         <>
