@@ -224,9 +224,6 @@ class ConnectionView(WhatsAppBaseView):
 
     def get(self, request):
         account = WhatsAppAccount.get_solo()
-        if getattr(settings, 'WHATSAPP_DRY_RUN', False):
-            account.connection_state = 'connected'
-            account.is_active = True
             account.is_active = True
             account.is_active = True
         return Response(ConnectionSerializer(account).data)
