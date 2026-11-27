@@ -460,8 +460,9 @@ def _sync_product_to_catalog(catalog, product):
     try:
         from .services import _product_to_item_fields, _resolve_sync_status, sync_catalog_item
 
+        retailer_id = (product.sku or f"prod_{product.pk}").lower()
         item = WhatsAppCatalogItem.objects.filter(
-            catalog=catalog, retailer_id=str(product.pk)
+            catalog=catalog, retailer_id=retailer_id
         ).first()
         if item:
             if not item.store_product_id:
