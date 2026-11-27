@@ -7128,6 +7128,11 @@ export const adminApi = {
                 { signal },
             ),
     },
+    ...createSocialAdminApi({
+        request: request as unknown as SocialAdminApiDependencies["request"],
+        qsOf,
+        readCsrfToken,
+    }),
 };
 export interface SocialAdminApiDependencies {
     request: <T>(path: string, options?: { method?: string; body?: any; signal?: AbortSignal }) => Promise<T>;
