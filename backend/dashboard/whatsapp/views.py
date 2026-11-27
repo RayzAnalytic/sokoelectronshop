@@ -329,7 +329,6 @@ class OverviewView(WhatsAppBaseView):
         
         account = WhatsAppAccount.get_solo()
         account = WhatsAppAccount.get_solo()
-        account = WhatsAppAccount.get_solo()
         connected = account.connection_state == "connected"
 
         if not connected:
