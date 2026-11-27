@@ -159,6 +159,7 @@ urlpatterns = [
     api_path("catalog", CatalogView.as_view()),
     api_path("catalog/sync", CatalogSyncView.as_view()),
     api_path("catalog/items", CatalogItemListView.as_view()),
+    api_path("catalog/items/", CatalogItemListView.as_view()),
     api_path("catalog/items/bulk", CatalogItemBulkView.as_view()),
     api_path(r"catalog/items/(?P<pk>\d+)", CatalogItemDetailView.as_view()),
 
