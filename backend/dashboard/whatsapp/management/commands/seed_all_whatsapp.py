@@ -33,37 +33,39 @@ class Command(BaseCommand):
         except:
             catalog = WhatsAppCatalog.objects.first()
         
-        # Sync 11 products - idempotent
+        # Sync products - idempotent, ensures 11 products with active/synced
         if catalog:
             for prod in Product.objects.filter(is_active=True):
                 rid = (prod.sku or f"prod_{prod.id}").lower()
-                existing = WhatsAppCatalogItem.objects.filter(retailer_id=rid).first()
-                if not existing:
-                    try:
-                        from dashboard.whatsapp.services import _product_to_item_fields
-                        fields = _product_to_item_fields(prod, catalog)
-                        fields["retailer_id"] = rid
-                        WhatsAppCatalogItem.objects.create(
-                            retailer_id=rid, catalog=catalog,
-                            store_product=prod,
-                            name=prod.name[:200],
-                            price=prod.price,
-                            currency="KES",
-                            sync_status="synced",
-                            eligible=True,
-                            is_removed=False,
-                            last_synced_at=now
-                        )
-                    except Exception as e:
-                        print(f"Failed to create item for {prod.name}: {e}")
-                        WhatsAppCatalogItem.objects.create(
-                            retailer_id=rid, catalog=catalog,
-                            store_product=prod,
-                            name=prod.name[:200],
-                            price=prod.price,
-                            sync_status="synced",
-                            eligible=True
-                        )
+                item, created = WhatsAppCatalogItem.objects.get_or_create(
+                    retailer_id=rid,
+                    defaults={
+                        "catalog": catalog,
+                        "store_product": prod,
+                        "name": prod.name[:200],
+                        "price": prod.price,
+                        "currency": "KES",
+                        "sync_status": "synced",
+                        "product_status": "active",
+                        "eligible": True,
+                        "is_removed": False,
+                        "last_synced_at": now,
+                        "stock_quantity": 10,
+                    }
+                )
+                if not created:
+                    # Ensure visible
+                    item.store_product = prod
+                    item.name = prod.name[:200]
+                    item.price = prod.price
+                    item.sync_status = "synced"
+                    item.product_status = "active"
+                    item.eligible = True
+                    item.is_removed = False
+                    item.last_synced_at = now
+                    if not item.stock_quantity:
+                        item.stock_quantity = 10
+                    item.save()
         
         # Contacts - idempotent
         contacts_data = [
@@ -79,7 +81,7 @@ class Command(BaseCommand):
             )
             contacts.append(c)
         
-        # Only seed conversations if none exist for demo contacts
+        # Conversations + Messages - only if empty
         if WhatsAppConversation.objects.filter(contact__in=contacts).count() == 0:
             for contact in contacts[:4]:
                 conv = WhatsAppConversation.objects.create(
@@ -94,13 +96,14 @@ class Command(BaseCommand):
                         status="READ", timestamp=now - timedelta(hours=j)
                     )
         
-        # MessageLogs - the missing piece for History tab
+        # MessageLogs - THE FIX FOR HISTORY TAB - idempotent
         if WhatsAppMessageLog.objects.count() < 5:
+            template = WhatsAppTemplate.objects.first()
             for i in range(25):
                 contact = random.choice(contacts)
                 try:
                     WhatsAppMessageLog.objects.create(
-                        message_id=f"fake_log_{i}_{get_random_string(4)}",
+                        wa_message_id=f"fake_log_{i}_{get_random_string(6)}",
                         recipient=contact.wa_id,
                         customer_name=contact.profile_name,
                         template_name=random.choice(["hello_world","order_confirmation","promo_offer"]),
@@ -108,19 +111,22 @@ class Command(BaseCommand):
                         status=random.choice(["sent","delivered","read"]),
                         sent_at=now - timedelta(days=random.randint(0,5)),
                         order_reference=f"WA-{random.randint(1000,9999)}" if i%2==0 else "",
+                        contact=contact,
+                        template=template if template and i%3==0 else None,
                     )
                 except Exception as e:
-                    print(f"Log create failed, trying minimal: {e}")
-                    try:
-                        WhatsAppMessageLog.objects.create(
-                            message_id=f"fake_log_{i}_{get_random_string(4)}",
-                            recipient=contact.wa_id,
-                            status="sent",
-                            sent_at=now
-                        )
-                    except Exception as e2:
-                        print(f"Even minimal failed: {e2}")
-                        break
+                    print(f"Log failed {i}: {e}")
+                    break
         
-        print(f"Done: Contacts:{WhatsAppContact.objects.count()} Conv:{WhatsAppConversation.objects.count()} Msg:{WhatsAppMessage.objects.count()} Logs:{WhatsAppMessageLog.objects.count()} CatalogItems:{WhatsAppCatalogItem.objects.count()}")
-
+        # Templates
+        for name, body, cat in [
+            ("hello_world","Hello {{1}}, welcome!","utility"),
+            ("order_confirmation","Order {{1}} confirmed KES {{2}}","utility"),
+            ("promo_offer","Offer {{1}} OFF!","marketing"),
+        ]:
+            WhatsAppTemplate.objects.update_or_create(
+                name=name, language="en",
+                defaults={"category":cat,"status":"APPROVED","body_text":body,"header_type":"none"}
+            )
+        
+        print(f"✅ Done: CatalogItems:{WhatsAppCatalogItem.objects.count()} Contacts:{WhatsAppContact.objects.count()} Conv:{WhatsAppConversation.objects.count()} Msg:{WhatsAppMessage.objects.count()} Logs:{WhatsAppMessageLog.objects.count()}")
