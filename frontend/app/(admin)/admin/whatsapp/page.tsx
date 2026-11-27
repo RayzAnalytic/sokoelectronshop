@@ -602,7 +602,7 @@ function WhatsAppOverviewPage() {
   const handleRefresh = () => void load(period, true);
 
   const connection = data?.connection ?? null;
-  const connected = true; // force show full UI for demo
+  const connected = true;
   const messaging = data?.messaging ?? null;
   const customerCommerce = data?.customerCommerce ?? null;
   const chart = data?.chart ?? [];
@@ -671,7 +671,7 @@ function WhatsAppOverviewPage() {
 
         <ConnectionPanel connection={connection} loading={loading} />
 
-        {connected && (
+        {true && (
           <>
             <div>
               <div className="flex items-center justify-between mb-1.5">
