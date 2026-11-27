@@ -280,7 +280,7 @@ class SocialAccount(models.Model):
     )
     display_name = models.CharField(max_length=255, blank=True)
     username = models.CharField(max_length=128, blank=True)
-    profile_image_url = models.URLField(blank=True)
+    profile_image_url = models.URLField(max_length=2000, blank=True)
     account_type = models.CharField(max_length=64, blank=True)
     account_id = models.CharField(max_length=128, blank=True, db_index=True)
     label = models.CharField(max_length=128, blank=True)
