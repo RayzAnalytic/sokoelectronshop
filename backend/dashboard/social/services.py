@@ -103,7 +103,7 @@ OAUTH_ENDPOINTS: dict[str, dict[str, str]] = {
     SocialPlatform.TIKTOK.value: {
         "auth_url": "https://www.tiktok.com/v2/auth/authorize/",
         "token_url": "https://open.tiktokapis.com/v2/oauth/token/",
-        "scope": "user.info.basic,user.info.stats,video.list,video.publish",
+        "scope": "user.info.basic,user.info.profile,user.info.stats,video.list,video.upload",
     },
 }
 
