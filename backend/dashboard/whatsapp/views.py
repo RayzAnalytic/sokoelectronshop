@@ -327,6 +327,7 @@ class OverviewView(WhatsAppBaseView):
             _resolve_period_bounds(period)
         )
         
+        account = WhatsAppAccount.get_solo()
         connected = account.connection_state == "connected"
 
         if not connected:

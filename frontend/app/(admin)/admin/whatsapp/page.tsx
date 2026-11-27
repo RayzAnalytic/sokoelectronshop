@@ -369,7 +369,7 @@ function ConnectionPanel({
     );
   }
   const meta = STATE_META[connection.state] ?? STATE_META.disconnected;
-  const connected = true; // demo - show full UI
+  const connected = true;
 
   if (!connected) {
     return (
@@ -602,7 +602,7 @@ function WhatsAppOverviewPage() {
   const handleRefresh = () => void load(period, true);
 
   const connection = data?.connection ?? null;
-  const connected = connection?.state === 'connected';
+  const connected = true; // force show full UI for demo
   const messaging = data?.messaging ?? null;
   const customerCommerce = data?.customerCommerce ?? null;
   const chart = data?.chart ?? [];
