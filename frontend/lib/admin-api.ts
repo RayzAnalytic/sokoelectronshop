@@ -3671,7 +3671,7 @@ export const adminApi = {
                         | AdminWhatsAppCatalogItem[]
                         | { results: AdminWhatsAppCatalogItem[] }
                     >(
-                        `/api/v1/whatsapp/catalog/items/${qs ? `?${qs}` : ''}`,
+                        `/api/v1/whatsapp/catalog/items${qs ? `?${qs}` : ''}`,
                         { signal },
                     );
                     return unwrapList(res);
