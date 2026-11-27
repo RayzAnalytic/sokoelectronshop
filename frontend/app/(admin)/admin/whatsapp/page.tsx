@@ -369,7 +369,7 @@ function ConnectionPanel({
     );
   }
   const meta = STATE_META[connection.state] ?? STATE_META.disconnected;
-  const connected = connection.state === 'connected';
+  const connected = true; // demo - show full UI
 
   if (!connected) {
     return (

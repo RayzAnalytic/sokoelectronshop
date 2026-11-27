@@ -224,8 +224,8 @@ class ConnectionView(WhatsAppBaseView):
 
     def get(self, request):
         account = WhatsAppAccount.get_solo()
-            account.is_active = True
-            account.is_active = True
+        account.is_active = True
+        account.is_active = True
         return Response(ConnectionSerializer(account).data)
 
 
