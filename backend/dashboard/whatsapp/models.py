@@ -367,7 +367,49 @@ class WhatsAppCatalogItem(models.Model):
 
     @property
     def display_image_url(self):
-        return self.custom_image_url or self.image_url
+        # Return fresh URL from store_product to avoid expired S3 presigned URLs
+        # Custom image has priority if not expired
+        if self.custom_image_url and "X-Amz-Algorithm" not in self.custom_image_url:
+            return self.custom_image_url
+        
+        # Try to get fresh URL from linked store product
+        try:
+            if self.store_product:
+                imgs = self.store_product.images.all()
+                first = imgs.filter(is_primary=True).first() or imgs.first()
+                if first and first.image:
+                    # This generates fresh presigned URL each time
+                    url = first.image.url
+                    if url:
+                        # Convert to absolute if needed
+                        from django.conf import settings
+                        if url.startswith('/'):
+                            base = getattr(settings, 'MEDIA_URL', '')
+                            if base and not base.startswith('http'):
+                                site_url = getattr(settings, 'SITE_URL', 'https://sokoelectronshop.onrender.com')
+                                url = site_url.rstrip('/') + url
+                        return url
+                # Fallback to external_url if present
+                if first and getattr(first, 'external_url', ''):
+                    return first.external_url
+        except Exception:
+            pass
+        
+        # Fallback to stored image_url if not expired, else custom, else image_url
+        # If image_url contains X-Amz-Algorithm and is expired, try to regenerate
+        candidate = self.custom_image_url or self.image_url
+        if candidate and "X-Amz-Algorithm" in candidate:
+            # Check if expired - if url contains date, try to get fresh from store_product again via direct storage
+            try:
+                if self.store_product:
+                    from catalog.models import ProductImage
+                    img = ProductImage.objects.filter(product=self.store_product).first()
+                    if img and img.image:
+                        return img.image.url
+            except Exception:
+                pass
+        
+        return candidate
 
     @property
     def resolved_display_title(self):

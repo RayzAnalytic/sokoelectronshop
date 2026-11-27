@@ -390,10 +390,20 @@ def _product_image_url(product):
         if manager is not None:
             first = manager.filter(is_primary=True).first() or manager.first()
             if first is not None:
+                # Prefer external_url if set (permanent)
+                ext = getattr(first, "external_url", "")
+                if ext:
+                    return ext
                 img = getattr(first, "image", None)
-                url = getattr(img, "url", None) if img else None
-                if url:
-                    return _absolute_media_url(url)
+                if img:
+                    # Store the name (relative path) not the presigned URL
+                    # So we can regenerate fresh URL later
+                    name = getattr(img, "name", "")
+                    if name:
+                        return name
+                    url = getattr(img, "url", None)
+                    if url:
+                        return _absolute_media_url(url)
     except Exception:
         pass
     for attr in ("image", "featured_image", "primary_image", "thumbnail"):
