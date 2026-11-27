@@ -431,7 +431,9 @@ class SocialAccountStartConnectView(APIView):
         ser = SocialAccountStartConnectSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         platform = ser.validated_data["platform"]
-        callback = request.build_absolute_uri(f"/api/social/oauth/{platform}/callback/")
+        from django.conf import settings
+        env_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if platform == 'tiktok' else None
+        callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{platform}/callback/")
         try:
             authorize_url = start_oauth_connect(platform, request.user, redirect_uri=callback)
         except SocialServiceError as exc:
@@ -446,7 +448,9 @@ class SocialAccountReauthorizeView(APIView):
         account = SocialAccount.objects.filter(pk=pk).first()
         if not account:
             return Response({"detail": "Account not found."}, status=status.HTTP_404_NOT_FOUND)
-        callback = request.build_absolute_uri(f"/api/social/oauth/{account.platform}/callback/")
+        from django.conf import settings
+        env_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if account.platform == 'tiktok' else None
+        callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{account.platform}/callback/")
         try:
             authorize_url = start_oauth_connect(
                 account.platform,
