@@ -227,7 +227,7 @@ class Command(BaseCommand):
                 SocialInboxMessage.objects.create(
                     conversation=conv, direction="inbound" if is_inbound else "outbound",
                     body=random.choice(["Hi, is iPhone 17 available?", "Yes! 180k KES", "Deliver to Nyeri?", "Yes 300 KES", "Thanks order via WhatsApp"]),
-                    author="customer" if is_inbound else "agent", author_name=conv.customer_display_name if is_inbound else "SokoFlow Support", can_reply=True,
+                    author=user if not is_inbound else None, author_name=conv.customer_display_name if is_inbound else "SokoFlow Support", can_reply=True,
                 )
 
         # 11. QUEUE, LINKS, NOTIFICATIONS
