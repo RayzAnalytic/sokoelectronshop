@@ -1,14 +1,13 @@
 import random
-from datetime import timedelta, date, datetime, time
+from datetime import timedelta, time
 from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-
 User = get_user_model()
 
 class Command(BaseCommand):
-    help = "Seed fake social data for frontend display - idempotent"
+    help = "Seed fake social data"
 
     def handle(self, *args, **options):
         from dashboard.social.models import (
@@ -23,44 +22,40 @@ class Command(BaseCommand):
             SocialAttributionEvent, SocialContentMedia, ContentType, ContentStatus,
             CampaignStatus, CampaignType, CampaignObjective, PublishStatus,
             InteractionType, ConversationStatus, MediaKind,
-            AlertSeverity, CampaignAlertType
+            AlertSeverity, CampaignAlertType, AttributionEventType
         )
         from catalog.models import Product
-
         now = timezone.now()
         today = timezone.localdate(now)
         user = User.objects.filter(is_staff=True).first() or User.objects.first()
+        self.stdout.write("=== SEEDING SOCIAL ===")
 
-        self.stdout.write("=== SEEDING SOCIAL FAKE DATA ===")
-
-        # Clear existing
-        if SocialAccount.objects.count() > 0:
-            self.stdout.write(f"Existing accounts: {SocialAccount.objects.count()} - clearing")
-            SocialInboxMessage.objects.all().delete()
-            SocialInboxConversation.objects.all().delete()
-            SocialScheduledPost.objects.all().delete()
-            SocialContentProduct.objects.all().delete()
-            SocialContentMedia.objects.all().delete()
-            SocialCampaignContent.objects.all().delete()
-            SocialCampaignProduct.objects.all().delete()
-            SocialContent.objects.all().delete()
-            SocialCampaignAlert.objects.all().delete()
-            SocialCampaign.objects.all().delete()
-            SocialPlatformDailyMetric.objects.all().delete()
-            SocialFollowerSnapshot.objects.all().delete()
-            SocialEngagementSnapshot.objects.all().delete()
-            SocialMedia.objects.all().delete()
-            SocialMediaFolder.objects.all().delete()
-            SocialLink.objects.all().delete()
-            SocialNotification.objects.all().delete()
-            SocialQueueSlot.objects.all().delete()
-            SocialEvergreenPost.objects.all().delete()
-            SocialActivityLog.objects.all().delete()
-            SocialDemographicSnapshot.objects.all().delete()
-            SocialBestTimePost.objects.all().delete()
-            SocialAttributionEvent.objects.all().delete()
-            SocialContentCategory.objects.all().delete()
-            SocialAccount.objects.all().delete()
+        # Clear
+        SocialInboxMessage.objects.all().delete()
+        SocialInboxConversation.objects.all().delete()
+        SocialScheduledPost.objects.all().delete()
+        SocialContentProduct.objects.all().delete()
+        SocialContentMedia.objects.all().delete()
+        SocialCampaignContent.objects.all().delete()
+        SocialCampaignProduct.objects.all().delete()
+        SocialContent.objects.all().delete()
+        SocialCampaignAlert.objects.all().delete()
+        SocialCampaign.objects.all().delete()
+        SocialPlatformDailyMetric.objects.all().delete()
+        SocialFollowerSnapshot.objects.all().delete()
+        SocialEngagementSnapshot.objects.all().delete()
+        SocialMedia.objects.all().delete()
+        SocialMediaFolder.objects.all().delete()
+        SocialLink.objects.all().delete()
+        SocialNotification.objects.all().delete()
+        SocialQueueSlot.objects.all().delete()
+        SocialEvergreenPost.objects.all().delete()
+        SocialActivityLog.objects.all().delete()
+        SocialDemographicSnapshot.objects.all().delete()
+        SocialBestTimePost.objects.all().delete()
+        SocialAttributionEvent.objects.all().delete()
+        SocialContentCategory.objects.all().delete()
+        SocialAccount.objects.all().delete()
 
         # 1. ACCOUNTS
         accounts_data = [
@@ -79,7 +74,7 @@ class Command(BaseCommand):
                 sync_status=AccountSyncStatus.OK, is_default_publishing=(idx == 0), enabled_for_distribution=True,
                 supports_dm=True, supports_comments=True, supports_mentions=True, supports_reply=True,
                 publishing_formats=["image", "video", "reel", "story"],
-                connected_at=now - timedelta(days=random.randint(30, 90)), last_synced_at=now - timedelta(minutes=random.randint(5, 60)),
+                connected_at=now - timedelta(days=60), last_synced_at=now - timedelta(minutes=10),
                 coverage_start=today - timedelta(days=90), coverage_end=today, label=f"Main {data['platform']}",
             )
             accounts.append(acc)
@@ -90,12 +85,11 @@ class Command(BaseCommand):
             cat, _ = SocialContentCategory.objects.get_or_create(name=name, slug=slug)
             categories.append(cat)
 
-        # 3. MEDIA - use SHORT urls (picsum, not presigned B2)
+        # 3. MEDIA - SHORT URLS
         folder_products, _ = SocialMediaFolder.objects.get_or_create(name="Product Images", slug="product-images")
         products = list(Product.objects.all())
         medias = []
         for prod in products[:11]:
-            # Use short picsum URL - B2 presigned URLs are >200 chars and break URLField(200)
             short_url = f"https://picsum.photos/seed/{prod.sku.lower()}/600/600"
             m = SocialMedia.objects.create(
                 folder=folder_products, kind=MediaKind.IMAGE, name=f"{prod.name[:80]}",
@@ -109,12 +103,12 @@ class Command(BaseCommand):
         campaigns = []
         for cd in [
             {"name": "iPhone 17 Pro Max Launch", "type": CampaignType.PRODUCT_LAUNCH, "objective": CampaignObjective.SALES, "status": CampaignStatus.ACTIVE, "platforms": ["instagram", "facebook", "tiktok"], "desc": "Launch campaign for new iPhone 17 Pro Max"},
-            {"name": "Back to School Tech Deals", "type": CampaignType.SEASONAL, "objective": CampaignObjective.CONVERSIONS, "status": CampaignStatus.ACTIVE, "platforms": ["instagram", "facebook", "tiktok", "youtube"], "desc": "Laptops and accessories for students"},
-            {"name": "Black Friday Countdown", "type": CampaignType.DISCOUNT, "objective": CampaignObjective.TRAFFIC, "status": CampaignStatus.SCHEDULED, "platforms": ["instagram", "facebook"], "desc": "Teasing Black Friday deals"},
+            {"name": "Back to School Tech Deals", "type": CampaignType.SEASONAL, "objective": CampaignObjective.CONVERSIONS, "status": CampaignStatus.ACTIVE, "platforms": ["instagram", "facebook", "tiktok", "youtube"], "desc": "Laptops for students"},
+            {"name": "Black Friday Countdown", "type": CampaignType.DISCOUNT, "objective": CampaignObjective.TRAFFIC, "status": CampaignStatus.SCHEDULED, "platforms": ["instagram", "facebook"], "desc": "Teasing Black Friday"},
         ]:
             camp = SocialCampaign.objects.create(
                 name=cd["name"], description=cd["desc"], type=cd["type"], objective=cd["objective"], status=cd["status"],
-                start_date=today - timedelta(days=random.randint(0, 10)), end_date=today + timedelta(days=random.randint(15, 45)),
+                start_date=today - timedelta(days=2), end_date=today + timedelta(days=30),
                 platforms=cd["platforms"], owner=user,
                 planned_budget=Decimal(random.randint(50000, 200000)), actual_spend=Decimal(random.randint(10000, 50000)),
                 attributed_revenue=Decimal(random.randint(100000, 500000)), currency="KES", roas=round(random.uniform(2.5, 6.5), 2),
@@ -128,7 +122,7 @@ class Command(BaseCommand):
         contents = []
         for i, prod in enumerate(products[:8]):
             title = f"New Arrival: {prod.name[:40]}"
-            caption = f"Just landed! {prod.name[:80]} now in stock. Limited units. Order via WhatsApp! Price {prod.price} KES"
+            caption = f"Just landed! {prod.name[:80]} now in stock. Price {prod.price} KES"
             ct = SocialContent.objects.create(
                 title=title, caption=caption, description=f"Content for {prod.sku}",
                 content_type=random.choice([ContentType.IMAGE, ContentType.REEL, ContentType.VIDEO]),
@@ -147,16 +141,17 @@ class Command(BaseCommand):
             for ct in random.sample(contents, k=min(2, len(contents))):
                 SocialCampaignContent.objects.get_or_create(campaign=camp, content=ct, defaults={"reach": random.randint(5000, 20000), "impressions": random.randint(10000, 40000), "views": random.randint(5000, 25000), "engagement": random.randint(300, 2000), "clicks": random.randint(100, 800)})
 
-        # 6. SCHEDULED POSTS
+        # 6. SCHEDULED POSTS - MAKE 5 RECENT (last 3 days) FOR 7d OVERVIEW
         for idx in range(15):
             ct = random.choice(contents) if contents else None
             acc = random.choice(accounts)
-            if idx < 5:
-                scheduled_at = now - timedelta(days=random.randint(1, 20), hours=random.randint(0, 23))
+            if idx < 6:
+                # RECENT - within 7d for overview KPIs
+                scheduled_at = now - timedelta(days=random.randint(0, 3), hours=random.randint(0, 23))
                 status_val = PublishStatus.PUBLISHED
                 published_at = scheduled_at + timedelta(minutes=5)
-            elif idx < 10:
-                scheduled_at = now + timedelta(days=random.randint(1, 10), hours=random.randint(0, 23))
+            elif idx < 11:
+                scheduled_at = now + timedelta(days=random.randint(1, 7), hours=random.randint(0, 23))
                 status_val = PublishStatus.SCHEDULED
                 published_at = None
             else:
@@ -164,21 +159,33 @@ class Command(BaseCommand):
                 status_val = random.choice([PublishStatus.DRAFT, PublishStatus.FAILED, PublishStatus.QUEUED])
                 published_at = None
             SocialScheduledPost.objects.create(
-                content=ct, content_title=ct.title if ct else f"Post {idx+1}", caption=ct.caption if ct else f"Scheduled post {idx+1}",
-                content_type=ct.content_type if ct else ContentType.IMAGE, platform=acc.platform, account=acc,
-                campaign=random.choice(campaigns) if campaigns and random.random() > 0.3 else None, owner=user,
-                scheduled_at=scheduled_at, timezone="Africa/Nairobi", status=status_val, published_at=published_at,
+                content=ct,
+                content_title=ct.title if ct else f"Post {idx+1}",
+                caption=ct.caption if ct else f"Scheduled post {idx+1}",
+                content_type=ct.content_type if ct else ContentType.IMAGE,
+                platform=acc.platform,
+                account=acc,
+                campaign=random.choice(campaigns) if campaigns and random.random() > 0.3 else None,
+                owner=user,
+                scheduled_at=scheduled_at,
+                timezone="Africa/Nairobi",
+                status=status_val,
+                published_at=published_at,
                 published_url=f"https://{acc.platform}.com/p/{random.randint(100000, 999999)}" if published_at else "",
-                likes=random.randint(100, 5000) if published_at else None, comments=random.randint(10, 500) if published_at else None,
-                shares=random.randint(5, 300) if published_at else None, reach=random.randint(1000, 20000) if published_at else None,
-                impressions=random.randint(2000, 40000) if published_at else None, views=random.randint(1000, 30000) if published_at else None,
-                link_clicks=random.randint(20, 500) if published_at else None, attributed_orders=random.randint(0, 20) if published_at else None,
-                attributed_revenue=Decimal(random.randint(0, 50000)) if published_at else 0),
+                likes=random.randint(100, 5000) if published_at else None,
+                comments=random.randint(10, 500) if published_at else None,
+                shares=random.randint(5, 300) if published_at else None,
+                reach=random.randint(1000, 20000) if published_at else None,
+                impressions=random.randint(2000, 40000) if published_at else None,
+                views=random.randint(1000, 30000) if published_at else None,
+                link_clicks=random.randint(20, 500) if published_at else None,
+                attributed_orders=random.randint(0, 20) if published_at else None,
+                attributed_revenue=Decimal(random.randint(0, 50000)) if published_at else Decimal(0),
                 failure_reason="Failed to publish: API rate limit" if status_val == PublishStatus.FAILED else "",
                 thumbnail_url=f"https://picsum.photos/seed/post{idx}/400/400",
             )
 
-        # 7. DAILY METRICS - 30 days
+        # 7. DAILY METRICS - 30 days (ensures 7d has data)
         for acc in accounts:
             for d in range(30):
                 day = today - timedelta(days=d)
@@ -202,16 +209,16 @@ class Command(BaseCommand):
                 for hour in [9, 12, 15, 18, 20]:
                     SocialBestTimePost.objects.create(platform=plat, day_of_week=day, hour=hour, score=round(random.uniform(0.3, 0.95), 2), sample_size=random.randint(20, 200))
 
-        # 10. INBOX
+        # 10. INBOX - with first_response_at = None to count as unanswered
         customer_names = ["Brian Otieno", "Aisha Mohammed", "John Kamau", "Grace Wanjiku", "David Mwangi", "Faith Chebet", "Kevin Ochieng", "Linda Njeri"]
         for i in range(8):
             acc = random.choice(accounts)
             conv = SocialInboxConversation.objects.create(
                 platform=acc.platform, account=acc,
-                type=random.choice([InteractionType.DM, InteractionType.COMMENT]), status=random.choice([ConversationStatus.UNREAD, ConversationStatus.READ, ConversationStatus.PENDING, ConversationStatus.RESOLVED]),
+                type=random.choice([InteractionType.DM, InteractionType.COMMENT]), status=random.choice([ConversationStatus.UNREAD, ConversationStatus.READ, ConversationStatus.PENDING]),
                 customer_display_name=random.choice(customer_names), customer_username=f"user_{random.randint(1000, 9999)}",
                 customer_avatar_url=f"https://picsum.photos/seed/c{i}/100/100",
-                preview=random.choice(["Is this still available?", "How much delivery to Nakuru?", "Do you have warranty?", "I love this!"]),
+                preview=random.choice(["Is this still available?", "How much delivery to Nakuru?", "Do you have warranty?"]),
                 related_post_title=random.choice(contents).title if contents else "",
                 last_interaction_at=now - timedelta(hours=random.randint(1, 72)), unread=(i < 3),
             )
@@ -226,42 +233,25 @@ class Command(BaseCommand):
         # 11. QUEUE, LINKS, NOTIFICATIONS
         for name, days in [("Morning Rush", [1,2,3,4,5]), ("Evening Peak", [1,2,3,4,5,6,0])]:
             SocialQueueSlot.objects.create(name=name, days=days, time_of_day=time(hour=random.choice([9, 18])), timezone="Africa/Nairobi", platforms=["instagram", "facebook"], is_active=True)
-
         for i in range(5):
-            SocialLink.objects.create(short_code=f"soko{i}", destination=f"https://sokoelectronshop.onrender.com/", utm=f"utm_source=instagram&utm_medium=social", clicks=random.randint(10, 500), created_by=user)
-
+            SocialLink.objects.create(short_code=f"soko{i}", destination=f"https://sokoelectronshop.onrender.com/", utm=f"utm_source=instagram", clicks=random.randint(10, 500), created_by=user)
         for i in range(6):
-            SocialNotification.objects.create(
-                notification_type=random.choice(["publish_success", "publish_failed", "campaign_ending", "inbox_message"]),
-                severity=random.choice([AlertSeverity.INFO, AlertSeverity.WARNING]), title=random.choice(["Post published", "Failed publish", "Campaign ending", "New message"]), message="Check details", link="/admin/social", is_read=(i > 2), recipient=user,
-            )
-
+            SocialNotification.objects.create(notification_type=random.choice(["publish_success", "publish_failed"]), severity=random.choice([AlertSeverity.INFO, AlertSeverity.WARNING]), title=random.choice(["Post published", "Failed publish"]), message="Check details", link="/admin/social", is_read=(i > 2), recipient=user)
         for plat in [SocialPlatform.INSTAGRAM.value, SocialPlatform.FACEBOOK.value]:
             SocialDemographicSnapshot.objects.create(platform=plat, date=today, age_buckets={"18-24": 35, "25-34": 40}, gender={"male": 60, "female": 38}, top_cities=["Nairobi", "Mombasa"], top_countries=["KE", "UG"])
-
         for ct in contents[:3]:
             SocialEvergreenPost.objects.create(content=ct, caption=ct.caption, platforms=ct.platforms, is_active=True, use_count=random.randint(0, 10))
-
         for act in ["published", "scheduled", "campaign", "message"]:
             SocialActivityLog.objects.create(kind=act, title=f"{act.capitalize()} - Test content", platform=random.choice(["instagram", "facebook", "tiktok"]), status=random.choice(["success", "pending"]), occurred_at=now - timedelta(hours=random.randint(1, 48)))
-
-        for i in range(10):
-            prod = random.choice(products) if products else None
-            SocialAttributionEvent.objects.create(
-                event_type="purchase", platform=random.choice([SocialPlatform.INSTAGRAM.value, SocialPlatform.FACEBOOK.value]), account=random.choice(accounts), 
-                campaign=random.choice(campaigns) if campaigns else None, product_id=prod.sku if prod else f"PROD_{i}", order_id=f"ORD-{random.randint(10000, 99999)}", units=random.randint(1, 3), revenue=Decimal(random.randint(3000, 180000)), currency="KES", utm_source=random.choice(["instagram", "facebook"]), utm_medium="social", is_verified_paid=True, occurred_at=now - timedelta(days=random.randint(0, 14)),
-            )
-
+        # Attribution - need different event_types for ecommerce funnel
+        for ev_type in [AttributionEventType.VISIT, AttributionEventType.PRODUCT_VIEW, AttributionEventType.ADD_TO_CART, AttributionEventType.ORDER]:
+            for _ in range(5):
+                prod = random.choice(products) if products else None
+                SocialAttributionEvent.objects.create(
+                    event_type=ev_type, platform=random.choice([SocialPlatform.INSTAGRAM.value, SocialPlatform.FACEBOOK.value]), account=random.choice(accounts),
+                    campaign=random.choice(campaigns) if campaigns else None, product_id=prod.sku if prod else f"PROD_{random.randint(1,100)}", order_id=f"ORD-{random.randint(10000, 99999)}", units=random.randint(1, 3), revenue=Decimal(random.randint(3000, 180000)), currency="KES", utm_source=random.choice(["instagram", "facebook"]), utm_medium="social", is_verified_paid=True, occurred_at=now - timedelta(days=random.randint(0, 3)),
+                )
         for camp in campaigns[:2]:
             SocialCampaignAlert.objects.create(campaign=camp, type=CampaignAlertType.ENDING_SOON, message=f"Campaign {camp.name} ending in 3 days", severity=AlertSeverity.WARNING)
 
-        self.stdout.write(self.style.SUCCESS(f"""
-✅ SOCIAL SEED COMPLETE:
-- Accounts: {SocialAccount.objects.count()}
-- Campaigns: {SocialCampaign.objects.count()}
-- Contents: {SocialContent.objects.count()}
-- ScheduledPosts: {SocialScheduledPost.objects.count()}
-- DailyMetrics: {SocialPlatformDailyMetric.objects.count()}
-- Inbox: {SocialInboxConversation.objects.count()} conv + {SocialInboxMessage.objects.count()} msgs
-- Media: {SocialMedia.objects.count()}
-"""))
+        self.stdout.write(self.style.SUCCESS(f"✅ SEED COMPLETE: Accounts {SocialAccount.objects.count()}, Campaigns {SocialCampaign.objects.count()}, Contents {SocialContent.objects.count()}, Posts {SocialScheduledPost.objects.count()}, Metrics {SocialPlatformDailyMetric.objects.count()}, Inbox {SocialInboxConversation.objects.count()}"))
