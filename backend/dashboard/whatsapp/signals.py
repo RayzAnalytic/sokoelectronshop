@@ -459,22 +459,31 @@ def on_product_deleted(sender, instance, **kwargs):
 def _sync_product_to_catalog(catalog, product):
     try:
         from .services import _product_to_item_fields, _resolve_sync_status, sync_catalog_item
+        from django.db import models as _models
 
         retailer_id = (product.sku or f"prod_{product.pk}").lower()
         item = WhatsAppCatalogItem.objects.filter(
-            catalog=catalog, retailer_id=retailer_id
+            catalog=catalog
+        ).filter(
+            _models.Q(retailer_id=retailer_id) | _models.Q(store_product_id=product.pk)
         ).first()
         if item:
             if not item.store_product_id:
                 item.store_product = product
+                item.store_product_id = product.pk
+                item.save(update_fields=["store_product", "store_product_id", "updated_at"])
             sync_catalog_item(item)
         else:
             fields = _product_to_item_fields(product, catalog)
+            # Ensure retailer_id is sku.lower() and store_product linked
+            fields["retailer_id"] = retailer_id
+            fields["store_product"] = product
+            fields["store_product_id"] = product.pk
             WhatsAppCatalogItem.objects.create(
                 catalog=catalog,
                 sync_status=_resolve_sync_status(fields, catalog),
                 last_synced_at=timezone.now(),
-                **fields,
+                **{k: v for k, v in fields.items() if k != "store_product_id"},
             )
     except Exception:
         logger.exception(

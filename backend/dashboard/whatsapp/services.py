@@ -572,7 +572,7 @@ def _product_to_item_fields(product, catalog):
     description = getattr(product, "description", "") or ""
 
     return {
-        "retailer_id": str(product.pk),
+        "retailer_id": (_product_sku(product) or f"prod_{product.pk}").lower(),
         "sku": (_product_sku(product) or "")[:200],
         "store_product": product,
         "store_category": _product_store_category(product),
@@ -618,8 +618,15 @@ def sync_catalog_item(item: WhatsAppCatalogItem):
         return item
 
     fields = _product_to_item_fields(item.store_product, item.catalog)
+    # Keep original retailer_id - don't overwrite with pk
+    original_retailer_id = item.retailer_id
     for key, value in fields.items():
+        if key == "retailer_id":
+            continue
         setattr(item, key, value)
+    # Ensure retailer_id stays sku.lower()
+    if not original_retailer_id:
+        item.retailer_id = fields.get("retailer_id", original_retailer_id)
     item.is_removed = False
     item.removed_at = None
     item.sync_status = _resolve_sync_status(fields, item.catalog)
