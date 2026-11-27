@@ -129,6 +129,16 @@ env = environ.Env(
     TIKTOK_CLIENT_KEY=(str, ""),
     TIKTOK_CLIENT_SECRET=(str, ""),
     TIKTOK_SCOPES=(str, "user.info.basic,video.publish,video.upload"),
+    TIKTOK_REDIRECT_URI=(str, "https://admin.sokoflow.com/api/v1/social/oauth/tiktok/callback/"),
+    TIKTOK_API_BASE_URL=(str, "https://open.tiktokapis.com"),
+    TIKTOK_AUTH_URL=(str, "https://www.tiktok.com/v2/auth/authorize/"),
+    TIKTOK_TOKEN_URL=(str, "https://open.tiktokapis.com/v2/oauth/token/"),
+    TIKTOK_USER_INFO_URL=(str, "https://open.tiktokapis.com/v2/user/info/"),
+    TIKTOK_VIDEO_LIST_URL=(str, "https://open.tiktokapis.com/v2/video/list/"),
+    TIKTOK_VIDEO_UPLOAD_URL=(str, "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"),
+    TIKTOK_WEBHOOK_URL=(str, "https://admin.sokoflow.com/api/v1/social/webhooks/tiktok/"),
+    TIKTOK_ENVIRONMENT=(str, "sandbox"),
+    TIKTOK_ENABLED=(bool, True),
 
     GOOGLE_OAUTH_CLIENT_ID=(str, ""),
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
@@ -903,6 +913,16 @@ META_SOCIAL_SCOPES = env.list("META_SOCIAL_SCOPES")
 TIKTOK_CLIENT_KEY = env("TIKTOK_CLIENT_KEY")
 TIKTOK_CLIENT_SECRET = env("TIKTOK_CLIENT_SECRET")
 TIKTOK_SCOPES = env.list("TIKTOK_SCOPES")
+TIKTOK_REDIRECT_URI = env("TIKTOK_REDIRECT_URI")
+TIKTOK_API_BASE_URL = env("TIKTOK_API_BASE_URL")
+TIKTOK_AUTH_URL = env("TIKTOK_AUTH_URL")
+TIKTOK_TOKEN_URL = env("TIKTOK_TOKEN_URL")
+TIKTOK_USER_INFO_URL = env("TIKTOK_USER_INFO_URL")
+TIKTOK_VIDEO_LIST_URL = env("TIKTOK_VIDEO_LIST_URL")
+TIKTOK_VIDEO_UPLOAD_URL = env("TIKTOK_VIDEO_UPLOAD_URL")
+TIKTOK_WEBHOOK_URL = env("TIKTOK_WEBHOOK_URL")
+TIKTOK_ENVIRONMENT = env("TIKTOK_ENVIRONMENT")
+TIKTOK_ENABLED = env("TIKTOK_ENABLED")
 
 YOUTUBE_REDIRECT_URI = env("YOUTUBE_REDIRECT_URI", default="")
 YOUTUBE_SCOPES = env.list("YOUTUBE_SCOPES", default=[])
