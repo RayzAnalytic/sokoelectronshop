@@ -51,6 +51,7 @@ type PlatformAccount = {
     platform: PlatformKey;
     status: ConnectionStatus;
     account_name?: string | null;
+    display_name?: string | null;
     username?: string | null;
     last_synced_at?: string | null;
     error?: string | null;
@@ -204,7 +205,7 @@ function currentPageFromPath(pathname: string): { label: string; href: string } 
         (n) => pathname === n.href || pathname.startsWith(`${n.href}/`),
     );
     if (match) return { label: match.label, href: match.href };
-    return { label: 'Overview', href: '/social/overview' };
+    return { label: 'Overview', href: '/admin/social' };
 }
 
 function InlineSpinner({ className = 'h-3.5 w-3.5' }: { className?: string }) {
@@ -231,11 +232,11 @@ function PlatformPill({
     const Icon = meta.icon;
     const effectiveStatus: ConnectionStatus = connecting ? 'connecting' : account.status;
     const sm = statusMeta(effectiveStatus);
-    const displayAccount = account.account_name || account.username || null;
+    const displayAccount = account.account_name || account.display_name || account.username || null;
 
     return (
         <Link
-            href={`/social/accounts?platform=${account.platform}`}
+            href={`/admin/social/accounts?platform=${account.platform}`}
             className="group flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded px-2.5 py-2 transition min-w-0"
             title={
                 sm.warn && account.error
@@ -412,10 +413,10 @@ function NotificationsMenu({
 
 function QuickActions() {
     const actions = [
-        { href: '/social/content-studio?action=create', label: 'Create content', icon: PlusCircle },
-        { href: '/social/publishing-calendar?action=schedule', label: 'Schedule post', icon: CalendarDays },
-        { href: '/social/inbox-community', label: 'View messages', icon: MessageSquare },
-        { href: '/social/accounts?action=connect', label: 'Connect account', icon: UserPlus },
+        { href: '/admin/social/content-studio?action=create', label: 'Create content', icon: PlusCircle },
+        { href: '/admin/social/publishing-calendar?action=schedule', label: 'Schedule post', icon: CalendarDays },
+        { href: '/admin/social/inbox-community', label: 'View messages', icon: MessageSquare },
+        { href: '/admin/social/accounts?action=connect', label: 'Connect account', icon: UserPlus },
     ];
 
     return (
@@ -439,7 +440,7 @@ function QuickActions() {
 }
 
 function SocialLayoutContent({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname() || '/social/overview';
+    const pathname = usePathname() || '/admin/social';
     const router = useRouter();
 
     const [accounts, setAccounts] = useState<PlatformAccount[] | null>(null);
@@ -459,19 +460,22 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
 
     const currentPage = currentPageFromPath(pathname);
     const isOverviewPath =
-        pathname === '/social' || pathname === '/social/overview';
+        pathname === '/admin/social' || pathname === '/admin/social/overview';
 
     const loadAccounts = useCallback(async () => {
         setAccountsError(null);
         try {
-            const res = await (api as any).social?.accounts?.list ? (api as any).social.accounts.list() : (api as any).getSocialAccounts?.();
+            const res = await ((api as any).social?.accounts?.list ? (api as any).social.accounts.list() : (api as any).getSocialAccounts?.());
             const list: PlatformAccount[] = Array.isArray(res?.accounts)
                 ? res.accounts
                 : [];
             const byPlatform = new Map<PlatformKey, PlatformAccount>();
             for (const a of list) {
                 if (a && PLATFORM_ORDER.includes(a.platform)) {
-                    byPlatform.set(a.platform, a);
+                    const existing = byPlatform.get(a.platform);
+                    if (!existing || (existing.status !== 'connected' && a.status === 'connected')) {
+                        byPlatform.set(a.platform, a);
+                    }
                 }
             }
             const normalized: PlatformAccount[] = PLATFORM_ORDER.map(
@@ -509,7 +513,9 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
             const res = await (api as any).social?.notifications?.list?.({}) ?? await (api as any).social?.notifications?.({}) ?? { notifications: [] };
             const list: SocialNotification[] = Array.isArray(res?.notifications)
                 ? res.notifications
-                : [];
+                : Array.isArray(res?.results)
+                    ? res.results
+                    : [];
             setNotifications(list);
         } catch (err) {
             if (err instanceof ApiError && err.status === 404) {
@@ -530,7 +536,7 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
     }, [loadAccounts, loadNotifications]);
 
     useEffect(() => {
-        if (pathname.startsWith('/social/accounts')) {
+        if (pathname.startsWith('/admin/social/accounts')) {
             void loadAccounts();
         }
     }, [pathname, loadAccounts]);
@@ -544,10 +550,9 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
         setRefreshing(true);
         setRefreshError(null);
         try {
-            const sync = (api as unknown as { syncSocialAccounts?: () => Promise<unknown> })
-                .syncSocialAccounts;
+            const sync = (api as any).social?.syncSocialAccounts ?? (api as any).syncSocialAccounts;
             if (typeof sync === 'function') {
-                await sync.call(api);
+                await sync();
             }
             await Promise.all([loadAccounts(), loadNotifications()]);
         } catch (err) {
@@ -572,7 +577,7 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
         e.preventDefault();
         const q = searchQuery.trim();
         if (!q) return;
-        router.push(`/social/content-studio?q=${encodeURIComponent(q)}`);
+        router.push(`/admin/social/content-studio?q=${encodeURIComponent(q)}`);
         setSearchOpen(false);
         setSearchQuery('');
     };
