@@ -143,66 +143,68 @@ from django.dispatch import receiver
 from catalog.models import Product
 from dashboard.whatsapp.models import WhatsAppCatalog, WhatsAppCatalogItem
 
-@receiver(post_save, sender=Product)
-def sync_product_to_whatsapp_catalog(sender, instance, created, **kwargs):
-    """Auto-create/update WhatsAppCatalogItem when catalog Product is saved"""
-    try:
-        catalog = WhatsAppCatalog.get_solo()
-        sku = (instance.sku or f"PROD_{instance.id}")[:100]
+# DISABLED: duplicate of dashboard.whatsapp.signals.on_product_saved
+# @receiver(post_save, sender=Product)
+# def sync_product_to_whatsapp_catalog(sender, instance, created, **kwargs):
+#     """Auto-create/update WhatsAppCatalogItem when catalog Product is saved"""
+#     try:
+#         catalog = WhatsAppCatalog.get_solo()
+#         sku = (instance.sku or f"PROD_{instance.id}")[:100]
         
-        # Truncate to avoid varchar(200) error
-        name = instance.name[:180]
+#         # Truncate to avoid varchar(200) error
+#         name = instance.name[:180]
         
-        defaults = {
-            "store_product": instance,
-            "sku": sku[:100],
-            "name": name,
-            "store_product_name": instance.name[:250],
-            "store_product_slug": (instance.slug or "")[:200],
-            "description": (getattr(instance, 'description', '') or instance.name)[:900],
-            "product_status": "active",
-            "sync_status": "pending",
-            "product_url": f"/products/{instance.slug}" if instance.slug else "",
-        }
+#         defaults = {
+#             "store_product": instance,
+#             "sku": sku[:100],
+#             "name": name,
+#             "store_product_name": instance.name[:250],
+#             "store_product_slug": (instance.slug or "")[:200],
+#             "description": (getattr(instance, 'description', '') or instance.name)[:900],
+#             "product_status": "active",
+#             "sync_status": "pending",
+#             "product_url": f"/products/{instance.slug}" if instance.slug else "",
+#         }
         
-        # Try get price
-        try:
-            if hasattr(instance, 'price') and instance.price:
-                defaults["price"] = float(instance.price)
-            elif hasattr(instance, 'base_price') and instance.base_price:
-                defaults["price"] = float(instance.base_price)
-        except:
-            pass
+#         # Try get price
+#         try:
+#             if hasattr(instance, 'price') and instance.price:
+#                 defaults["price"] = float(instance.price)
+#             elif hasattr(instance, 'base_price') and instance.base_price:
+#                 defaults["price"] = float(instance.base_price)
+#         except:
+#             pass
         
-        # Try image
-        try:
-            first_img = instance.images.first()
-            if first_img and first_img.image:
-                defaults["image_url"] = str(first_img.image.url)[:500]
-        except:
-            pass
+#         # Try image
+#         try:
+#             first_img = instance.images.first()
+#             if first_img and first_img.image:
+#                 defaults["image_url"] = str(first_img.image.url)[:500]
+#         except:
+#             pass
         
-        item, created_item = WhatsAppCatalogItem.objects.update_or_create(
-            catalog=catalog,
-            retailer_id=sku,
-            defaults=defaults
-        )
+#         item, created_item = WhatsAppCatalogItem.objects.update_or_create(
+#             catalog=catalog,
+#             retailer_id=sku,
+#             defaults=defaults
+#         )
         
-        if created_item:
-            print(f"Auto-synced new product to WhatsApp: {name}")
-        else:
-            print(f"Auto-updated WhatsApp catalog item: {name}")
+#         if created_item:
+#             print(f"Auto-synced new product to WhatsApp: {name}")
+#         else:
+#             print(f"Auto-updated WhatsApp catalog item: {name}")
             
-    except Exception as e:
-        print(f"WhatsApp auto-sync failed: {e}")
-        # Don't raise - don't block product save
+#     except Exception as e:
+#         print(f"WhatsApp auto-sync failed: {e}")
+#         # Don't raise - don't block product save
 
-@receiver(post_delete, sender=Product)
-def remove_product_from_whatsapp_catalog(sender, instance, **kwargs):
-    """Remove WhatsAppCatalogItem when catalog Product is deleted"""
-    try:
-        sku = (instance.sku or f"PROD_{instance.id}")[:100]
-        WhatsAppCatalogItem.objects.filter(retailer_id=sku).delete()
-        print(f"Removed from WhatsApp catalog: {sku}")
-    except Exception as e:
-        print(f"WhatsApp auto-remove failed: {e}")
+# DISABLED: duplicate of dashboard.whatsapp.signals.on_product_deleted
+# @receiver(post_delete, sender=Product)
+# def remove_product_from_whatsapp_catalog(sender, instance, **kwargs):
+#     """Remove WhatsAppCatalogItem when catalog Product is deleted"""
+#     try:
+#         sku = (instance.sku or f"PROD_{instance.id}")[:100]
+#         WhatsAppCatalogItem.objects.filter(retailer_id=sku).delete()
+#         print(f"Removed from WhatsApp catalog: {sku}")
+#     except Exception as e:
+#         print(f"WhatsApp auto-remove failed: {e}")

@@ -567,13 +567,13 @@ def _product_to_item_fields(product, catalog):
     else:
         eligible = True
 
-    product_name = (getattr(product, "name", "") or "")[:255]
-    slug = (getattr(product, "slug", "") or "")[:255]
+    product_name = (getattr(product, "name", "") or "")[:200]
+    slug = (getattr(product, "slug", "") or "")[:200]
     description = getattr(product, "description", "") or ""
 
     return {
         "retailer_id": str(product.pk),
-        "sku": _product_sku(product),
+        "sku": (_product_sku(product) or "")[:200],
         "store_product": product,
         "store_category": _product_store_category(product),
         "store_product_name": product_name,
@@ -585,10 +585,10 @@ def _product_to_item_fields(product, catalog):
         "price": price,
         "sale_price": sale_price,
         "currency": "KES",
-        "image_url": image_url,
-        "product_url": _product_url(product),
-        "category": _product_category(product),
-        "brand": _product_brand(product),
+        "image_url": (image_url or "")[:200],
+        "product_url": (_product_url(product) or "")[:200],
+        "category": (_product_category(product) or "")[:200],
+        "brand": (_product_brand(product) or "")[:200],
         "tags": tags,
         "variations_count": _product_variations_count(product),
         "in_stock": in_stock,
