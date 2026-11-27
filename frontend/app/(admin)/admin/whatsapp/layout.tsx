@@ -200,7 +200,7 @@ function WhatsAppTopbarContent() {
             <div className="px-3 sm:px-4 lg:px-5 py-2.5">
                 <div className="flex items-center gap-2 sm:gap-3">
                     <Link
-                        href="/whatsapp/overview"
+                        href="/admin/whatsapp"
                         className="flex items-center gap-2 min-w-0 shrink-0"
                     >
                         <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
@@ -425,7 +425,7 @@ function WhatsAppTopbarContent() {
     );
 }
 
-export default function WhatsAppTopbar(props: Record<string, unknown>) {
+function WhatsAppTopbar() {
     return (
         <Suspense
             fallback={
@@ -434,7 +434,20 @@ export default function WhatsAppTopbar(props: Record<string, unknown>) {
                 </div>
             }
         >
-            <WhatsAppTopbarContent {...props} />
+            <WhatsAppTopbarContent />
         </Suspense>
+    );
+}
+
+export default function WhatsAppLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="min-h-screen bg-slate-50">
+            <WhatsAppTopbar />
+            <main className="min-h-[calc(100vh-52px)]">{children}</main>
+        </div>
     );
 }
