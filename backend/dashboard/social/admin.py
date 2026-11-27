@@ -293,7 +293,7 @@ class SocialAccountSyncLogAdmin(admin.ModelAdmin):
 @admin.register(SocialAccountShare)
 class SocialAccountShareAdmin(admin.ModelAdmin):
     list_display = ("id", "account", "staff", "permissions", "updated_at")
-    search_fields = ("account__display_name", "staff__username", "staff__email")
+    search_fields = ("account__display_name", "staff__email")
     readonly_fields = ("created_at", "updated_at")
 
 
@@ -1002,7 +1002,7 @@ class SocialActivityLogAdmin(admin.ModelAdmin):
 class SocialAuditLogAdmin(admin.ModelAdmin):
     list_display = ("id", "action", "actor", "target_type", "target_id", "created_at")
     list_filter = ("action", "target_type")
-    search_fields = ("action", "target_id", "actor__username")
+    search_fields = ("action", "target_id", "actor__email")
     ordering = ("-created_at",)
     date_hierarchy = "created_at"
     readonly_fields = ("actor", "action", "target_type", "target_id", "details", "created_at")
@@ -1012,8 +1012,8 @@ class SocialAuditLogAdmin(admin.ModelAdmin):
 class SocialTeamMemberAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "role", "is_active", "invited_at", "joined_at")
     list_filter = ("role", "is_active")
-    search_fields = ("user__username", "user__email")
-    ordering = ("role", "user__username")
+    search_fields = ("user__email",)
+    ordering = ("role", "user__email")
     readonly_fields = ("created_at", "updated_at")
 
 

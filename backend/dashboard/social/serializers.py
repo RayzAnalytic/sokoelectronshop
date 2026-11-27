@@ -1507,7 +1507,7 @@ class SocialAuditLogSerializer(serializers.ModelSerializer):
 class SocialTeamMemberSerializer(serializers.ModelSerializer):
     id = serializers.CharField(read_only=True)
     user_id = serializers.CharField(source="user.id", read_only=True)
-    username = serializers.CharField(source="user.username", read_only=True)
+    username = serializers.CharField(source="user.email", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
     full_name = serializers.SerializerMethodField()
 

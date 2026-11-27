@@ -832,7 +832,7 @@ def list_content(filters: dict[str, Any]) -> list[SocialContent]:
             Q(title__icontains=q)
             | Q(caption__icontains=q)
             | Q(description__icontains=q)
-            | Q(owner__username__icontains=q)
+            | Q(owner__email__icontains=q)
             | Q(owner__first_name__icontains=q)
             | Q(owner__last_name__icontains=q)
         )
@@ -2003,7 +2003,7 @@ def get_inbox_metrics() -> dict[str, Any]:
     workload_rows = (
         active_qs.filter(assigned_to__isnull=False)
         .exclude(status=ConversationStatus.RESOLVED)
-        .values("assigned_to_id", "assigned_to__first_name", "assigned_to__last_name", "assigned_to__username")
+        .values("assigned_to_id", "assigned_to__first_name", "assigned_to__last_name", "assigned_to__email")
         .annotate(assigned_count=Count("id"))
         .order_by("-assigned_count")
     )
@@ -2013,7 +2013,7 @@ def get_inbox_metrics() -> dict[str, Any]:
         staff_workload.append(
             {
                 "staff_id": str(w["assigned_to_id"]),
-                "staff_name": full or w["assigned_to__username"] or "Staff",
+                "staff_name": full or w["assigned_to__email"] or "Staff",
                 "assigned_count": w["assigned_count"],
             }
         )
