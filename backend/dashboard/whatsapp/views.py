@@ -228,6 +228,7 @@ class ConnectionView(WhatsAppBaseView):
             account.connection_state = 'connected'
             account.is_active = True
             account.is_active = True
+            account.is_active = True
         return Response(ConnectionSerializer(account).data)
 
 
