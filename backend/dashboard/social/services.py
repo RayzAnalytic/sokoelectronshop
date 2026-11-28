@@ -473,13 +473,17 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
 
 def _fetch_platform_profile(platform: str, access_token: str) -> dict[str, Any]:
     if platform == SocialPlatform.YOUTUBE.value:
-        res = requests.get(
-            "https://www.googleapis.com/youtube/v3/channels",
-            params={"part": "snippet,statistics", "mine": "true"},
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=20,
-        )
-        res.raise_for_status()
+        try:
+            res = requests.get(
+                "https://www.googleapis.com/youtube/v3/channels",
+                params={"part": "snippet,statistics", "mine": "true"},
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=20,
+            )
+            res.raise_for_status()
+        except requests.RequestException as exc:
+            detail = exc.response.text[:300] if getattr(exc, "response", None) is not None else str(exc)
+            raise SocialServiceError(f"YouTube profile lookup failed: {detail}", status_code=502)
         items = res.json().get("items") or []
         if not items:
             return {"account_type": "channel", "publishing_formats": ["video", "short"]}
