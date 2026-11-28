@@ -60,10 +60,14 @@ async function syncAccount(id: string): Promise<void> { await ((api as any).soci
 async function disconnectAccount(id: string): Promise<void> { await ((api as any).social?.accounts?.disconnect?.(id) ?? (api as any).social?.disconnectSocialAccount?.(id) ?? (api as any).disconnectSocialAccount?.(id)); }
 type OAuthCandidate = { account_id: string; display_name: string; username?: string; profile_image_url?: string; account_type?: string; followers?: number | null; linked_page_name?: string };
 async function fetchOAuthSelection(token: string): Promise<{ platform: PlatformKey; candidates: OAuthCandidate[] }> {
-  return await (api as any).social.getSocialOAuthSelection(token);
+  const fn = (api as any).social?.accounts?.getOAuthSelection ?? (api as any).social?.getSocialOAuthSelection ?? (api as any).getSocialOAuthSelection;
+  if (typeof fn !== 'function') throw new Error('OAuth selection API is unavailable');
+  return await fn(token);
 }
 async function confirmOAuthSelection(token: string, accountId: string): Promise<SocialAccount> {
-  const res = await (api as any).social.confirmSocialOAuthSelection(token, accountId);
+  const fn = (api as any).social?.accounts?.confirmOAuthSelection ?? (api as any).social?.confirmSocialOAuthSelection ?? (api as any).confirmSocialOAuthSelection;
+  if (typeof fn !== 'function') throw new Error('OAuth confirmation API is unavailable');
+  const res = await fn(token, accountId);
   return res.account;
 }
 async function updateAccount(id: string, patch: any): Promise<void> { await ((api as any).social?.accounts?.update?.(id, patch) ?? (api as any).social?.updateSocialAccount?.(id, patch) ?? (api as any).updateSocialAccount?.(id, patch)); }
@@ -117,7 +121,7 @@ function SelectionModal({ token, platform, onClose, onConnected }: { token: stri
           {error && <div className="bg-rose-50 border border-rose-200 rounded px-2.5 py-2 text-xs text-rose-700">{error}</div>}
           {loading ? (
             <div className="flex items-center gap-2 py-6 justify-center text-xs text-slate-500"><Loader2 className="w-4 h-4 animate-spin" />Loading discovered {meta.label} accounts…</div>
-          ) : candidates.length === 0 ? (
+          ) : error ? null : candidates.length === 0 ? (
             <p className="text-xs text-slate-500 py-4 text-center">No eligible {meta.label} accounts found.</p>
           ) : (
             candidates.map((c) => (
