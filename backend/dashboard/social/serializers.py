@@ -241,9 +241,13 @@ class AnalyticsPlatformAccountSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_handle(self, obj) -> str:
+        if isinstance(obj, dict):
+            return obj.get("handle") or obj.get("username") or obj.get("display_name") or obj.get("account_id") or ""
         return obj.username or obj.display_name or obj.account_id or ""
 
     def get_name(self, obj) -> str:
+        if isinstance(obj, dict):
+            return obj.get("name") or obj.get("display_name") or obj.get("username") or ""
         return obj.display_name or obj.username or obj.get_platform_display()
 
 

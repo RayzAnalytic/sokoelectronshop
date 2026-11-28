@@ -410,10 +410,75 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
         else None
     )
 
-    profile = _fetch_platform_profile(platform, access_token)
-    ext_id = str(profile.get("account_id") or "")
+    if platform in (SocialPlatform.FACEBOOK.value, SocialPlatform.INSTAGRAM.value):
+        fb_profile, ig_profile, page_names, effective_token, effective_expires_at = _fetch_meta_bundle(
+            access_token, creds, expires_at
+        )
+        fb_account = None
+        if fb_profile:
+            fb_account = _save_connected_social_account(
+                SocialPlatform.FACEBOOK.value,
+                fb_profile,
+                fb_profile.get("access_token") or effective_token,
+                refresh_token,
+                effective_expires_at,
+                oauth_state.initiated_by,
+                reauth_account=oauth_state.reauthorize_account if platform == SocialPlatform.FACEBOOK.value else None,
+            )
+        ig_account = None
+        if ig_profile:
+            ig_account = _save_connected_social_account(
+                SocialPlatform.INSTAGRAM.value,
+                ig_profile,
+                ig_profile.get("access_token") or effective_token,
+                refresh_token,
+                effective_expires_at,
+                oauth_state.initiated_by,
+                reauth_account=oauth_state.reauthorize_account if platform == SocialPlatform.INSTAGRAM.value else None,
+            )
+        if platform == SocialPlatform.INSTAGRAM.value and not ig_account:
+            raise SocialServiceError(
+                f"No Instagram Business or Creator account linked to this Meta authorization. Pages returned by Meta: {', '.join(page_names) or 'none'}.",
+                status_code=400,
+            )
+        if platform == SocialPlatform.FACEBOOK.value and not fb_account:
+            fb_account = _save_connected_social_account(
+                SocialPlatform.FACEBOOK.value,
+                {"account_type": "Page", "publishing_formats": ["image", "video", "text", "reel"]},
+                effective_token,
+                refresh_token,
+                effective_expires_at,
+                oauth_state.initiated_by,
+                reauth_account=oauth_state.reauthorize_account,
+            )
+        oauth_state.delete()
+        return ig_account if platform == SocialPlatform.INSTAGRAM.value else fb_account
 
-    account = oauth_state.reauthorize_account
+    profile = _fetch_platform_profile(platform, access_token)
+    account = _save_connected_social_account(
+        platform,
+        profile,
+        access_token,
+        refresh_token,
+        expires_at,
+        oauth_state.initiated_by,
+        reauth_account=oauth_state.reauthorize_account,
+    )
+    oauth_state.delete()
+    return account
+
+
+def _save_connected_social_account(
+    platform: str,
+    profile: dict[str, Any],
+    access_token: str,
+    refresh_token: str,
+    expires_at: Any,
+    initiated_by: Any,
+    reauth_account: SocialAccount | None = None,
+) -> SocialAccount:
+    ext_id = str(profile.get("account_id") or "")
+    account = reauth_account
     if not account and ext_id:
         account = SocialAccount.objects.filter(platform=platform, account_id=ext_id).first()
     if not account:
@@ -439,6 +504,9 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
     account.error = ""
     account.scopes = profile.get("scopes") or account.scopes
     account.missing_scopes = profile.get("missing_scopes") or []
+    if profile.get("metadata"):
+        existing_meta = account.metadata if isinstance(account.metadata, dict) else {}
+        account.metadata = {**existing_meta, **profile["metadata"]}
     account.publishing_formats = profile.get("publishing_formats") or account.publishing_formats
     account.publishing_restrictions = profile.get("publishing_restrictions") or account.publishing_restrictions
     account.supports_dm = profile.get("supports_dm", platform in (SocialPlatform.FACEBOOK.value, SocialPlatform.INSTAGRAM.value))
@@ -453,9 +521,8 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
     account.enabled_for_distribution = True
     account.save()
 
-    oauth_state.delete()
     log_audit(
-        oauth_state.initiated_by,
+        initiated_by,
         "social_account_connected",
         "SocialAccount",
         str(account.id),
@@ -469,6 +536,128 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
         status=AccountConnectionStatus.CONNECTED,
     )
     return account
+
+
+def _fetch_meta_bundle(
+    access_token: str,
+    creds: dict[str, str],
+    expires_at: Any,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[str], str, Any]:
+    user_token = access_token
+    long_expires = expires_at
+    try:
+        ll_res = requests.get(
+            "https://graph.facebook.com/v20.0/oauth/access_token",
+            params={
+                "grant_type": "fb_exchange_token",
+                "client_id": creds["client_id"],
+                "client_secret": creds["client_secret"],
+                "fb_exchange_token": access_token,
+            },
+            timeout=15,
+        )
+        if ll_res.ok:
+            ll_data = ll_res.json()
+            if ll_data.get("access_token"):
+                user_token = ll_data["access_token"]
+            ll_exp = ll_data.get("expires_in")
+            if isinstance(ll_exp, (int, float)) or (isinstance(ll_exp, str) and ll_exp.isdigit()):
+                long_expires = timezone.now() + timedelta(seconds=int(ll_exp))
+    except requests.RequestException:
+        pass
+
+    meta_user_id = ""
+    try:
+        me_res = requests.get(
+            "https://graph.facebook.com/v20.0/me",
+            params={"fields": "id,name", "access_token": user_token},
+            timeout=15,
+        )
+        if me_res.ok:
+            meta_user_id = str(me_res.json().get("id") or "")
+    except requests.RequestException:
+        pass
+
+    try:
+        res = requests.get(
+            "https://graph.facebook.com/v20.0/me/accounts",
+            params={
+                "fields": "id,name,username,access_token,fan_count,followers_count,picture{url},instagram_business_account{id,name,username,followers_count,profile_picture_url},connected_instagram_account{id,name,username,followers_count,profile_picture_url}",
+                "access_token": user_token,
+            },
+            timeout=20,
+        )
+        res.raise_for_status()
+    except requests.RequestException as exc:
+        detail = exc.response.text[:300] if getattr(exc, "response", None) is not None else str(exc)
+        raise SocialServiceError(f"Meta pages lookup failed: {detail}", status_code=502)
+
+    pages = res.json().get("data") or []
+    page_names = [f"{pg.get('name') or 'Unnamed'} ({pg.get('id') or ''})" for pg in pages]
+    fb_profile = None
+    ig_profile = None
+
+    if pages:
+        pg0 = pages[0]
+        fb_profile = {
+            "account_id": pg0.get("id", ""),
+            "display_name": pg0.get("name", ""),
+            "username": pg0.get("username", ""),
+            "profile_image_url": ((pg0.get("picture") or {}).get("data") or {}).get("url", ""),
+            "account_type": "Facebook Page",
+            "followers": pg0.get("followers_count") or pg0.get("fan_count"),
+            "access_token": pg0.get("access_token") or user_token,
+            "metadata": {"meta_user_id": meta_user_id, "page_id": pg0.get("id", "")},
+            "publishing_formats": ["image", "video", "text", "reel"],
+            "supports_dm": True,
+            "supports_mentions": True,
+            "scopes": [
+                {"key": "pages_manage_posts", "label": "Publish to Page", "granted": True},
+                {"key": "pages_read_engagement", "label": "Read Page engagement", "granted": True},
+                {"key": "pages_messaging", "label": "Manage Page messages", "granted": True},
+            ],
+        }
+
+    for pg in pages:
+        ig = pg.get("instagram_business_account") or pg.get("connected_instagram_account")
+        pg_tok = pg.get("access_token") or user_token
+        if not ig and pg.get("id") and pg_tok:
+            try:
+                pg_res = requests.get(
+                    f"https://graph.facebook.com/v20.0/{pg['id']}",
+                    params={
+                        "fields": "instagram_business_account{id,name,username,followers_count,profile_picture_url},connected_instagram_account{id,name,username,followers_count,profile_picture_url}",
+                        "access_token": pg_tok,
+                    },
+                    timeout=15,
+                )
+                if pg_res.ok:
+                    pg_data = pg_res.json()
+                    ig = pg_data.get("instagram_business_account") or pg_data.get("connected_instagram_account")
+            except requests.RequestException:
+                pass
+        if ig:
+            ig_profile = {
+                "account_id": ig.get("id", ""),
+                "display_name": ig.get("name") or ig.get("username") or "",
+                "username": ig.get("username", ""),
+                "profile_image_url": ig.get("profile_picture_url", ""),
+                "account_type": "Business",
+                "followers": ig.get("followers_count"),
+                "access_token": pg_tok,
+                "metadata": {"meta_user_id": meta_user_id, "page_id": pg.get("id", "")},
+                "publishing_formats": ["image", "video", "reel", "story"],
+                "supports_dm": True,
+                "supports_mentions": True,
+                "scopes": [
+                    {"key": "instagram_basic", "label": "Read profile & media", "granted": True},
+                    {"key": "instagram_content_publish", "label": "Publish content", "granted": True},
+                    {"key": "instagram_manage_comments", "label": "Manage comments", "granted": True},
+                ],
+            }
+            break
+
+    return fb_profile, ig_profile, page_names, user_token, long_expires
 
 
 def _fetch_platform_profile(platform: str, access_token: str) -> dict[str, Any]:
