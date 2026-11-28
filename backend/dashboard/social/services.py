@@ -93,12 +93,12 @@ OAUTH_ENDPOINTS: dict[str, dict[str, str]] = {
     SocialPlatform.FACEBOOK.value: {
         "auth_url": "https://www.facebook.com/v20.0/dialog/oauth",
         "token_url": "https://graph.facebook.com/v20.0/oauth/access_token",
-        "scope": "pages_show_list,pages_read_engagement,pages_manage_posts,pages_messaging,read_insights",
+        "scope": "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_manage_metadata,pages_read_user_content,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages,instagram_shopping_tag_products",
     },
     SocialPlatform.INSTAGRAM.value: {
         "auth_url": "https://www.facebook.com/v20.0/dialog/oauth",
         "token_url": "https://graph.facebook.com/v20.0/oauth/access_token",
-        "scope": "instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_messages,instagram_manage_insights,pages_show_list",
+        "scope": "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_manage_metadata,pages_read_user_content,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages,instagram_shopping_tag_products",
     },
     SocialPlatform.TIKTOK.value: {
         "auth_url": "https://www.tiktok.com/v2/auth/authorize/",

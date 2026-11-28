@@ -434,7 +434,8 @@ class SocialAccountStartConnectView(APIView):
         from django.conf import settings
         tik_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if platform == 'tiktok' else None
         yt_cb = getattr(settings, 'YOUTUBE_REDIRECT_URI', None) if platform == 'youtube' else None
-        env_cb = tik_cb or yt_cb
+        meta_cb = getattr(settings, 'META_REDIRECT_URI', None) if platform in ('facebook', 'instagram') else None
+        env_cb = tik_cb or yt_cb or meta_cb
         callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{platform}/callback/")
         try:
             authorize_url = start_oauth_connect(platform, request.user, redirect_uri=callback)
@@ -453,7 +454,8 @@ class SocialAccountReauthorizeView(APIView):
         from django.conf import settings
         tik_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if account.platform == 'tiktok' else None
         yt_cb = getattr(settings, 'YOUTUBE_REDIRECT_URI', None) if account.platform == 'youtube' else None
-        env_cb = tik_cb or yt_cb
+        meta_cb = getattr(settings, 'META_REDIRECT_URI', None) if account.platform in ('facebook', 'instagram') else None
+        env_cb = tik_cb or yt_cb or meta_cb
         callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{account.platform}/callback/")
         try:
             authorize_url = start_oauth_connect(
