@@ -432,7 +432,9 @@ class SocialAccountStartConnectView(APIView):
         ser.is_valid(raise_exception=True)
         platform = ser.validated_data["platform"]
         from django.conf import settings
-        env_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if platform == 'tiktok' else None
+        tik_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if platform == 'tiktok' else None
+        yt_cb = getattr(settings, 'YOUTUBE_REDIRECT_URI', None) if platform == 'youtube' else None
+        env_cb = tik_cb or yt_cb
         callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{platform}/callback/")
         try:
             authorize_url = start_oauth_connect(platform, request.user, redirect_uri=callback)
@@ -449,7 +451,9 @@ class SocialAccountReauthorizeView(APIView):
         if not account:
             return Response({"detail": "Account not found."}, status=status.HTTP_404_NOT_FOUND)
         from django.conf import settings
-        env_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if account.platform == 'tiktok' else None
+        tik_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if account.platform == 'tiktok' else None
+        yt_cb = getattr(settings, 'YOUTUBE_REDIRECT_URI', None) if account.platform == 'youtube' else None
+        env_cb = tik_cb or yt_cb
         callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{account.platform}/callback/")
         try:
             authorize_url = start_oauth_connect(

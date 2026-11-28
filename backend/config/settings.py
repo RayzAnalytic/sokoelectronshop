@@ -127,6 +127,8 @@ env = environ.Env(
     INSTAGRAM_BUSINESS_ACCOUNT_ID=(str, ""),
     META_SOCIAL_SCOPES=(str, "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management"),
     TIKTOK_CLIENT_KEY=(str, ""),
+    YOUTUBE_CLIENT_ID=(str, ""),
+    YOUTUBE_CLIENT_SECRET=(str, ""),
     TIKTOK_CLIENT_SECRET=(str, ""),
     TIKTOK_SCOPES=(str, "user.info.basic,video.publish,video.upload"),
     TIKTOK_REDIRECT_URI=(str, "https://admin.sokoflow.com/api/v1/social/oauth/tiktok/callback/"),
@@ -911,6 +913,8 @@ INSTAGRAM_BUSINESS_ACCOUNT_ID = env("INSTAGRAM_BUSINESS_ACCOUNT_ID")
 META_SOCIAL_SCOPES = env.list("META_SOCIAL_SCOPES")
 
 TIKTOK_CLIENT_KEY = env("TIKTOK_CLIENT_KEY")
+YOUTUBE_CLIENT_ID = env("YOUTUBE_CLIENT_ID", default="")
+YOUTUBE_CLIENT_SECRET = env("YOUTUBE_CLIENT_SECRET", default="")
 TIKTOK_CLIENT_SECRET = env("TIKTOK_CLIENT_SECRET")
 TIKTOK_SCOPES = env.list("TIKTOK_SCOPES")
 TIKTOK_REDIRECT_URI = env("TIKTOK_REDIRECT_URI")
