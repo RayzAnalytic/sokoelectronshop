@@ -929,7 +929,6 @@ def get_oauth_selection(token: str, user: Any) -> SocialOAuthSelection:
 def confirm_oauth_selection(token: str, account_id: str, user: Any) -> SocialAccount:
     sel = (
         SocialOAuthSelection.objects.select_for_update()
-        .select_related("meta_authorization", "reauthorize_account")
         .filter(token=token)
         .first()
     )

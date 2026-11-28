@@ -103,7 +103,7 @@ function SelectionModal({ token, platform, onClose, onConnected }: { token: stri
       const acc = await confirmOAuthSelection(token, accountId);
       onConnected(acc.id);
     } catch (err: any) {
-      setError(err instanceof ApiError ? (detailOf(err) ?? 'Failed to connect account') : (err?.message || 'Failed to connect account'));
+      setError(err instanceof ApiError ? (detailOf(err) ?? (err.message || `Failed to connect account (${err.status})`)) : (err?.message || 'Failed to connect account'));
       setSavingId(null);
     }
   };
