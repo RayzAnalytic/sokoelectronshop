@@ -15,7 +15,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Avg, Count, F, Q, Sum
+from django.db.models import Avg, Count, F, ProtectedError, Q, Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 
@@ -1292,6 +1292,36 @@ def disconnect_social_account(account_id: str, actor: Any = None) -> SocialAccou
         status=AccountConnectionStatus.NOT_CONNECTED,
     )
     return account
+
+
+@transaction.atomic
+def delete_social_account(account_id: str, actor: Any = None) -> None:
+    account = SocialAccount.objects.filter(pk=account_id).first()
+    if not account:
+        raise SocialServiceError("Account not found.", status_code=404)
+    label = account.display_name or account.username or account.account_id or str(account.id)
+    platform = account.platform
+    log_audit(
+        actor,
+        "social_account_deleted",
+        "SocialAccount",
+        str(account.id),
+        {"platform": platform, "account_id": account.account_id},
+    )
+    try:
+        account.delete()
+    except ProtectedError:
+        raise SocialServiceError(
+            "Cannot delete this account because it has protected posts or records. Disconnect it instead.",
+            status_code=400,
+        )
+    record_activity(
+        ActivityKind.ACCOUNT,
+        f"Deleted {platform} account ({label})",
+        platform=platform,
+        href="/admin/social/accounts",
+        status=AccountConnectionStatus.NOT_CONNECTED,
+    )
 
 
 @transaction.atomic

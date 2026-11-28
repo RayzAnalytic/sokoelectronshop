@@ -125,6 +125,7 @@ from .services import (
     get_oauth_selection,
     create_campaign,
     delete_content,
+    delete_social_account,
     disconnect_social_account,
     duplicate_content,
     duplicate_scheduled_post,
@@ -420,7 +421,7 @@ class SocialAccountDetailView(APIView):
         if not CanManageAccounts().has_permission(request, self):
             return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
         try:
-            disconnect_social_account(str(pk), actor=request.user)
+            delete_social_account(str(pk), actor=request.user)
         except SocialServiceError as exc:
             return _error_response(exc)
         return Response({"ok": True})

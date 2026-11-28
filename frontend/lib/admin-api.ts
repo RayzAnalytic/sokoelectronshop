@@ -8008,6 +8008,10 @@ export function createSocialAdminApi({ request, qsOf, readCsrfToken }: SocialAdm
                 { method: 'POST' },
             ),
 
+        deleteSocialAccount: (id: string) =>
+            request<any>(`/api/v1/admin/social/accounts/${encodeURIComponent(id)}/`, {
+                method: 'DELETE',
+            }),
         updateSocialAccount: (
             id: string,
             patch: { label?: string | null; is_default_publishing?: boolean; enabled_for_distribution?: boolean },
