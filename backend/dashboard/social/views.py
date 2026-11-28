@@ -431,12 +431,7 @@ class SocialAccountStartConnectView(APIView):
         ser = SocialAccountStartConnectSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         platform = ser.validated_data["platform"]
-        from django.conf import settings
-        tik_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if platform == 'tiktok' else None
-        yt_cb = getattr(settings, 'YOUTUBE_REDIRECT_URI', None) if platform == 'youtube' else None
-        meta_cb = getattr(settings, 'META_REDIRECT_URI', None) if platform in ('facebook', 'instagram') else None
-        env_cb = tik_cb or yt_cb or meta_cb
-        callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{platform}/callback/")
+        callback = _resolve_oauth_callback(request, platform)
         try:
             authorize_url = start_oauth_connect(platform, request.user, redirect_uri=callback)
         except SocialServiceError as exc:
@@ -451,12 +446,7 @@ class SocialAccountReauthorizeView(APIView):
         account = SocialAccount.objects.filter(pk=pk).first()
         if not account:
             return Response({"detail": "Account not found."}, status=status.HTTP_404_NOT_FOUND)
-        from django.conf import settings
-        tik_cb = getattr(settings, 'TIKTOK_REDIRECT_URI', None) if account.platform == 'tiktok' else None
-        yt_cb = getattr(settings, 'YOUTUBE_REDIRECT_URI', None) if account.platform == 'youtube' else None
-        meta_cb = getattr(settings, 'META_REDIRECT_URI', None) if account.platform in ('facebook', 'instagram') else None
-        env_cb = tik_cb or yt_cb or meta_cb
-        callback = env_cb or request.build_absolute_uri(f"/api/social/oauth/{account.platform}/callback/")
+        callback = _resolve_oauth_callback(request, account.platform)
         try:
             authorize_url = start_oauth_connect(
                 account.platform,
@@ -527,6 +517,109 @@ class SocialOAuthCallbackView(APIView):
             qs = urlencode({"error": exc.message, "platform": platform})
             return redirect(f"{admin_ui}/social/accounts?{qs}")
         return redirect(f"{admin_ui}/social/accounts?account={account.id}")
+
+
+def _resolve_oauth_callback(request, platform: str) -> str:
+    import os
+    if platform == "tiktok":
+        env_cb = getattr(settings, "TIKTOK_REDIRECT_URI", None) or os.environ.get("TIKTOK_REDIRECT_URI")
+    elif platform == "youtube":
+        env_cb = getattr(settings, "YOUTUBE_REDIRECT_URI", None) or os.environ.get("YOUTUBE_REDIRECT_URI")
+    elif platform in ("facebook", "instagram"):
+        base = (getattr(settings, "SOCIAL_OAUTH_REDIRECT_BASE", "") or os.environ.get("SOCIAL_OAUTH_REDIRECT_BASE", "")).rstrip("/")
+        meta_cb = getattr(settings, "META_REDIRECT_URI", None) or os.environ.get("META_REDIRECT_URI")
+        if platform == "instagram":
+            env_cb = (
+                getattr(settings, "INSTAGRAM_REDIRECT_URI", None)
+                or os.environ.get("INSTAGRAM_REDIRECT_URI")
+                or (f"{base}/api/v1/social/oauth/instagram/callback/" if base and "admin.sokoflow.com" not in base else None)
+                or (meta_cb.replace("/facebook/callback", "/instagram/callback") if meta_cb else None)
+            )
+        else:
+            env_cb = meta_cb or (f"{base}/api/v1/social/oauth/facebook/callback/" if base and "admin.sokoflow.com" not in base else None)
+    else:
+        env_cb = None
+    return env_cb or request.build_absolute_uri(f"/api/v1/social/oauth/{platform}/callback/")
+
+
+def _parse_meta_signed_request(signed_request: str) -> dict | None:
+    import base64
+    import hashlib
+    import hmac
+    import json
+    import os
+
+    if not signed_request or "." not in signed_request:
+        return None
+    encoded_sig, payload = signed_request.split(".", 1)
+    try:
+        sig = base64.urlsafe_b64decode(encoded_sig + "=" * (-len(encoded_sig) % 4))
+        data = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)).decode("utf-8"))
+    except Exception:
+        return None
+    secret = getattr(settings, "META_APP_SECRET", "") or os.environ.get("META_APP_SECRET", "")
+    if not secret:
+        return None
+    expected = hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()
+    if not hmac.compare_digest(sig, expected):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _disconnect_meta_user_accounts(meta_user_id: str, clear_metadata: bool = False) -> int:
+    count = 0
+    for acc in SocialAccount.objects.filter(platform__in=["facebook", "instagram"]):
+        meta = acc.metadata if isinstance(acc.metadata, dict) else {}
+        if meta_user_id and str(acc.account_id) != meta_user_id and str(meta.get("meta_user_id", "")) != meta_user_id:
+            continue
+        acc.access_token = ""
+        acc.refresh_token = ""
+        acc.token_expires_at = None
+        acc.status = AccountConnectionStatus.NOT_CONNECTED
+        acc.enabled_for_distribution = False
+        acc.error = "Deauthorized via Meta."
+        if clear_metadata:
+            acc.metadata = {}
+        acc.save()
+        count += 1
+    return count
+
+
+class MetaDeauthorizeView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        return Response({"ok": True, "endpoint": "meta-deauthorize"})
+
+    def post(self, request):
+        signed_request = request.data.get("signed_request") or request.POST.get("signed_request") or ""
+        data = _parse_meta_signed_request(signed_request)
+        if data is None:
+            return Response({"detail": "Invalid signed_request."}, status=status.HTTP_400_BAD_REQUEST)
+        meta_user_id = str(data.get("user_id") or "")
+        disconnected = _disconnect_meta_user_accounts(meta_user_id, clear_metadata=False) if meta_user_id else 0
+        return Response({"ok": True, "disconnected": disconnected})
+
+
+class MetaDataDeletionView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        return Response({"ok": True, "endpoint": "meta-data-deletion"})
+
+    def post(self, request):
+        signed_request = request.data.get("signed_request") or request.POST.get("signed_request") or ""
+        data = _parse_meta_signed_request(signed_request)
+        if data is None:
+            return Response({"detail": "Invalid signed_request."}, status=status.HTTP_400_BAD_REQUEST)
+        meta_user_id = str(data.get("user_id") or "")
+        if meta_user_id:
+            _disconnect_meta_user_accounts(meta_user_id, clear_metadata=True)
+        code = secrets.token_hex(8)
+        admin_ui = getattr(settings, "SOCIAL_ADMIN_UI_URL", "http://localhost:3000").rstrip("/")
+        return Response({"url": f"{admin_ui}/social/accounts?data_deletion={code}", "confirmation_code": code})
 
 
 class CampaignListCreateView(APIView):

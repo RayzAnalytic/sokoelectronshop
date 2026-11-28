@@ -8,7 +8,7 @@ from django.views.static import serve as media_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from django.urls import re_path
 from dashboard.whatsapp.views import CustomerOrdersView, ProductSearchView, StaffListView
-from dashboard.social.views import SocialOAuthCallbackView
+from dashboard.social.views import MetaDataDeletionView, MetaDeauthorizeView, SocialOAuthCallbackView
 from dashboard.settings import views as settings_views
 from dashboard.settings.urls import public_urls as settings_public_urls
 
@@ -73,6 +73,16 @@ re_path(r"^api/customers/(?P<pk>\d+)/orders/?$", CustomerOrdersView.as_view()),
         "api/v1/social/oauth/<str:platform>/callback/",
         SocialOAuthCallbackView.as_view(),
         name="social-oauth-callback",
+    ),
+    path(
+        "api/v1/social/oauth/meta/deauthorize/",
+        MetaDeauthorizeView.as_view(),
+        name="meta-deauthorize",
+    ),
+    path(
+        "api/v1/social/oauth/meta/data-deletion/",
+        MetaDataDeletionView.as_view(),
+        name="meta-data-deletion",
     ),
 
     path("api/", include("whatsapfloat.urls")),
