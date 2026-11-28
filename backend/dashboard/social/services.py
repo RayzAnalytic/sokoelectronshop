@@ -531,12 +531,16 @@ def _save_connected_social_account(
     reauth_account: SocialAccount | None = None,
     meta_authorization: SocialMetaAuthorization | None = None,
 ) -> SocialAccount:
-    ext_id = str(profile.get("account_id") or "")
+    ext_id = str(profile.get("account_id") or "").strip()
+    if not ext_id and not reauth_account:
+        raise SocialServiceError(f"Cannot save {platform} account without a valid platform account ID.", status_code=400)
     account = reauth_account
     if not account and ext_id:
         account = SocialAccount.objects.filter(platform=platform, account_id=ext_id).first()
     if not account:
         account = SocialAccount(platform=platform, account_id=ext_id)
+    if ext_id:
+        SocialAccount.objects.filter(platform=platform, account_id="").exclude(pk=account.pk).delete()
 
     has_default = SocialAccount.objects.filter(
         platform=platform,
@@ -554,7 +558,10 @@ def _save_connected_social_account(
         account.refresh_token = refresh_token
     account.token_expires_at = expires_at
     account.last_auth_check_at = timezone.now()
-    account.connected_at = account.connected_at or timezone.now()
+    now = timezone.now()
+    account.connected_at = account.connected_at or now
+    account.last_synced_at = account.last_synced_at or now
+    account.sync_status = AccountSyncStatus.OK
     account.error = ""
     account.scopes = profile.get("scopes") or account.scopes
     account.missing_scopes = profile.get("missing_scopes") or []
@@ -825,9 +832,12 @@ def _build_meta_profile_from_candidate(platform: str, cand: dict[str, Any], gran
             ("pages_read_engagement", "Read Page engagement"),
             ("pages_manage_posts", "Publish to Page"),
             ("pages_manage_engagement", "Manage Page comments"),
-            ("pages_messaging", "Manage Page messages"),
+            ("pages_manage_metadata", "Manage Page metadata"),
+            ("pages_read_user_content", "Read user content"),
             ("read_insights", "Read Page insights"),
         ]
+        if "pages_messaging" in granted_scopes or "pages_messaging" in (getattr(settings, "META_SOCIAL_SCOPES", None) or []):
+            scope_defs.append(("pages_messaging", "Manage Page messages"))
         return {
             "account_id": cand["account_id"],
             "display_name": cand["display_name"],
