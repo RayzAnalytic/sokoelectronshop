@@ -511,6 +511,11 @@ class SocialOAuthCallbackView(APIView):
         if not code or not state:
             qs = urlencode({"error": "oauth_missing_params", "platform": platform})
             return redirect(f"{admin_ui}/social/accounts?{qs}")
+        if platform in ("meta", "facebook", "instagram"):
+            from .models import SocialOAuthState
+            st_plat = SocialOAuthState.objects.filter(state=state).values_list("platform", flat=True).first()
+            if st_plat in ("facebook", "instagram"):
+                platform = st_plat
         try:
             account = complete_oauth_callback(platform, code, state)
         except SocialServiceError as exc:
@@ -528,15 +533,12 @@ def _resolve_oauth_callback(request, platform: str) -> str:
     elif platform in ("facebook", "instagram"):
         base = (getattr(settings, "SOCIAL_OAUTH_REDIRECT_BASE", "") or os.environ.get("SOCIAL_OAUTH_REDIRECT_BASE", "")).rstrip("/")
         meta_cb = getattr(settings, "META_REDIRECT_URI", None) or os.environ.get("META_REDIRECT_URI")
-        if platform == "instagram":
-            env_cb = (
-                getattr(settings, "INSTAGRAM_REDIRECT_URI", None)
-                or os.environ.get("INSTAGRAM_REDIRECT_URI")
-                or (f"{base}/api/v1/social/oauth/instagram/callback/" if base and "admin.sokoflow.com" not in base else None)
-                or (meta_cb.replace("/facebook/callback", "/instagram/callback") if meta_cb else None)
-            )
+        if meta_cb and "admin.sokoflow.com" not in meta_cb:
+            env_cb = meta_cb
+        elif base and "admin.sokoflow.com" not in base:
+            env_cb = f"{base}/api/v1/social/oauth/facebook/callback/"
         else:
-            env_cb = meta_cb or (f"{base}/api/v1/social/oauth/facebook/callback/" if base and "admin.sokoflow.com" not in base else None)
+            return request.build_absolute_uri("/api/v1/social/oauth/facebook/callback/")
     else:
         env_cb = None
     return env_cb or request.build_absolute_uri(f"/api/v1/social/oauth/{platform}/callback/")
