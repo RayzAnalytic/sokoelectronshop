@@ -360,17 +360,17 @@ function KpiCard({
 }) {
   const d = fmtDelta(delta ?? null);
   return (
-    <div className="bg-white border border-slate-200 rounded p-3">
+    <div className="bg-white border border-slate-200 rounded p-2">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+        <span className="text-[13px] font-medium text-slate-500 uppercase">
           {label}
         </span>
         <Icon className="w-3.5 h-3.5 text-slate-400" />
       </div>
-      <div className="mt-1.5 text-[18px] font-semibold text-slate-900 leading-tight">
+      <div className="mt-1.5 text-[18px] font-semibold text-slate-900">
         {value}
       </div>
-      <div className="mt-1 flex items-center gap-1 text-[11px]">
+      <div className="mt-1 flex items-center gap-1 text-[13px]">
         {d.up === null ? (
           <span className="text-slate-400">No previous period</span>
         ) : (
@@ -410,24 +410,24 @@ function Section({
       <header className="flex items-start justify-between gap-2 px-3 py-2.5 border-b border-slate-100">
         <div className="min-w-0">
           <h2 className="text-[13px] font-semibold text-slate-900">{title}</h2>
-          {description && <p className="text-[11px] text-slate-500 mt-0.5">{description}</p>}
+          {description && <p className="text-[13px] text-slate-500 mt-0.5">{description}</p>}
         </div>
         {actions}
       </header>
       <div className="p-3">
         {loading && (
-          <div className="flex items-center gap-2 text-[12px] text-slate-500 py-4">
+          <div className="flex items-center gap-2 text-[13px] text-slate-500 py-4">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             Loading…
           </div>
         )}
         {!loading && error && (
-          <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded px-3 py-2">
+          <div className="text-[13px] text-rose-700 bg-rose-50 border border-rose-200 rounded px-3 py-2">
             {error}
           </div>
         )}
         {!loading && !error && empty && (
-          <div className="text-center text-[12px] text-slate-500 py-6">{empty}</div>
+          <div className="text-center text-[13px] text-slate-500 py-6">{empty}</div>
         )}
         {!loading && !error && !empty && children}
       </div>
@@ -552,9 +552,9 @@ function OverviewPageContent() {
   const alerts = data?.alerts ?? [];
 
   return (
-    <div className="space-y-3">
-      <header className="bg-white border border-slate-200 rounded p-3 sm:p-4 space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+    <div className="space-y-2">
+      <header className="bg-white border border-slate-200 rounded p-3 sm:p-3 space-y-2">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-[18px] font-semibold text-slate-900">Social Media Overview</h1>
             <p className="text-[12px] sm:text-[13px] text-slate-500">
@@ -581,7 +581,7 @@ function OverviewPageContent() {
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value as PlatformFilter)}
-              className="bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-950/20 focus:border-blue-950/40"
+              className="bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[12px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950/20 focus:border-blue-950/40"
               aria-label="Platform filter"
             >
               <option value="all">All platforms</option>
@@ -595,7 +595,7 @@ function OverviewPageContent() {
               type="button"
               onClick={() => void load({ silent: true })}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[12px] text-slate-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[13px] text-slate-700 disabled:opacity-50"
             >
               {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Refresh
@@ -605,7 +605,7 @@ function OverviewPageContent() {
               type="button"
               onClick={handleExport}
               disabled={!data}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[12px] text-slate-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[13px] text-slate-700 disabled:opacity-50"
             >
               <Download className="w-3.5 h-3.5" />
               Export
@@ -615,24 +615,24 @@ function OverviewPageContent() {
 
         {range === 'custom' && (
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-[11px] text-slate-600">From</label>
+            <label className="text-[13px] text-slate-600">From</label>
             <input
               type="date"
               value={customFrom}
               onChange={(e) => setCustomFrom(e.target.value)}
-              className="bg-white border border-slate-200 rounded px-2 py-1 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-950/20"
+              className="bg-white border border-slate-200 rounded px-2 py-1 text-[13px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950/20"
             />
-            <label className="text-[11px] text-slate-600">To</label>
+            <label className="text-[13px] text-slate-600">To</label>
             <input
               type="date"
               value={customTo}
               onChange={(e) => setCustomTo(e.target.value)}
-              className="bg-white border border-slate-200 rounded px-2 py-1 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-950/20"
+              className="bg-white border border-slate-200 rounded px-2 py-1 text-[13px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-950/20"
             />
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2 flex-wrap text-[11px] text-slate-500">
+        <div className="flex items-center justify-between gap-2 flex-wrap text-[13px] text-slate-500">
           <span className="inline-flex items-center gap-1">
             <Clock className="w-3 h-3" />
             Last successful sync:{' '}
@@ -646,12 +646,12 @@ function OverviewPageContent() {
         </div>
 
         {error && (
-          <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[12px] text-rose-700 flex items-center justify-between gap-2">
+          <div className="bg-rose-50 border border-rose-200 rounded px-3 py-2 text-[13px] text-rose-700 flex items-center justify-between gap-2">
             <span className="min-w-0 truncate">{error}</span>
             <button
               type="button"
               onClick={() => void load()}
-              className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded border border-rose-300 bg-white hover:bg-rose-50 text-[11px] font-medium text-rose-700"
+              className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded border border-rose-300 bg-white hover:bg-rose-50 text-[13px] font-medium text-rose-700"
             >
               <RefreshCw className="w-3 h-3" />
               Retry
@@ -685,17 +685,17 @@ function OverviewPageContent() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="text-[12px] font-medium text-slate-900 truncate">{meta.label}</div>
-                      <div className="text-[11px] text-slate-500 truncate">{a.account_name || a.username || '—'}</div>
+                      <div className="text-[13px] text-slate-500 truncate">{a.account_name || a.username || '—'}</div>
                     </div>
                     <span className={`inline-block w-1.5 h-1.5 rounded-full ${sm.dot}`} />
                   </div>
-                  <div className="mt-2 flex items-center justify-between text-[11px]">
+                  <div className="mt-2 flex items-center justify-between text-[13px]">
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded border ${sm.chip}`}>{sm.label}</span>
                     <span className="text-slate-500">
                       {a.followers !== null && a.followers !== undefined ? `${fmtNum(a.followers)} followers` : '—'}
                     </span>
                   </div>
-                  <div className="mt-1 text-[10px] text-slate-400">
+                  <div className="mt-1 text-[13px] text-slate-400">
                     Synced {formatRelative(a.last_synced_at)}
                     {sm.warn && a.error ? ` · ${a.error}` : ''}
                   </div>
@@ -709,7 +709,7 @@ function OverviewPageContent() {
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {loading || !kpis ? (
           Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="bg-white border border-slate-200 rounded p-3 animate-pulse">
+            <div key={i} className="bg-white border border-slate-200 rounded p-2 animate-pulse">
               <div className="h-2.5 w-16 bg-slate-100 rounded" />
               <div className="mt-2 h-5 w-20 bg-slate-100 rounded" />
             </div>
@@ -749,7 +749,7 @@ function OverviewPageContent() {
               <KpiCard label="Avg order value" value={fmtMoney(ecom.aov, currency)} icon={DollarSign} />
             </div>
 
-            <div className="mt-3 text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded px-3 py-2 space-y-1">
+            <div className="mt-2 text-[13px] text-slate-500 bg-slate-50 border border-slate-100 rounded px-3 py-2 space-y-1">
               <p>
                 <span className="font-medium text-slate-700">Attribution note:</span>{' '}
                 Social-referred traffic is identified via UTMs, campaign IDs
@@ -788,7 +788,7 @@ function OverviewPageContent() {
               const Icon = meta.icon;
               return (
                 <div key={s.platform}>
-                  <div className="flex items-center justify-between text-[11px] text-slate-600 mb-1">
+                  <div className="flex items-center justify-between text-[13px] text-slate-600 mb-1">
                     <span className="inline-flex items-center gap-1">
                       <Icon className="w-3 h-3" />
                       {meta.label}
@@ -811,13 +811,13 @@ function OverviewPageContent() {
           <div className="space-y-2">
             {(data?.series?.reach ?? []).map((s) => (
               <div key={`r-${s.platform}`} className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-600 w-20 shrink-0">Reach · {PLATFORM_META[s.platform].label}</span>
+                <span className="text-[13px] text-slate-600 w-20 shrink-0">Reach · {PLATFORM_META[s.platform].label}</span>
                 <div className="flex-1"><MiniBarChart series={s.points} color="#1d4ed8" height={28} /></div>
               </div>
             ))}
             {(data?.series?.views ?? []).map((s) => (
               <div key={`v-${s.platform}`} className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-600 w-20 shrink-0">Views · {PLATFORM_META[s.platform].label}</span>
+                <span className="text-[13px] text-slate-600 w-20 shrink-0">Views · {PLATFORM_META[s.platform].label}</span>
                 <div className="flex-1"><MiniBarChart series={s.points} color="#0f766e" height={28} /></div>
               </div>
             ))}
@@ -833,7 +833,7 @@ function OverviewPageContent() {
           <div className="space-y-2">
             {(data?.series?.engagement ?? []).map((s) => (
               <div key={s.platform}>
-                <div className="flex items-center justify-between text-[11px] text-slate-600 mb-1">
+                <div className="flex items-center justify-between text-[13px] text-slate-600 mb-1">
                   <span>{PLATFORM_META[s.platform].label}</span>
                   <span>{fmtNum(s.points.reduce((a, p) => a + p.value, 0))}</span>
                 </div>
@@ -862,7 +862,7 @@ function OverviewPageContent() {
                 const pct = prev && prev > 0 ? (step.value / prev) * 100 : null;
                 return (
                   <li key={step.label}>
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 mb-1">
+                    <div className="flex items-center justify-between text-[13px] text-slate-600 mb-1">
                       <span>{step.label}</span>
                       <span>
                         <span className="font-medium text-slate-800">{fmtNum(step.value)}</span>
@@ -894,9 +894,9 @@ function OverviewPageContent() {
         <div className="space-y-2">
           {(data?.series?.revenue ?? []).map((s) => (
             <div key={s.platform} className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-600 w-24 shrink-0">{PLATFORM_META[s.platform].label}</span>
+              <span className="text-[13px] text-slate-600 w-24 shrink-0">{PLATFORM_META[s.platform].label}</span>
               <div className="flex-1"><MiniBarChart series={s.points} color="#065f46" height={28} /></div>
-              <span className="text-[11px] text-slate-700 w-20 text-right">
+              <span className="text-[13px] text-slate-700 w-20 text-right">
                 {fmtMoney(s.points.reduce((a, p) => a + p.value, 0), currency)}
               </span>
             </div>
@@ -969,7 +969,7 @@ function OverviewPageContent() {
             <select
               value={contentPlatform}
               onChange={(e) => setContentPlatform(e.target.value as PlatformFilter)}
-              className="bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-700"
+              className="bg-white border border-slate-200 rounded px-2 py-1 text-[13px] text-slate-700"
             >
               <option value="all">All platforms</option>
               <option value="youtube">YouTube</option>
@@ -980,7 +980,7 @@ function OverviewPageContent() {
             <select
               value={contentSort}
               onChange={(e) => setContentSort(e.target.value as typeof contentSort)}
-              className="bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-700"
+              className="bg-white border border-slate-200 rounded px-2 py-1 text-[13px] text-slate-700"
             >
               <option value="views">Sort: Views</option>
               <option value="engagement">Sort: Engagement</option>
@@ -1005,12 +1005,12 @@ function OverviewPageContent() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[12px] font-medium text-slate-900 truncate">{c.title}</span>
-                      <span className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-1">
+                      <span className="text-[13px] font-medium text-slate-900 truncate">{c.title}</span>
+                      <span className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-1">
                         {meta.label}
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-500 truncate">
+                    <div className="text-[13px] text-slate-500 truncate">
                       {c.published_at ? new Date(c.published_at).toLocaleDateString() : '—'}
                       {' · '}
                       {fmtNum(c.views)} views · {fmtNum(c.engagement)} engagement
@@ -1024,7 +1024,7 @@ function OverviewPageContent() {
                       href={c.permalink}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="shrink-0 text-[11px] text-blue-950 hover:underline"
+                      className="shrink-0 text-[13px] text-blue-950 hover:underline"
                     >
                       Open
                     </a>
@@ -1036,7 +1036,7 @@ function OverviewPageContent() {
         )}
       </Section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         <Section
           title="Recent activity"
           description="Published, scheduled, messages and campaign events."
@@ -1057,8 +1057,8 @@ function OverviewPageContent() {
                       {a.kind === 'account' && <AlertTriangle className="w-3 h-3 text-amber-500" />}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[12px] text-slate-800 truncate">{a.title}</div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="text-[13px] text-slate-800 truncate">{a.title}</div>
+                      <div className="text-[11px] text-slate-500">
                         {a.platform ? `${PLATFORM_META[a.platform].label} · ` : ''}
                         {formatRelative(a.at)}
                       </div>
@@ -1086,7 +1086,7 @@ function OverviewPageContent() {
               {alerts.map((al) => (
                 <li
                   key={al.id}
-                  className={`border rounded px-3 py-2 text-[12px] ${al.severity === 'error'
+                  className={`border rounded px-3 py-2 text-[13px] ${al.severity === 'error'
                       ? 'bg-rose-50 border-rose-200 text-rose-800'
                       : al.severity === 'warning'
                         ? 'bg-amber-50 border-amber-200 text-amber-800'
@@ -1097,12 +1097,12 @@ function OverviewPageContent() {
                     <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">{al.title}</div>
-                      {al.description && <div className="text-[11px] opacity-90 mt-0.5">{al.description}</div>}
+                      {al.description && <div className="text-[13px] opacity-90 mt-0.5">{al.description}</div>}
                     </div>
                   </div>
                   {al.href && (
                     <div className="mt-1.5 text-right">
-                      <Link href={al.href} className="inline-flex items-center gap-1 text-[11px] font-medium hover:underline">
+                      <Link href={al.href} className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline">
                         {al.action_label || 'Resolve'}
                         <ChevronDown className="w-3 h-3 -rotate-90" />
                       </Link>
@@ -1132,7 +1132,7 @@ function OverviewPageContent() {
             <Link
               key={a.href}
               href={a.href}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 text-[13px] font-medium text-slate-700"
             >
               <a.icon className="w-3.5 h-3.5" />
               {a.label}

@@ -252,17 +252,17 @@ function PlatformPill({
 
             <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
-                    <span className="text-[12px] font-medium text-slate-900 truncate">
+                    <span className="text-[13px] font-medium text-slate-900 truncate">
                         {meta.label}
                     </span>
                     <span className={`inline-block w-1.5 h-1.5 rounded-full ${sm.dotClass}`} />
                 </span>
-                <span className="block text-[11px] text-slate-500 truncate">
+                <span className="block text-[13px] text-slate-500 truncate">
                     {effectiveStatus === 'connected' && displayAccount
                         ? displayAccount
                         : sm.label}
                 </span>
-                <span className="block text-[10px] text-slate-400 truncate">
+                <span className="block text-[13px] text-slate-400 truncate">
                     {effectiveStatus === 'connected'
                         ? `Synced ${formatRelative(account.last_synced_at)}`
                         : sm.warn
@@ -321,7 +321,7 @@ function NotificationsMenu({
             >
                 <Bell className="w-4 h-4" />
                 {count > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] leading-4 text-center font-medium">
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[12px] leading-4 text-center font-medium">
                         {count > 9 ? '9+' : count}
                     </span>
                 )}
@@ -336,7 +336,7 @@ function NotificationsMenu({
                         <Link
                             href="/admin/social/inbox-community"
                             onClick={() => setOpen(false)}
-                            className="text-[11px] text-blue-950 hover:underline"
+                            className="text-[13px] text-blue-950 hover:underline"
                         >
                             View inbox
                         </Link>
@@ -344,19 +344,19 @@ function NotificationsMenu({
 
                     <div className="max-h-80 overflow-y-auto">
                         {loading && (
-                            <div className="flex items-center gap-2 px-3 py-4 text-[12px] text-slate-500">
+                            <div className="flex items-center gap-2 px-3 py-4 text-[13px] text-slate-500">
                                 <InlineSpinner /> Loading notifications…
                             </div>
                         )}
 
                         {!loading && error && (
-                            <div className="px-3 py-4 text-[12px] text-rose-700 bg-rose-50">
+                            <div className="px-3 py-4 text-[13px] text-rose-700 bg-rose-50">
                                 {error}
                             </div>
                         )}
 
                         {!loading && !error && count === 0 && (
-                            <div className="px-3 py-6 text-center text-[12px] text-slate-500">
+                            <div className="px-3 py-6 text-center text-[13px] text-slate-500">
                                 <CheckCircle2 className="w-5 h-5 mx-auto text-emerald-500 mb-1.5" />
                                 You&apos;re all caught up.
                             </div>
@@ -596,12 +596,12 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="min-h-screen bg-slate-50">
-            <div className="max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-3 sm:py-4 space-y-3">
-                <header className="bg-white border border-slate-200 rounded p-3 sm:p-4 space-y-3">
+            <div className="max-w-[1400px] mx-auto px-3 sm:px-4 lg:px-4 py-3 sm:py-4 space-y-2">
+                <header className="bg-white border border-slate-200 rounded p-3 sm:p-4 space-y-2">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
                         <div className="min-w-0">
                             <nav
-                                className="flex items-center gap-1 text-[11px] text-slate-500 flex-wrap"
+                                className="flex items-center gap-1 text-[13px] text-slate-500 flex-wrap"
                                 aria-label="Breadcrumb"
                             >
                                 <Link
@@ -850,7 +850,7 @@ function SocialLayoutContent({ children }: { children: React.ReactNode }) {
                     )}
                 </main>
 
-                <footer className="text-center text-[11px] text-slate-400 py-2">
+                <footer className="text-center text-[13px] text-slate-400 py-2">
                     <span className="inline-flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         Platform data reflects the last successful synchronization.
