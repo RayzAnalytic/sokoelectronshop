@@ -121,6 +121,8 @@ from .services import (
     build_social_overview,
     cancel_scheduled_post,
     complete_oauth_callback,
+    confirm_oauth_selection,
+    get_oauth_selection,
     create_campaign,
     delete_content,
     disconnect_social_account,
@@ -505,23 +507,68 @@ class SocialOAuthCallbackView(APIView):
     permission_classes = []
 
     def get(self, request, platform: str):
-        admin_ui = getattr(settings, "SOCIAL_ADMIN_UI_URL", "http://localhost:3000").rstrip("/")
+        from .models import SocialOAuthSelection, SocialOAuthState
+
+        admin_ui = (
+            getattr(settings, "SOCIAL_ADMIN_UI_URL", "")
+            or getattr(settings, "FRONTEND_URL", "")
+            or "http://localhost:3000"
+        ).rstrip("/")
         code = request.query_params.get("code", "")
         state = request.query_params.get("state", "")
-        if not code or not state:
-            qs = urlencode({"error": "oauth_missing_params", "platform": platform})
-            return redirect(f"{admin_ui}/social/accounts?{qs}")
-        if platform in ("meta", "facebook", "instagram"):
-            from .models import SocialOAuthState
+        oauth_err = request.query_params.get("error", "")
+        oauth_err_desc = request.query_params.get("error_description", "")
+
+        if state and platform in ("meta", "facebook", "instagram"):
             st_plat = SocialOAuthState.objects.filter(state=state).values_list("platform", flat=True).first()
             if st_plat in ("facebook", "instagram"):
                 platform = st_plat
+
+        if oauth_err:
+            if state:
+                SocialOAuthState.objects.filter(state=state).delete()
+            qs = urlencode({"error": oauth_err_desc or oauth_err, "platform": platform})
+            return redirect(f"{admin_ui}/admin/social/accounts?{qs}")
+
+        if not code or not state:
+            qs = urlencode({"error": "oauth_missing_params", "platform": platform})
+            return redirect(f"{admin_ui}/admin/social/accounts?{qs}")
+
         try:
-            account = complete_oauth_callback(platform, code, state)
+            result = complete_oauth_callback(platform, code, state)
         except SocialServiceError as exc:
             qs = urlencode({"error": exc.message, "platform": platform})
-            return redirect(f"{admin_ui}/social/accounts?{qs}")
-        return redirect(f"{admin_ui}/social/accounts?account={account.id}")
+            return redirect(f"{admin_ui}/admin/social/accounts?{qs}")
+
+        if isinstance(result, SocialOAuthSelection):
+            qs = urlencode({"selection": result.token, "platform": result.platform})
+            return redirect(f"{admin_ui}/admin/social/accounts?{qs}")
+        return redirect(f"{admin_ui}/admin/social/accounts?account={result.id}")
+
+
+class SocialOAuthSelectionView(APIView):
+    permission_classes = [IsStaff, CanManageAccounts]
+
+    def get(self, request, token: str):
+        try:
+            sel = get_oauth_selection(token, request.user)
+        except SocialServiceError as exc:
+            return _error_response(exc)
+        return Response({"platform": sel.platform, "candidates": sel.candidates or []})
+
+
+class SocialOAuthSelectionConfirmView(APIView):
+    permission_classes = [IsStaff, CanManageAccounts]
+
+    def post(self, request, token: str):
+        account_id = str(request.data.get("account_id") or "").strip()
+        if not account_id:
+            return Response({"detail": "account_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            account = confirm_oauth_selection(token, account_id, request.user)
+        except SocialServiceError as exc:
+            return _error_response(exc)
+        return Response({"ok": True, "account": SocialAccountSerializer(account).data})
 
 
 def _resolve_oauth_callback(request, platform: str) -> str:
@@ -531,14 +578,13 @@ def _resolve_oauth_callback(request, platform: str) -> str:
     elif platform == "youtube":
         env_cb = getattr(settings, "YOUTUBE_REDIRECT_URI", None) or os.environ.get("YOUTUBE_REDIRECT_URI")
     elif platform in ("facebook", "instagram"):
-        base = (getattr(settings, "SOCIAL_OAUTH_REDIRECT_BASE", "") or os.environ.get("SOCIAL_OAUTH_REDIRECT_BASE", "")).rstrip("/")
-        meta_cb = getattr(settings, "META_REDIRECT_URI", None) or os.environ.get("META_REDIRECT_URI")
+        meta_cb = (getattr(settings, "META_REDIRECT_URI", None) or os.environ.get("META_REDIRECT_URI") or "").strip()
         if meta_cb and "admin.sokoflow.com" not in meta_cb:
-            env_cb = meta_cb
-        elif base and "admin.sokoflow.com" not in base:
-            env_cb = f"{base}/api/v1/social/oauth/facebook/callback/"
-        else:
-            return request.build_absolute_uri("/api/v1/social/oauth/facebook/callback/")
+            return meta_cb
+        base = (getattr(settings, "SOCIAL_OAUTH_REDIRECT_BASE", "") or os.environ.get("SOCIAL_OAUTH_REDIRECT_BASE", "")).rstrip("/")
+        if base and "admin.sokoflow.com" not in base:
+            return f"{base}/api/v1/social/oauth/facebook/callback/"
+        return request.build_absolute_uri("/api/v1/social/oauth/facebook/callback/")
     else:
         env_cb = None
     return env_cb or request.build_absolute_uri(f"/api/v1/social/oauth/{platform}/callback/")

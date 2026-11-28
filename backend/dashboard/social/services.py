@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import secrets
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -59,7 +60,9 @@ from .models import (
     SocialInboxMessage,
     SocialMedia,
     SocialMediaFolder,
+    SocialMetaAuthorization,
     SocialNotification,
+    SocialOAuthSelection,
     SocialOAuthState,
     SocialPlatform,
     SocialPlatformDailyMetric,
@@ -93,12 +96,12 @@ OAUTH_ENDPOINTS: dict[str, dict[str, str]] = {
     SocialPlatform.FACEBOOK.value: {
         "auth_url": "https://www.facebook.com/v20.0/dialog/oauth",
         "token_url": "https://graph.facebook.com/v20.0/oauth/access_token",
-        "scope": "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_manage_metadata,pages_read_user_content,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages,instagram_shopping_tag_products",
+        "scope": "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_manage_metadata,pages_read_user_content,read_insights,pages_messaging,business_management",
     },
     SocialPlatform.INSTAGRAM.value: {
         "auth_url": "https://www.facebook.com/v20.0/dialog/oauth",
         "token_url": "https://graph.facebook.com/v20.0/oauth/access_token",
-        "scope": "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_manage_metadata,pages_read_user_content,read_insights,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,instagram_manage_messages,instagram_shopping_tag_products",
+        "scope": "pages_show_list,pages_read_engagement,business_management,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_contents,instagram_manage_insights,instagram_manage_messages,instagram_shopping_tag_products",
     },
     SocialPlatform.TIKTOK.value: {
         "auth_url": "https://www.tiktok.com/v2/auth/authorize/",
@@ -106,6 +109,57 @@ OAUTH_ENDPOINTS: dict[str, dict[str, str]] = {
         "scope": "user.info.basic,user.info.profile,user.info.stats,video.list,video.upload",
     },
 }
+
+
+META_FACEBOOK_DEFAULT_SCOPES = [
+    "pages_show_list",
+    "pages_read_engagement",
+    "pages_manage_posts",
+    "pages_manage_engagement",
+    "pages_manage_metadata",
+    "pages_read_user_content",
+    "read_insights",
+    "pages_messaging",
+    "business_management",
+]
+
+META_INSTAGRAM_DEFAULT_SCOPES = [
+    "pages_show_list",
+    "pages_read_engagement",
+    "business_management",
+    "instagram_basic",
+    "instagram_content_publish",
+    "instagram_manage_comments",
+    "instagram_manage_contents",
+    "instagram_manage_insights",
+    "instagram_manage_messages",
+    "instagram_shopping_tag_products",
+]
+
+
+def _meta_graph_version() -> str:
+    return (getattr(settings, "META_GRAPH_API_VERSION", "") or "v20.0").strip()
+
+
+def _meta_graph_url(path: str) -> str:
+    return f"https://graph.facebook.com/{_meta_graph_version()}/{path.lstrip('/')}"
+
+
+def _meta_scopes_for_platform(platform: str) -> str:
+    configured = [str(x).strip() for x in (getattr(settings, "META_SOCIAL_SCOPES", None) or []) if str(x).strip()]
+    if platform == SocialPlatform.FACEBOOK.value:
+        allowed = set(META_FACEBOOK_DEFAULT_SCOPES)
+        chosen = [x for x in configured if x in allowed] if configured else list(META_FACEBOOK_DEFAULT_SCOPES)
+        for req in ("pages_show_list", "pages_read_engagement"):
+            if req not in chosen:
+                chosen.append(req)
+        return ",".join(dict.fromkeys(chosen))
+    allowed = set(META_INSTAGRAM_DEFAULT_SCOPES)
+    chosen = [x for x in configured if x in allowed] if configured else list(META_INSTAGRAM_DEFAULT_SCOPES)
+    for req in ("pages_show_list", "pages_read_engagement", "business_management", "instagram_basic"):
+        if req not in chosen:
+            chosen.append(req)
+    return ",".join(dict.fromkeys(chosen))
 
 
 class SocialServiceError(Exception):
@@ -321,9 +375,11 @@ def start_oauth_connect(
             "client_id": creds["client_id"],
             "redirect_uri": callback_uri,
             "response_type": "code",
-            "scope": ep["scope"],
+            "scope": _meta_scopes_for_platform(platform),
             "state": state_token,
+            "auth_type": "rerequest",
         }
+        return f"https://www.facebook.com/{_meta_graph_version()}/dialog/oauth?{urlencode(params)}"
     else:
         params = {
             "client_key": creds["client_id"],
@@ -339,7 +395,7 @@ def start_oauth_connect(
 
 
 @transaction.atomic
-def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccount:
+def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccount | SocialOAuthSelection:
     oauth_state = (
         SocialOAuthState.objects.select_for_update()
         .filter(state=state, platform=platform)
@@ -371,7 +427,7 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
             )
         elif platform in (SocialPlatform.FACEBOOK.value, SocialPlatform.INSTAGRAM.value):
             token_res = requests.get(
-                ep["token_url"],
+                _meta_graph_url("oauth/access_token"),
                 params={
                     "client_id": creds["client_id"],
                     "client_secret": creds["client_secret"],
@@ -396,7 +452,8 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
         token_res.raise_for_status()
         token_data = token_res.json()
     except requests.RequestException as exc:
-        raise SocialServiceError(f"Token exchange failed: {exc}", status_code=502)
+        detail = _extract_meta_error(exc.response) if getattr(exc, "response", None) is not None else str(exc)
+        raise SocialServiceError(f"Token exchange failed: {detail}", status_code=502)
 
     access_token = token_data.get("access_token") or ""
     if not access_token:
@@ -411,48 +468,44 @@ def complete_oauth_callback(platform: str, code: str, state: str) -> SocialAccou
     )
 
     if platform in (SocialPlatform.FACEBOOK.value, SocialPlatform.INSTAGRAM.value):
-        fb_profile, ig_profile, page_names, effective_token, effective_expires_at = _fetch_meta_bundle(
-            access_token, creds, expires_at
+        meta_auth, candidates, tokens_by_id = _discover_meta_candidates(
+            platform, access_token, creds, expires_at, oauth_state.initiated_by
         )
-        fb_account = None
-        if fb_profile:
-            fb_account = _save_connected_social_account(
-                SocialPlatform.FACEBOOK.value,
-                fb_profile,
-                fb_profile.get("access_token") or effective_token,
-                refresh_token,
-                effective_expires_at,
+        reauth = oauth_state.reauthorize_account
+        if reauth and reauth.platform == platform:
+            matched = next((c for c in candidates if c["account_id"] == reauth.account_id), None)
+            if not matched:
+                raise SocialServiceError(
+                    f"The authorized Meta user does not have access to {reauth.display_name or reauth.account_id}.",
+                    status_code=400,
+                )
+            tok = tokens_by_id.get(matched["account_id"], meta_auth.user_access_token)
+            prof = _build_meta_profile_from_candidate(platform, matched, meta_auth.scopes or [])
+            account = _save_connected_social_account(
+                platform,
+                prof,
+                tok,
+                "",
+                None,
                 oauth_state.initiated_by,
-                reauth_account=oauth_state.reauthorize_account if platform == SocialPlatform.FACEBOOK.value else None,
+                reauth_account=reauth,
+                meta_authorization=meta_auth,
             )
-        ig_account = None
-        if ig_profile:
-            ig_account = _save_connected_social_account(
-                SocialPlatform.INSTAGRAM.value,
-                ig_profile,
-                ig_profile.get("access_token") or effective_token,
-                refresh_token,
-                effective_expires_at,
-                oauth_state.initiated_by,
-                reauth_account=oauth_state.reauthorize_account if platform == SocialPlatform.INSTAGRAM.value else None,
-            )
-        if platform == SocialPlatform.INSTAGRAM.value and not ig_account:
-            raise SocialServiceError(
-                f"No Instagram Business or Creator account linked to this Meta authorization. Pages returned by Meta: {', '.join(page_names) or 'none'}.",
-                status_code=400,
-            )
-        if platform == SocialPlatform.FACEBOOK.value and not fb_account:
-            fb_account = _save_connected_social_account(
-                SocialPlatform.FACEBOOK.value,
-                {"account_type": "Page", "publishing_formats": ["image", "video", "text", "reel"]},
-                effective_token,
-                refresh_token,
-                effective_expires_at,
-                oauth_state.initiated_by,
-                reauth_account=oauth_state.reauthorize_account,
-            )
+            oauth_state.delete()
+            return account
+
+        selection = SocialOAuthSelection.objects.create(
+            token=secrets.token_urlsafe(32),
+            platform=platform,
+            meta_authorization=meta_auth,
+            reauthorize_account=reauth,
+            initiated_by=oauth_state.initiated_by,
+            candidates=candidates,
+            encrypted_tokens=json.dumps(tokens_by_id),
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
         oauth_state.delete()
-        return ig_account if platform == SocialPlatform.INSTAGRAM.value else fb_account
+        return selection
 
     profile = _fetch_platform_profile(platform, access_token)
     account = _save_connected_social_account(
@@ -476,6 +529,7 @@ def _save_connected_social_account(
     expires_at: Any,
     initiated_by: Any,
     reauth_account: SocialAccount | None = None,
+    meta_authorization: SocialMetaAuthorization | None = None,
 ) -> SocialAccount:
     ext_id = str(profile.get("account_id") or "")
     account = reauth_account
@@ -518,6 +572,8 @@ def _save_connected_social_account(
     account.supports_moderation = platform == SocialPlatform.YOUTUBE.value
     if not has_default:
         account.is_default_publishing = True
+    if meta_authorization is not None:
+        account.meta_authorization = meta_authorization
     account.enabled_for_distribution = True
     account.save()
 
@@ -538,26 +594,84 @@ def _save_connected_social_account(
     return account
 
 
-def _fetch_meta_bundle(
-    access_token: str,
+def _extract_meta_error(res: requests.Response) -> str:
+    try:
+        err = (res.json() or {}).get("error") or {}
+        if isinstance(err, dict) and err.get("message"):
+            return f"{err.get('message')} (code {err.get('code')})"
+    except Exception:
+        pass
+    return res.text[:300]
+
+
+def _inspect_meta_permissions(user_token: str) -> tuple[set[str], set[str]]:
+    granted: set[str] = set()
+    declined: set[str] = set()
+    try:
+        res = requests.get(_meta_graph_url("me/permissions"), params={"access_token": user_token}, timeout=15)
+        if res.ok:
+            for row in (res.json() or {}).get("data") or []:
+                perm = row.get("permission")
+                if not perm:
+                    continue
+                if row.get("status") == "granted":
+                    granted.add(perm)
+                elif row.get("status") == "declined":
+                    declined.add(perm)
+    except requests.RequestException:
+        pass
+    return granted, declined
+
+
+def _fetch_all_meta_pages(user_token: str) -> list[dict[str, Any]]:
+    url = _meta_graph_url("me/accounts")
+    params: dict[str, Any] | None = {
+        "fields": (
+            "id,name,username,access_token,fan_count,followers_count,tasks,"
+            "picture{url},"
+            "instagram_business_account{id,name,username,followers_count,profile_picture_url},"
+            "connected_instagram_account{id,name,username,followers_count,profile_picture_url}"
+        ),
+        "limit": 100,
+        "access_token": user_token,
+    }
+    pages: list[dict[str, Any]] = []
+    for _ in range(20):
+        res = requests.get(url, params=params, timeout=20)
+        if not res.ok:
+            raise SocialServiceError(f"Meta pages lookup failed: {_extract_meta_error(res)}", status_code=502)
+        payload = res.json() or {}
+        pages.extend(payload.get("data") or [])
+        next_url = (payload.get("paging") or {}).get("next")
+        if not next_url:
+            break
+        url = next_url
+        params = None
+    return pages
+
+
+def _discover_meta_candidates(
+    platform: str,
+    short_user_token: str,
     creds: dict[str, str],
     expires_at: Any,
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[str], str, Any]:
-    user_token = access_token
+    initiated_by: Any,
+) -> tuple[SocialMetaAuthorization, list[dict[str, Any]], dict[str, str]]:
+    user_token = short_user_token
     long_expires = expires_at
     try:
         ll_res = requests.get(
-            "https://graph.facebook.com/v20.0/oauth/access_token",
+            _meta_graph_url("oauth/access_token"),
             params={
                 "grant_type": "fb_exchange_token",
                 "client_id": creds["client_id"],
                 "client_secret": creds["client_secret"],
-                "fb_exchange_token": access_token,
+                "fb_exchange_token": short_user_token,
             },
             timeout=15,
         )
         if ll_res.ok:
-            ll_data = ll_res.json()
+            ll_data = ll_res.json() or {}
             if ll_data.get("access_token"):
                 user_token = ll_data["access_token"]
             ll_exp = ll_data.get("expires_in")
@@ -568,96 +682,288 @@ def _fetch_meta_bundle(
 
     meta_user_id = ""
     try:
-        me_res = requests.get(
-            "https://graph.facebook.com/v20.0/me",
-            params={"fields": "id,name", "access_token": user_token},
-            timeout=15,
-        )
+        me_res = requests.get(_meta_graph_url("me"), params={"fields": "id,name", "access_token": user_token}, timeout=15)
         if me_res.ok:
-            meta_user_id = str(me_res.json().get("id") or "")
+            meta_user_id = str((me_res.json() or {}).get("id") or "")
     except requests.RequestException:
         pass
 
-    try:
-        res = requests.get(
-            "https://graph.facebook.com/v20.0/me/accounts",
-            params={
-                "fields": "id,name,username,access_token,fan_count,followers_count,picture{url},instagram_business_account{id,name,username,followers_count,profile_picture_url},connected_instagram_account{id,name,username,followers_count,profile_picture_url}",
-                "access_token": user_token,
-            },
-            timeout=20,
+    granted_scopes, declined_scopes = _inspect_meta_permissions(user_token)
+    if platform == SocialPlatform.FACEBOOK.value and "pages_show_list" in declined_scopes:
+        raise SocialServiceError(
+            "Facebook Page discovery permission (pages_show_list) was declined. Please approve Page access and try again.",
+            status_code=400,
         )
-        res.raise_for_status()
-    except requests.RequestException as exc:
-        detail = exc.response.text[:300] if getattr(exc, "response", None) is not None else str(exc)
-        raise SocialServiceError(f"Meta pages lookup failed: {detail}", status_code=502)
+    if platform == SocialPlatform.INSTAGRAM.value:
+        declined_req = [x for x in ("instagram_basic", "pages_show_list") if x in declined_scopes]
+        if declined_req:
+            raise SocialServiceError(
+                f"Required Instagram permissions were declined ({', '.join(declined_req)}). Please approve them and try again.",
+                status_code=400,
+            )
 
-    pages = res.json().get("data") or []
-    page_names = [f"{pg.get('name') or 'Unnamed'} ({pg.get('id') or ''})" for pg in pages]
-    fb_profile = None
-    ig_profile = None
+    init_user = initiated_by if getattr(initiated_by, "is_authenticated", False) else None
+    if meta_user_id:
+        meta_auth, _ = SocialMetaAuthorization.objects.update_or_create(
+            meta_user_id=meta_user_id,
+            initiated_by=init_user,
+            defaults={
+                "user_access_token": user_token,
+                "token_expires_at": long_expires,
+                "scopes": sorted(granted_scopes),
+            },
+        )
+    else:
+        meta_auth = SocialMetaAuthorization.objects.create(
+            meta_user_id="",
+            initiated_by=init_user,
+            user_access_token=user_token,
+            token_expires_at=long_expires,
+            scopes=sorted(granted_scopes),
+        )
 
-    if pages:
-        pg0 = pages[0]
-        fb_profile = {
-            "account_id": pg0.get("id", ""),
-            "display_name": pg0.get("name", ""),
-            "username": pg0.get("username", ""),
-            "profile_image_url": ((pg0.get("picture") or {}).get("data") or {}).get("url", ""),
-            "account_type": "Facebook Page",
-            "followers": pg0.get("followers_count") or pg0.get("fan_count"),
-            "access_token": pg0.get("access_token") or user_token,
-            "metadata": {"meta_user_id": meta_user_id, "page_id": pg0.get("id", "")},
-            "publishing_formats": ["image", "video", "text", "reel"],
-            "supports_dm": True,
-            "supports_mentions": True,
-            "scopes": [
-                {"key": "pages_manage_posts", "label": "Publish to Page", "granted": True},
-                {"key": "pages_read_engagement", "label": "Read Page engagement", "granted": True},
-                {"key": "pages_messaging", "label": "Manage Page messages", "granted": True},
-            ],
-        }
+    pages = _fetch_all_meta_pages(user_token)
+    candidates: list[dict[str, Any]] = []
+    tokens_by_id: dict[str, str] = {}
 
+    if platform == SocialPlatform.FACEBOOK.value:
+        for pg in pages:
+            pid = str(pg.get("id") or "")
+            if not pid:
+                continue
+            tokens_by_id[pid] = pg.get("access_token") or user_token
+            candidates.append(
+                {
+                    "account_id": pid,
+                    "display_name": pg.get("name") or f"Facebook Page {pid}",
+                    "username": pg.get("username") or "",
+                    "profile_image_url": ((pg.get("picture") or {}).get("data") or {}).get("url", ""),
+                    "account_type": "Facebook Page",
+                    "followers": pg.get("followers_count") or pg.get("fan_count"),
+                    "linked_page_id": pid,
+                    "linked_page_name": pg.get("name") or "",
+                    "meta_user_id": meta_user_id,
+                    "granted_scopes": sorted(granted_scopes),
+                }
+            )
+        if not candidates:
+            raise SocialServiceError(
+                "No Facebook Pages were returned for this Meta user. Confirm you manage a Facebook Page and selected it in the Meta consent screen.",
+                status_code=400,
+            )
+        return meta_auth, candidates, tokens_by_id
+
+    seen_ig_ids: set[str] = set()
+    page_names: list[str] = []
     for pg in pages:
-        ig = pg.get("instagram_business_account") or pg.get("connected_instagram_account")
+        pid = str(pg.get("id") or "")
+        pname = pg.get("name") or pid or "Unnamed Page"
+        page_names.append(f"{pname} ({pid})")
         pg_tok = pg.get("access_token") or user_token
-        if not ig and pg.get("id") and pg_tok:
+        ig = pg.get("instagram_business_account") or pg.get("connected_instagram_account")
+        if not ig and pid and pg_tok:
             try:
                 pg_res = requests.get(
-                    f"https://graph.facebook.com/v20.0/{pg['id']}",
+                    _meta_graph_url(pid),
                     params={
-                        "fields": "instagram_business_account{id,name,username,followers_count,profile_picture_url},connected_instagram_account{id,name,username,followers_count,profile_picture_url}",
+                        "fields": (
+                            "instagram_business_account{id,name,username,followers_count,profile_picture_url},"
+                            "connected_instagram_account{id,name,username,followers_count,profile_picture_url}"
+                        ),
                         "access_token": pg_tok,
                     },
                     timeout=15,
                 )
                 if pg_res.ok:
-                    pg_data = pg_res.json()
+                    pg_data = pg_res.json() or {}
                     ig = pg_data.get("instagram_business_account") or pg_data.get("connected_instagram_account")
             except requests.RequestException:
                 pass
-        if ig:
-            ig_profile = {
-                "account_id": ig.get("id", ""),
-                "display_name": ig.get("name") or ig.get("username") or "",
-                "username": ig.get("username", ""),
-                "profile_image_url": ig.get("profile_picture_url", ""),
-                "account_type": "Business",
-                "followers": ig.get("followers_count"),
-                "access_token": pg_tok,
-                "metadata": {"meta_user_id": meta_user_id, "page_id": pg.get("id", "")},
-                "publishing_formats": ["image", "video", "reel", "story"],
-                "supports_dm": True,
-                "supports_mentions": True,
-                "scopes": [
-                    {"key": "instagram_basic", "label": "Read profile & media", "granted": True},
-                    {"key": "instagram_content_publish", "label": "Publish content", "granted": True},
-                    {"key": "instagram_manage_comments", "label": "Manage comments", "granted": True},
-                ],
-            }
-            break
+        if ig and ig.get("id"):
+            ig_id = str(ig["id"])
+            if ig_id in seen_ig_ids:
+                continue
+            seen_ig_ids.add(ig_id)
+            tokens_by_id[ig_id] = pg_tok
+            candidates.append(
+                {
+                    "account_id": ig_id,
+                    "display_name": ig.get("name") or ig.get("username") or f"Instagram {ig_id}",
+                    "username": ig.get("username") or "",
+                    "profile_image_url": ig.get("profile_picture_url") or "",
+                    "account_type": "Business",
+                    "followers": ig.get("followers_count"),
+                    "linked_page_id": pid,
+                    "linked_page_name": pname,
+                    "meta_user_id": meta_user_id,
+                    "granted_scopes": sorted(granted_scopes),
+                }
+            )
 
-    return fb_profile, ig_profile, page_names, user_token, long_expires
+    if not candidates:
+        diag = [f"Pages visible to Meta authorization: {', '.join(page_names) or 'none'}."]
+        if "instagram_basic" not in granted_scopes:
+            diag.append("Missing granted permission: instagram_basic.")
+        if "pages_read_engagement" not in granted_scopes:
+            diag.append("Missing granted permission: pages_read_engagement.")
+        if "business_management" not in granted_scopes:
+            diag.append("Missing granted permission: business_management.")
+        diag.append(
+            "Ensure the Instagram account is Business or Creator (not Personal), linked to that Facebook Page in Page Settings -> Linked Accounts, and selected in Meta's consent screen."
+        )
+        raise SocialServiceError(
+            "No Instagram Business or Creator account linked to this Meta authorization. " + " ".join(diag),
+            status_code=400,
+        )
+    return meta_auth, candidates, tokens_by_id
+
+
+def _build_meta_profile_from_candidate(platform: str, cand: dict[str, Any], granted_scopes: list[str]) -> dict[str, Any]:
+    if platform == SocialPlatform.FACEBOOK.value:
+        scope_defs = [
+            ("pages_show_list", "List managed Pages"),
+            ("pages_read_engagement", "Read Page engagement"),
+            ("pages_manage_posts", "Publish to Page"),
+            ("pages_manage_engagement", "Manage Page comments"),
+            ("pages_messaging", "Manage Page messages"),
+            ("read_insights", "Read Page insights"),
+        ]
+        return {
+            "account_id": cand["account_id"],
+            "display_name": cand["display_name"],
+            "username": cand.get("username", ""),
+            "profile_image_url": cand.get("profile_image_url", ""),
+            "account_type": "Facebook Page",
+            "followers": cand.get("followers"),
+            "metadata": {"meta_user_id": cand.get("meta_user_id", ""), "page_id": cand["account_id"]},
+            "publishing_formats": ["image", "video", "text", "reel"],
+            "supports_dm": True,
+            "supports_mentions": True,
+            "scopes": [
+                {"key": k, "label": lbl, "granted": (not granted_scopes) or (k in granted_scopes)}
+                for k, lbl in scope_defs
+            ],
+        }
+    scope_defs = [
+        ("instagram_basic", "Read profile & media"),
+        ("instagram_content_publish", "Publish content"),
+        ("instagram_manage_comments", "Manage comments"),
+        ("instagram_manage_messages", "Manage direct messages"),
+        ("instagram_manage_insights", "Read Instagram insights"),
+    ]
+    return {
+        "account_id": cand["account_id"],
+        "display_name": cand["display_name"],
+        "username": cand.get("username", ""),
+        "profile_image_url": cand.get("profile_image_url", ""),
+        "account_type": cand.get("account_type") or "Business",
+        "followers": cand.get("followers"),
+        "metadata": {
+            "meta_user_id": cand.get("meta_user_id", ""),
+            "page_id": cand.get("linked_page_id", ""),
+            "linked_page_name": cand.get("linked_page_name", ""),
+        },
+        "publishing_formats": ["image", "video", "reel", "story"],
+        "supports_dm": True,
+        "supports_mentions": True,
+        "scopes": [
+            {"key": k, "label": lbl, "granted": (not granted_scopes) or (k in granted_scopes)}
+            for k, lbl in scope_defs
+        ],
+    }
+
+
+def _fetch_meta_account_profile(account: SocialAccount) -> dict[str, Any]:
+    if not account.account_id:
+        raise SocialServiceError(f"Missing {account.platform} account_id for sync.", status_code=400)
+    if account.platform == SocialPlatform.FACEBOOK.value:
+        res = requests.get(
+            _meta_graph_url(account.account_id),
+            params={
+                "fields": "id,name,username,fan_count,followers_count,picture{url}",
+                "access_token": account.access_token,
+            },
+            timeout=20,
+        )
+        if not res.ok:
+            raise SocialServiceError(f"Facebook sync failed: {_extract_meta_error(res)}", status_code=502)
+        pg = res.json() or {}
+        return {
+            "display_name": pg.get("name", ""),
+            "username": pg.get("username", ""),
+            "profile_image_url": ((pg.get("picture") or {}).get("data") or {}).get("url", ""),
+            "followers": pg.get("followers_count") or pg.get("fan_count"),
+        }
+    res = requests.get(
+        _meta_graph_url(account.account_id),
+        params={
+            "fields": "id,name,username,followers_count,profile_picture_url",
+            "access_token": account.access_token,
+        },
+        timeout=20,
+    )
+    if not res.ok:
+        raise SocialServiceError(f"Instagram sync failed: {_extract_meta_error(res)}", status_code=502)
+    ig = res.json() or {}
+    return {
+        "display_name": ig.get("name") or ig.get("username") or "",
+        "username": ig.get("username", ""),
+        "profile_image_url": ig.get("profile_picture_url", ""),
+        "followers": ig.get("followers_count"),
+    }
+
+
+def get_oauth_selection(token: str, user: Any) -> SocialOAuthSelection:
+    sel = SocialOAuthSelection.objects.select_related("meta_authorization").filter(token=token).first()
+    if not sel:
+        raise SocialServiceError("OAuth selection session not found.", status_code=404)
+    if sel.expires_at <= timezone.now():
+        sel.delete()
+        raise SocialServiceError("OAuth selection session expired. Please reconnect.", status_code=400)
+    if sel.initiated_by_id and getattr(user, "id", None) != sel.initiated_by_id:
+        raise SocialServiceError("This authorization session belongs to another user.", status_code=403)
+    return sel
+
+
+@transaction.atomic
+def confirm_oauth_selection(token: str, account_id: str, user: Any) -> SocialAccount:
+    sel = (
+        SocialOAuthSelection.objects.select_for_update()
+        .select_related("meta_authorization", "reauthorize_account")
+        .filter(token=token)
+        .first()
+    )
+    if not sel:
+        raise SocialServiceError("OAuth selection session not found.", status_code=404)
+    if sel.expires_at <= timezone.now():
+        sel.delete()
+        raise SocialServiceError("OAuth selection session expired. Please reconnect.", status_code=400)
+    if sel.initiated_by_id and getattr(user, "id", None) != sel.initiated_by_id:
+        raise SocialServiceError("This authorization session belongs to another user.", status_code=403)
+
+    matched = next((c for c in (sel.candidates or []) if str(c.get("account_id")) == str(account_id)), None)
+    if not matched:
+        raise SocialServiceError("Selected account was not part of this Meta authorization.", status_code=400)
+
+    tokens_by_id = json.loads(sel.encrypted_tokens or "{}")
+    tok = tokens_by_id.get(str(account_id)) or (sel.meta_authorization.user_access_token if sel.meta_authorization else "")
+    if not tok:
+        raise SocialServiceError("Access token missing for selected account.", status_code=400)
+
+    granted = (sel.meta_authorization.scopes if sel.meta_authorization else None) or matched.get("granted_scopes") or []
+    prof = _build_meta_profile_from_candidate(sel.platform, matched, granted)
+    account = _save_connected_social_account(
+        sel.platform,
+        prof,
+        tok,
+        "",
+        None,
+        user,
+        reauth_account=sel.reauthorize_account,
+        meta_authorization=sel.meta_authorization,
+    )
+    sel.delete()
+    return account
 
 
 def _fetch_platform_profile(platform: str, access_token: str) -> dict[str, Any]:
@@ -781,7 +1087,14 @@ def _fetch_platform_profile(platform: str, access_token: str) -> dict[str, Any]:
 
 
 def _refresh_account_token(account: SocialAccount) -> None:
-    if not account.refresh_token:
+    if account.platform in (SocialPlatform.YOUTUBE.value, SocialPlatform.TIKTOK.value) and not account.refresh_token:
+        account.status = AccountConnectionStatus.AUTHORIZATION_EXPIRED
+        account.error = "Authorization expired. Please reauthorize this account."
+        account.save(update_fields=["status", "error", "updated_at"])
+        raise SocialServiceError(account.error, status_code=401)
+    if account.platform in (SocialPlatform.FACEBOOK.value, SocialPlatform.INSTAGRAM.value) and not (
+        account.access_token or (account.meta_authorization and account.meta_authorization.user_access_token)
+    ):
         account.status = AccountConnectionStatus.AUTHORIZATION_EXPIRED
         account.error = "Authorization expired. Please reauthorize this account."
         account.save(update_fields=["status", "error", "updated_at"])
@@ -814,12 +1127,12 @@ def _refresh_account_token(account: SocialAccount) -> None:
             )
         else:
             res = requests.get(
-                ep["token_url"],
+                _meta_graph_url("oauth/access_token"),
                 params={
                     "grant_type": "fb_exchange_token",
                     "client_id": creds["client_id"],
                     "client_secret": creds["client_secret"],
-                    "fb_exchange_token": account.access_token or account.refresh_token,
+                    "fb_exchange_token": (account.meta_authorization.user_access_token if account.meta_authorization and account.meta_authorization.user_access_token else account.access_token),
                 },
                 timeout=20,
             )
@@ -867,7 +1180,10 @@ def sync_social_account(account_id: str, actor: Any = None) -> SocialAccount:
     today = timezone.localdate(now)
 
     try:
-        profile = _fetch_platform_profile(account.platform, account.access_token)
+        if account.platform in (SocialPlatform.FACEBOOK.value, SocialPlatform.INSTAGRAM.value):
+            profile = _fetch_meta_account_profile(account)
+        else:
+            profile = _fetch_platform_profile(account.platform, account.access_token)
         if profile.get("display_name"):
             account.display_name = profile["display_name"]
         if profile.get("username"):
@@ -953,6 +1269,7 @@ def disconnect_social_account(account_id: str, actor: Any = None) -> SocialAccou
     account.token_expires_at = None
     account.status = AccountConnectionStatus.NOT_CONNECTED
     account.is_default_publishing = False
+    account.meta_authorization = None
     account.enabled_for_distribution = False
     account.error = ""
     account.save()

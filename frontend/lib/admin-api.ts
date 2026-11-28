@@ -7977,6 +7977,13 @@ export function createSocialAdminApi({ request, qsOf, readCsrfToken }: SocialAdm
                 '/api/v1/admin/social/accounts/',
             ),
 
+        getSocialOAuthSelection: (token: string) =>
+            request<any>(`/api/v1/admin/social/accounts/oauth-selection/${encodeURIComponent(token)}/`),
+        confirmSocialOAuthSelection: (token: string, account_id: string) =>
+            request<any>(`/api/v1/admin/social/accounts/oauth-selection/${encodeURIComponent(token)}/confirm/`, {
+                method: 'POST',
+                body: { account_id },
+            }),
         startSocialConnect: (q: { platform: string }) =>
             request<{ authorize_url: string }>(
                 '/api/v1/admin/social/accounts/connect/',

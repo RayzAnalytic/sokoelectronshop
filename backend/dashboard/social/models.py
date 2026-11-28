@@ -270,6 +270,31 @@ class SocialAnalyticsConfig(models.Model):
         return f"{self.attribution_model} ({self.reporting_window_days}d, {self.currency})"
 
 
+class SocialMetaAuthorization(models.Model):
+    meta_user_id = models.CharField(max_length=128, db_index=True)
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="social_meta_authorizations",
+    )
+    user_access_token = EncryptedTextField(blank=True)
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    scopes = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["meta_user_id", "initiated_by"]),
+        ]
+
+    def __str__(self):
+        return f"MetaUser {self.meta_user_id or self.pk}"
+
+
 class SocialAccount(models.Model):
     platform = models.CharField(max_length=16, choices=SocialPlatform.choices, db_index=True)
     status = models.CharField(
@@ -294,6 +319,13 @@ class SocialAccount(models.Model):
     scopes = models.JSONField(default=list, blank=True)
     missing_scopes = models.JSONField(default=list, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    meta_authorization = models.ForeignKey(
+        SocialMetaAuthorization,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="social_accounts",
+    )
 
     is_default_publishing = models.BooleanField(default=False)
     enabled_for_distribution = models.BooleanField(default=True)
@@ -390,6 +422,39 @@ class SocialOAuthState(models.Model):
 
     def __str__(self):
         return f"{self.platform} OAuth state ({self.state[:8]})"
+
+
+class SocialOAuthSelection(models.Model):
+    token = models.CharField(max_length=128, unique=True)
+    platform = models.CharField(max_length=16, choices=SocialPlatform.choices)
+    meta_authorization = models.ForeignKey(
+        SocialMetaAuthorization,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="oauth_selections",
+    )
+    reauthorize_account = models.ForeignKey(
+        SocialAccount,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="oauth_selections",
+    )
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="social_oauth_selections",
+    )
+    candidates = models.JSONField(default=list, blank=True)
+    encrypted_tokens = EncryptedTextField(blank=True)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
 
 class SocialAccountSyncLog(models.Model):
