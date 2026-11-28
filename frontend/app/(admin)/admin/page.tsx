@@ -21,6 +21,13 @@ import {
   RefreshCw,
   AlertCircle,
   Loader2,
+  Truck,
+  MessageCircle,
+  Share2,
+  Tag,
+  Star,
+  FileText,
+  ArrowUpRight,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -44,6 +51,7 @@ import type {
   OverviewKpi,
   OverviewTopProduct,
   OverviewLowStockRow,
+  OverviewModuleSummary,
 } from '@/lib/admin-types';
 
 type UiDateRange = 'Today' | '7d' | '30d' | '90d' | 'Custom';
@@ -53,7 +61,7 @@ const GREEN = '#059669';
 const RED = '#dc2626';
 
 const BACKEND_URL =
-  (process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+  (process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
 
 function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';
@@ -115,6 +123,9 @@ export default function AdminDashboard() {
 
 function AdminDashboardInner() {
   const [dateRange, setDateRange] = useState<UiDateRange>('7d');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [appliedCustom, setAppliedCustom] = useState<{ start: string; end: string } | null>(null);
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +144,11 @@ function AdminDashboardInner() {
 
   const loadData = useCallback(async () => {
     const query: OverviewQuery = { range: UI_TO_API_RANGE[dateRange] };
+    if (dateRange === 'Custom') {
+      if (!appliedCustom?.start || !appliedCustom?.end) return;
+      query.start = appliedCustom.start;
+      query.end = appliedCustom.end;
+    }
     const res = await adminApi.overview.get(query);
     if (res.error) {
       setError(res.error);
@@ -141,7 +157,7 @@ function AdminDashboardInner() {
       setData(res);
       setError(null);
     }
-  }, [dateRange]);
+  }, [dateRange, appliedCustom]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,12 +178,45 @@ function AdminDashboardInner() {
 
   const handleRefresh = async () => {
     try {
-      await adminApi.overview.refreshCache({ range: UI_TO_API_RANGE[dateRange] });
+      const rangeKey =
+        dateRange === 'Custom' && appliedCustom
+          ? `custom:${appliedCustom.start}..${appliedCustom.end}`
+          : UI_TO_API_RANGE[dateRange];
+      await adminApi.overview.refreshCache({ range: rangeKey });
       await loadData();
       showToast('Dashboard refreshed');
     } catch {
       showToast('Refresh failed');
     }
+  };
+
+  const handleExportCsv = () => {
+    if (!data) {
+      showToast('No dashboard data to export');
+      return;
+    }
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows: string[] = ['Section,Name,Metric,Extra'];
+    for (const k of data.kpis ?? []) {
+      rows.push([esc('KPI'), esc(k.title), esc(`${k.prefix ?? ''}${k.value}${k.suffix ?? ''}`), esc(`${k.change}%`)].join(','));
+    }
+    for (const m of data.module_summaries ?? []) {
+      rows.push([esc('Module'), esc(m.title), esc(m.metric), esc(m.subtext)].join(','));
+    }
+    for (const p of data.top_products ?? []) {
+      rows.push([esc('Top Product'), esc(p.name), esc(`KES ${p.revenue}`), esc(`${p.sold} sold`)].join(','));
+    }
+    for (const o of data.recent_orders ?? []) {
+      rows.push([esc('Recent Order'), esc(o.orderNumber), esc(`KES ${o.amount}`), esc(`${o.customer} · ${o.status}`)].join(','));
+    }
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `overview-${UI_TO_API_RANGE[dateRange]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Exported overview CSV');
   };
 
   const formatKES = useCallback(
@@ -218,6 +267,10 @@ function AdminDashboardInner() {
   const recentOrders = data?.recent_orders ?? [];
   const recentCustomers = data?.recent_customers ?? [];
   const lowStock = data?.low_stock ?? [];
+  const topCategories = data?.top_categories ?? [];
+  const recentTransactions = data?.recent_transactions ?? [];
+  const paymentMethods = data?.payment_methods ?? [];
+  const moduleSummaries: OverviewModuleSummary[] = data?.module_summaries ?? [];
 
   const totalOrdersForPie = useMemo(
     () => orderStatus.reduce((sum, s) => sum + (s.value || 0), 0),
@@ -262,8 +315,36 @@ function AdminDashboardInner() {
                 </button>
               ))}
             </div>
+            {dateRange === 'Custom' && (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="bg-white border border-slate-200 rounded px-2 py-1 text-[12px] text-slate-700"
+                />
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="bg-white border border-slate-200 rounded px-2 py-1 text-[12px] text-slate-700"
+                />
+                <button
+                  onClick={() => {
+                    if (!customStart || !customEnd) {
+                      showToast('Select both start and end dates');
+                      return;
+                    }
+                    setAppliedCustom({ start: customStart, end: customEnd });
+                  }}
+                  className="bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium px-2 py-1 rounded transition"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
             <button
-              onClick={() => showToast('Exporting report…')}
+              onClick={handleExportCsv}
               className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-3 py-1.5 rounded transition"
             >
               <Download className="h-3.5 w-3.5" />
@@ -291,7 +372,7 @@ function AdminDashboardInner() {
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
-          {kpis.slice(0, 5).map((kpi) => (
+          {kpis.map((kpi) => (
             <KpiCard key={kpi.id} kpi={kpi} isLoading={isLoading} />
           ))}
           {!isLoading && kpis.length === 0 && (
@@ -603,6 +684,133 @@ function AdminDashboardInner() {
             </div>
           </div>
         </div>
+
+        {(topCategories.length > 0 || paymentMethods.length > 0 || recentTransactions.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5">
+            <div className="bg-white border border-slate-200 rounded p-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <h2 className="text-[13px] font-semibold text-slate-900">Top Categories</h2>
+                <Link href="/admin/categories" className="text-[13px] font-medium text-blue-950 hover:underline">
+                  View all
+                </Link>
+              </div>
+              <div className="space-y-1.5">
+                {topCategories.length === 0 ? (
+                  <p className="text-[13px] text-slate-400 italic py-4 text-center">No category sales yet.</p>
+                ) : (
+                  topCategories.map((cat) => (
+                    <div key={cat.name} className="flex items-center justify-between gap-2 py-1 text-[13px] border-b border-slate-50 last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        <span className="font-medium text-slate-800 truncate">{cat.name}</span>
+                        <span className="text-[12px] text-slate-400 shrink-0">{cat.products} items</span>
+                      </div>
+                      <span className="font-semibold text-slate-900 shrink-0">{formatKES(cat.revenue)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded p-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <h2 className="text-[13px] font-semibold text-slate-900">Payment Methods</h2>
+                <Link href="/admin/payments" className="text-[13px] font-medium text-blue-950 hover:underline">
+                  View all
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {paymentMethods.length === 0 ? (
+                  <p className="text-[13px] text-slate-400 italic py-4 text-center">No settled payments in range.</p>
+                ) : (
+                  paymentMethods.map((pm) => (
+                    <div key={pm.name} className="space-y-1 text-[13px]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-slate-800 truncate">{pm.name}</span>
+                        <span className="font-semibold text-slate-900 shrink-0">
+                          {formatKES(pm.amount)} ({pm.percentage}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded overflow-hidden">
+                        <div className="h-full rounded" style={{ width: `${pm.percentage}%`, backgroundColor: pm.color }} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded p-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <h2 className="text-[13px] font-semibold text-slate-900">Recent Transactions</h2>
+                <Link href="/admin/transactions" className="text-[13px] font-medium text-blue-950 hover:underline">
+                  View all
+                </Link>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {recentTransactions.length === 0 ? (
+                  <p className="text-[13px] text-slate-400 italic py-4 text-center">No transactions yet.</p>
+                ) : (
+                  recentTransactions.map((tx) => (
+                    <div key={tx.id} className="py-1.5 flex items-center justify-between text-[13px]">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-medium text-slate-900">{tx.ref}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-600 truncate">{tx.method}</span>
+                        </div>
+                        <p className="text-[12px] text-slate-400 truncate">{tx.customer} · {tx.time}</p>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <p className="font-semibold text-slate-900">{formatKES(tx.amount)}</p>
+                        <span className="text-[12px] text-slate-500">{tx.status}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {moduleSummaries.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded p-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[13px] font-semibold text-slate-900">Admin Apps Summary</h2>
+              <span className="text-[12px] text-slate-500">Live status across store modules</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
+              {moduleSummaries.map((mod) => {
+                const MIcon = KPI_ICON_MAP[mod.icon] ?? Package;
+                return (
+                  <Link
+                    key={mod.id}
+                    href={mod.href}
+                    className="bg-slate-50/60 hover:bg-slate-50 border border-slate-200 rounded p-2 flex flex-col justify-between transition group"
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <MIcon className="h-3.5 w-3.5 text-blue-950 shrink-0" />
+                        <span className="text-[12px] font-medium text-slate-600 truncate">{mod.title}</span>
+                      </div>
+                      {mod.attention > 0 ? (
+                        <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                          {mod.attention}
+                        </span>
+                      ) : (
+                        <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-950 shrink-0" />
+                      )}
+                    </div>
+                    <div className="mt-1">
+                      <p className="text-[14px] font-bold text-slate-900 truncate">{mod.metric}</p>
+                      <p className="text-[12px] text-slate-500 truncate">{mod.subtext}</p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </main>
 
       {selectedProduct &&

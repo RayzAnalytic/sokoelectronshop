@@ -19,6 +19,7 @@ RANGE_LABELS = {
 
 LIVE_ORDER_STATUSES = ("CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED")
 REFUND_STATUSES = ("RETURNED", "CANCELLED", "FAILED")
+CACHE_TTL_SECONDS = 300
 
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
 
@@ -29,6 +30,7 @@ SOURCE_COLORS = {
     "Instagram": "#ec4899",
     "Facebook": "#0284c7",
     "TikTok": "#f59e0b",
+    "YouTube": "#dc2626",
     "Organic Search": "#0284c7",
     "Paid Ads": "#ec4899",
     "Other": "#94a3b8",
@@ -40,6 +42,7 @@ CHANNEL_COLORS = {
     "Instagram": "#ec4899",
     "Facebook": "#0284c7",
     "TikTok": "#f59e0b",
+    "YouTube": "#dc2626",
     "Other": "#6366f1",
 }
 
@@ -51,12 +54,14 @@ DEVICE_LABELS = {
 
 
 def _range_key(request) -> str:
-    return request.GET.get("range", "7days")
+    today_iso = timezone.localdate().isoformat()
+    rng = request.GET.get("range", "7days")
+    return f"{today_iso}:{rng}"
 
 
 def _resolve_dates(request):
     rng = request.GET.get("range", "7days")
-    today = timezone.now().date()
+    today = timezone.localdate()
     if rng == "30days":
         start = today - timedelta(days=29)
         days = 30
@@ -65,7 +70,7 @@ def _resolve_dates(request):
         days = 90
     elif rng == "year":
         start = today.replace(month=1, day=1)
-        days = (today - start).days + 1
+        days = max(1, (today - start).days + 1)
     else:
         start = today - timedelta(days=6)
         days = 7
@@ -83,7 +88,8 @@ def _date_range_days(start, end):
 
 def _cached_or_build(request, tab: str, builder, empty: dict) -> dict:
     key = _range_key(request)
-    cached = AnalyticsCache.objects.filter(tab=tab, range_key=key).first()
+    cutoff = timezone.now() - timedelta(seconds=CACHE_TTL_SECONDS)
+    cached = AnalyticsCache.objects.filter(tab=tab, range_key=key, updated_at__gte=cutoff).first()
     if cached and cached.payload:
         return cached.payload
     try:
@@ -95,6 +101,7 @@ def _cached_or_build(request, tab: str, builder, empty: dict) -> dict:
         )
         payload = dict(empty)
         payload["error"] = str(exc)
+        return payload
     AnalyticsCache.objects.update_or_create(
         tab=tab, range_key=key, defaults={"payload": payload}
     )
@@ -122,11 +129,12 @@ def _pct_delta(current: float, previous: float) -> tuple[float, bool]:
     return abs(delta), delta >= 0
 
 
-def _sparkline_for_window(today, days: int, base: float) -> list[float]:
-    if days <= 0 or base <= 0:
-        return [0.0] * 7
-    step = max(base / 7.0, 1.0)
-    return [round(step * (i + 1), 2) for i in range(7)]
+def _fmt_delta(current: float, previous: float, lower_is_better: bool = False) -> dict:
+    d, up = _pct_delta(current, previous)
+    pos = (not up) if lower_is_better and previous > 0 and current != previous else up
+    if current == previous == 0:
+        pos = True
+    return {"delta": f"{'+' if up else '-'}{d:.1f}%", "positive": pos}
 
 
 def _tail7(series: list) -> list[float]:
@@ -134,6 +142,14 @@ def _tail7(series: list) -> list[float]:
     while len(out) < 7:
         out.insert(0, 0.0)
     return [round(float(v or 0), 2) for v in out]
+
+
+def _daily_counts(qs, date_range, field="created_at") -> list[float]:
+    rows = {
+        r["day"]: float(r["n"] or 0)
+        for r in qs.annotate(day=TruncDate(field)).values("day").annotate(n=Count("id"))
+    }
+    return [rows.get(d, 0.0) for d in date_range]
 
 
 def _absolutize(url: str, request=None) -> str:
@@ -207,7 +223,7 @@ def _bounce_and_duration(pv_qs, session_rows, date_range):
         if len(rows) >= 2:
             dur = (rows[-1].created_at - rows[0].created_at).total_seconds()
             durations.append(dur)
-            daily_durations[rows[0].created_at.date()].append(dur)
+            daily_durations[timezone.localtime(rows[0].created_at).date()].append(dur)
     duration_now = (sum(durations) / len(durations)) if durations else 0.0
 
     session_first_day = dict(
@@ -337,7 +353,7 @@ def _abandoned_carts_payload(start, end, request):
                 customer = "Guest"
 
             phone = getattr(user, "phone", "") if user else ""
-            updated = getattr(c, "updated_at", None)
+            updated = timezone.localtime(c.updated_at) if getattr(c, "updated_at", None) else None
 
             out.append({
                 "id": f"AC-{c.id}",
@@ -366,10 +382,35 @@ def _abandoned_carts_payload(start, end, request):
     return out
 
 
+def _refunds_total_for_range(start, end) -> float:
+    total = 0.0
+    try:
+        from dashboard.returns.models import Refund
+        total += _to_float(
+            Refund.objects
+            .filter(created_at__date__gte=start, created_at__date__lte=end)
+            .exclude(status__iexact="failed")
+            .aggregate(t=Coalesce(Sum("amount"), Value(0), output_field=DECIMAL))["t"]
+        )
+    except Exception:
+        pass
+    if total == 0.0:
+        try:
+            from checkout.models import Order
+            total += _to_float(
+                Order.objects
+                .filter(created_at__date__gte=start, created_at__date__lte=end, status="RETURNED")
+                .aggregate(t=Coalesce(Sum("total"), Value(0), output_field=DECIMAL))["t"]
+            )
+        except Exception:
+            pass
+    return total
+
+
 @require_GET
 def traffic(request):
     def build(_req):
-        from checkout.models import Order
+        from checkout.models import Cart, Order
         from dashboard.analytics.models import PageView
 
         start, end, days = _resolve_dates(_req)
@@ -377,11 +418,8 @@ def traffic(request):
         prev_end = start - timedelta(days=1)
         date_range = _date_range_days(start, end)
 
-        orders_now = Order.objects.filter(
-            created_at__date__gte=start,
-            created_at__date__lte=end,
-            status__in=LIVE_ORDER_STATUSES,
-        )
+        all_orders_now = Order.objects.filter(created_at__date__gte=start, created_at__date__lte=end)
+        orders_now = all_orders_now.filter(status__in=LIVE_ORDER_STATUSES)
         orders_prev = Order.objects.filter(
             created_at__date__gte=prev_start,
             created_at__date__lte=prev_end,
@@ -404,30 +442,26 @@ def traffic(request):
         has_real_pv = pv_now_count > 0
 
         if has_real_pv:
-            sessions_now = pv_now.values("session_key").distinct().count()
-            visitors_now = sessions_now or order_count
+            non_empty_sess = pv_now.exclude(session_key="").values("session_key").distinct().count()
+            sessions_now = non_empty_sess or max(1, pv_now.values("user_id").distinct().count())
+            visitors_now = max(sessions_now, order_count)
             pageviews_now = pv_now_count
         else:
-            distinct_users = (
-                orders_now.exclude(user_id=None)
-                .values("user_id").distinct().count()
-            )
+            distinct_users = orders_now.exclude(user_id=None).values("user_id").distinct().count()
             visitors_now = max(distinct_users, order_count)
-            sessions_now = int(visitors_now * 1.3)
-            pageviews_now = int(sessions_now * 3.2)
+            sessions_now = visitors_now
+            pageviews_now = 0
 
         if pv_prev_count > 0:
-            sessions_prev = pv_prev.values("session_key").distinct().count()
-            visitors_prev = sessions_prev or prev_order_count
+            non_empty_prev = pv_prev.exclude(session_key="").values("session_key").distinct().count()
+            sessions_prev = non_empty_prev or max(1, pv_prev.values("user_id").distinct().count())
+            visitors_prev = max(sessions_prev, prev_order_count)
             pageviews_prev = pv_prev_count
         else:
-            distinct_users_prev = (
-                orders_prev.exclude(user_id=None)
-                .values("user_id").distinct().count()
-            )
+            distinct_users_prev = orders_prev.exclude(user_id=None).values("user_id").distinct().count()
             visitors_prev = max(distinct_users_prev, prev_order_count)
-            sessions_prev = int(visitors_prev * 1.3)
-            pageviews_prev = int(sessions_prev * 3.2)
+            sessions_prev = visitors_prev
+            pageviews_prev = 0
 
         conv_now = (order_count / sessions_now * 100) if sessions_now else 0.0
         conv_prev = (prev_order_count / sessions_prev * 100) if sessions_prev else 0.0
@@ -438,21 +472,21 @@ def traffic(request):
         duration_prev = 0.0
         bounce_series_full = []
         duration_series_full = []
-        prev_bounce_series = []
-        prev_duration_series = []
 
         if has_real_pv:
-            session_rows = list(pv_now.values("session_key").annotate(n=Count("id")))
-            bounce_now, duration_now, bounce_series_full, duration_series_full = (
-                _bounce_and_duration(pv_now, session_rows, date_range)
-            )
+            session_rows = list(pv_now.exclude(session_key="").values("session_key").annotate(n=Count("id")))
+            if session_rows:
+                bounce_now, duration_now, bounce_series_full, duration_series_full = (
+                    _bounce_and_duration(pv_now, session_rows, date_range)
+                )
 
         if pv_prev_count > 0:
-            prev_session_rows = list(pv_prev.values("session_key").annotate(n=Count("id")))
-            prev_date_range = _date_range_days(prev_start, prev_end)
-            bounce_prev, duration_prev, prev_bounce_series, prev_duration_series = (
-                _bounce_and_duration(pv_prev, prev_session_rows, prev_date_range)
-            )
+            prev_session_rows = list(pv_prev.exclude(session_key="").values("session_key").annotate(n=Count("id")))
+            if prev_session_rows:
+                prev_date_range = _date_range_days(prev_start, prev_end)
+                bounce_prev, duration_prev, _, _ = (
+                    _bounce_and_duration(pv_prev, prev_session_rows, prev_date_range)
+                )
 
         if bounce_prev > 0:
             bounce_delta = abs((bounce_now - bounce_prev) / bounce_prev * 100)
@@ -493,25 +527,22 @@ def traffic(request):
             if has_real_pv and duration_now > 0 else "—"
         )
 
+        daily_pv_spark = _tail7(_daily_counts(pv_now, date_range)) if has_real_pv else _tail7(_daily_counts(orders_now, date_range))
+        daily_ord_spark = _tail7(_daily_counts(orders_now, date_range))
+
         kpis = [
             kpi("sessions", "Sessions", f"{sessions_now:,}", s_delta, s_pos,
-                _sparkline_for_window(end, days, sessions_now),
-                "Total user sessions across the storefront."),
+                daily_pv_spark, "Total user sessions across the storefront."),
             kpi("visitors", "Unique Visitors", f"{visitors_now:,}", v_delta, v_pos,
-                _sparkline_for_window(end, days, visitors_now),
-                "Distinct visitors in the selected range."),
+                daily_pv_spark, "Distinct visitors in the selected range."),
             kpi("pageviews", "Page Views", f"{pageviews_now:,}", p_delta, p_pos,
-                _sparkline_for_window(end, days, pageviews_now),
-                "Total page views across all storefront pages."),
+                daily_pv_spark, "Total page views across all storefront pages."),
             kpi("bounce", "Bounce Rate", bounce_value, bounce_delta, bounce_positive,
-                bounce_series,
-                "Sessions that left without interacting beyond the landing page."),
+                bounce_series, "Sessions that left without interacting beyond the landing page."),
             kpi("duration", "Avg. Duration", duration_value, duration_delta, duration_positive,
-                duration_series,
-                "Average time spent per session."),
+                duration_series, "Average time spent per session."),
             kpi("conversion", "Conversion Rate", f"{conv_now:.2f}%", c_delta, c_pos,
-                _sparkline_for_window(end, days, conv_now),
-                "Percentage of sessions that completed a purchase."),
+                daily_ord_spark, "Percentage of sessions that completed a purchase."),
         ]
 
         if has_real_pv:
@@ -525,10 +556,11 @@ def traffic(request):
             timeline = []
             for d in date_range:
                 row = pv_by_day.get(d)
+                vis = (row["visitors"] if row else 0) or 0
                 timeline.append({
                     "date": d.strftime("%b %d"),
-                    "sessions": (row["visitors"] if row else 0) or 0,
-                    "visitors": (row["visitors"] if row else 0) or 0,
+                    "sessions": vis,
+                    "visitors": vis,
                     "pageviews": (row["views"] if row else 0) or 0,
                 })
         else:
@@ -541,12 +573,11 @@ def traffic(request):
             for d in date_range:
                 row = ord_by_day.get(d)
                 o = (row["orders"] if row else 0) or 0
-                v = max(o, 1) if o else 0
                 timeline.append({
                     "date": d.strftime("%b %d"),
-                    "sessions": int(v * 1.3) if v else 0,
-                    "visitors": v,
-                    "pageviews": int(v * 1.3 * 3.2) if v else 0,
+                    "sessions": o,
+                    "visitors": o,
+                    "pageviews": 0,
                 })
 
         source_map = {
@@ -574,7 +605,7 @@ def traffic(request):
                 "name": label,
                 "value": share,
                 "color": SOURCE_COLORS.get(label, "#94a3b8"),
-                "visits": int(t["orders"] * 1.3 * 20),
+                "visits": t["orders"],
                 "orders": t["orders"],
                 "revenue": f"KES {_to_int(t['revenue']):,}",
             })
@@ -585,19 +616,42 @@ def traffic(request):
                 "visits": 0, "orders": 0, "revenue": "KES 0",
             }]
 
-        top = visitors_now
+        # Real Funnel from PageView + Cart + Order
+        active_carts_cnt = (
+            Cart.objects
+            .filter(updated_at__date__gte=start, updated_at__date__lte=end)
+            .annotate(ic=Count("items"))
+            .filter(ic__gt=0)
+            .count()
+        )
+        checkout_cnt = max(order_count, all_orders_now.count())
+        add_to_cart_cnt = max(checkout_cnt, active_carts_cnt + checkout_cnt)
+        if has_real_pv:
+            pv_prod = pv_now.filter(Q(path__icontains="/product") | Q(path__icontains="/shop")).values("session_key").distinct().count()
+            prod_view_cnt = max(add_to_cart_cnt, pv_prod)
+            visited_cnt = max(prod_view_cnt, visitors_now)
+        else:
+            prod_view_cnt = add_to_cart_cnt
+            visited_cnt = max(prod_view_cnt, visitors_now)
+
+        def _drop(cur_n: int, prev_n: int) -> str:
+            if prev_n <= 0:
+                return "—"
+            pct = (cur_n - prev_n) / prev_n * 100
+            return f"{pct:.1f}%"
+
         stages = []
-        if top:
+        if visited_cnt > 0:
             stages = [
-                {"stage": "Visited Store", "count": top, "dropoff": "—",
-                 "breakdown": [{"source": s["name"], "users": int(top * s["value"] / 100)} for s in sources]},
-                {"stage": "Product View", "count": int(top * 0.715), "dropoff": "-28.5%",
-                 "breakdown": [{"source": s["name"], "users": int(top * 0.715 * s["value"] / 100)} for s in sources]},
-                {"stage": "Add to Cart", "count": int(top * 0.194), "dropoff": "-72.8%",
-                 "breakdown": [{"source": s["name"], "users": int(top * 0.194 * s["value"] / 100)} for s in sources]},
-                {"stage": "Checkout Initiated", "count": int(top * 0.079), "dropoff": "-59.5%",
-                 "breakdown": [{"source": s["name"], "users": int(top * 0.079 * s["value"] / 100)} for s in sources]},
-                {"stage": "Purchased (M-Pesa)", "count": order_count, "dropoff": "-15.9%",
+                {"stage": "Visited Store", "count": visited_cnt, "dropoff": "—",
+                 "breakdown": [{"source": s["name"], "users": int(visited_cnt * s["value"] / 100)} for s in sources]},
+                {"stage": "Product View", "count": prod_view_cnt, "dropoff": _drop(prod_view_cnt, visited_cnt),
+                 "breakdown": [{"source": s["name"], "users": int(prod_view_cnt * s["value"] / 100)} for s in sources]},
+                {"stage": "Add to Cart", "count": add_to_cart_cnt, "dropoff": _drop(add_to_cart_cnt, prod_view_cnt),
+                 "breakdown": [{"source": s["name"], "users": int(add_to_cart_cnt * s["value"] / 100)} for s in sources]},
+                {"stage": "Checkout Initiated", "count": checkout_cnt, "dropoff": _drop(checkout_cnt, add_to_cart_cnt),
+                 "breakdown": [{"source": s["name"], "users": int(checkout_cnt * s["value"] / 100)} for s in sources]},
+                {"stage": "Purchased", "count": order_count, "dropoff": _drop(order_count, checkout_cnt),
                  "breakdown": [{"source": s["name"], "users": int(order_count * s["value"] / 100)} for s in sources]},
             ]
 
@@ -605,13 +659,13 @@ def traffic(request):
         if has_real_pv:
             dv_qs = list(
                 pv_now.values("device_type")
-                .annotate(users=Count("session_key", distinct=True))
+                .annotate(users=Count("session_key", distinct=True), views=Count("id"))
             )
-            total_dev = sum(r["users"] for r in dv_qs) or 1
+            total_dev = sum((r["users"] or r["views"]) for r in dv_qs) or 1
             for r in dv_qs:
                 key = (r["device_type"] or "desktop").lower()
                 label, color = DEVICE_LABELS.get(key, (key.title(), "#94a3b8"))
-                users = r["users"] or 0
+                users = r["users"] or r["views"] or 0
                 devices.append({
                     "device": label,
                     "users": users,
@@ -625,54 +679,64 @@ def traffic(request):
 
         counties = []
         try:
-            from account.models import Address
-            county_qs = list(
-                Address.objects
-                .filter(user__isnull=False)
-                .exclude(county="")
-                .values("county")
-                .annotate(users=Count("user", distinct=True))
-                .order_by("-users")[:5]
+            ord_county_qs = list(
+                orders_now.exclude(address_county="")
+                .values("address_county")
+                .annotate(
+                    orders=Count("id"),
+                    revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
+                    visitors=Count("user", distinct=True),
+                )
+                .order_by("-orders")[:5]
             )
-            total_addrs = sum(r["users"] for r in county_qs) or 1
-            for r in county_qs:
-                cty = r["county"] or "Unknown"
-                share = round(r["users"] / total_addrs * 100)
-                counties.append({
-                    "county": cty,
-                    "share": share,
-                    "visitors": r["users"],
-                    "orders": 0,
-                    "revenue": "KES 0",
-                })
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).warning(
-                "analytics.traffic counties failed: %s", exc
-            )
+            if ord_county_qs:
+                tot_c = sum(r["orders"] for r in ord_county_qs) or 1
+                for r in ord_county_qs:
+                    counties.append({
+                        "county": r["address_county"],
+                        "share": round(r["orders"] / tot_c * 100),
+                        "visitors": r["visitors"] or r["orders"],
+                        "orders": r["orders"],
+                        "revenue": f"KES {_to_int(r['revenue']):,}",
+                    })
+            else:
+                from account.models import Address
+                county_qs = list(
+                    Address.objects
+                    .filter(user__isnull=False)
+                    .exclude(county="")
+                    .values("county")
+                    .annotate(users=Count("user", distinct=True))
+                    .order_by("-users")[:5]
+                )
+                total_addrs = sum(r["users"] for r in county_qs) or 1
+                for r in county_qs:
+                    cty = r["county"] or "Unknown"
+                    counties.append({
+                        "county": cty,
+                        "share": round(r["users"] / total_addrs * 100),
+                        "visitors": r["users"],
+                        "orders": 0,
+                        "revenue": "KES 0",
+                    })
+        except Exception:
             counties = []
 
         abandoned = _abandoned_carts_payload(start, end, _req)
         cart_abandonment = _cart_abandonment(start, end, order_count)
 
-        if abandoned:
-            trend_by_day = defaultdict(int)
-            for c in abandoned:
-                if c.get("iso_date"):
-                    trend_by_day[c["iso_date"]] += 1
-            abandoned_trend = [
-                {
-                    "date": d.strftime("%b %d"),
-                    "carts": trend_by_day.get(d.isoformat(), 0),
-                    "iso_date": d.isoformat(),
-                }
-                for d in date_range
-            ]
-        else:
-            abandoned_trend = [
-                {"date": t["date"], "carts": max(int(t["visitors"] * 0.18), 1)}
-                for t in timeline
-            ]
+        trend_by_day = defaultdict(int)
+        for c in abandoned:
+            if c.get("iso_date"):
+                trend_by_day[c["iso_date"]] += 1
+        abandoned_trend = [
+            {
+                "date": d.strftime("%b %d"),
+                "carts": trend_by_day.get(d.isoformat(), 0),
+                "iso_date": d.isoformat(),
+            }
+            for d in date_range
+        ]
 
         return {
             "kpis": kpis,
@@ -707,7 +771,7 @@ def sales(request):
         def agg(qs):
             return qs.aggregate(
                 gross=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
-                refunds=Coalesce(Sum("discount"), Value(0), output_field=DECIMAL),
+                discounts=Coalesce(Sum("discount"), Value(0), output_field=DECIMAL),
                 orders=Count("id"),
             )
 
@@ -724,19 +788,32 @@ def sales(request):
         prev_gross = _to_float(prev["gross"])
         orders = now["orders"] or 0
         prev_orders = prev["orders"] or 0
-        refunds = _to_float(now["refunds"])
-        aov = (gross / orders) if orders else 0
-        prev_aov = (prev_gross / prev_orders) if prev_orders else 0
+        discounts = _to_float(now["discounts"])
+        refunds = _refunds_total_for_range(start, end)
+        prev_refunds = _refunds_total_for_range(prev_start, prev_end)
+        net = max(0.0, gross - refunds)
+        prev_net = max(0.0, prev_gross - prev_refunds)
+
+        aov = (gross / orders) if orders else 0.0
+        prev_aov = (prev_gross / prev_orders) if prev_orders else 0.0
         growth, growth_pos = _pct_delta(gross, prev_gross)
 
         summary = {
             "gross": int(gross),
-            "net": int(gross - refunds),
+            "net": int(net),
             "refunds": int(refunds),
-            "discounts": int(refunds),
+            "discounts": int(discounts),
             "orders": orders,
             "aov": int(aov),
             "revenueGrowth": round(growth, 1) if growth_pos else -round(growth, 1),
+            "deltas": {
+                "gross": _fmt_delta(gross, prev_gross),
+                "net": _fmt_delta(net, prev_net),
+                "refunds": _fmt_delta(refunds, prev_refunds, lower_is_better=True),
+                "orders": _fmt_delta(orders, prev_orders),
+                "aov": _fmt_delta(aov, prev_aov),
+                "revenueGrowth": {"delta": f"{'+' if growth_pos else '-'}{round(growth, 1)}%", "positive": growth_pos},
+            },
         }
 
         daily = (
@@ -747,24 +824,32 @@ def sales(request):
             .values("day")
             .annotate(
                 gross=Coalesce(Sum("total"), Value(0), output_field=DECIMAL),
-                refunds=Coalesce(Sum("discount"), Value(0), output_field=DECIMAL),
             )
             .order_by("day")
         )
         ord_by_day = {row["day"]: row for row in daily}
+        ref_by_day = {
+            row["day"]: _to_int(row["r"])
+            for row in Order.objects.filter(
+                created_at__date__gte=start, created_at__date__lte=end,
+                status__in=REFUND_STATUSES,
+            ).annotate(day=TruncDate("created_at")).values("day").annotate(
+                r=Coalesce(Sum("total"), Value(0), output_field=DECIMAL)
+            )
+        }
         trend = []
         for d in _date_range_days(start, end):
             row = ord_by_day.get(d)
             g = _to_int(row["gross"]) if row else 0
-            r = _to_int(row["refunds"]) if row else 0
+            r = ref_by_day.get(d, 0)
             trend.append({
                 "date": d.strftime("%b %d"),
                 "gross": g,
-                "net": g - r,
+                "net": max(0, g - r),
                 "refunds": r,
             })
 
-        prod_qs = (
+        all_items_now = list(
             OrderItem.objects
             .filter(
                 order__created_at__date__gte=start,
@@ -777,10 +862,21 @@ def sales(request):
                 orders=Count("order", distinct=True),
                 units=Sum("quantity"),
             )
-            .order_by("-revenue")[:10]
+            .order_by("-revenue")
+        )
+        prev_items_rev = dict(
+            OrderItem.objects
+            .filter(
+                order__created_at__date__gte=prev_start,
+                order__created_at__date__lte=prev_end,
+                order__status__in=LIVE_ORDER_STATUSES,
+            )
+            .values("product_id")
+            .annotate(rev=Coalesce(Sum(F("unit_price") * F("quantity")), Value(0), output_field=DECIMAL))
+            .values_list("product_id", "rev")
         )
 
-        pids = [r["product_id"] for r in prod_qs if r["product_id"]]
+        pids = [r["product_id"] for r in all_items_now if r["product_id"]]
         product_meta = {
             p.id: {
                 "image": _image_url(p, _req),
@@ -791,24 +887,33 @@ def sales(request):
         }
 
         by_product = []
-        for r in prod_qs:
+        for r in all_items_now[:10]:
             meta = product_meta.get(r["product_id"], {})
+            cur_r = _to_float(r["revenue"])
+            prv_r = _to_float(prev_items_rev.get(r["product_id"], 0))
+            gd, gp = _pct_delta(cur_r, prv_r)
             by_product.append({
                 "name": r["name"] or "—",
-                "revenue": _to_int(r["revenue"]),
+                "revenue": _to_int(cur_r),
                 "orders": r["orders"] or 0,
                 "units": r["units"] or 0,
-                "growth": 0,
+                "growth": round(gd, 1) if gp else -round(gd, 1),
                 "image": meta.get("image") or "",
             })
 
         cat_totals = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
-        for r in prod_qs:
+        brand_totals = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
+        for r in all_items_now:
             meta = product_meta.get(r["product_id"], {})
             cat = meta.get("category_name") or "Other"
             cat_totals[cat]["revenue"] += _to_int(r["revenue"])
             cat_totals[cat]["orders"] += r["orders"] or 0
             cat_totals[cat]["units"] += r["units"] or 0
+            br = meta.get("brand_name") or "Other"
+            brand_totals[br]["revenue"] += _to_int(r["revenue"])
+            brand_totals[br]["orders"] += r["orders"] or 0
+            brand_totals[br]["units"] += r["units"] or 0
+
         cat_objs = {c.name: c for c in Category.objects.filter(name__in=cat_totals.keys())}
         palette = ["#10b981", "#0284c7", "#6366f1", "#f59e0b", "#ec4899"]
         by_category = [
@@ -826,13 +931,6 @@ def sales(request):
             )[:5])
         ]
 
-        brand_totals = defaultdict(lambda: {"revenue": 0, "orders": 0, "units": 0})
-        for r in prod_qs:
-            meta = product_meta.get(r["product_id"], {})
-            br = meta.get("brand_name") or "Other"
-            brand_totals[br]["revenue"] += _to_int(r["revenue"])
-            brand_totals[br]["orders"] += r["orders"] or 0
-            brand_totals[br]["units"] += r["units"] or 0
         brand_objs = {b.name: b for b in Brand.objects.filter(name__in=brand_totals.keys())}
         by_brand = [
             {
@@ -872,6 +970,8 @@ def customers(request):
         from dashboard.customers.models import CustomerProfile
 
         start, end, days = _resolve_dates(_req)
+        prev_start = start - timedelta(days=days)
+        prev_end = start - timedelta(days=1)
 
         first_by_cust = dict(
             Order.objects
@@ -881,23 +981,26 @@ def customers(request):
             .values_list("user_id", "first")
         )
 
-        seen = (
-            Order.objects
-            .filter(created_at__date__gte=start, created_at__date__lte=end,
-                    user__isnull=False)
-            .values("created_at__date", "user_id")
-            .distinct()
-        )
+        def split_new_ret(s, e):
+            seen = (
+                Order.objects
+                .filter(created_at__date__gte=s, created_at__date__lte=e, user__isnull=False)
+                .values("created_at__date", "user_id")
+                .distinct()
+            )
+            n_day = defaultdict(int)
+            r_day = defaultdict(int)
+            for r in seen:
+                day = r["created_at__date"]
+                uid = r["user_id"]
+                if first_by_cust.get(uid) == day:
+                    n_day[day] += 1
+                else:
+                    r_day[day] += 1
+            return n_day, r_day
 
-        new_by_day = defaultdict(int)
-        ret_by_day = defaultdict(int)
-        for r in seen:
-            day = r["created_at__date"]
-            uid = r["user_id"]
-            if first_by_cust.get(uid) == day:
-                new_by_day[day] += 1
-            else:
-                ret_by_day[day] += 1
+        new_by_day, ret_by_day = split_new_ret(start, end)
+        prev_new_day, prev_ret_day = split_new_ret(prev_start, prev_end)
 
         nvr = []
         for d in _date_range_days(start, end):
@@ -910,33 +1013,61 @@ def customers(request):
         total_new = sum(new_by_day.values())
         total_ret = sum(ret_by_day.values())
         total_cust = total_new + total_ret
-        retention = (total_ret / total_cust * 100) if total_cust else 0
+        retention = (total_ret / total_cust * 100) if total_cust else 0.0
+
+        prev_new = sum(prev_new_day.values())
+        prev_ret = sum(prev_ret_day.values())
+        prev_tot = prev_new + prev_ret
+        prev_ret_rate = (prev_ret / prev_tot * 100) if prev_tot else 0.0
 
         profiles_qs = CustomerProfile.objects.all()
         ltv_avg = profiles_qs.aggregate(a=Avg("total_spent"))["a"] or 0
         orders_total = profiles_qs.aggregate(s=Sum("orders_count"))["s"] or 0
         spend_total = profiles_qs.aggregate(s=Sum("total_spent"))["s"] or 0
-        aov_avg = (float(spend_total) / orders_total) if orders_total else 0
+        aov_avg = (float(spend_total) / orders_total) if orders_total else 0.0
+
+        marketing_spend = 0.0
+        try:
+            from dashboard.social.models import SocialCampaign
+            marketing_spend += _to_float(
+                SocialCampaign.objects.filter(start_date__lte=end, end_date__gte=start)
+                .aggregate(s=Coalesce(Sum("actual_spend"), Value(0), output_field=DECIMAL))["s"]
+            )
+        except Exception:
+            pass
+        try:
+            from dashboard.whatsapp.models import WhatsAppMessagingCost
+            marketing_spend += _to_float(
+                WhatsAppMessagingCost.objects.filter(date__gte=start, date__lte=end)
+                .aggregate(s=Coalesce(Sum("cost"), Value(0), output_field=DECIMAL))["s"]
+            )
+        except Exception:
+            pass
+        cac = int(marketing_spend / total_new) if total_new > 0 and marketing_spend > 0 else 0
+
+        d_new = _fmt_delta(total_new, prev_new)
+        d_ret = _fmt_delta(total_ret, prev_ret)
+        d_rate = _fmt_delta(retention, prev_ret_rate)
 
         metrics = [
             {"id": "new", "label": "New Customers", "value": f"{total_new:,}",
-             "delta": "+0%", "positive": True,
+             "delta": d_new["delta"], "positive": d_new["positive"],
              "detail": "First-time buyers this period."},
             {"id": "returning", "label": "Returning Customers", "value": f"{total_ret:,}",
-             "delta": "+0%", "positive": True,
+             "delta": d_ret["delta"], "positive": d_ret["positive"],
              "detail": "Customers with 2+ purchases."},
             {"id": "retention", "label": "Retention Rate", "value": f"{retention:.1f}%",
-             "delta": "+0%", "positive": True,
+             "delta": d_rate["delta"], "positive": d_rate["positive"],
              "detail": "Customers who purchased again within the range."},
             {"id": "ltv", "label": "Customer LTV", "value": f"KES {int(ltv_avg):,}",
-             "delta": "+0%", "positive": True,
+             "delta": "+0.0%", "positive": True,
              "detail": "Average lifetime value per customer."},
             {"id": "aov", "label": "Avg. Spend / Order", "value": f"KES {int(aov_avg):,}",
-             "delta": "+0%", "positive": True,
+             "delta": "+0.0%", "positive": True,
              "detail": "Average order value across all customers."},
-            {"id": "acq", "label": "Acquisition Cost", "value": "KES 0",
-             "delta": "+0%", "positive": True,
-             "detail": "Blended cost to acquire one customer."},
+            {"id": "acq", "label": "Acquisition Cost", "value": f"KES {cac:,}",
+             "delta": "+0.0%", "positive": True,
+             "detail": "Blended campaign & messaging spend per new buyer."},
         ]
 
         top = profiles_qs.select_related("user").order_by("-total_spent")[:10]
@@ -973,7 +1104,7 @@ def products(request):
         from catalog.models import Product
         from checkout.models import OrderItem
 
-        start, end, days = _resolve_dates(_req)
+        start, end, _days = _resolve_dates(_req)
 
         perf_qs = (
             OrderItem.objects
@@ -996,22 +1127,20 @@ def products(request):
                 "sku": p.slug or "—",
                 "image": _image_url(p, _req),
                 "stock": p.stock_quantity or 0,
+                "views": getattr(p, "views_count", 0) or 0,
                 "category": p.category.name if p.category_id else "—",
             }
             for p in Product.objects.filter(id__in=pids).select_related("category")
         }
 
-        def estimated_views(purchases: int) -> int:
-            return int(purchases / 0.015) if purchases else 0
-
         rows = []
         for r in perf_qs:
             meta = product_meta.get(r["product_id"], {})
             purchases = r["purchases"] or 0
-            views = estimated_views(purchases)
+            views = max(meta.get("views", 0), purchases)
             revenue = _to_int(r["revenue"])
             stock = meta.get("stock", 0)
-            conversion = (purchases / views * 100) if views else 0
+            conversion = (purchases / views * 100) if views else 0.0
 
             if stock == 0:
                 status = "out"
@@ -1038,7 +1167,7 @@ def products(request):
 
         most_viewed = max(rows, key=lambda r: r["views"], default=None)
         most_purchased = max(rows, key=lambda r: r["purchases"], default=None)
-        best_seller = next((r for r in rows if r["status"] == "best"), None)
+        best_seller = next((r for r in rows if r["status"] == "best"), None) or most_purchased
 
         return {
             "summary": {
@@ -1065,11 +1194,12 @@ def channels(request):
     def build(_req):
         from checkout.models import Order
 
-        start, end, days = _resolve_dates(_req)
+        start, end, _days = _resolve_dates(_req)
 
         source_map = {
             "whatsapp": "WhatsApp", "web": "Website", "app": "App",
             "api": "API", "admin": "Other", "in_store": "Other", "phone": "Other",
+            "instagram": "Instagram", "facebook": "Facebook", "tiktok": "TikTok", "youtube": "YouTube",
         }
         qs = (
             Order.objects
@@ -1082,20 +1212,82 @@ def channels(request):
             )
         )
 
-        totals_by_label = defaultdict(lambda: {"orders": 0, "revenue": 0.0})
+        totals_by_label = defaultdict(lambda: {"orders": 0, "revenue": 0.0, "visits": 0})
         for r in qs:
-            label = source_map.get(r["source"], "Other")
+            label = source_map.get((r["source"] or "").lower(), "Other")
             totals_by_label[label]["orders"] += r["orders"] or 0
             totals_by_label[label]["revenue"] += _to_float(r["revenue"])
+
+        # Include Direct / TikTok Shop orders
+        try:
+            from dashboard.direct_orders.models import DirectOrder
+            do_qs = (
+                DirectOrder.objects
+                .filter(created_at__date__gte=start, created_at__date__lte=end)
+                .exclude(status__in=("CANCELLED", "cancelled", "FAILED", "failed", "RETURNED", "returned"))
+                .values("source")
+                .annotate(orders=Count("id"), revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL))
+            )
+            for r in do_qs:
+                src = (r["source"] or "tiktok").lower()
+                label = source_map.get(src, "TikTok" if "tiktok" in src else "Other")
+                totals_by_label[label]["orders"] += r["orders"] or 0
+                totals_by_label[label]["revenue"] += _to_float(r["revenue"])
+        except Exception:
+            pass
+
+        # Include WhatsApp Commerce orders
+        try:
+            from dashboard.whatsapp.models import WhatsAppOrder
+            wa_agg = (
+                WhatsAppOrder.objects
+                .filter(created_at__date__gte=start, created_at__date__lte=end)
+                .exclude(status__in=("CANCELLED", "cancelled", "FAILED", "failed"))
+                .aggregate(orders=Count("id"), revenue=Coalesce(Sum("total"), Value(0), output_field=DECIMAL))
+            )
+            if wa_agg["orders"]:
+                totals_by_label["WhatsApp"]["orders"] += wa_agg["orders"]
+                totals_by_label["WhatsApp"]["revenue"] += _to_float(wa_agg["revenue"])
+        except Exception:
+            pass
+
+        # Include Social attribution visits & orders
+        social_visits = defaultdict(int)
+        social_orders = defaultdict(int)
+        social_rev = defaultdict(float)
+        try:
+            from dashboard.social.models import AttributionEventType, SocialAttributionEvent
+            attr_qs = SocialAttributionEvent.objects.filter(
+                occurred_at__date__gte=start, occurred_at__date__lte=end
+            )
+            for r in attr_qs.values("platform", "event_type").annotate(
+                cnt=Count("id"),
+                rev=Coalesce(Sum("revenue"), Value(0), output_field=DECIMAL),
+            ):
+                label = source_map.get((r["platform"] or "").lower(), (r["platform"] or "Other").title())
+                if r["event_type"] == AttributionEventType.VISIT:
+                    social_visits[label] += r["cnt"] or 0
+                elif r["event_type"] == AttributionEventType.ORDER:
+                    social_orders[label] += r["cnt"] or 0
+                    social_rev[label] += _to_float(r["rev"])
+        except Exception:
+            pass
+
+        for lbl, vcnt in social_visits.items():
+            totals_by_label[lbl]["visits"] += vcnt
+        for lbl, ocnt in social_orders.items():
+            if totals_by_label[lbl]["orders"] == 0:
+                totals_by_label[lbl]["orders"] += ocnt
+                totals_by_label[lbl]["revenue"] += social_rev[lbl]
 
         total_orders = sum(t["orders"] for t in totals_by_label.values()) or 1
 
         rows = []
-        for label, t in totals_by_label.items():
+        for label, t in sorted(totals_by_label.items(), key=lambda kv: -kv[1]["orders"]):
             share = round(t["orders"] / total_orders * 100)
             revenue = _to_int(t["revenue"])
-            visitors = int(t["orders"] * 1.3 * 20)
-            conv = (t["orders"] / visitors * 100) if visitors else 0
+            visitors = t["visits"] or t["orders"]
+            conv = (t["orders"] / visitors * 100) if visitors else 0.0
             rows.append({
                 "name": label,
                 "share": share,
@@ -1133,9 +1325,10 @@ def channels(request):
             for d in _date_range_days(start, end)
         }
         for r in daily:
-            label = source_map.get(r["source"], "Other")
+            label = source_map.get((r["source"] or "").lower(), "Other")
             key = trend_key.get(label, "other")
-            by_day[r["day"]][key] += r["orders"]
+            if r["day"] in by_day:
+                by_day[r["day"]][key] += r["orders"]
 
         trend = [
             {"date": d.strftime("%b %d"), **counts}
@@ -1144,33 +1337,48 @@ def channels(request):
 
         social_activity = []
         try:
-            from dashboard.social.models import SocialPostTarget
+            from dashboard.social.models import SocialAccount, SocialPlatformDailyMetric, SocialScheduledPost
             sm = (
-                SocialPostTarget.objects
+                SocialPlatformDailyMetric.objects
+                .filter(date__gte=start, date__lte=end)
                 .values("platform")
                 .annotate(
-                    posts=Count("id"),
-                    likes=Coalesce(Sum("likes"), Value(0)),
-                    comments=Coalesce(Sum("comments"), Value(0)),
                     reach=Coalesce(Sum("reach"), Value(0)),
+                    engagement=Coalesce(Sum("engagement"), Value(0)),
+                    views=Coalesce(Sum("views"), Value(0)),
                 )
             )
+            by_plat = {r["platform"]: r for r in sm}
+            if not by_plat:
+                for r in (
+                    SocialScheduledPost.objects
+                    .filter(published_at__date__gte=start, published_at__date__lte=end)
+                    .values("platform")
+                    .annotate(
+                        reach=Coalesce(Sum("reach"), Value(0)),
+                        engagement=Coalesce(Sum("likes"), Value(0)) + Coalesce(Sum("comments"), Value(0)),
+                        views=Coalesce(Sum("views"), Value(0)),
+                    )
+                ):
+                    by_plat[r["platform"]] = r
+
             platform_labels = {
-                "FACEBOOK": ("Facebook", "#0284c7"),
-                "INSTAGRAM": ("Instagram", "#ec4899"),
-                "TIKTOK": ("TikTok", "#f59e0b"),
-                "YOUTUBE": ("YouTube", "#dc2626"),
-                "X": ("X", "#0f172a"),
+                "facebook": ("Facebook", "#0284c7"),
+                "instagram": ("Instagram", "#ec4899"),
+                "tiktok": ("TikTok", "#f59e0b"),
+                "youtube": ("YouTube", "#dc2626"),
             }
-            for r in sm:
-                name, color = platform_labels.get(
-                    r["platform"], (r["platform"] or "Other", "#94a3b8")
-                )
+            for acc in SocialAccount.objects.filter(status="connected"):
+                key = (acc.platform or "").lower()
+                name, color = platform_labels.get(key, (acc.platform.title(), "#94a3b8"))
+                m = by_plat.get(key, {})
+                metric_val = _to_int(m.get("reach") or m.get("views") or acc.followers or 0)
+                metric_lbl = "Reach" if m.get("reach") else ("Views" if m.get("views") else "Followers")
                 social_activity.append({
                     "platform": name,
-                    "metric": "Reach",
-                    "value": f"{_to_int(r['reach']):,}",
-                    "delta": "+0%",
+                    "metric": f"{acc.display_name or acc.username or name} · {metric_lbl}",
+                    "value": f"{metric_val:,}",
+                    "delta": f"{_to_int(m.get('engagement', 0)):,} eng",
                     "positive": True,
                     "color": color,
                 })
@@ -1180,13 +1388,13 @@ def channels(request):
         attribution = [
             {"platform": "WhatsApp Business API", "metric": "Chat → Order",
              "value": f"{(next((r['share'] for r in rows if r['name'] == 'WhatsApp'), 0))}%",
-             "desc": "Highest converting channel"},
+             "desc": "Direct & WhatsApp commerce share"},
             {"platform": "Instagram Shop", "metric": "Profile → Store visit",
-             "value": f"{(next((r['share'] for r in rows if r['name'] == 'Instagram'), 0))}%",
-             "desc": "Strong product discovery"},
-            {"platform": "TikTok Pixel", "metric": "Video → Store visit",
-             "value": f"{(next((r['share'] for r in rows if r['name'] == 'TikTok'), 0))}%",
-             "desc": "Best performing ads"},
+             "value": f"{social_visits.get('Instagram', 0):,} visits · {social_orders.get('Instagram', 0)} orders",
+             "desc": "Tracked social attribution"},
+            {"platform": "TikTok Shop / Pixel", "metric": "Video → Store order",
+             "value": f"{(next((r['orders'] for r in rows if r['name'] == 'TikTok'), 0))} orders",
+             "desc": "Direct & video attribution"},
         ]
 
         return {

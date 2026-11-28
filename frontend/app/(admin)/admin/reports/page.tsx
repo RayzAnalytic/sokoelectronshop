@@ -186,6 +186,7 @@ export default function ReportsPage() {
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [openTabGroup, setOpenTabGroup] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -276,7 +277,7 @@ export default function ReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, appliedQuery.range, appliedQuery.start, appliedQuery.end]);
+  }, [activeTab, appliedQuery.range, appliedQuery.start, appliedQuery.end, refreshTick]);
 
   const handleRangePick = (rng: ReportRange) => {
     setDateRange(rng);
@@ -298,23 +299,132 @@ export default function ReportsPage() {
   const handleRefresh = async () => {
     try {
       await adminApi.reports.refreshCache({ tab: activeTab });
-      setAppliedQuery((q) => ({ ...q }));
+      setRefreshTick((t) => t + 1);
       showToast(`Refreshed ${activeTab.toUpperCase()} report`);
     } catch {
       showToast(`Refresh failed for ${activeTab.toUpperCase()}`);
     }
   };
 
+  const getTabTableData = (): { headers: string[]; rows: (string | number)[][] } => {
+    if (activeTab === 'sales' && reportData.sales) {
+      return {
+        headers: ['Date', 'Orders', 'Revenue (KES)', 'AOV (KES)', 'Top Category', 'Refunds'],
+        rows: reportData.sales.daily.map((r) => [r.date, r.orders, r.revenue, r.aov, r.topCategory, r.refunds]),
+      };
+    }
+    if (activeTab === 'orders' && reportData.orders) {
+      return {
+        headers: ['Order', 'Date', 'Customer', 'Items', 'Payment', 'Channel', 'Status', 'Total (KES)'],
+        rows: reportData.orders.rows.map((o) => [o.id, o.date, o.customer, o.items, o.payment, o.channel, o.status, o.total]),
+      };
+    }
+    if (activeTab === 'customers' && reportData.customers) {
+      return {
+        headers: ['Customer', 'Email', 'Phone', 'County', 'Orders', 'Spent (KES)', 'AOV (KES)', 'Last Order'],
+        rows: reportData.customers.top_buyers.map((c) => [c.customer, c.email, c.phone, c.county, c.orders, c.spent, c.aov, c.lastOrder]),
+      };
+    }
+    if (activeTab === 'products' && reportData.products) {
+      return {
+        headers: ['Product', 'SKU', 'Category', 'Qty', 'Revenue (KES)', 'Returns', 'Net (KES)', 'Last Sold'],
+        rows: reportData.products.rows.map((p) => [p.product, p.sku, p.category, p.qty, p.revenue, p.returns, p.net, p.lastSold]),
+      };
+    }
+    if (activeTab === 'inventory' && reportData.inventory) {
+      return {
+        headers: ['Product', 'SKU', 'Warehouse', 'On Hand', 'Reserved', 'Available', 'Reorder Point', 'Status', 'Value (KES)'],
+        rows: reportData.inventory.rows.map((r) => [r.product, r.sku, r.warehouse, r.onHand, r.reserved, r.available, r.reorderPoint, r.status, r.value]),
+      };
+    }
+    if (activeTab === 'payments' && reportData.payments) {
+      return {
+        headers: ['Method', 'Provider', 'Transactions', 'Volume (KES)', 'Fees (KES)', 'Net (KES)', 'Success Rate'],
+        rows: reportData.payments.streams.map((s) => [s.method, s.provider, s.transactions, s.volume, s.fees, s.net, s.successRate]),
+      };
+    }
+    if (activeTab === 'taxes' && reportData.taxes) {
+      return {
+        headers: ['Period', 'Taxable Sales (KES)', 'VAT (KES)', 'Net (KES)', 'Due Date', 'Status'],
+        rows: reportData.taxes.rows.map((t) => [t.period, t.taxableSales, t.vat16, t.net, t.dueDate, t.status]),
+      };
+    }
+    if (activeTab === 'shipping' && reportData.shipping) {
+      return {
+        headers: ['Carrier', 'Shipments', 'Delivered', 'In Transit', 'Failed', 'Avg Days', 'On-Time Rate', 'Cost (KES)'],
+        rows: reportData.shipping.rows.map((s) => [s.carrier, s.shipments, s.delivered, s.inTransit, s.failed, s.avgDays, s.onTimeRate, s.cost]),
+      };
+    }
+    if (activeTab === 'discounts' && reportData.discounts) {
+      return {
+        headers: ['Code', 'Type', 'Uses', 'Discount Given (KES)', 'Revenue (KES)', 'ROI', 'Status'],
+        rows: reportData.discounts.rows.map((d) => [d.code, d.type, d.uses, d.discountGiven, d.revenue, d.roi, d.status]),
+      };
+    }
+    if (activeTab === 'social' && reportData.social) {
+      return {
+        headers: ['Title', 'Platform', 'Type', 'Published', 'Views', 'Clicks', 'Orders', 'Revenue (KES)'],
+        rows: reportData.social.videos.map((v) => [v.title, v.platform, v.videoType, v.published, v.views, v.clicks, v.orders, v.revenue]),
+      };
+    }
+    return { headers: [], rows: [] };
+  };
+
   const handleExport = async (format: ExportFormat) => {
     setIsExportMenuOpen(false);
     setIsExporting(true);
     try {
-      const res = await adminApi.reports.logExport({
-        tab: activeTab,
-        range: appliedQuery.range ?? '7days',
-        format,
-      });
-      showToast(`Exported ${activeTab.toUpperCase()} as ${format} → ${res.filename}`);
+      const table = getTabTableData();
+      if (table.headers.length === 0) {
+        showToast('No report data loaded to export');
+        return;
+      }
+      let filename = `report-${activeTab}-${appliedQuery.range ?? '7days'}.${format === 'Excel' ? 'xls' : format.toLowerCase()}`;
+      try {
+        const res = await adminApi.reports.logExport({
+          tab: activeTab,
+          range: appliedQuery.range ?? '7days',
+          format,
+        });
+        if (res?.filename) filename = res.filename;
+      } catch {
+        // Continue with client download even if export log fails
+      }
+      if (format === 'PDF') {
+        const win = window.open('', '_blank', 'width=960,height=720');
+        if (win) {
+          const escHtml = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const ths = table.headers.map((h) => `<th style="border:1px solid #cbd5e1;padding:6px;text-align:left;background:#f8fafc">${escHtml(h)}</th>`).join('');
+          const trs = table.rows.map((r) => `<tr>${r.map((c) => `<td style="border:1px solid #e2e8f0;padding:6px">${escHtml(c)}</td>`).join('')}</tr>`).join('');
+          win.document.write(`<html><head><title>${escHtml(filename)}</title></head><body style="font-family:sans-serif;font-size:12px;padding:16px"><h2>${escHtml(activeTab.toUpperCase())} Report (${escHtml(dateRangeLabel)})</h2><table style="border-collapse:collapse;width:100%"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></body></html>`);
+          win.document.close();
+          win.focus();
+          win.print();
+        }
+      } else if (format === 'Excel') {
+        const escHtml = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const ths = table.headers.map((h) => `<th>${escHtml(h)}</th>`).join('');
+        const trs = table.rows.map((r) => `<tr>${r.map((c) => `<td>${escHtml(c)}</td>`).join('')}</tr>`).join('');
+        const html = `\uFEFF<html><head><meta charset="utf-8" /></head><body><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></body></html>`;
+        const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename.endsWith('.xls') ? filename : `${filename}.xls`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const escCsv = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const csv = '\uFEFF' + [table.headers.map(escCsv).join(','), ...table.rows.map((r) => r.map(escCsv).join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      showToast(`Exported ${activeTab.toUpperCase()} as ${format} → ${filename}`);
     } catch {
       showToast(`Export failed for ${activeTab.toUpperCase()}`);
     } finally {
@@ -629,6 +739,8 @@ export default function ReportsPage() {
                           <th className="py-2 px-2 font-medium">Date</th>
                           <th className="py-2 px-2 font-medium">Orders</th>
                           <th className="py-2 px-2 font-medium">Revenue</th>
+                          <th className="py-2 px-2 font-medium">Top Category</th>
+                          <th className="py-2 px-2 font-medium">Refunds</th>
                           <th className="py-2 px-2 font-medium text-right">AOV</th>
                         </tr>
                       </thead>
@@ -638,6 +750,8 @@ export default function ReportsPage() {
                             <td className="py-2 px-3 font-medium text-slate-900">{row.date}</td>
                             <td className="py-2 px-3 font-mono text-slate-700">{row.orders}</td>
                             <td className="py-2 px-3 font-mono text-emerald-600">KES {row.revenue.toLocaleString()}</td>
+                            <td className="py-2 px-3 text-slate-600">{row.topCategory || '—'}</td>
+                            <td className="py-2 px-3 font-mono text-red-600">{row.refunds ?? 0}</td>
                             <td className="py-2 px-3 font-mono text-slate-600 text-right">KES {row.aov.toLocaleString()}</td>
                           </tr>
                         ))}
@@ -864,8 +978,8 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {inventory.rows.map((r) => (
-                          <tr key={r.sku} className="hover:bg-slate-50">
+                        {inventory.rows.map((r, idx) => (
+                          <tr key={`${r.sku}-${idx}`} className="hover:bg-slate-50">
                             <td className="py-2 px-2">
                               <p className="font-medium text-slate-900">{r.product}</p>
                               <p className="text-[13px] text-slate-400 font-mono">{r.sku}</p>

@@ -12,6 +12,10 @@ BOT_RE = re.compile(r"bot|crawler|spider|crawling|slurp|bingpreview", re.I)
 
 _HARDCODED_SKIP = (
     "/ops-7f3k9z",
+    "/api/v1/admin",
+    "/api/admin",
+    "/static",
+    "/media",
     "/assets",
     "/fonts",
     "/robots.txt",

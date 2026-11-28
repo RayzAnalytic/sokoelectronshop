@@ -14,6 +14,7 @@ LIVE_ORDER_STATUSES = ("CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED")
 REFUND_STATUSES = ("RETURNED", "CANCELLED", "FAILED")
 PENDING_STATUSES = ("PENDING",)
 FAILED_PAYMENT_STATUSES = ("FAILED", "CANCELLED", "TIMEOUT")
+CACHE_TTL_SECONDS = 300
 
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
 
@@ -27,7 +28,7 @@ CYAN = "#0891b2"
 
 PAYMENT_COLORS = {
     "M-Pesa": GREEN,
-    "Stripe": BLUE,
+    "Card / Stripe": BLUE,
     "Airtel Money": AMBER,
     "Cash on Delivery": INDIGO,
     "Other": CYAN,
@@ -37,17 +38,18 @@ CATEGORY_PALETTE = [BLUE, INDIGO, VIOLET, CYAN, AMBER, RED, GREEN]
 
 
 def _range_key(request) -> str:
+    today_iso = timezone.localdate().isoformat()
     rng = request.GET.get("range", "7d")
     if rng == "custom":
         start = request.GET.get("start", "")
         end = request.GET.get("end", "")
-        return f"custom:{start}..{end}"
-    return rng
+        return f"{today_iso}:custom:{start}..{end}"
+    return f"{today_iso}:{rng}"
 
 
 def _resolve_dates(request):
     rng = request.GET.get("range", "7d")
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     if rng == "today":
         start = end = today
@@ -64,9 +66,11 @@ def _resolve_dates(request):
         try:
             start = datetime.strptime(request.GET.get("start", ""), "%Y-%m-%d").date()
             end = datetime.strptime(request.GET.get("end", ""), "%Y-%m-%d").date()
+            if end < start:
+                start, end = end, start
         except ValueError:
             start = end = today
-        days = (end - start).days + 1
+        days = max(1, (end - start).days + 1)
     else:
         start = today - timedelta(days=6)
         end = today
@@ -155,7 +159,8 @@ def _primary_product_image_url(product) -> str:
 
 def _cached_or_build(request, builder, empty: dict) -> dict:
     key = _range_key(request)
-    cached = OverviewCache.objects.filter(range_key=key).first()
+    cutoff = timezone.now() - timedelta(seconds=CACHE_TTL_SECONDS)
+    cached = OverviewCache.objects.filter(range_key=key, updated_at__gte=cutoff).first()
     if cached and cached.payload:
         return cached.payload
 
@@ -226,12 +231,211 @@ def _group_daily(qs, field: str, start, end):
     return filled
 
 
+def _group_daily_counts(qs, start, end):
+    rows = {
+        r["day"]: r["n"]
+        for r in (
+            qs.annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(n=Count("id"))
+        )
+    }
+    filled = []
+    cur = start
+    while cur <= end:
+        filled.append(float(rows.get(cur, 0) or 0))
+        cur += timedelta(days=1)
+    return filled
+
+
 def _order_number(o) -> str:
     for attr in ("order_number", "reference", "number", "code"):
         val = getattr(o, attr, None)
         if val:
             return str(val)
     return f"#{o.pk}"
+
+
+def _build_module_summaries(start, end) -> list[dict]:
+    summaries: list[dict] = []
+
+    # 1. Direct / TikTok Shop Orders
+    try:
+        from dashboard.direct_orders.models import DirectOrder, Expense
+        do_qs = DirectOrder.objects.filter(created_at__date__gte=start, created_at__date__lte=end)
+        do_live = do_qs.exclude(status__in=("CANCELLED", "cancelled", "FAILED", "failed", "RETURNED", "returned"))
+        do_rev = _to_int(do_live.aggregate(t=Coalesce(Sum("total"), Value(0), output_field=DECIMAL))["t"])
+        do_cnt = do_live.count()
+        do_pending = DirectOrder.objects.filter(status__iregex=r"^(pending|new|unverified)$").count()
+        summaries.append({
+            "id": "direct_orders",
+            "title": "Direct & TikTok",
+            "metric": f"KES {do_rev:,}",
+            "subtext": f"{do_cnt} orders · {do_pending} pending",
+            "attention": do_pending,
+            "href": "/admin/tiktok",
+            "icon": "ShoppingCart",
+        })
+    except Exception:
+        pass
+
+    # 2. Returns & Refunds
+    try:
+        from dashboard.returns.models import Refund, ReturnRequest
+        rr_open = ReturnRequest.objects.filter(status__in=("Pending", "Requested", "In Review", "Approved")).count()
+        ref_amt = _to_int(
+            Refund.objects.filter(created_at__date__gte=start, created_at__date__lte=end)
+            .aggregate(t=Coalesce(Sum("amount"), Value(0), output_field=DECIMAL))["t"]
+        )
+        summaries.append({
+            "id": "returns",
+            "title": "Returns & Refunds",
+            "metric": f"{rr_open} open",
+            "subtext": f"KES {ref_amt:,} refunded in range",
+            "attention": rr_open,
+            "href": "/admin/returnsrefunds",
+            "icon": "RotateCcw",
+        })
+    except Exception:
+        pass
+
+    # 3. Shipping & Shipments
+    try:
+        from dashboard.shipping.models import Shipment
+        sh_qs = Shipment.objects.filter(created_at__date__gte=start, created_at__date__lte=end)
+        in_transit = Shipment.objects.filter(status__in=("Picked Up", "In Transit", "Out for Delivery")).count()
+        failed_sh = sh_qs.filter(status__in=("Failed", "Returned")).count()
+        summaries.append({
+            "id": "shipping",
+            "title": "Shipping",
+            "metric": f"{in_transit} in transit",
+            "subtext": f"{sh_qs.count()} shipments · {failed_sh} failed",
+            "attention": failed_sh,
+            "href": "/admin/shipping",
+            "icon": "Truck",
+        })
+    except Exception:
+        pass
+
+    # 4. Suppliers & Purchases
+    try:
+        from dashboard.suppliers.models import Purchase, Supplier
+        active_sup = Supplier.objects.filter(status__iexact="active").count() or Supplier.objects.count()
+        open_po = Purchase.objects.exclude(status__iexact="received").exclude(status__iexact="cancelled").count()
+        summaries.append({
+            "id": "suppliers",
+            "title": "Suppliers",
+            "metric": f"{active_sup} active",
+            "subtext": f"{open_po} open purchase orders",
+            "attention": 0,
+            "href": "/admin/suppliers",
+            "icon": "Package",
+        })
+    except Exception:
+        pass
+
+    # 5. WhatsApp Commerce & Inbox
+    try:
+        from dashboard.whatsapp.models import WhatsAppConversation, WhatsAppOrder
+        wa_unread = WhatsAppConversation.objects.filter(unread_count__gt=0).count()
+        wa_orders = WhatsAppOrder.objects.filter(created_at__date__gte=start, created_at__date__lte=end)
+        wa_rev = _to_int(wa_orders.aggregate(t=Coalesce(Sum("total"), Value(0), output_field=DECIMAL))["t"])
+        summaries.append({
+            "id": "whatsapp",
+            "title": "WhatsApp",
+            "metric": f"{wa_unread} unread",
+            "subtext": f"{wa_orders.count()} orders · KES {wa_rev:,}",
+            "attention": wa_unread,
+            "href": "/admin/whatsapp",
+            "icon": "MessageCircle",
+        })
+    except Exception:
+        pass
+
+    # 6. Social Media Channels
+    try:
+        from dashboard.social.models import SocialAccount, SocialInboxConversation, SocialScheduledPost
+        sc_conn = SocialAccount.objects.filter(status="connected").count()
+        sc_sched = SocialScheduledPost.objects.filter(status__in=("scheduled", "queued", "approved")).count()
+        sc_unread = SocialInboxConversation.objects.filter(unread=True).count()
+        summaries.append({
+            "id": "social",
+            "title": "Social Media",
+            "metric": f"{sc_conn} connected",
+            "subtext": f"{sc_sched} scheduled · {sc_unread} unread inbox",
+            "attention": sc_unread,
+            "href": "/admin/social",
+            "icon": "Share2",
+        })
+    except Exception:
+        pass
+
+    # 7. Marketing (Campaigns, Discounts, Newsletter)
+    try:
+        from catalog.models import Discount
+        from dashboard.campaigns.models import Campaign
+        from newsletter.models import Subscriber
+        active_camp = Campaign.objects.filter(status__in=("scheduled", "sending")).count()
+        active_disc = Discount.objects.filter(
+            Q(end_date__isnull=True) | Q(end_date__date__gte=timezone.localdate())
+        ).exclude(status_override__in=("Draft", "Paused")).count()
+        subs = Subscriber.objects.filter(is_active=True).count()
+        summaries.append({
+            "id": "marketing",
+            "title": "Marketing",
+            "metric": f"{active_disc} deals",
+            "subtext": f"{active_camp} active campaigns · {subs:,} subscribers",
+            "attention": 0,
+            "href": "/admin/campaigns",
+            "icon": "Tag",
+        })
+    except Exception:
+        pass
+
+    # 8. Reviews & Support Tickets
+    try:
+        from account.models import Review
+        from dashboard.customers.models import SupportTicket
+        pending_rev = Review.objects.filter(status__iexact="pending").count()
+        open_tix = SupportTicket.objects.exclude(status__in=("Resolved", "Closed", "resolved", "closed")).count()
+        summaries.append({
+            "id": "support_reviews",
+            "title": "Reviews & Support",
+            "metric": f"{pending_rev} pending reviews",
+            "subtext": f"{open_tix} open support tickets",
+            "attention": pending_rev + open_tix,
+            "href": "/admin/reviews",
+            "icon": "Star",
+        })
+    except Exception:
+        pass
+
+    # 9. Analytics & Reports Quick Links
+    try:
+        from dashboard.aiautomations.models import AIAlert
+        alerts_n = AIAlert.objects.filter(is_dismissed=False).count()
+    except Exception:
+        alerts_n = 0
+    summaries.append({
+        "id": "analytics_link",
+        "title": "Analytics",
+        "metric": "Traffic & Funnel",
+        "subtext": f"{alerts_n} active AI alerts" if alerts_n else "Traffic, sales, products & channels",
+        "attention": alerts_n,
+        "href": "/admin/analytics",
+        "icon": "TrendingUp",
+    })
+    summaries.append({
+        "id": "reports_link",
+        "title": "Reports",
+        "metric": "10 Report Tabs",
+        "subtext": "Sales, VAT, payouts, shipping & social",
+        "attention": 0,
+        "href": "/admin/reports",
+        "icon": "FileText",
+    })
+
+    return summaries
 
 
 @require_GET
@@ -257,9 +461,14 @@ def overview(request):
             status__in=LIVE_ORDER_STATUSES,
         )
 
-        today = timezone.now().date()
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
         today_orders = Order.objects.filter(
             created_at__date=today,
+            status__in=LIVE_ORDER_STATUSES,
+        )
+        yesterday_orders = Order.objects.filter(
+            created_at__date=yesterday,
             status__in=LIVE_ORDER_STATUSES,
         )
 
@@ -287,44 +496,79 @@ def overview(request):
                 r=Coalesce(Sum("total"), Value(0), output_field=DECIMAL)
             )["r"]
         )
+        yesterday_revenue = _to_float(
+            yesterday_orders.aggregate(
+                r=Coalesce(Sum("total"), Value(0), output_field=DECIMAL)
+            )["r"]
+        )
+        today_delta, today_pos = _pct_delta(today_revenue, yesterday_revenue)
+
+        completed_now_qs = orders_now.filter(status="DELIVERED")
+        completed_prev_qs = orders_prev.filter(status="DELIVERED")
+        completed_now = completed_now_qs.count()
+        completed_prev = completed_prev_qs.count()
+        comp_delta, comp_pos = _pct_delta(completed_now, completed_prev)
 
         customers_total = User.objects.filter(
             role="CUSTOMER", is_active=True
         ).count()
+        new_cust_now = User.objects.filter(
+            role="CUSTOMER", is_active=True,
+            date_joined__date__gte=start, date_joined__date__lte=end,
+        ).count()
+        new_cust_prev = User.objects.filter(
+            role="CUSTOMER", is_active=True,
+            date_joined__date__gte=prev_start, date_joined__date__lte=prev_end,
+        ).count()
+        cust_delta, cust_pos = _pct_delta(new_cust_now, new_cust_prev)
+
         products_total = Product.objects.filter(is_active=True).count()
         low_stock_count = Product.objects.filter(
             is_active=True,
             stock_quantity__lte=F("low_stock_threshold"),
         ).count()
-        refunds_count = Order.objects.filter(
+
+        refunds_now_qs = Order.objects.filter(
             status__in=REFUND_STATUSES,
             created_at__date__gte=start,
             created_at__date__lte=end,
-        ).count()
-        failed_count = failed_payments.filter(
+        )
+        refunds_prev_qs = Order.objects.filter(
+            status__in=REFUND_STATUSES,
+            created_at__date__gte=prev_start,
+            created_at__date__lte=prev_end,
+        )
+        refunds_count = refunds_now_qs.count()
+        refunds_prev_count = refunds_prev_qs.count()
+        ref_delta, ref_pos = _pct_delta(refunds_count, refunds_prev_count)
+        ref_pos = refunds_count <= refunds_prev_count
+
+        failed_now_qs = failed_payments.filter(
             created_at__date__gte=start,
             created_at__date__lte=end,
-        ).count()
+        )
+        failed_prev_qs = failed_payments.filter(
+            created_at__date__gte=prev_start,
+            created_at__date__lte=prev_end,
+        )
+        failed_count = failed_now_qs.count()
+        failed_prev_count = failed_prev_qs.count()
+        fail_delta, _ = _pct_delta(failed_count, failed_prev_count)
+        fail_pos = failed_count <= failed_prev_count
 
         rev_delta, rev_pos = _pct_delta(revenue_now, revenue_prev)
         ord_delta, ord_pos = _pct_delta(orders_count_now, orders_count_prev)
 
         daily_rev = _group_daily(orders_now, "total", start, end)
-
-        ord_by_day = {
-            r["day"]: r["n"]
-            for r in (
-                orders_now
-                .annotate(day=TruncDate("created_at"))
-                .values("day")
-                .annotate(n=Count("id"))
-            )
-        }
-        daily_ord = []
-        cur = start
-        while cur <= end:
-            daily_ord.append(ord_by_day.get(cur, 0))
-            cur += timedelta(days=1)
+        daily_ord = _group_daily_counts(orders_now, start, end)
+        daily_comp = _group_daily_counts(completed_now_qs, start, end)
+        daily_ref = _group_daily_counts(refunds_now_qs, start, end)
+        daily_fail = _group_daily_counts(failed_now_qs, start, end)
+        daily_pending = _group_daily_counts(
+            pending_orders.filter(created_at__date__gte=start, created_at__date__lte=end),
+            start,
+            end,
+        )
 
         kpis = [
             {
@@ -346,9 +590,9 @@ def overview(request):
                 "prefix": "KES ",
                 "suffix": "",
                 "decimals": 0,
-                "change": 0.0,
-                "isPositive": True,
-                "sparklineData": _sparkline([today_revenue]),
+                "change": round(today_delta, 1) if today_pos else -round(today_delta, 1),
+                "isPositive": today_pos,
+                "sparklineData": _sparkline([yesterday_revenue, today_revenue], fallback_points=2),
                 "icon": "Calendar",
             },
             {
@@ -360,7 +604,7 @@ def overview(request):
                 "decimals": 0,
                 "change": round(ord_delta, 1) if ord_pos else -round(ord_delta, 1),
                 "isPositive": ord_pos,
-                "sparklineData": _sparkline([float(x) for x in daily_ord]),
+                "sparklineData": _sparkline(daily_ord),
                 "icon": "ShoppingCart",
             },
             {
@@ -371,20 +615,20 @@ def overview(request):
                 "suffix": "",
                 "decimals": 0,
                 "change": 0.0,
-                "isPositive": True,
-                "sparklineData": _sparkline([]),
+                "isPositive": pending_orders.count() == 0,
+                "sparklineData": _sparkline(daily_pending),
                 "icon": "Clock",
             },
             {
                 "id": "completed",
                 "title": "Completed Orders",
-                "value": orders_now.filter(status="DELIVERED").count(),
+                "value": completed_now,
                 "prefix": "",
                 "suffix": "",
                 "decimals": 0,
-                "change": 0.0,
-                "isPositive": True,
-                "sparklineData": _sparkline([]),
+                "change": round(comp_delta, 1) if comp_pos else -round(comp_delta, 1),
+                "isPositive": comp_pos,
+                "sparklineData": _sparkline(daily_comp),
                 "icon": "CheckCircle2",
             },
             {
@@ -394,9 +638,9 @@ def overview(request):
                 "prefix": "",
                 "suffix": "",
                 "decimals": 0,
-                "change": 0.0,
-                "isPositive": True,
-                "sparklineData": _sparkline([]),
+                "change": round(cust_delta, 1) if cust_pos else -round(cust_delta, 1),
+                "isPositive": cust_pos,
+                "sparklineData": _sparkline([float(new_cust_prev), float(new_cust_now)], fallback_points=2),
                 "icon": "Users",
             },
             {
@@ -408,7 +652,7 @@ def overview(request):
                 "decimals": 0,
                 "change": 0.0,
                 "isPositive": True,
-                "sparklineData": _sparkline([]),
+                "sparklineData": _sparkline([float(products_total)], fallback_points=2),
                 "icon": "Package",
             },
             {
@@ -419,32 +663,32 @@ def overview(request):
                 "suffix": "",
                 "decimals": 0,
                 "change": 0.0,
-                "isPositive": False,
-                "sparklineData": _sparkline([]),
+                "isPositive": low_stock_count == 0,
+                "sparklineData": _sparkline([float(low_stock_count)], fallback_points=2),
                 "icon": "AlertTriangle",
             },
             {
                 "id": "refunds",
-                "title": "Refunds",
+                "title": "Refunds / Cancelled",
                 "value": refunds_count,
                 "prefix": "",
                 "suffix": "",
                 "decimals": 0,
-                "change": 0.0,
-                "isPositive": False,
-                "sparklineData": _sparkline([]),
+                "change": round(ref_delta, 1) if ref_pos else -round(ref_delta, 1),
+                "isPositive": ref_pos,
+                "sparklineData": _sparkline(daily_ref),
                 "icon": "RotateCcw",
             },
             {
                 "id": "failedPayments",
-                "title": "Failed Payments",
+                "title": "Unpaid / Failed",
                 "value": failed_count,
                 "prefix": "",
                 "suffix": "",
                 "decimals": 0,
-                "change": 0.0,
-                "isPositive": True,
-                "sparklineData": _sparkline([]),
+                "change": round(fail_delta, 1) if fail_pos else -round(fail_delta, 1),
+                "isPositive": fail_pos,
+                "sparklineData": _sparkline(daily_fail),
                 "icon": "CreditCard",
             },
         ]
@@ -484,14 +728,18 @@ def overview(request):
                 )
                 .order_by("hour")
             )
-            slots = {(r["hour"] // 4) * 4: r for r in rows}
+            slots = defaultdict(lambda: {"revenue": 0, "orders": 0})
+            for r in rows:
+                s_hr = (r["hour"] // 4) * 4
+                slots[s_hr]["revenue"] += _to_int(r["revenue"])
+                slots[s_hr]["orders"] += r["orders"] or 0
             out = []
             for slot in (0, 4, 8, 12, 16, 20):
-                r = slots.get(slot)
+                r = slots[slot]
                 out.append({
                     "date": f"{slot:02d}:00",
-                    "revenue": _to_int(r["revenue"]) if r else 0,
-                    "orders": r["orders"] if r else 0,
+                    "revenue": r["revenue"],
+                    "orders": r["orders"],
                 })
             return out
 
@@ -506,7 +754,7 @@ def overview(request):
                     orders=Count("id"),
                 )
             )
-            by_week = {r["week"]: r for r in rows}
+            by_week = {r["week"].date() if hasattr(r["week"], "date") else r["week"]: r for r in rows}
             n_weeks = max(1, (days + 6) // 7)
             first_monday = start - timedelta(days=start.weekday())
             out = []
@@ -531,7 +779,7 @@ def overview(request):
                     orders=Count("id"),
                 )
             )
-            by_month = {r["month"]: r for r in rows}
+            by_month = {r["month"].date() if hasattr(r["month"], "date") else r["month"]: r for r in rows}
             out = []
             cur = start.replace(day=1)
             while cur <= end:
@@ -659,7 +907,7 @@ def overview(request):
                 ),
                 units=Sum("quantity"),
             )
-            .order_by("-revenue")[:20]
+            .order_by("-revenue")
         )
         pids = [r["product_id"] for r in cat_totals if r["product_id"]]
         pid_to_cat = dict(
@@ -736,7 +984,7 @@ def overview(request):
             name = (
                 f"{user.first_name} {user.last_name}".strip()
                 if user and (user.first_name or user.last_name)
-                else (user.email if user else "Guest")
+                else (user.email if user else (o.full_name or o.contact_email or "Guest"))
             )
             recent_orders.append({
                 "id": str(o.pk),
@@ -744,7 +992,7 @@ def overview(request):
                 "customer": name,
                 "amount": _to_int(o.total),
                 "status": (o.status or "").title(),
-                "time": o.created_at.strftime("%b %d, %H:%M"),
+                "time": timezone.localtime(o.created_at).strftime("%b %d, %H:%M"),
             })
 
         recent_customers = []
@@ -767,11 +1015,16 @@ def overview(request):
             })
 
         def payment_method_label(method: str) -> str:
-            if method in ("MPS", "MPESA"):
+            m = (method or "").upper()
+            if m in ("MPS", "MPESA", "M-PESA"):
                 return "M-Pesa"
-            if method == "COD":
+            if m in ("STRIPE", "CARD"):
+                return "Card / Stripe"
+            if m in ("AIRTEL", "AIRTEL_MONEY"):
+                return "Airtel Money"
+            if m == "COD":
                 return "Cash on Delivery"
-            return "Cash on Delivery"
+            return (method or "Other").title()
 
         recent_transactions = []
         for p in (
@@ -796,12 +1049,12 @@ def overview(request):
             }
             recent_transactions.append({
                 "id": str(p.pk),
-                "ref": f"TXN-{str(p.pk)[:6].upper()}",
+                "ref": p.mpesa_receipt_number or f"TXN-{str(p.pk)[:6].upper()}",
                 "customer": name,
                 "method": payment_method_label(p.method),
                 "amount": _to_int(p.amount),
                 "status": label_map.get(p.status, "Pending"),
-                "time": p.created_at.strftime("%b %d, %H:%M"),
+                "time": timezone.localtime(p.created_at).strftime("%b %d, %H:%M"),
             })
 
         low_stock = []
@@ -828,7 +1081,7 @@ def overview(request):
 
         pm_qs = (
             Payment.objects
-            .filter(created_at__date__gte=start, created_at__date__lte=end)
+            .filter(created_at__date__gte=start, created_at__date__lte=end, status="SUCCESS")
             .values("method")
             .annotate(
                 total=Coalesce(Sum("amount"), Value(0), output_field=DECIMAL),
@@ -865,6 +1118,7 @@ def overview(request):
             "recent_transactions": recent_transactions,
             "low_stock": low_stock,
             "payment_methods": payment_methods,
+            "module_summaries": _build_module_summaries(start, end),
         }
 
     return JsonResponse(_cached_or_build(request, build, {
@@ -879,6 +1133,7 @@ def overview(request):
         "recent_transactions": [],
         "low_stock": [],
         "payment_methods": [],
+        "module_summaries": [],
     }))
 
 
@@ -893,7 +1148,9 @@ def refresh_cache(request):
 
     range_key = body.get("range")
     if range_key:
-        deleted, _ = OverviewCache.objects.filter(range_key=range_key).delete()
+        deleted, _ = OverviewCache.objects.filter(
+            Q(range_key=range_key) | Q(range_key__endswith=f":{range_key}")
+        ).delete()
     else:
         deleted, _ = OverviewCache.objects.all().delete()
 

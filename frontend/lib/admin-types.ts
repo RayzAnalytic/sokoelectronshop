@@ -6986,6 +6986,7 @@ export interface AnalyticsSalesSummary {
     orders: number;
     aov: number;
     revenueGrowth: number;
+    deltas?: Record<string, { delta: string; positive: boolean }>;
 }
 
 export interface AnalyticsSalesTrendPoint {
@@ -7237,6 +7238,16 @@ export interface OverviewPaymentMethodRow {
     color: string;
 }
 
+export interface OverviewModuleSummary {
+    id: string;
+    title: string;
+    metric: string;
+    subtext: string;
+    attention: number;
+    href: string;
+    icon: string;
+}
+
 export interface OverviewResponse {
     kpis: OverviewKpi[];
     revenue_chart: OverviewRevenuePoint[];
@@ -7253,6 +7264,7 @@ export interface OverviewResponse {
     recent_transactions: OverviewRecentTransaction[];
     low_stock: OverviewLowStockRow[];
     payment_methods: OverviewPaymentMethodRow[];
+    module_summaries?: OverviewModuleSummary[];
     error?: string;
 }
 

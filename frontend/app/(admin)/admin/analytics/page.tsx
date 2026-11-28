@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Calendar,
   ArrowUpRight,
@@ -123,6 +124,8 @@ export default function AnalyticsPage() {
 }
 
 function AnalyticsPageInner() {
+  const router = useRouter();
+  const [refreshTick, setRefreshTick] = useState(0);
   const [dateRange, setDateRange] = useState<AnalyticsRange>('7days');
   const [areaMetric, setAreaMetric] = useState<AreaMetric>('sessions');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -190,16 +193,59 @@ function AnalyticsPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, dateRange]);
+  }, [activeTab, dateRange, refreshTick]);
 
   const handleRefresh = async () => {
     try {
       await adminApi.analytics.refreshCache({ tab: activeTab });
+      setRefreshTick((t) => t + 1);
       showToast(`Refreshed ${activeTab.toUpperCase()} analytics`);
-      setReportData((p) => ({ ...p }));
     } catch {
       showToast(`Refresh failed for ${activeTab.toUpperCase()}`);
     }
+  };
+
+  const handleExportCsv = () => {
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows: string[] = [];
+    if (activeTab === 'traffic' && reportData.traffic) {
+      rows.push('Metric,Value,Delta');
+      for (const k of reportData.traffic.kpis ?? []) {
+        rows.push([esc(k.label), esc(k.value), esc(k.delta)].join(','));
+      }
+    } else if (activeTab === 'sales' && reportData.sales) {
+      rows.push('Date,Gross,Net,Refunds');
+      for (const p of reportData.sales.trend ?? []) {
+        rows.push([esc(p.date), esc(p.gross), esc(p.net), esc(p.refunds)].join(','));
+      }
+    } else if (activeTab === 'customers' && reportData.customers) {
+      rows.push('Customer,Email,Tier,Orders,Lifetime Spend');
+      for (const c of reportData.customers.top_customers ?? []) {
+        rows.push([esc(c.name), esc(c.email), esc(c.tier), esc(c.orders), esc(c.spent)].join(','));
+      }
+    } else if (activeTab === 'products' && reportData.products) {
+      rows.push('Product,SKU,Views,Purchases,Revenue,Stock,Conversion');
+      for (const r of reportData.products.rows ?? []) {
+        rows.push([esc(r.name), esc(r.sku), esc(r.views), esc(r.purchases), esc(r.revenue), esc(r.stock), esc(r.conversion)].join(','));
+      }
+    } else if (activeTab === 'channels' && reportData.channels) {
+      rows.push('Channel,Share %,Visitors,Orders,Revenue,Conversion');
+      for (const ch of reportData.channels.channels ?? []) {
+        rows.push([esc(ch.name), esc(ch.share), esc(ch.visitors), esc(ch.orders), esc(ch.revenue), esc(ch.convRate)].join(','));
+      }
+    }
+    if (rows.length === 0) {
+      showToast('No analytics data to export');
+      return;
+    }
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-${activeTab}-${dateRange}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${activeTab} CSV`);
   };
 
   const traffic = reportData.traffic;
@@ -294,7 +340,7 @@ function AnalyticsPageInner() {
               </div>
 
               <button
-                onClick={() => showToast(`Opening ${selectedProductPerf.name} in Products`)}
+                onClick={() => { setSelectedProductPerf(null); router.push('/admin/products'); }}
                 className="w-full bg-blue-950 hover:bg-blue-900 text-white font-medium py-2 px-2 rounded text-[13px]"
               >
                 View in Products
@@ -359,7 +405,7 @@ function AnalyticsPageInner() {
                     </div>
 
                     <button
-                      onClick={() => showToast(`WhatsApp reminder sent to ${cart.customer} (${cart.phone || 'no phone'})`)}
+                      onClick={() => { setCartModalOpen(false); router.push('/admin/whatsapp/inbox'); }}
                       className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded transition shrink-0 text-[13px] w-full sm:w-auto justify-center"
                     >
                       <Send className="w-3.5 h-3.5" />
@@ -414,7 +460,7 @@ function AnalyticsPageInner() {
             </div>
 
             <button
-              onClick={() => showToast('Exporting analytics report as CSV…')}
+              onClick={handleExportCsv}
               className="inline-flex items-center gap-1.5 bg-blue-950 hover:bg-blue-900 text-white text-[13px] font-medium px-2 py-2 rounded transition"
             >
               <Download className="w-3.5 h-3.5" />
@@ -740,12 +786,12 @@ function AnalyticsPageInner() {
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                   {[
-                    { label: 'Gross Sales', value: formatKES(sales.summary.gross), delta: '+14.2%', positive: true, icon: DollarSign },
-                    { label: 'Net Sales', value: formatKES(sales.summary.net), delta: '+12.8%', positive: true, icon: Wallet },
-                    { label: 'Refunds', value: formatKES(sales.summary.refunds), delta: '+3.1%', positive: false, icon: RotateCcw },
-                    { label: 'Orders', value: sales.summary.orders.toLocaleString(), delta: '+8.1%', positive: true, icon: ShoppingCart },
-                    { label: 'Avg. Order Value', value: formatKES(sales.summary.aov), delta: '+3.4%', positive: true, icon: TrendingUp },
-                    { label: 'Revenue Growth', value: `${sales.summary.revenueGrowth}%`, delta: '+1.2%', positive: true, icon: ArrowUpRight },
+                    { label: 'Gross Sales', value: formatKES(sales.summary.gross), delta: sales.summary.deltas?.gross?.delta ?? '0.0%', positive: sales.summary.deltas?.gross?.positive ?? true, icon: DollarSign },
+                    { label: 'Net Sales', value: formatKES(sales.summary.net), delta: sales.summary.deltas?.net?.delta ?? '0.0%', positive: sales.summary.deltas?.net?.positive ?? true, icon: Wallet },
+                    { label: 'Refunds', value: formatKES(sales.summary.refunds), delta: sales.summary.deltas?.refunds?.delta ?? '0.0%', positive: sales.summary.deltas?.refunds?.positive ?? true, icon: RotateCcw },
+                    { label: 'Orders', value: sales.summary.orders.toLocaleString(), delta: sales.summary.deltas?.orders?.delta ?? '0.0%', positive: sales.summary.deltas?.orders?.positive ?? true, icon: ShoppingCart },
+                    { label: 'Avg. Order Value', value: formatKES(sales.summary.aov), delta: sales.summary.deltas?.aov?.delta ?? '0.0%', positive: sales.summary.deltas?.aov?.positive ?? true, icon: TrendingUp },
+                    { label: 'Revenue Growth', value: `${sales.summary.revenueGrowth}%`, delta: sales.summary.deltas?.revenueGrowth?.delta ?? `${sales.summary.revenueGrowth}%`, positive: sales.summary.deltas?.revenueGrowth?.positive ?? (sales.summary.revenueGrowth >= 0), icon: ArrowUpRight },
                   ].map((s) => (
                     <div key={s.label} className="bg-white border border-slate-200 rounded p-2 space-y-1 min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">
