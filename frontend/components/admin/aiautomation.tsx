@@ -1348,23 +1348,40 @@ export default function AIAutomationCopilot({
         const SR = (window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown }).SpeechRecognition
             || (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition;
         if (!SR) { pushToast({ type: 'info', message: 'Voice input not supported in this browser' }); return; }
+        try {
+            recognitionRef.current?.abort();
+        } catch {
+            // ignore
+        }
         const rec = new SR() as {
             lang: string; continuous: boolean; interimResults: boolean;
             onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
-            onerror: () => void; onend: () => void; start: () => void; stop: () => void; abort: () => void;
+            onerror: (e?: { error?: string }) => void; onend: () => void; start: () => void; stop: () => void; abort: () => void;
         };
         rec.lang = 'en-US';
         rec.continuous = false;
         rec.interimResults = false;
         rec.onresult = (e) => {
-            const text = Array.from(e.results).map((r) => r[0].transcript).join(' ');
-            setDraft((d) => (d ? d + ' ' + text : text));
+            const text = Array.from(e.results).map((r) => r[0].transcript).join(' ').trim();
+            if (text) setDraft((d) => (d.trim() ? `${d.trim()} ${text}` : text));
         };
-        rec.onerror = () => { setListening(false); };
+        rec.onerror = (e) => {
+            setListening(false);
+            if (e?.error === 'not-allowed') {
+                pushToast({ type: 'error', message: 'Microphone permission denied' });
+            } else if (e?.error && e.error !== 'aborted' && e.error !== 'no-speech') {
+                pushToast({ type: 'error', message: `Voice error: ${e.error}` });
+            }
+        };
         rec.onend = () => { setListening(false); };
         recognitionRef.current = rec;
-        setListening(true);
-        rec.start();
+        try {
+            setListening(true);
+            rec.start();
+        } catch {
+            setListening(false);
+            pushToast({ type: 'error', message: 'Could not start voice input' });
+        }
     }, [pushToast]);
 
     const stopListening = useCallback(() => {
@@ -1707,8 +1724,8 @@ function MinimizedPill({ onRestore, onClose, messages, context }: { onRestore: (
 }
 
 function PanelHeader({
-    context, tab, onTab, alertCount, mode, onMode, theme, onTheme, onClose, onClear,
-    onExport, onToggleSidebar, onOpenSettings, onNewChat, sidebarOpen,
+    context, tab, onTab, alertCount, onClose, onClear,
+    onToggleSidebar, onNewChat, sidebarOpen,
 }: {
     context: PageContext;
     tab: CopilotTab;
@@ -1726,24 +1743,23 @@ function PanelHeader({
     onNewChat: () => void;
     sidebarOpen: boolean;
 }) {
-    const tabs: Array<{ id: CopilotTab; label: string; icon: IconComponent; badge?: number }> = [
-        { id: 'chat', label: 'Chat', icon: MessageSquare },
-        { id: 'alerts', label: 'Alerts', icon: Bell, badge: alertCount },
-        { id: 'insights', label: 'Insights', icon: Lightbulb },
-        { id: 'automations', label: 'Automations', icon: Workflow },
-        { id: 'actions', label: 'Actions', icon: Zap },
+    const tabs: Array<{ id: CopilotTab; label: string; badge?: number }> = [
+        { id: 'chat', label: 'Chat' },
+        { id: 'alerts', label: 'Alerts', badge: alertCount },
+        { id: 'insights', label: 'Insights' },
+        { id: 'automations', label: 'Automations' },
+        { id: 'actions', label: 'Actions' },
     ];
-
-    const [menuOpen, setMenuOpen] = useState(false);
 
     return (
         <header className="border-b border-slate-200 bg-white shrink-0">
-            <div className="px-3 py-2.5 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
+            <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
                     <button
                         onClick={onToggleSidebar}
                         aria-label="Toggle conversations"
-                        className={`p-1.5 rounded hover:bg-slate-100 ${sidebarOpen ? 'bg-slate-100 text-slate-700' : 'text-slate-500 hover:text-slate-700'}`}
+                        title="History"
+                        className={`h-8 w-8 rounded flex items-center justify-center transition-colors ${sidebarOpen ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                     >
                         <PanelLeft className="w-4 h-4" />
                     </button>
@@ -1751,47 +1767,41 @@ function PanelHeader({
                         <Bot className="w-4 h-4" />
                     </span>
                     <div className="min-w-0">
-                        <h2 className="text-[15px] font-semibold text-slate-700 truncate">Store Assistant</h2>
-                        <p className="text-[13px] text-slate-500 truncate">{context.label}</p>
+                        <h2 className="text-[14px] font-semibold text-slate-800 leading-tight truncate">Store Assistant</h2>
+                        <p className="text-[12px] text-slate-500 leading-tight truncate">{context.label}</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-0.5 shrink-0">
-                    <button onClick={onNewChat} aria-label="New chat" title="New chat (⌘N)" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        onClick={onNewChat}
+                        aria-label="New chat"
+                        title="New chat"
+                        className="h-8 w-8 rounded flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                    >
                         <Plus className="w-4 h-4" />
                     </button>
-                    <button onClick={onExport} aria-label="Export" title="Export conversation" className="hidden sm:inline-flex p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
-                        <Download className="w-4 h-4" />
-                    </button>
-
-                    <div className="relative">
-                        <button onClick={() => setMenuOpen((v) => !v)} aria-label="Layout" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
-                            <LayoutDashboard className="w-4 h-4" />
-                        </button>
-                        {menuOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded py-1 z-10">
-                                <button onClick={() => { onMode('floating'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Maximize2 className="w-3.5 h-3.5" /> Floating</button>
-                                <button onClick={() => { onMode('docked'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><PanelRight className="w-3.5 h-3.5" /> Docked</button>
-                                <button onClick={() => { onMode('fullscreen'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Maximize2 className="w-3.5 h-3.5" /> Fullscreen</button>
-                                <button onClick={() => { onMode('minimized'); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 flex items-center gap-2"><Minimize className="w-3.5 h-3.5" /> Minimise</button>
-                            </div>
-                        )}
-                    </div>
-                    <button onClick={onOpenSettings} aria-label="Settings" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
-                        <Settings className="w-4 h-4" />
-                    </button>
-                    <button onClick={onClear} aria-label="Clear conversation" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
+                    <button
+                        onClick={onClear}
+                        aria-label="Clear conversation"
+                        title="Clear chat"
+                        className="h-8 w-8 rounded flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                    >
                         <Trash2 className="w-4 h-4" />
                     </button>
-                    <button onClick={onClose} aria-label="Close" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700">
-                        <IoCloseSharp className="w-4 h-4" />
+                    <button
+                        onClick={onClose}
+                        aria-label="Close"
+                        title="Close"
+                        className="h-8 w-8 rounded flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                    >
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
             </div>
 
-            <nav role="tablist" aria-label="Copilot sections" className="px-3 pb-2 flex items-center gap-1 overflow-x-auto">
+            <nav role="tablist" aria-label="Copilot sections" className="px-3.5 pb-2 flex items-center gap-1 overflow-x-auto">
                 {tabs.map((t) => {
-                    const Icon = t.icon;
                     const active = tab === t.id;
                     return (
                         <button
@@ -1799,12 +1809,11 @@ function PanelHeader({
                             role="tab"
                             aria-selected={active}
                             onClick={() => onTab(t.id)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[13px] font-medium transition whitespace-nowrap  ${active ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-700'}`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[12.5px] font-medium transition whitespace-nowrap ${active ? 'bg-blue-950 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'}`}
                         >
-                            <Icon className="w-4 h-4" />
-                            {t.label}
+                            <span>{t.label}</span>
                             {t.badge ? (
-                                <span className={`ml-0.5 min-w-[18px] h-[18px] rounded-full text-[12px] font-semibold flex items-center justify-center px-1 ${active ? 'bg-white/20 text-white' : 'bg-rose-500 text-white'}`}>
+                                <span className={`min-w-[18px] h-[18px] rounded-full text-[11px] font-semibold flex items-center justify-center px-1 ${active ? 'bg-white/20 text-white' : 'bg-rose-500 text-white'}`}>
                                     {t.badge > 9 ? '9+' : t.badge}
                                 </span>
                             ) : null}
@@ -1889,7 +1898,7 @@ function ConversationSidebar({
 
 function ChatView({
     messages, streamingId, isThinking, messagesEndRef, onQuickReply, onNavigate, onFeedback,
-    onRegenerate, onEdit, onStop, onRetry, prompts, query, onQueryChange, context, digest, disabled, readOnly,
+    onRegenerate, onEdit, onStop, onRetry, prompts, context, disabled, readOnly,
 }: {
     messages: ChatMessage[];
     streamingId: string | null;
@@ -1915,71 +1924,38 @@ function ChatView({
 
     return (
         <div className="flex-1 min-h-0 flex flex-col bg-slate-50 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-2.5">
                 {empty && !isThinking && (
-                    <div className="h-full flex flex-col min-h-0">
-                        <div className="flex flex-col items-center justify-center gap-2 py-6 shrink-0">
-                            <span className="w-12 h-12 rounded bg-blue-950 text-white flex items-center justify-center">
-                                <Sparkles className="w-5 h-5" />
+                    <div className="h-full flex flex-col items-center justify-center py-6">
+                        <div className="w-full max-w-[460px] flex flex-col items-center text-center">
+                            <span className="w-10 h-10 rounded bg-blue-950 text-white flex items-center justify-center mb-3">
+                                <Sparkles className="w-4 h-4" />
                             </span>
-                            <p className="text-[15px] font-semibold text-slate-700 text-center">Ask anything about {context.label}</p>
-                            <p className="text-[12.5px] text-slate-500 text-center max-w-[320px]">
-                                I can see <b className="text-slate-700">{context.label}</b> and every other admin module. Choose a suggestion, search, or type below.
+                            <p className="text-[15px] font-semibold text-slate-800">Ask anything about {context.label}</p>
+                            <p className="text-[12.5px] text-slate-500 mt-1 mb-5">
+                                Pull live data from orders, products, customers, WhatsApp, and reports.
                             </p>
-                            <div className="relative w-full max-w-[360px]">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                                <input
-                                    value={query}
-                                    onChange={(e) => onQueryChange(e.target.value)}
-                                    placeholder="Search suggestions…"
-                                    className="w-full bg-white border border-slate-200 rounded pl-8 pr-2 py-2 text-[12.5px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                />
-                            </div>
-                        </div>
 
-                        {digest.length > 0 && (
-                            <div className="grid grid-cols-3 gap-2 mb-3">
-                                {digest.map((d) => (
-                                    <button
-                                        key={d.label}
-                                        onClick={() => onQuickReply(`Show me ${d.label.toLowerCase()}`)}
-                                        className={`text-left rounded order p-2.5 ${TONE_CLASSES[d.tone].chip}`}
-                                    >
-                                        <p className="text-[10px] font-semibold uppercase  opacity-80">{d.label}</p>
-                                        <p className="text-[18px] font-bold mt-1">{d.value}</p>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        <div className="flex-1 min-h-0 grid grid-cols-2 sm:grid-cols-3 gap-2 content-start pb-1">
-                            {prompts.length === 0 && (
-                                <p className="col-span-full text-center text-[12.5px] text-slate-400 py-4">No suggestions match &quot;{query}&quot;</p>
-                            )}
-                            {prompts.map((item) => {
-                                const Icon = isIconComponent(item.icon) ? item.icon : Sparkles;
-                                return (
+                            <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {prompts.slice(0, 6).map((item) => (
                                     <button
                                         key={item.label}
                                         onClick={() => onQuickReply(item.prompt)}
                                         disabled={disabled}
-                                        className="text-left bg-white border border-slate-200 hover:border-slate-300 hover:shadow rounded p-2.5 transition group disabled:opacity-50 flex flex-col gap-2 min-h-[78px]"
+                                        className="text-left bg-white border border-slate-200 hover:border-blue-200 hover:bg-blue-50/40 rounded px-3 py-2.5 text-[12.5px] font-medium text-slate-700 transition disabled:opacity-50 truncate"
                                     >
-                                        <span className={`w-7 h-7 rounded flex items-center justify-center border shrink-0 ${TONE_CLASSES[item.tone].chip}`}>
-                                            <Icon className="w-3.5 h-3.5" />
-                                        </span>
-                                        <span className="text-[12px] font-semibold text-slate-700 line-clamp-2">{item.label}</span>
+                                        {item.label}
                                     </button>
-                                );
-                            })}
-                        </div>
-
-                        {readOnly && (
-                            <div className="mt-1 flex items-center gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-3 py-2">
-                                <Lock className="w-3.5 h-3.5" />
-                                Read-only mode is on. AI actions will not execute.
+                                ))}
                             </div>
-                        )}
+
+                            {readOnly && (
+                                <div className="mt-4 flex items-center gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-3 py-2">
+                                    <Lock className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Read-only mode is on. AI actions will not execute.</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -2337,116 +2313,116 @@ const Composer = React.forwardRef<HTMLTextAreaElement, {
     onStop: () => void;
     disabled: boolean;
     streaming: boolean;
-    attachments: Attachment[];
-    onRemoveAttachment: (id: string) => void;
-    onAttach: () => void;
+    attachments?: Attachment[];
+    onRemoveAttachment?: (id: string) => void;
+    onAttach?: () => void;
     listening: boolean;
     onMicToggle: () => void;
-    speaking: boolean;
-    onSpeakToggle: () => void;
-    slashOpen: boolean;
-    onSlashChange: (v: boolean) => void;
+    speaking?: boolean;
+    onSpeakToggle?: () => void;
+    slashOpen?: boolean;
+    onSlashChange?: (v: boolean) => void;
     editMessageId: string | null;
     onCancelEdit: () => void;
     context: PageContext;
 }>(function Composer({
-    value, onChange, onSend, onStop, disabled, streaming, attachments, onRemoveAttachment, onAttach,
-    listening, onMicToggle, speaking, onSpeakToggle, slashOpen, onSlashChange, editMessageId, onCancelEdit, context,
+    value, onChange, onSend, onStop, disabled, streaming,
+    listening, onMicToggle, editMessageId, onCancelEdit, context,
 }, ref) {
     const canSend = !!value.trim() && !disabled;
-    const slashCommands = [
-        { cmd: '/orders', hint: 'Search orders' },
-        { cmd: '/products', hint: 'Search products' },
-        { cmd: '/refund', hint: 'Start a refund' },
-        { cmd: '/broadcast', hint: 'Draft WhatsApp broadcast' },
-        { cmd: '/digest', hint: 'Daily digest' },
-        { cmd: '/report', hint: 'Build a report' },
-        { cmd: '/forecast', hint: 'Forecast sales' },
-        { cmd: '/automation', hint: 'Run an automation' },
-    ];
-    const showSlash = slashOpen || value.startsWith('/');
+
+    const handleClear = () => {
+        onChange('');
+        (ref as React.RefObject<HTMLTextAreaElement>)?.current?.focus();
+    };
 
     return (
-        <div className="border-t border-slate-200 bg-white p-2 shrink-0">
+        <div className="border-t border-slate-200 bg-white px-3 py-2.5 shrink-0">
             {editMessageId && (
-                <div className="mb-1 flex items-center gap-2 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-2.5 py-1.5">
-                    <Edit3 className="w-3 h-3" />
-                    Editing message — send to regenerate from here
-                    <button onClick={onCancelEdit} className="ml-auto text-amber-700 hover:text-amber-900 transition-colors">Cancel</button>
+                <div className="mb-2 flex items-center gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-2.5 py-1.5">
+                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Editing message — send to regenerate</span>
+                    <button onClick={onCancelEdit} className="ml-auto font-medium text-amber-700 hover:text-amber-900 transition-colors">
+                        Cancel
+                    </button>
                 </div>
             )}
 
-            {showSlash && (
-                <div className="mb-1 bg-white border border-slate-200 rounded max-h-[180px] overflow-y-auto">
-                    {slashCommands
-                        .filter((s) => s.cmd.startsWith(value.split(' ')[0]) || value.startsWith('/'))
-                        .map((s) => (
-                            <button
-                                key={s.cmd}
-                                onClick={() => { onChange(s.cmd + ' '); onSlashChange(false); (ref as React.RefObject<HTMLTextAreaElement>).current?.focus(); }}
-                                className="w-full text-left px-3 py-2 text-[12px] hover:bg-slate-50 flex items-center gap-2"
-                            >
-                                <Command className="w-3 h-3 text-slate-400" />
-                                <span className="font-mono text-slate-700">{s.cmd}</span>
-                                <span className="text-slate-400 ml-auto">{s.hint}</span>
-                            </button>
-                        ))}
+            {listening && (
+                <div className="mb-2 flex items-center justify-between text-[12px] text-rose-700 bg-rose-50 border border-rose-100 rounded px-2.5 py-1.5">
+                    <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+                        Listening… speak now
+                    </span>
+                    <button onClick={onMicToggle} className="font-medium hover:underline">
+                        Stop
+                    </button>
                 </div>
             )}
 
-            {attachments.length > 0 && (
-                <div className="mb-1 flex flex-wrap gap-1.5">
-                    {attachments.map((a) => (
-                        <span key={a.id} className="inline-flex items-center gap-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded px-2 py-1">
-                            {a.type.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                            <span className="max-w-[120px] truncate">{a.name}</span>
-                            <span className="text-slate-400">{formatBytes(a.size)}</span>
-                            <button onClick={() => onRemoveAttachment(a.id)} className="text-slate-400 hover:text-rose-600 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                        </span>
-                    ))}
-                </div>
-            )}
-
-            <div className="relative">
+            <div className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded px-3 py-2 focus-within:bg-white focus-within:border-blue-200 focus-within:ring-1 focus-within:ring-blue-200 transition-colors">
                 <textarea
                     ref={ref}
-                    rows={2}
+                    rows={1}
                     value={value}
-                    onChange={(e) => {
-                        onChange(e.target.value);
-                        onSlashChange(e.target.value.startsWith('/'));
-                    }}
+                    onChange={(e) => onChange(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
                             if (canSend) onSend();
                         }
                     }}
-                    placeholder={`Ask about ${context.label}… (⌘J to toggle)`}
-                    className="w-full bg-slate-50 border border-slate-200 rounded pl-3 pr-24 py-3 text-[13px] text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-1 focus:ring-blue-200 focus:bg-white focus:border-blue-200 min-h-[72px] max-h-40"
+                    placeholder={`Ask about ${context.label}…`}
+                    className="flex-1 bg-transparent border-0 p-0 py-1.5 text-[13px] text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none min-h-[32px] max-h-32 leading-5"
                 />
-                <div className="absolute bottom-2 right-2 flex items-center gap-0.5">
-                    <button onClick={onAttach} aria-label="Attach file" className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
-                        <Paperclip className="w-4 h-4" />
-                    </button>
-                    <button onClick={onMicToggle} aria-label={listening ? 'Stop dictation' : 'Voice input'} className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${listening ? 'text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}>
+
+                <div className="flex items-center gap-1 shrink-0 pb-0.5">
+                    {value.length > 0 && !streaming && (
+                        <button
+                            type="button"
+                            onClick={handleClear}
+                            aria-label="Clear input"
+                            title="Clear input"
+                            className="h-8 w-8 rounded flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={onMicToggle}
+                        aria-label={listening ? 'Stop voice input' : 'Voice input'}
+                        title={listening ? 'Stop voice input' : 'Voice input'}
+                        className={`h-8 w-8 rounded flex items-center justify-center transition-colors ${listening ? 'bg-rose-50 text-rose-600 ring-1 ring-rose-200 animate-pulse' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/70'}`}
+                    >
                         {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                     </button>
-                    <button onClick={onSpeakToggle} aria-label={speaking ? 'Stop speaking' : 'Read last reply'} className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${speaking ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
-                        {speaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                    </button>
+
                     {streaming ? (
-                        <button onClick={onStop} aria-label="Stop" className="p-1.5 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors">
-                            <Square className="w-4 h-4" />
+                        <button
+                            type="button"
+                            onClick={onStop}
+                            aria-label="Stop"
+                            title="Stop"
+                            className="h-8 w-8 rounded flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white transition-colors"
+                        >
+                            <Square className="w-3.5 h-3.5" />
                         </button>
                     ) : (
-                        <button onClick={onSend} disabled={!canSend} aria-label="Send" className="p-1.5 rounded disabled:opacity-40 text-blue-700 hover:bg-blue-50 transition-colors">
-                            <Send className="w-4 h-4" />
+                        <button
+                            type="button"
+                            onClick={onSend}
+                            disabled={!canSend}
+                            aria-label="Send"
+                            title="Send"
+                            className="h-8 w-8 rounded flex items-center justify-center bg-blue-950 hover:bg-blue-900 disabled:bg-slate-200 disabled:text-slate-400 text-white transition-colors"
+                        >
+                            <Send className="w-3.5 h-3.5" />
                         </button>
                     )}
                 </div>
             </div>
-            
         </div>
     );
 });
